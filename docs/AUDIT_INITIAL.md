@@ -303,7 +303,11 @@ Concrètement (OD-001, avec recommandation par défaut) :
 ### 8.4 Preuves et retour arrière
 
 - **Preuves** : sortie `pytest` verte, `python --version`, `git status` propre après commit.
-- **Retour arrière** : le lot n’ajoute que des fichiers d’infrastructure sans données ni migrations métier ; réversible par suppression des fichiers ajoutés et de `.venv` (aucun métier touché). Un commit (ou l’absence de commit, selon consigne) limite le retour arrière à un `git clean` sur les chemins ajoutés.
+- **Retour arrière (documenté par le propriétaire, 2026-08-03)** : le résultat de la Phase 0 est le commit `1e92a4b`. Commandes de référence :
+  - `git reset --hard 1e92a4b` **ramène au résultat de la Phase 0** (n’annule pas la Phase 0) — utile pour rétablir cet état depuis une situation ultérieure.
+  - `git reset --hard HEAD^` supprime localement le dernier commit (celui de la Phase 0) en revenant au commit parent (remarque : `1e92a4b` étant aujourd’hui le commit initial isolé sans parent, son retrait local pur nécessiterait de supprimer la référence de branche, ex. `git update-ref -d HEAD` ; la commande `HEAD^` s’applique dès qu’un commit parent existe).
+  - `git revert 1e92a4b` annule la Phase 0 **en conservant l’historique** (crée un commit inverse).
+  - Le lot n’ajoute que des fichiers d’infrastructure sans données ni migrations métier ; une sortie alternative est la suppression des fichiers ajoutés et de `.venv` (aucun métier touché).
 
 ---
 
