@@ -45,6 +45,22 @@ python -m venv .venv                # créer l'environnement virtuel
 
 Affiche la version et la configuration. Aucun service n'est encore démarré.
 
+### Commandes
+
+```bash
+.venv/Scripts/python -m vivarium init [--name NOM] [--force]
+.venv/Scripts/python -m vivarium status
+```
+
+- `init` initialise un monde de développement.
+- `status` inspecte l'état général (intégrité, version de schéma, horloge, compteurs).
+
+> ⚠️ **`init --force` est une commande destructive, réservée au développement.**
+> Elle reconstruit entièrement la base locale de développement. Elle devra être
+> **refusée par défaut** pour tout monde marqué comme réel, persistant ou
+> non-développement. Aucune interface Discord ni commande du propriétaire n'est
+> autorisée à l'exécuter implicitement.
+
 ### Structure
 
 - `src/vivarium/` — paquet Python (package, configuration, journaux).
