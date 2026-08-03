@@ -1,13 +1,22 @@
-"""Moteur canonique : seule autorité d'écriture du monde (Phase 1).
+"""Moteur canonique : seule autorité d'écriture du monde.
 
 Toute modification de l'état canonique est réalisée par le moteur et produit
 sa trace canonique (événement `canonical_event`) **dans la même transaction**.
 Aucune sortie textuelle, aucun journal applicatif et aucune future réponse de
 modèle ne peuvent écrire directement un fait canonique.
 
-Le journal `canonical_event` est une trace append-only et d'audit, mais il ne
-constitue pas à lui seul tout l'état du monde : l'état vit dans les tables
-d'état, le journal le retrace.
+## Horloge canonique (Lot 2.1)
+
+L'heure simulée est **dérivée**, non écrite à chaque consultation :
+
+- `canonical_clock.simulated_now` = heure simulée au dernier ancrage ;
+- `canonical_clock.real_updated_at` = heure réelle correspondant à cet ancrage ;
+- monde actif : heure simulée courante = `simulated_now` + temps réel écoulé
+  depuis `real_updated_at` ;
+- monde en pause : heure simulée = `simulated_now` (gelée).
+
+Une simple lecture ne produit aucune écriture, aucun événement, ne modifie
+aucune transaction et ne fait grossir aucun journal.
 """
 
 from __future__ import annotations
@@ -18,7 +27,7 @@ from typing import Any
 
 from .db import transaction
 from .seed import SEED_LOCATIONS, SEED_OBJECTS
-from .util import new_uuid, now_utc
+from .util import Clock, ClockError, new_uuid, now_utc, parse_iso, to_iso
 
 WORLD_DEFAULT_NAME = "Monde de développement (Phase 1)"
 
@@ -26,6 +35,10 @@ WORLD_DEFAULT_NAME = "Monde de développement (Phase 1)"
 SOURCE_SYSTEM = "system"
 SOURCE_ENGINE = "engine"
 SOURCE_OWNER = "owner"
+
+# Statuts de monde (contraints par les déclencheurs de la migration 0002).
+STATUS_ACTIVE = "active"
+STATUS_PAUSED = "paused"
 
 
 def _append_event(
@@ -36,13 +49,16 @@ def _append_event(
     payload: dict[str, Any],
     *,
     occurred_at: str | None = None,
+    recorded_at: str | None = None,
 ) -> int:
     """Insère un événement canonique dans la transaction en cours."""
     seq = conn.execute(
         "SELECT COALESCE(MAX(seq), 0) + 1 FROM canonical_event WHERE world_id = ?",
         (world_id,),
     ).fetchone()[0]
-    recorded = now_utc()
+    # Par défaut, l'heure d'enregistrement est l'heure réelle courante ; le
+    # moteur peut la fournir explicitement (horloge injectée) pour les tests.
+    recorded = recorded_at or now_utc()
     occurred = occurred_at or recorded
     payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     cur = conn.execute(
@@ -66,8 +82,12 @@ def _append_event(
 class WorldEngine:
     """Moteur canonique. Unique chemin de modification des données du monde."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, clock: Clock | None = None) -> None:
         self._conn = conn
+        self._clock = clock or Clock()
+
+    def _now_iso(self) -> str:
+        return self._clock.now_iso()
 
     # --- Création / destruction -------------------------------------------------
 
@@ -75,11 +95,11 @@ class WorldEngine:
         """Crée un monde de développement avec sa résidence et son horloge."""
         name = name or WORLD_DEFAULT_NAME
         with transaction(self._conn) as c:
-            now = now_utc()
+            now = self._now_iso()
             cur = c.execute(
                 "INSERT INTO worlds (public_id, name, status, created_at, updated_at) "
                 "VALUES (?, ?, ?, ?, ?)",
-                (new_uuid(), name, "active", now, now),
+                (new_uuid(), name, STATUS_ACTIVE, now, now),
             )
             world_id = cur.lastrowid
             c.execute(
@@ -95,6 +115,7 @@ class WorldEngine:
                 "world_created",
                 {"name": name, "seeded": seed},
                 occurred_at=now,
+                recorded_at=now,
             )
             if seed:
                 self._seed_world(c, world_id, now)
@@ -122,11 +143,9 @@ class WorldEngine:
             world_id,
             SOURCE_SYSTEM,
             "world_seeded",
-            {
-                "locations": len(SEED_LOCATIONS),
-                "objects": len(SEED_OBJECTS),
-            },
+            {"locations": len(SEED_LOCATIONS), "objects": len(SEED_OBJECTS)},
             occurred_at=now,
+            recorded_at=now,
         )
 
     def destroy_world(self, world_id: int) -> None:
@@ -142,6 +161,112 @@ class WorldEngine:
             c.execute("DELETE FROM canonical_clock WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM worlds WHERE id = ?", (world_id,))
 
+    # --- Horloge canonique dérivée ----------------------------------------------
+
+    def read_canonical_time(self, world_id: int) -> str:
+        """Heure simulée courante, calculée (lecture pure, sans écriture).
+
+        Monde actif : `simulated_now` + écoulé réel depuis `real_updated_at`.
+        Monde en pause : `simulated_now` (gelée).
+        Lève `ClockError` si l'horloge réelle serait antérieure à l'ancre.
+        """
+        row = self._conn.execute(
+            "SELECT w.status AS status, c.simulated_now AS sim, c.real_updated_at AS real "
+            "FROM worlds w JOIN canonical_clock c ON c.world_id = w.id "
+            "WHERE w.id = ?",
+            (world_id,),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"monde introuvable : {world_id}")
+        if row["status"] == STATUS_PAUSED:
+            return row["sim"]
+        anchor_sim = parse_iso(row["sim"])
+        anchor_real = parse_iso(row["real"])
+        elapsed = self._clock.now() - anchor_real
+        if elapsed.total_seconds() < 0:
+            raise ClockError(
+                "horloge réelle antérieure à l'ancre : heure simulée incohérente"
+            )
+        return to_iso(anchor_sim + elapsed)
+
+    def pause_world(self, world_id: int) -> dict[str, Any]:
+        """Gèle le temps : matérialise l'heure courante puis fige.
+
+        Calcule l'heure simulée courante, la fixe comme nouveau `simulated_now`,
+        repose `real_updated_at` et passe le monde en `paused`. État + événement
+        canonique dans la même transaction.
+        """
+        frozen = self.read_canonical_time(world_id)
+        with transaction(self._conn) as c:
+            now = self._now_iso()
+            c.execute(
+                "UPDATE canonical_clock SET simulated_now = ?, real_updated_at = ? "
+                "WHERE world_id = ?",
+                (frozen, now, world_id),
+            )
+            c.execute(
+                "UPDATE worlds SET status = ?, updated_at = ? WHERE id = ?",
+                (STATUS_PAUSED, now, world_id),
+            )
+            _append_event(
+                c, world_id, SOURCE_SYSTEM, "world_paused",
+                {"simulated_now": frozen}, occurred_at=frozen, recorded_at=now,
+            )
+        return self.get_world(world_id)
+
+    def resume_world(self, world_id: int) -> dict[str, Any]:
+        """Reprend le temps actif sans rattraper la durée de la pause.
+
+        Conserve exactement l'heure simulée gelée, repose `real_updated_at` à
+        l'heure réelle de reprise et remet le statut à `active`.
+        """
+        with transaction(self._conn) as c:
+            now = self._now_iso()
+            frozen = c.execute(
+                "SELECT simulated_now FROM canonical_clock WHERE world_id = ?",
+                (world_id,),
+            ).fetchone()
+            if frozen is None:
+                raise KeyError(f"monde introuvable : {world_id}")
+            frozen = frozen["simulated_now"]
+            c.execute(
+                "UPDATE canonical_clock SET real_updated_at = ? WHERE world_id = ?",
+                (now, world_id),
+            )
+            c.execute(
+                "UPDATE worlds SET status = ?, updated_at = ? WHERE id = ?",
+                (STATUS_ACTIVE, now, world_id),
+            )
+            _append_event(
+                c, world_id, SOURCE_SYSTEM, "world_resumed",
+                {"simulated_now": frozen}, occurred_at=frozen, recorded_at=now,
+            )
+        return self.get_world(world_id)
+
+    def set_simulated_time(self, world_id: int, new_sim: str) -> dict[str, Any]:
+        """Modification administrative explicite de l'heure simulée (tracée).
+
+        Rejette toute heure antérieure à l'heure simulée courante (incohérente)
+        et enregistre un événement `clock_updated` dans la même transaction.
+        """
+        current = self.read_canonical_time(world_id)
+        if parse_iso(new_sim) < parse_iso(current):
+            raise ClockError(
+                f"heure simulée {new_sim} antérieure à l'heure courante {current} : incohérente"
+            )
+        with transaction(self._conn) as c:
+            now = self._now_iso()
+            c.execute(
+                "UPDATE canonical_clock SET simulated_now = ?, real_updated_at = ? "
+                "WHERE world_id = ?",
+                (new_sim, now, world_id),
+            )
+            _append_event(
+                c, world_id, SOURCE_OWNER, "clock_updated",
+                {"simulated_now": new_sim}, occurred_at=new_sim, recorded_at=now,
+            )
+        return self.get_world(world_id)
+
     # --- Écritures d'état + trace canonique (même transaction) -----------------
 
     def append_event(
@@ -154,13 +279,17 @@ class WorldEngine:
         occurred_at: str | None = None,
     ) -> int:
         """Ajoute un événement canonique seul (trace d'audit dédiée)."""
+        recorded = self._now_iso()
         with transaction(self._conn) as c:
-            return _append_event(c, world_id, source_kind, event_type, payload, occurred_at=occurred_at)
+            return _append_event(
+                c, world_id, source_kind, event_type, payload,
+                occurred_at=occurred_at, recorded_at=recorded,
+            )
 
     def rename_world(self, world_id: int, new_name: str) -> dict[str, Any]:
         """Renomme un monde et trace l'événement dans la même transaction."""
         with transaction(self._conn) as c:
-            now = now_utc()
+            now = self._now_iso()
             old = c.execute(
                 "SELECT name FROM worlds WHERE id = ?", (world_id,)
             ).fetchone()
@@ -171,20 +300,9 @@ class WorldEngine:
                 (new_name, now, world_id),
             )
             _append_event(c, world_id, SOURCE_OWNER, "world_renamed",
-                          {"from": old["name"], "to": new_name}, occurred_at=now)
+                          {"from": old["name"], "to": new_name}, occurred_at=now,
+                          recorded_at=now)
         return self.get_world(world_id)
-
-    def set_canonical_time(self, world_id: int, simulated_now: str) -> None:
-        """Met à jour l'horloge canonique persistante (moteur uniquement)."""
-        with transaction(self._conn) as c:
-            now = now_utc()
-            c.execute(
-                "UPDATE canonical_clock SET simulated_now = ?, real_updated_at = ? "
-                "WHERE world_id = ?",
-                (simulated_now, now, world_id),
-            )
-            _append_event(c, world_id, SOURCE_SYSTEM, "clock_updated",
-                          {"simulated_now": simulated_now}, occurred_at=simulated_now)
 
     # --- Lectures ---------------------------------------------------------------
 
@@ -203,8 +321,7 @@ class WorldEngine:
 def get_status(conn: sqlite3.Connection, world_id: int | None = None) -> dict[str, Any]:
     """État général d'un monde pour inspection (intégrité, version, horloge, compteurs).
 
-    Inclut : `PRAGMA integrity_check`, `PRAGMA foreign_key_check`, version des
-    migrations, état de l'horloge, nombres de lieux/objets/événements.
+    L'horloge affichée est l'heure simulée **courante dérivée** (pas l'ancre).
     """
     engine = WorldEngine(conn)
     worlds = engine.list_worlds()
@@ -217,9 +334,6 @@ def get_status(conn: sqlite3.Connection, world_id: int | None = None) -> dict[st
 
     integrity = [r[0] for r in conn.execute("SELECT * FROM pragma_integrity_check")]
     fk_violations = conn.execute("SELECT * FROM pragma_foreign_key_check").fetchall()
-    clock = conn.execute(
-        "SELECT simulated_now FROM canonical_clock WHERE world_id = ?", (world["id"],)
-    ).fetchone()
     counts = {
         "locations": conn.execute(
             "SELECT COUNT(*) FROM location WHERE world_id = ?", (world["id"],)
@@ -237,7 +351,7 @@ def get_status(conn: sqlite3.Connection, world_id: int | None = None) -> dict[st
         "present": True,
         "world": world,
         "schema_version": current_version(conn),
-        "clock": dict(clock) if clock else None,
+        "clock": {"simulated_now": engine.read_canonical_time(world["id"])},
         "integrity_check": integrity,
         "foreign_key_check": [dict(r) for r in fk_violations],
         "counts": counts,

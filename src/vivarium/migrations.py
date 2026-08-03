@@ -51,7 +51,7 @@ def split_sql_statements(sql: str) -> list[str]:
     """
     statements: list[str] = []
     buf: list[str] = []
-    depth = 0
+    blocks: list[str] = []  # 'begin' (corps de trigger) ou 'case' (expression)
     quote: str | None = None
     i = 0
     n = len(sql)
@@ -81,13 +81,16 @@ def split_sql_statements(sql: str) -> list[str]:
             word = re.match(r"[A-Za-z_]+", sql[i:]).group(0)
             w = word.upper()
             if w == "BEGIN":
-                depth += 1
+                blocks.append("begin")
+            elif w == "CASE":
+                blocks.append("case")
             elif w == "END":
-                depth = max(0, depth - 1)
+                if blocks:
+                    blocks.pop()
             buf.append(word)
             i += len(word)
             continue
-        if ch == ";" and depth == 0:
+        if ch == ";" and "begin" not in blocks:
             stmt = "".join(buf).strip()
             if stmt:
                 statements.append(stmt)

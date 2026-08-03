@@ -61,6 +61,18 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 > non-développement. Aucune interface Discord ni commande du propriétaire n'est
 > autorisée à l'exécuter implicitement.
 
+### Horloge canonique temps réel (Lot 2.1)
+
+- L'heure simulée suit le temps réel (rapport 1:1) et est **dérivée** :
+  `simulated_now` (ancre) + temps réel écoulé depuis `real_updated_at`.
+- Une **lecture** de l'heure ne produit aucune écriture, aucun événement et
+  n'ouvre aucune transaction.
+- `pause_world` gèle le temps ; `resume_world` reprend sans ajouter la durée
+  passée en pause.
+- Statuts de monde : `active` / `paused` (contraints par la migration 0002).
+- Pas d'accélération permanente et aucun appel par minute (rattrapage différé à
+  la phase dédiée).
+
 ### Structure
 
 - `src/vivarium/` — paquet Python (package, configuration, journaux).
