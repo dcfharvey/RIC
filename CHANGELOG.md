@@ -11,6 +11,17 @@
 
 - **Phase 2 — Lot 2.1** : horloge canonique en temps réel 1:1 (dérivée, lecture sans écriture), pause/reprise avec gel exact et reprise sans rattrapage de la pause, horloge injectable déterministe (`Clock`), migration 0002 (contrainte du statut `active`/`paused` par déclencheurs). 44 tests passants.
 
+## 0.4 — 3 août 2026
+
+- **Phase 2 — Lot 2.2** : connectivité spatiale. 9ᵉ lieu `couloir` (circulation),
+  graphe orienté `location_link` (migration 0003), BFS dirigé (`find_path`),
+  `can_traverse`/`has_physical_connection`/`adjacent_from`, intégrité du graphe,
+  modifications administratives atomiques et tracées (un événement par opération
+  physique). `init --force` utilisé exceptionnellement pour reconstruire le monde
+  de développement ; pratique documentée comme exceptionnelle. 61 tests passants.
+- Note d'évolution future EVO-001 : détection d'un saut anormal de l'horloge
+  système vers l'avant avant un grand rattrapage (non implémenté).
+
 ## 0.1 — 3 août 2026
 
 - Création du dossier maître destiné à une IA programmeuse.

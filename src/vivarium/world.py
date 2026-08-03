@@ -26,7 +26,7 @@ import sqlite3
 from typing import Any
 
 from .db import transaction
-from .seed import SEED_LOCATIONS, SEED_OBJECTS
+from .seed import SEED_LINKS, SEED_LOCATIONS, SEED_OBJECTS
 from .util import Clock, ClockError, new_uuid, now_utc, parse_iso, to_iso
 
 WORLD_DEFAULT_NAME = "Monde de développement (Phase 1)"
@@ -138,15 +138,33 @@ class WorldEngine:
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (new_uuid(), world_id, location_ids[loc_key], key, name, kind, "present", now),
             )
+        # Passages physiques du graphe (chaque paire → deux arêtes réciproques).
+        for a_key, b_key in SEED_LINKS:
+            self._seed_link(c, world_id, location_ids[a_key], location_ids[b_key], now)
         _append_event(
             c,
             world_id,
             SOURCE_SYSTEM,
             "world_seeded",
-            {"locations": len(SEED_LOCATIONS), "objects": len(SEED_OBJECTS)},
+            {
+                "locations": len(SEED_LOCATIONS),
+                "objects": len(SEED_OBJECTS),
+                "links_pairs": len(SEED_LINKS),
+            },
             occurred_at=now,
             recorded_at=now,
         )
+
+    def _seed_link(self, c: sqlite3.Connection, world_id: int, from_id: int, to_id: int, now: str) -> None:
+        """Insère un passage bidirectionnel (deux arêtes réciproques) dans la
+        transaction de seed en cours."""
+        for a, b in ((from_id, to_id), (to_id, from_id)):
+            c.execute(
+                "INSERT INTO location_link "
+                "(public_id, world_id, from_location_id, to_location_id, kind, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (new_uuid(), world_id, a, b, "door", now),
+            )
 
     def destroy_world(self, world_id: int) -> None:
         """Supprime un monde et ses données (développement uniquement).

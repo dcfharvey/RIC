@@ -16,7 +16,7 @@ def test_cli_init_et_status(tmp_path, capsys):
     assert rc2 == 0
     out2 = capsys.readouterr().out
     assert "Version de schéma" in out2
-    assert "lieux=8" in out2
+    assert "lieux=9" in out2
     assert "objets=3" in out2
     assert "Integrity check : ok" in out2
     assert "aucune violation" in out2

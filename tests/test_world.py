@@ -28,7 +28,7 @@ def test_init_cree_world_clock_lieux_objets_et_evenements(setup):
     locs = conn.execute(
         "SELECT key, name FROM location WHERE world_id = ? ORDER BY key", (world["id"],)
     ).fetchall()
-    assert len(locs) == 8
+    assert len(locs) == 9
     expected = {k: n for k, n, _kind, _cap in SEED_LOCATIONS}
     assert {r["key"]: r["name"] for r in locs} == expected
 
@@ -100,7 +100,7 @@ def test_identifiants_publics_uuid_distincts(setup):
         "SELECT public_id FROM location WHERE world_id = ?", (world["id"],)
     ).fetchall()
     values = [r["public_id"] for r in ids]
-    assert len(values) == len(set(values)) == 8
+    assert len(values) == len(set(values)) == 9
     assert all(len(v) == 36 for v in values)
 
 
@@ -198,7 +198,7 @@ def test_integrite_et_cles_etrangeres_ok(setup):
     assert status["foreign_key_check"] == []
     assert status["schema_version"] >= 1
     assert status["clock"] is not None
-    assert status["counts"]["locations"] == 8
+    assert status["counts"]["locations"] == 9
     assert status["counts"]["objects"] == 3
     assert status["counts"]["events"] >= 2
 

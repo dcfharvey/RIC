@@ -43,7 +43,7 @@ def _run_init(conn, args) -> int:
     world = engine.init_world(name=args.name)
     print(f"Monde initialisé : id={world['id']} name={world['name']!r}")
     print(f"  statut       : {world['status']}")
-    print("  lieux        : 8 (salon, cuisine, salle de bain, cour, 4 chambres)")
+    print("  lieux        : 9 (salon, cuisine, salle de bain, cour, couloir, 4 chambres)")
     print("  objets       : table, chaise, lit (seed de test, non définitif)")
     return 0
 

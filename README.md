@@ -60,6 +60,12 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 > **refusée par défaut** pour tout monde marqué comme réel, persistant ou
 > non-développement. Aucune interface Discord ni commande du propriétaire n'est
 > autorisée à l'exécuter implicitement.
+>
+> *Pratique exceptionnelle :* `init --force` a été utilisé pour le Lot 2.2 afin
+> de reconstruire le monde de développement avec le 9ᵉ lieu et le graphe. Elle est
+> **exceptionnelle** : toute future modification structurelle de données devra
+> normalement passer par une migration ou une procédure de mise à niveau sans
+> destruction du monde.
 
 ### Horloge canonique temps réel (Lot 2.1)
 
@@ -72,6 +78,18 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 - Statuts de monde : `active` / `paused` (contraints par la migration 0002).
 - Pas d'accélération permanente et aucun appel par minute (rattrapage différé à
   la phase dédiée).
+
+### Connectivité spatiale (Lot 2.2)
+
+- 9 lieux : salon, cuisine, salle de bain, cour, **couloir** (circulation) et
+  4 chambres.
+- Graphe **orienté** : une ligne `location_link` = passage `from → to` ; un
+  passage bidirectionnel = deux arêtes réciproques (migration 0003).
+- API : `can_traverse(A,B)` (arête dirigée), `has_physical_connection(A,B)`
+  (au moins un sens), `adjacent_from(A)`, `find_path(A,B)` (BFS dirigé).
+- Une simple recherche de trajet/adjacence ne produit aucune écriture ni
+  événement ; une modification administrative du graphe est tracée (un
+  événement par opération physique) et atomique.
 
 ### Structure
 

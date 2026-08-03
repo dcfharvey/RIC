@@ -21,3 +21,9 @@
 | ID | Décision fermée | Décision retenue | Date |
 | --- | --- | --- | --- |
 | OD-001 | Langage, version exacte et bibliothèques | **Python 3.12** comme version de référence initiale (`requires-python >= 3.12` pour rester compatible avec les versions ultérieures). Bibliothèque standard privilégiée ; dépendance de développement : `pytest`. | 2026-08-03 |
+
+## Évolutions futures (consignées, non implémentées)
+
+| ID | Évolution future | Contexte |
+| --- | --- | --- |
+| EVO-001 | Détection d'une variation anormale de l'horloge système **vers l'avant** avant un grand rattrapage temporel. | L'horloge dérivée (Lot 2.1) suit le temps réel 1:1 ; un saut système vers l'avant produirait un énorme écart simulé. À détecter/borner avant le rattrapage, en lien avec la future phase de rattrapage. Non implémenté. |
