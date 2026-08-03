@@ -49,3 +49,8 @@ class Settings:
     def resolved_log_level(self) -> int:
         """Niveau de journalisation résolu vers un entier logging."""
         return getattr(logging, self.log_level.upper(), logging.INFO)
+
+    @property
+    def db_path(self) -> Path:
+        """Chemin de la base de développement, sous le répertoire de données."""
+        return self.data_dir / "world.dev.sqlite"
