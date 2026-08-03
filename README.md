@@ -50,10 +50,14 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 ```bash
 .venv/Scripts/python -m vivarium init [--name NOM] [--force]
 .venv/Scripts/python -m vivarium status
+.venv/Scripts/python -m vivarium upgrade-dev
 ```
 
 - `init` initialise un monde de développement.
 - `status` inspecte l'état général (intégrité, version de schéma, horloge, compteurs).
+- `upgrade-dev` ajoute, de façon **non destructive et idempotente**, les 4 identités
+  provisoires `character_1..4` au monde local (aucun personnage existant modifié ;
+  n'insère que les manquants). `init --force` reste un dernier recours manuel.
 
 > ⚠️ **`init --force` est une commande destructive, réservée au développement.**
 > Elle reconstruit entièrement la base locale de développement. Elle devra être
@@ -90,6 +94,19 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 - Une simple recherche de trajet/adjacence ne produit aucune écriture ni
   événement ; une modification administrative du graphe est tracée (un
   événement par opération physique) et atomique.
+
+### Personnages et présence canonique (Lot 3.1)
+
+- Table `character` (migration 0004) : `key` (identité technique **immuable**), `name`
+  (modifiable), `adult` (= 1), `current_location_id` (position canonique, FK composite
+  `(world_id, location_id)` garantissant le même monde).
+- 4 habitantes provisoires `character_1..4` (Personnages 1..4) en `chambre_1..4` ;
+  clé neutre **définitive** (le remplacement des fiches ne change que `name`).
+- `CharacterEngine` : `create_character`, `character_sheet` (lecture pure),
+  `move_character` (**une arête dirigée** via `GraphEngine`, refus en pause, refus vers
+  le lieu actuel, état + événement `character_moved` dans la même transaction).
+- Toutes les écritures passent par le moteur canonique (même infrastructure
+  transactionnelle/événementielle) ; `CharacterEngine` n'est pas une seconde autorité.
 
 ### Structure
 

@@ -18,6 +18,7 @@ def test_cli_init_et_status(tmp_path, capsys):
     assert "Version de schéma" in out2
     assert "lieux=9" in out2
     assert "objets=3" in out2
+    assert "personnages=4" in out2
     assert "Integrity check : ok" in out2
     assert "aucune violation" in out2
 
@@ -41,3 +42,13 @@ def test_cli_init_force_reinitialise(tmp_path, capsys):
 def test_cli_sans_commande_affiche_version(capsys):
     assert main([]) == 0
     assert "vivarium-social" in capsys.readouterr().out
+
+
+def test_cli_upgrade_dev_idempotent(tmp_path, capsys):
+    db = tmp_path / "upg.sqlite"
+    assert main(["init", "--db", str(db)]) == 0
+    # init a déjà seedé les 4 habitantes : upgrade-dev ne doit rien ré-écrire
+    rc = main(["upgrade-dev", "--db", str(db)])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "existent déjà" in out

@@ -47,7 +47,7 @@ def test_init_cree_world_clock_lieux_objets_et_evenements(setup):
         (world["id"],),
     ).fetchall()
     types = [r["event_type"] for r in events]
-    assert types == ["world_created", "world_seeded"]
+    assert types == ["world_created"] + ["character_created"] * 4 + ["world_seeded"]
 
 
 def test_reouverture_retrouve_le_monde(tmp_path):
@@ -200,6 +200,7 @@ def test_integrite_et_cles_etrangeres_ok(setup):
     assert status["clock"] is not None
     assert status["counts"]["locations"] == 9
     assert status["counts"]["objects"] == 3
+    assert status["counts"]["characters"] == 4
     assert status["counts"]["events"] >= 2
 
 

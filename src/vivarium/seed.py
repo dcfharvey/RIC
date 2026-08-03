@@ -42,3 +42,14 @@ SEED_LINKS: list[tuple[str, str]] = [
     ("couloir", "chambre_3"),
     ("couloir", "chambre_4"),
 ]
+
+# Quatre habitantes **provisoires** de développement (Lot 3.1).
+# (clé interne immuable, nom visible provisoire, lieu de départ)
+# Aucune personnalité ni biographie inventée. `key` reste l'identifiant
+# technique définitif ; seuls `name` et de futurs profils seront modifiés.
+SEED_CHARACTERS: list[tuple[str, str, str]] = [
+    ("character_1", "Personnage 1", "chambre_1"),
+    ("character_2", "Personnage 2", "chambre_2"),
+    ("character_3", "Personnage 3", "chambre_3"),
+    ("character_4", "Personnage 4", "chambre_4"),
+]

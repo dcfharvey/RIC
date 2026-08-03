@@ -15,6 +15,7 @@ from .db import connect_database
 from .migrations import ensure_schema
 from .settings import Settings
 from .world import WORLD_DEFAULT_NAME, WorldEngine, get_status
+from .character import upgrade_development_world
 
 
 def _resolve_db_path(args_db: str | None) -> Path:
@@ -45,6 +46,7 @@ def _run_init(conn, args) -> int:
     print(f"  statut       : {world['status']}")
     print("  lieux        : 9 (salon, cuisine, salle de bain, cour, couloir, 4 chambres)")
     print("  objets       : table, chaise, lit (seed de test, non définitif)")
+    print("  personnages  : character_1..4 (provisoires, chambres 1..4)")
     return 0
 
 
@@ -53,6 +55,31 @@ def _delete_dev_db(db_path: Path) -> None:
         p = Path(str(db_path) + suffix)
         if p.exists():
             p.unlink()
+
+
+def _run_upgrade_dev(conn) -> int:
+    """Ajoute les quatre identités provisoires au monde local (non destructif).
+
+    Ne déduit le caractère développement d'aucun nom : la commande cible
+    explicitement le monde local configuré et n'insère que les personnages
+    manquants. Idempotente : une seconde exécution n'écrit ni événement si les
+    quatre existent déjà.
+    """
+    engine = WorldEngine(conn)
+    worlds = engine.list_worlds()
+    if not worlds:
+        print("Aucun monde initialisé : rien à faire.", file=__import__("sys").stderr)
+        return 1
+    world = worlds[0]
+    print(f"Monde cible : id={world['id']} ({world['name']!r})")
+    print("Ajout des 4 identités provisoires de développement (character_1..4)")
+    print("  - personnages manquants uniquement ; aucun existant modifié/remplacé")
+    added = upgrade_development_world(conn, world["id"])
+    if added:
+        print(f"Ajoutés : {', '.join(added)}")
+    else:
+        print("Aucun ajout : les quatre identités existent déjà (idempotent).")
+    return 0
 
 
 def _run_status(conn) -> int:
@@ -73,9 +100,10 @@ def _run_status(conn) -> int:
     fk = status["foreign_key_check"]
     print(f"Foreign key check : {'aucune violation' if not fk else f'{len(fk)} violation(s)'}")
     counts = status["counts"]
+    c = counts
     print(
-        f"Compteurs : lieux={counts['locations']} objets={counts['objects']} "
-        f"événements={counts['events']}"
+        f"Compteurs : lieux={c['locations']} objets={c['objects']} "
+        f"personnages={c['characters']} événements={c['events']}"
     )
     return 0
 
@@ -92,6 +120,13 @@ def main(argv: list[str] | None = None) -> int:
 
     p_status = sub.add_parser("status", help="Inspecte l'état général du monde.")
     p_status.add_argument("--db", default=None, help="Chemin de la base.")
+
+    p_upgrade = sub.add_parser(
+        "upgrade-dev",
+        help="Ajoute les 4 identités provisoires de développement au monde local "
+        "(mise à niveau non destructive, idempotente).",
+    )
+    p_upgrade.add_argument("--db", default=None, help="Chemin de la base.")
 
     args = parser.parse_args(argv)
 
@@ -111,6 +146,8 @@ def main(argv: list[str] | None = None) -> int:
             return _run_init(conn, args)
         if args.command == "status":
             return _run_status(conn)
+        if args.command == "upgrade-dev":
+            return _run_upgrade_dev(conn)
     finally:
         try:
             conn.close()

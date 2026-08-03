@@ -22,6 +22,15 @@
 - Note d'évolution future EVO-001 : détection d'un saut anormal de l'horloge
   système vers l'avant avant un grand rattrapage (non implémenté).
 
+## 0.5 — 3 août 2026
+
+- **Phase 3 — Lot 3.1** : identités et présence canonique. Table `character`
+  (migration 0004, sans `is_dev` ; `key` immuable par déclencheur ; `adult=1` ;
+  FK composite `(world_id, location_id)`), 4 habitantes provisoires `character_1..4`
+  en `chambre_1..4`, `CharacterEngine` (`create_character`, `character_sheet`,
+  `move_character` une arête dirigée, refus en pause/vers le lieu actuel, atomicité),
+  procédure non destructive et idempotente `upgrade-dev`. 77 tests passants.
+
 ## 0.1 — 3 août 2026
 
 - Création du dossier maître destiné à une IA programmeuse.

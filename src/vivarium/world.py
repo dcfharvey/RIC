@@ -26,7 +26,7 @@ import sqlite3
 from typing import Any
 
 from .db import transaction
-from .seed import SEED_LINKS, SEED_LOCATIONS, SEED_OBJECTS
+from .seed import SEED_CHARACTERS, SEED_LINKS, SEED_LOCATIONS, SEED_OBJECTS
 from .util import Clock, ClockError, new_uuid, now_utc, parse_iso, to_iso
 
 WORLD_DEFAULT_NAME = "Monde de développement (Phase 1)"
@@ -141,6 +141,23 @@ class WorldEngine:
         # Passages physiques du graphe (chaque paire → deux arêtes réciproques).
         for a_key, b_key in SEED_LINKS:
             self._seed_link(c, world_id, location_ids[a_key], location_ids[b_key], now)
+        # Quatre habitantes provisoires (positions initiales directes, chambres 1..4).
+        for key, name, loc_key in SEED_CHARACTERS:
+            c.execute(
+                "INSERT INTO character "
+                "(public_id, world_id, key, name, adult, current_location_id, "
+                " created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)",
+                (new_uuid(), world_id, key, name, location_ids[loc_key], now, now),
+            )
+            _append_event(
+                c,
+                world_id,
+                SOURCE_SYSTEM,
+                "character_created",
+                {"character": key, "name": name, "location": loc_key},
+                occurred_at=now,
+                recorded_at=now,
+            )
         _append_event(
             c,
             world_id,
@@ -150,6 +167,7 @@ class WorldEngine:
                 "locations": len(SEED_LOCATIONS),
                 "objects": len(SEED_OBJECTS),
                 "links_pairs": len(SEED_LINKS),
+                "characters": len(SEED_CHARACTERS),
             },
             occurred_at=now,
             recorded_at=now,
@@ -358,6 +376,9 @@ def get_status(conn: sqlite3.Connection, world_id: int | None = None) -> dict[st
         ).fetchone()[0],
         "objects": conn.execute(
             "SELECT COUNT(*) FROM world_object WHERE world_id = ?", (world["id"],)
+        ).fetchone()[0],
+        "characters": conn.execute(
+            "SELECT COUNT(*) FROM character WHERE world_id = ?", (world["id"],)
         ).fetchone()[0],
         "events": conn.execute(
             "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (world["id"],)
