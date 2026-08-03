@@ -26,7 +26,7 @@ import sqlite3
 from typing import Any
 
 from .db import transaction
-from .seed import SEED_CHARACTERS, SEED_LINKS, SEED_LOCATIONS, SEED_OBJECTS
+from .seed import SEED_CHARACTERS, SEED_LINKS, SEED_LOCATIONS, SEED_NEEDS, SEED_OBJECTS
 from .util import Clock, ClockError, new_uuid, now_utc, parse_iso, to_iso
 
 WORLD_DEFAULT_NAME = "Monde de développement (Phase 1)"
@@ -142,13 +142,15 @@ class WorldEngine:
         for a_key, b_key in SEED_LINKS:
             self._seed_link(c, world_id, location_ids[a_key], location_ids[b_key], now)
         # Quatre habitantes provisoires (positions initiales directes, chambres 1..4).
+        character_ids: dict[str, int] = {}
         for key, name, loc_key in SEED_CHARACTERS:
-            c.execute(
+            cur = c.execute(
                 "INSERT INTO character "
                 "(public_id, world_id, key, name, adult, current_location_id, "
                 " created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)",
                 (new_uuid(), world_id, key, name, location_ids[loc_key], now, now),
             )
+            character_ids[key] = cur.lastrowid
             _append_event(
                 c,
                 world_id,
@@ -158,6 +160,27 @@ class WorldEngine:
                 occurred_at=now,
                 recorded_at=now,
             )
+        # Besoins : définitions + états initiaux par personnage, ancrés à l'heure
+        # simulée canonique `now` (jamais l'heure système).
+        need_ids: dict[str, int] = {}
+        for key, name, initial, num, den, thr in SEED_NEEDS:
+            cur = c.execute(
+                "INSERT INTO need_definition "
+                "(public_id, world_id, need_key, name, min_milli, max_milli, "
+                " rate_num, rate_den, threshold_milli, created_at) "
+                "VALUES (?, ?, ?, ?, 0, 100000, ?, ?, ?, ?)",
+                (new_uuid(), world_id, key, name, num, den, thr, now),
+            )
+            need_ids[key] = cur.lastrowid
+        for char_key, char_id in character_ids.items():
+            for key, name, initial, num, den, thr in SEED_NEEDS:
+                c.execute(
+                    "INSERT INTO need_state "
+                    "(public_id, world_id, character_id, need_key, value_milli, "
+                    " rate_remainder, anchor_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+                    (new_uuid(), world_id, char_id, key, initial, now, now),
+                )
         _append_event(
             c,
             world_id,
@@ -168,6 +191,7 @@ class WorldEngine:
                 "objects": len(SEED_OBJECTS),
                 "links_pairs": len(SEED_LINKS),
                 "characters": len(SEED_CHARACTERS),
+                "needs": len(SEED_NEEDS),
             },
             occurred_at=now,
             recorded_at=now,
@@ -192,8 +216,12 @@ class WorldEngine:
         à la suppression d'un journal d'audit).
         """
         with transaction(self._conn) as c:
+            c.execute("DELETE FROM need_state WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM world_object WHERE world_id = ?", (world_id,))
+            c.execute("DELETE FROM location_link WHERE world_id = ?", (world_id,))
+            c.execute("DELETE FROM character WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM location WHERE world_id = ?", (world_id,))
+            c.execute("DELETE FROM need_definition WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM canonical_clock WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM worlds WHERE id = ?", (world_id,))
 
@@ -233,8 +261,23 @@ class WorldEngine:
         canonique dans la même transaction.
         """
         frozen = self.read_canonical_time(world_id)
+        from .needs import NeedsEngine  # évite un cycle d'import
+
+        needs = NeedsEngine(self._conn, clock=self._clock)
+        char_keys = [
+            r["key"]
+            for r in self._conn.execute(
+                "SELECT key FROM character WHERE world_id = ?", (world_id,)
+            )
+        ]
         with transaction(self._conn) as c:
             now = self._now_iso()
+            # Matérialiser les besoins à l'heure simulée figée, dans la même
+            # transaction que le gel de l'horloge et du statut (atomique).
+            for key in char_keys:
+                needs.materialize_character_needs(
+                    world_id, key, frozen, "pause", _conn=c
+                )
             c.execute(
                 "UPDATE canonical_clock SET simulated_now = ?, real_updated_at = ? "
                 "WHERE world_id = ?",

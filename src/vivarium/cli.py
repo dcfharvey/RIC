@@ -16,6 +16,7 @@ from .migrations import ensure_schema
 from .settings import Settings
 from .world import WORLD_DEFAULT_NAME, WorldEngine, get_status
 from .character import upgrade_development_world
+from .needs import upgrade_dev_needs
 
 
 def _resolve_db_path(args_db: str | None) -> Path:
@@ -76,9 +77,17 @@ def _run_upgrade_dev(conn) -> int:
     print("  - personnages manquants uniquement ; aucun existant modifié/remplacé")
     added = upgrade_development_world(conn, world["id"])
     if added:
-        print(f"Ajoutés : {', '.join(added)}")
+        print(f"Personnages ajoutés : {', '.join(added)}")
     else:
-        print("Aucun ajout : les quatre identités existent déjà (idempotent).")
+        print("Personnages : aucun ajout (les quatre identités existent déjà).")
+    needs = upgrade_dev_needs(conn, world["id"])
+    if needs["definitions_added"] or needs["states_added"]:
+        print(
+            f"Besoins ajoutés : {needs['definitions_added']} définitions, "
+            f"{needs['states_added']} états"
+        )
+    else:
+        print("Besoins : aucun ajout (mise à niveau idempotente).")
     return 0
 
 

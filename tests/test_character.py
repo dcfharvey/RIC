@@ -210,6 +210,7 @@ def test_upgrade_ajoute_seulement_les_manquants(tmp_path):
     world = WorldEngine(conn).init_world(name="ÀUpgrader")
     wid = world["id"]
     # simule un monde existant sans personnages (connexion en autocommit)
+    conn.execute("DELETE FROM need_state WHERE world_id = ?", (wid,))
     conn.execute("DELETE FROM character WHERE world_id = ?", (wid,))
 
     added = upgrade_development_world(conn, wid, clock=FakeClock())
@@ -232,6 +233,7 @@ def test_upgrade_ne_supprime_rien_existant(tmp_path):
     from vivarium.world import get_status
     before = get_status(conn, wid)
     assert before["counts"]["locations"] == 9
+    conn.execute("DELETE FROM need_state WHERE world_id = ?", (wid,))
     conn.execute("DELETE FROM character WHERE world_id = ?", (wid,))
     upgrade_development_world(conn, wid, clock=FakeClock())
     after = get_status(conn, wid)

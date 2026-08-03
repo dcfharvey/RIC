@@ -53,3 +53,14 @@ SEED_CHARACTERS: list[tuple[str, str, str]] = [
     ("character_3", "Personnage 3", "chambre_3"),
     ("character_4", "Personnage 4", "chambre_4"),
 ]
+
+# Besoins de base (Sous-lot 3.2A) — calibration provisoire.
+# (need_key, name, valeur initiale milli, rate_num, rate_den, seuil milli)
+# Taux rationnel entier : rate_num / rate_den (milli par seconde simulée).
+# 70000 = 70,000 ; 0 = déficient ; 100000 = satisfait.
+SEED_NEEDS: list[tuple[str, str, int, int, int, int]] = [
+    ("satiete", "Satiété", 70000, -20, 9, 35000),
+    ("repos", "Repos", 70000, -5, 3, 35000),
+    ("energie", "Énergie", 70000, -25, 18, 30000),
+    ("hygiene", "Hygiène", 80000, -5, 6, 40000),
+]

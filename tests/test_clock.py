@@ -161,7 +161,8 @@ def test_pause_creer_evenement_unique_et_status(tmp_path):
     count_after = conn.execute(
         "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (world["id"],)
     ).fetchone()[0]
-    assert count_after == count_before + 2  # world_paused + world_resumed
+    # pause : 4 besoins matérialisés + world_paused ; reprise : world_resumed
+    assert count_after == count_before + 6
     types = [r["event_type"] for r in conn.execute(
         "SELECT event_type FROM canonical_event WHERE world_id = ? AND "
         "event_type IN ('world_paused','world_resumed') ORDER BY seq", (world["id"],))]

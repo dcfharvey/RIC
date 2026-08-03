@@ -31,6 +31,15 @@
   `move_character` une arête dirigée, refus en pause/vers le lieu actuel, atomicité),
   procédure non destructive et idempotente `upgrade-dev`. 77 tests passants.
 
+## 0.6 — 3 août 2026
+
+- **Phase 3 — Sous-lot 3.2A** : besoins dérivés et matérialisation. Migration 0005
+  (`need_definition`, `need_state` avec `rate_remainder`, FK composites inter-mondes),
+  valeur entière `value_milli` 0..100000, taux rationnels entiers, équivalence
+  indépendante du découpage, lectures pures, matérialisation groupée (un événement
+  `needs_materialized`), pause atomique avec matérialisation, mise à niveau
+  non destructive `upgrade-dev`. 89 tests passants.
+
 ## 0.1 — 3 août 2026
 
 - Création du dossier maître destiné à une IA programmeuse.

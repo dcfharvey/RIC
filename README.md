@@ -108,6 +108,22 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 - Toutes les écritures passent par le moteur canonique (même infrastructure
   transactionnelle/événementielle) ; `CharacterEngine` n'est pas une seconde autorité.
 
+### Besoins dérivés et matérialisation (Sous-lot 3.2A)
+
+- Valeur entière à précision fixe : `value_milli ∈ [0, 100000]` (0 = très déficient,
+  100000 = pleinement satisfait ; affichage = /1000).
+- Taux rationnel entier `rate_num / rate_den` (milli / seconde simulée), sans REAL :
+  évolution exactement reproductible et **indépendante du découpage** (grâce au
+  `rate_remainder` persistant, résidu de division conservé entre matérialisations).
+- 4 besoins : `satiete`, `repos`, `energie`, `hygiene` (migration 0005).
+- Une **lecture** est pure (aucune écriture, aucun événement). Une matérialisation
+  regroupe les 4 besoins d'un personnage dans une transaction et produit **un seul**
+  événement `needs_materialized` (ancres, valeurs et restes anciens/nouveaux, raison).
+- Pause : matérialise les besoins en même temps que le gel de l'horloge et du statut
+  dans **une** transaction atomique ; reprise sans écriture.
+- `upgrade-dev` ajoute aussi les besoins manquants (mise à niveau non destructive,
+  idempotente, ancrée à l'heure simulée canonique).
+
 ### Structure
 
 - `src/vivarium/` — paquet Python (package, configuration, journaux).
