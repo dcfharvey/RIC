@@ -110,8 +110,12 @@
   (rollback annule aussi l'horloge ; aucun `clock_updated`). Outils de
   comparaison `src/vivarium/repro.py` : `canonical_state_digest` (références par
   clés logiques, `character.name` inclus, rowids/UUID/muraux exclus),
-  `semantic_event_digest` (faits significatifs, matérialisation exclue, `seq`
-  absolu non comparé), `max_seq` (invariant séparé), `SimulationRunReport`.
+  `raw_canonical_event_log` (journal brut complet), `structural_event_audit`
+  (séquences continues, aucun trou/doublon, `occurred_at` monotones, JSON et
+  causalités valides), `reproducible_semantic_projection` (faits significatifs,
+  matérialisation exclue, `seq` absolu renuméroté, causalité normalisée vers la
+  position relative de l'événement causal), `max_seq` (invariant séparé),
+  `SimulationRunReport`.
   Correction `occurred_at` canonique pour `needs_materialized` et
   `character_moved`. Scénarios 24 h (84 transitions), blessures, endurance 7 j
   (980 transitions) ; runs comparatifs A-G ; tests de pause/reprise/redémarrage,

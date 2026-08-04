@@ -30,10 +30,20 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
 
+from .util import parse_iso
+
 
 def _norm_payload(payload: str) -> str:
     """JSON déterministe (clés triées, séparateurs compacts)."""
     return json.dumps(json.loads(payload), sort_keys=True, separators=(",", ":"))
+
+
+def _is_valid_json(payload: str) -> bool:
+    try:
+        json.loads(payload)
+        return True
+    except (ValueError, TypeError):
+        return False
 
 
 def canonical_state_digest(conn: sqlite3.Connection, world_id: int) -> dict[str, Any]:
@@ -134,32 +144,88 @@ def max_seq(conn: sqlite3.Connection, world_id: int) -> int:
 # Événements de matérialisation (bookkeeping) : leur découpage exact diffère
 # légitimement entre un run continu et un run segmenté/redémarré (les ancres
 # sont avancées à des bornes différentes). Ils ne représentent pas un fait du
-# monde ; ils sont exclus de la comparaison sémantique. Les faits significatifs
+# monde ; ils sont exclus de la projection sémantique. Les faits significatifs
 # (activités, déplacements, blessures, horloge admin) restent comparés.
 _MATERIALIZATION_EVENTS = frozenset({"needs_materialized", "injury_materialized"})
 
 
-def semantic_event_digest(conn: sqlite3.Connection, world_id: int) -> list[tuple]:
-    """Digest sémantique du journal (faits significatifs, ordre préservé).
-
-    Exclut les événements de matérialisation (`needs_materialized`,
-    `injury_materialized`) dont le découpage diffère légitimement entre un run
-    continu et un run segmenté/redémarré. Le `seq` absolu n'est pas comparé :
-    la matérialisation intercalée change le numéro absolu tout en préservant
-    l'ordre des faits ; la continuité de `seq` est vérifiée comme invariant
-    structurel séparé.
-    """
+def raw_canonical_event_log(conn: sqlite3.Connection, world_id: int) -> list[tuple]:
+    """Journal canonique brut complet : toutes les séquences, tous les événements,
+    aucune exclusion (y compris `recorded_at` mural, non canonique)."""
     rows = conn.execute(
-        "SELECT event_type, occurred_at, source_kind, payload "
+        "SELECT seq, event_type, occurred_at, source_kind, payload, recorded_at "
         "FROM canonical_event WHERE world_id = ? ORDER BY seq",
         (world_id,),
     ).fetchall()
     return [
-        (r["event_type"], r["occurred_at"], r["source_kind"],
-         _norm_payload(r["payload"]))
+        (r["seq"], r["event_type"], r["occurred_at"], r["source_kind"],
+         r["payload"], r["recorded_at"])
         for r in rows
-        if r["event_type"] not in _MATERIALIZATION_EVENTS
     ]
+
+
+def structural_event_audit(conn: sqlite3.Connection, world_id: int) -> dict[str, Any]:
+    """Audit structurel du journal brut (invariants par run).
+
+    Vérifie : séquences continues 1..N, aucun trou, aucun doublon, `occurred_at`
+    monotones, payloads JSON valides, causalités pointant vers des événements
+    existants. Ne dépend pas de l'ordre implicite de SQLite (tri explicite).
+    """
+    rows = conn.execute(
+        "SELECT seq, event_type, occurred_at, payload "
+        "FROM canonical_event WHERE world_id = ? ORDER BY seq",
+        (world_id,),
+    ).fetchall()
+    seqs = [r["seq"] for r in rows]
+    times = [parse_iso(r["occurred_at"]) for r in rows]
+    existing = set(seqs)
+    bad_causes: list[tuple[int, int]] = []
+    for r in rows:
+        p = json.loads(r["payload"])
+        if "cause_event_seq" in p and p["cause_event_seq"] not in existing:
+            bad_causes.append((r["seq"], p["cause_event_seq"]))
+    return {
+        "seq_continuous_1_to_n": seqs == list(range(1, len(seqs) + 1)),
+        "no_holes": len(seqs) == 0 or (seqs[0] == 1 and seqs[-1] == len(seqs)),
+        "no_duplicate_seq": len(seqs) == len(set(seqs)),
+        "occurred_at_monotonic": all(b >= a for a, b in zip(times, times[1:])),
+        "payloads_valid_json": all(_is_valid_json(r["payload"]) for r in rows),
+        "causality_valid": not bad_causes,
+        "bad_causes": bad_causes,
+    }
+
+
+def reproducible_semantic_projection(conn: sqlite3.Connection, world_id: int) -> list[tuple]:
+    """Projection sémantique reproductible (faits significatifs, ordre préservé).
+
+    Destinée à comparer un run continu, segmenté et redémarré. Exclut les
+    événements de matérialisation dont le découpage diffère légitimement, et
+    renumérote les faits retenus 1..N (position relative) pour la comparaison.
+    La causalité (`cause_event_seq`) est normalisée vers la position relative de
+    l'événement causal retenu (jamais masquée ni supprimée).
+    """
+    rows = conn.execute(
+        "SELECT seq, event_type, occurred_at, source_kind, payload "
+        "FROM canonical_event WHERE world_id = ? ORDER BY seq",
+        (world_id,),
+    ).fetchall()
+    retained = [r for r in rows if r["event_type"] not in _MATERIALIZATION_EVENTS]
+    seq_to_rel = {r["seq"]: i + 1 for i, r in enumerate(retained)}
+    out: list[tuple] = []
+    for r in retained:
+        p = json.loads(r["payload"])
+        if "cause_event_seq" in p:
+            cause = p["cause_event_seq"]
+            if cause in seq_to_rel:
+                p["cause_event_seq"] = seq_to_rel[cause]
+        out.append((r["event_type"], r["occurred_at"], r["source_kind"],
+                    json.dumps(p, sort_keys=True, separators=(",", ":"))))
+    return out
+
+
+def semantic_event_digest(conn: sqlite3.Connection, world_id: int) -> list[tuple]:
+    """Alias de `reproducible_semantic_projection` (objet C)."""
+    return reproducible_semantic_projection(conn, world_id)
 
 
 @dataclass

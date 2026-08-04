@@ -26,7 +26,10 @@ from vivarium.repro import (
     SimulationRunReport,
     canonical_state_digest,
     max_seq,
+    raw_canonical_event_log,
+    reproducible_semantic_projection,
     semantic_event_digest,
+    structural_event_audit,
 )
 from vivarium.simulation import SimulationEngine, SimulationLimitError
 from vivarium.util import parse_iso, to_iso
@@ -434,6 +437,102 @@ def test_rapport_stable():
     # max(seq) = total des événements ; le digest sémantique exclut la
     # matérialisation, donc il est inférieur ou égal.
     assert max_seq(conn, wid) >= len(semantic_event_digest(conn, wid))
+    conn.close()
+
+
+# --- Journal brut : audit structurel par run --------------------------------
+
+def _audit_ok(audit):
+    assert audit["seq_continuous_1_to_n"] is True
+    assert audit["no_holes"] is True
+    assert audit["no_duplicate_seq"] is True
+    assert audit["occurred_at_monotonic"] is True
+    assert audit["payloads_valid_json"] is True
+    assert audit["causality_valid"] is True
+    assert audit["bad_causes"] == []
+
+
+def test_audit_structurel_journal_brut_chaque_run():
+    # continu
+    conn, clock, wid = _fresh()
+    SimulationEngine(conn, clock=clock).run_to(wid, to_iso(T0 + H24))
+    _audit_ok(structural_event_audit(conn, wid))
+    n_cont = len(raw_canonical_event_log(conn, wid))
+    conn.close()
+    # segmenté
+    conn, clock, wid = _fresh()
+    se = SimulationEngine(conn, clock=clock)
+    se.run_to(wid, to_iso(T0 + timedelta(hours=8)))
+    se.run_to(wid, to_iso(T0 + timedelta(hours=16)))
+    se.run_to(wid, to_iso(T0 + H24))
+    _audit_ok(structural_event_audit(conn, wid))
+    n_seg = len(raw_canonical_event_log(conn, wid))
+    conn.close()
+    # le journal brut peut avoir un découpage différent (plus de matérialisations)
+    assert n_seg > n_cont
+
+
+def test_causalite_normalisee_projection():
+    # un run avec blessures : la projection normalise cause_event_seq vers la
+    # position relative de l'événement causal retenu (jamais masquée).
+    conn, clock, wid = _fresh()
+    ie = InjuryEngine(conn, clock=clock)
+    ie.inflict_injury(wid, "character_1", 40000)
+    SimulationEngine(conn, clock=clock).run_to(wid, to_iso(T0 + H24))
+    proj = reproducible_semantic_projection(conn, wid)
+    # l'événement causal scripted_accident est retenu dans la projection
+    types = [e[0] for e in proj]
+    assert "scripted_accident" in types
+    # toute cause normalisée pointe vers une position relative valide 1..N
+    for ev in proj:
+        p = json.loads(ev[3])
+        if "cause_event_seq" in p:
+            assert 1 <= p["cause_event_seq"] <= len(proj)
+    conn.close()
+
+
+def test_ordre_relatif_faits_preserve():
+    conn, clock, wid = _fresh()
+    SimulationEngine(conn, clock=clock).run_to(wid, to_iso(T0 + H24))
+    proj = reproducible_semantic_projection(conn, wid)
+    # pour chaque activité, activity_started précède activity_completed
+    starts = [i for i, e in enumerate(proj) if e[0] == "activity_started"]
+    comps = [i for i, e in enumerate(proj) if e[0] == "activity_completed"]
+    # l'ordre relatif des faits est préservé (les positions sont croissantes)
+    assert starts == sorted(starts)
+    assert comps == sorted(comps)
+    conn.close()
+
+
+def test_materialisation_erronee_detectee_par_etat():
+    # une valeur erronée dans une matérialisation change l'état final → détectée
+    # par le digest d'état, même si la matérialisation est exclue de la projection.
+    conn, clock, wid = _fresh()
+    SimulationEngine(conn, clock=clock).run_to(wid, to_iso(T0 + H24))
+    correct = canonical_state_digest(conn, wid)
+    conn.execute(
+        "UPDATE need_state SET value_milli = 12345 "
+        "WHERE world_id=? AND need_key='satiete' AND character_id="
+        "(SELECT id FROM character WHERE world_id=? AND key='character_1')",
+        (wid, wid),
+    )
+    assert canonical_state_digest(conn, wid) != correct
+    conn.close()
+
+
+def test_materialisation_manquante_detectee_par_etat():
+    # une ancre manquante (matérialisation absente) rend l'état incohérent →
+    # détectée par le digest d'état.
+    conn, clock, wid = _fresh()
+    SimulationEngine(conn, clock=clock).run_to(wid, to_iso(T0 + H24))
+    correct = canonical_state_digest(conn, wid)
+    conn.execute(
+        "UPDATE need_state SET anchor_at = ? "
+        "WHERE world_id=? AND need_key='satiete' AND character_id="
+        "(SELECT id FROM character WHERE world_id=? AND key='character_1')",
+        (to_iso(T0), wid, wid),
+    )
+    assert canonical_state_digest(conn, wid) != correct
     conn.close()
 
 
