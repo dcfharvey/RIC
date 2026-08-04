@@ -49,11 +49,11 @@ def setup():
 def test_derive_valeurs_passives_24h():
     anchor = to_iso(T0)
     cases = {
-        # (num, den, anchor_val, 1h, 6h, 12h, 24h)
-        "satiete": (-20, 9, 70000, 62000, 22000, 0, 0),
-        "repos": (-5, 3, 70000, 64000, 34000, 0, 0),
-        "energie": (-25, 18, 70000, 65000, 40000, 10000, 0),
-        "hygiene": (-5, 6, 80000, 77000, 62000, 44000, 8000),
+        # (num, den=36, anchor_val, 1h, 6h, 12h, 24h)
+        "satiete": (-80, 36, 70000, 62000, 22000, 0, 0),
+        "repos": (-60, 36, 70000, 64000, 34000, 0, 0),
+        "energie": (-50, 36, 70000, 65000, 40000, 10000, 0),
+        "hygiene": (-30, 36, 80000, 77000, 62000, 44000, 8000),
     }
     for key, (num, den, initial, h1, h6, h12, h24) in cases.items():
         v1, _ = derive(initial, 0, anchor, to_iso(_t(hours=1)), num, den)
@@ -64,11 +64,11 @@ def test_derive_valeurs_passives_24h():
 
 
 def test_derive_reste_jamais_hors_borne_et_clamp():
-    num, den, anchor = -20, 9, 70000
+    num, den, anchor = -80, 36, 70000
     a = to_iso(T0)
     v, r = derive(anchor, 0, a, to_iso(_t(hours=100)), num, den)
     assert v == 0 and r == 0
-    v, r = derive(99000, 0, a, to_iso(_t(hours=1)), 5, 3)  # +6000 -> 105000 -> clamp
+    v, r = derive(99000, 0, a, to_iso(_t(hours=1)), 30, 36)  # +3000 -> 102000 -> clamp
     assert v == 100000 and r == 0
     for dt in (61, 3600, 7201, 86400):
         v, r = derive(anchor, 17, a, to_iso(T0 + timedelta(seconds=dt)), num, den)
@@ -78,7 +78,7 @@ def test_derive_reste_jamais_hors_borne_et_clamp():
 
 def test_derive_rejette_heure_anterieure():
     with pytest.raises(NeedsError):
-        derive(70000, 0, to_iso(_t(hours=5)), to_iso(_t(hours=1)), -20, 9)
+        derive(70000, 0, to_iso(_t(hours=5)), to_iso(_t(hours=1)), -80, 36)
 
 
 def test_derive_equivalence_independante_du_decoupage():
@@ -88,7 +88,7 @@ def test_derive_equivalence_independante_du_decoupage():
         "720x1min": [60] * 720,
         "irregulier": [1800, 5400, 3600, 14400, 7200, 10800],
     }
-    for name, num, den, initial in (("satiete", -20, 9, 70000), ("hygiene", -5, 6, 80000)):
+    for name, num, den, initial in (("satiete", -80, 36, 70000), ("hygiene", -30, 36, 80000)):
         base_val, base_rem = None, None
         for pname, splits in partitions.items():
             assert sum(splits) == 43200, pname

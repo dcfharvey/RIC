@@ -124,30 +124,17 @@ class NeedsEngine:
 
     # --- Matérialisation -------------------------------------------------------
 
-    def materialize_character_needs(
-        self,
-        world_id: int,
-        character_key: str,
-        target_at: str,
-        reason: str,
-        *,
-        _conn: sqlite3.Connection | None = None,
-    ) -> dict[str, Any] | None:
-        """Matérialise les quatre besoins d'un personnage.
-
-        S'il n'y a aucun besoin à matérialiser, ne fait rien (pas d'écriture ni
-        d'événement). Si `_conn` est fourni (transaction déjà ouverte par
-        l'autorité canonique), opère dans cette transaction sans BEGIN/COMMIT.
-        """
-        if _conn is None:
-            with transaction(self._conn) as c:
-                return self._materialize(c, world_id, character_key, target_at, reason)
-        return self._materialize(_conn, world_id, character_key, target_at, reason)
-
     def _materialize(
         self, c: sqlite3.Connection, world_id: int, character_key: str,
-        target_at: str, reason: str,
+        target_at: str, reason: str, rates: dict[str, tuple[int, int]] | None = None,
     ) -> dict[str, Any] | None:
+        """Matérialise les besoins d'un personnage.
+
+        `rates` (facultatif) permet d'utiliser un régime de taux précis (ex. celui
+        d'une activité) ; sinon les taux de la définition (régime passif) sont
+        utilisés. Regroupe les besoins dans une transaction et produit **un seul**
+        événement synthétique.
+        """
         rows = self._join_rows(c, world_id, character_key)
         if not rows:
             return None  # rien à matérialiser
@@ -159,11 +146,15 @@ class NeedsEngine:
         new_vals: dict[str, int] = {}
         new_rem: dict[str, int] = {}
         for r in rows:
+            if rates and r["need_key"] in rates:
+                num, den = rates[r["need_key"]]
+            else:
+                num, den = r["rate_num"], r["rate_den"]
             v, rem = derive(
                 r["value_milli"], r["rate_remainder"], r["anchor_at"], target_at,
-                r["rate_num"], r["rate_den"],
+                num, den,
             )
-            if not (0 <= rem < r["rate_den"]):
+            if not (0 <= rem < den):
                 raise NeedsError("reste rationnel hors bornes")
             prev_vals[r["need_key"]] = r["value_milli"]
             prev_rem[r["need_key"]] = r["rate_remainder"]
@@ -198,6 +189,39 @@ class NeedsEngine:
             "previous_remainders": prev_rem,
             "new_remainders": new_rem,
         }
+
+    def materialize_character_needs(
+        self,
+        world_id: int,
+        character_key: str,
+        target_at: str,
+        reason: str,
+        *,
+        _conn: sqlite3.Connection | None = None,
+    ) -> dict[str, Any] | None:
+        """Matérialisation en régime passif (taux de la définition)."""
+        if _conn is None:
+            with transaction(self._conn) as c:
+                return self._materialize(c, world_id, character_key, target_at, reason)
+        return self._materialize(_conn, world_id, character_key, target_at, reason)
+
+    def materialize_with_rates(
+        self,
+        world_id: int,
+        character_key: str,
+        target_at: str,
+        reason: str,
+        rates: dict[str, tuple[int, int]],
+        *,
+        _conn: sqlite3.Connection | None = None,
+    ) -> dict[str, Any] | None:
+        """Matérialisation sous un régime de taux précis (ex. une activité)."""
+        if _conn is None:
+            with transaction(self._conn) as c:
+                return self._materialize(c, world_id, character_key, target_at, reason, rates)
+        return self._materialize(
+            _conn, world_id, character_key, target_at, reason, rates
+        )
 
 
 def upgrade_dev_needs(

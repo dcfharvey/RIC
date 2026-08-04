@@ -40,6 +40,16 @@
   `needs_materialized`), pause atomique avec matérialisation, mise à niveau
   non destructive `upgrade-dev`. 89 tests passants.
 
+## 0.7 — 3 août 2026
+
+- **Phase 3 — Sous-lot 3.2B** : activités et effets. Migration 0006 : passage au
+  dénominateur canonique 36 (conversion sans perte des taux et restes de 3.2A) +
+  `activity_definition`, `activity_allowed_location` (index uniques partiels),
+  `activity` (une active/personnage). `start_activity` atomique (déplacements
+  pièce par pièce + matérialisation + création), fin conditionnelle du sommeil
+  (`max` puis `min` avec reste), clôture d'activité échue à son heure canonique,
+  abandon, lecture pure. 104 tests passants.
+
 ## 0.1 — 3 août 2026
 
 - Création du dossier maître destiné à une IA programmeuse.

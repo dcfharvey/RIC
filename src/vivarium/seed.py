@@ -55,12 +55,34 @@ SEED_CHARACTERS: list[tuple[str, str, str]] = [
 ]
 
 # Besoins de base (Sous-lot 3.2A) — calibration provisoire.
-# (need_key, name, valeur initiale milli, rate_num, rate_den, seuil milli)
-# Taux rationnel entier : rate_num / rate_den (milli par seconde simulée).
+# (need_key, name, valeur initiale milli, rate_num, rate_den=36, seuil milli)
+# Dénominateur canonique commun 36 : tous les taux en unités /36 par seconde.
 # 70000 = 70,000 ; 0 = déficient ; 100000 = satisfait.
 SEED_NEEDS: list[tuple[str, str, int, int, int, int]] = [
-    ("satiete", "Satiété", 70000, -20, 9, 35000),
-    ("repos", "Repos", 70000, -5, 3, 35000),
-    ("energie", "Énergie", 70000, -25, 18, 30000),
-    ("hygiene", "Hygiène", 80000, -5, 6, 40000),
+    ("satiete", "Satiété", 70000, -80, 36, 35000),
+    ("repos", "Repos", 70000, -60, 36, 35000),
+    ("energie", "Énergie", 70000, -50, 36, 30000),
+    ("hygiene", "Hygiène", 80000, -30, 36, 40000),
+]
+
+# Activités de base (Sous-lot 3.2B) — calibration provisoire.
+# (activity_type, min_duration_seconds, max_duration_seconds,
+#  satiete_rate, repos_rate, energie_rate, hygiene_rate)  -- tous /36 par seconde
+SEED_ACTIVITIES: list[tuple[str, int, int, int, int, int, int]] = [
+    ("idle", 900, 900, -80, -60, -50, -30),
+    ("eat", 1800, 1800, 1200, -60, 32, -30),
+    ("rest", 3600, 3600, -80, 30, 27, -30),
+    ("clean", 900, 900, -80, -60, -50, 2400),
+    ("sleep", 0, 28800, -32, 80, 50, -18),
+]
+
+# Lieux autorisés par activité (key OU kind, jamais les deux).
+# (activity_type, location_key|None, location_kind|None)
+SEED_ACTIVITY_ALLOWED: list[tuple[str, str | None, str | None]] = [
+    ("eat", "cuisine", None),
+    ("clean", "salle_de_bain", None),
+    ("rest", "salon", None),
+    ("rest", None, "bedroom"),
+    ("sleep", None, "bedroom"),
+    # idle : lieu courant (aucune règle)
 ]

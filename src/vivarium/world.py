@@ -26,7 +26,15 @@ import sqlite3
 from typing import Any
 
 from .db import transaction
-from .seed import SEED_CHARACTERS, SEED_LINKS, SEED_LOCATIONS, SEED_NEEDS, SEED_OBJECTS
+from .seed import (
+    SEED_ACTIVITIES,
+    SEED_ACTIVITY_ALLOWED,
+    SEED_CHARACTERS,
+    SEED_LINKS,
+    SEED_LOCATIONS,
+    SEED_NEEDS,
+    SEED_OBJECTS,
+)
 from .util import Clock, ClockError, new_uuid, now_utc, parse_iso, to_iso
 
 WORLD_DEFAULT_NAME = "Monde de développement (Phase 1)"
@@ -181,6 +189,22 @@ class WorldEngine:
                     "VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
                     (new_uuid(), world_id, char_id, key, initial, now, now),
                 )
+        # Catalogue d'activités (taux nets /36) + lieux autorisés.
+        for typ, min_d, max_d, s, rp, e, h in SEED_ACTIVITIES:
+            c.execute(
+                "INSERT INTO activity_definition "
+                "(public_id, world_id, activity_type, min_duration_seconds, "
+                " max_duration_seconds, satiete_rate, repos_rate, energie_rate, "
+                " hygiene_rate, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (new_uuid(), world_id, typ, min_d, max_d, s, rp, e, h, now),
+            )
+        for typ, key, kind in SEED_ACTIVITY_ALLOWED:
+            c.execute(
+                "INSERT INTO activity_allowed_location "
+                "(public_id, world_id, activity_type, location_key, location_kind, created_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (new_uuid(), world_id, typ, key, kind, now),
+            )
         _append_event(
             c,
             world_id,
@@ -192,6 +216,7 @@ class WorldEngine:
                 "links_pairs": len(SEED_LINKS),
                 "characters": len(SEED_CHARACTERS),
                 "needs": len(SEED_NEEDS),
+                "activities": len(SEED_ACTIVITIES),
             },
             occurred_at=now,
             recorded_at=now,

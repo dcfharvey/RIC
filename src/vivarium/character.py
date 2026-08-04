@@ -112,13 +112,20 @@ class CharacterEngine:
     # --- Déplacement ------------------------------------------------------------
 
     def move_character(self, world_id: int, key: str, target_key: str) -> dict[str, Any]:
-        """Déplace un personnage d'une **arête dirigée** à la fois.
+        """Déplace un personnage d'une **arête dirigée** à la fois (transaction propre)."""
+        with transaction(self._conn) as c:
+            return self._move(c, world_id, key, target_key)
+
+    def _move(
+        self, c: sqlite3.Connection, world_id: int, key: str, target_key: str
+    ) -> dict[str, Any]:
+        """Préparation interne du déplacement, à exécuter dans une transaction
+        déjà ouverte (c) — utilisée aussi par le démarrage atomique d'activité.
 
         - refus si le monde est en pause (la pause gèle toute la simulation) ;
         - refus d'un déplacement vers le lieu actuel ;
-        - validation d'une seule arête dirigée via `GraphEngine.can_traverse` ;
-        - met à jour la position et enregistre `character_moved` dans la même
-          transaction ; rien n'est modifié en cas d'échec.
+        - validation d'une seule arête dirigée via `GraphEngine` ;
+        - met à jour la position et enregistre `character_moved` dans `c`.
         """
         status = self._conn.execute(
             "SELECT status FROM worlds WHERE id = ?", (world_id,)
@@ -146,22 +153,21 @@ class CharacterEngine:
                 f"pas d'arête dirigée {cur_key!r} → {target_key!r} (déplacement refusé)"
             )
 
-        with transaction(self._conn) as c:
-            now = self._now_iso()
-            target_id = self._location_id(world_id, target_key)
-            c.execute(
-                "UPDATE character SET current_location_id = ?, updated_at = ? "
-                "WHERE world_id = ? AND key = ?",
-                (target_id, now, world_id, key),
-            )
-            _append_event(
-                c,
-                world_id,
-                SOURCE_ENGINE,
-                "character_moved",
-                {"character": key, "from": cur_key, "to": target_key},
-                recorded_at=now,
-            )
+        now = self._now_iso()
+        target_id = self._location_id(world_id, target_key)
+        c.execute(
+            "UPDATE character SET current_location_id = ?, updated_at = ? "
+            "WHERE world_id = ? AND key = ?",
+            (target_id, now, world_id, key),
+        )
+        _append_event(
+            c,
+            world_id,
+            SOURCE_ENGINE,
+            "character_moved",
+            {"character": key, "from": cur_key, "to": target_key},
+            recorded_at=now,
+        )
         return self.character_sheet(world_id, key)
 
 

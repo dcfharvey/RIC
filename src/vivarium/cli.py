@@ -17,6 +17,7 @@ from .settings import Settings
 from .world import WORLD_DEFAULT_NAME, WorldEngine, get_status
 from .character import upgrade_development_world
 from .needs import upgrade_dev_needs
+from .activities import upgrade_dev_activities
 
 
 def _resolve_db_path(args_db: str | None) -> Path:
@@ -88,6 +89,14 @@ def _run_upgrade_dev(conn) -> int:
         )
     else:
         print("Besoins : aucun ajout (mise à niveau idempotente).")
+    acts = upgrade_dev_activities(conn, world["id"])
+    if acts["definitions_created"] or acts["rules_created"]:
+        print(
+            f"Activités ajoutées : {acts['definitions_created']} définitions, "
+            f"{acts['rules_created']} règles de lieu"
+        )
+    else:
+        print("Activités : aucun ajout (mise à niveau idempotente).")
     return 0
 
 

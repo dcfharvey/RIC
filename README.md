@@ -123,6 +123,24 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
   dans **une** transaction atomique ; reprise sans écriture.
 - `upgrade-dev` ajoute aussi les besoins manquants (mise à niveau non destructive,
   idempotente, ancrée à l'heure simulée canonique).
+- Dénominateur canonique commun **36** pour tous les taux (migration 0006 convertit
+  les taux/restes de 3.2A sans perte).
+
+### Activités et effets (Sous-lot 3.2B)
+
+- `activity_definition` (taux nets /36 par besoin), `activity_allowed_location`
+  (lieux autorisés par clé **ou** type, deux index uniques partiels),
+  `activity` (une seule active par personnage).
+- Activités : `idle`, `eat`, `rest`, `clean`, `sleep` (migration 0006).
+- `start_activity(world, char, type, target_location)` — destination **explicite**
+  et vérifiée (autorisée, existante), **atomique** : trajet pièce par pièce
+  (chaque `character_moved` dans la même transaction) + matérialisation + création
+  + `activity_started`. Retour à la position initiale si une étape échoue.
+- Fin conditionnelle du sommeil : `max(dt_repos, dt_energie)` plafonné à 8 h,
+  calcul exact des échéances (avec reste rationnel), refus si inutile.
+- `advance_to` clôture une activité échue **à son heure canonique de fin**, puis
+  repasse en régime passif ; `abort_activity` abandonne explicitement.
+- Toutes les transitions sont atomiques ; une lecture d'activité est pure.
 
 ### Structure
 
