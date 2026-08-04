@@ -116,14 +116,19 @@
   matérialisation exclue, `seq` absolu renuméroté, causalité normalisée vers la
   position relative de l'événement causal), `materialization_chain_audit`
   (objet D : exactitude mathématique de chaque chaîne de matérialisation —
-  blessures recomptées depuis le régime, besoins vérifiés par ancres/continuité/
-  taux implicite entier ; détecte les erreurs compensées), `max_seq` (invariant
-  séparé), `SimulationRunReport`.
+  blessures recomptées depuis le régime, besoins recomptés depuis le taux
+  déclaré et vérifiés contre le taux canonique des règles ; détecte les erreurs
+  compensées de valeur et de reste), `max_seq` (invariant séparé),
+  `SimulationRunReport`.
+  Contrat `needs_materialized` enrichi : `rate_source` (`need_definition`/
+  `activity`), `activity_type` (null en passif), `rate_nums`/`rate_dens` par
+  besoin — le taux réellement appliqué est porté par l'événement pour une
+  vérification non circulaire.
   Correction `occurred_at` canonique pour `needs_materialized` et
   `character_moved`. Scénarios 24 h (84 transitions), blessures, endurance 7 j
   (980 transitions) ; runs comparatifs A-G ; tests de pause/reprise/redémarrage,
   crash/rollback, délai mural, absence de frontière, erreurs compensées.
-  Aucune migration, aucun RNG. 215 tests passants (188 + 27).
+  Aucune migration, aucun RNG. 220 tests passants (188 + 32).
 
 ## 0.1 — 3 août 2026
 

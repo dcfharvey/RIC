@@ -542,7 +542,8 @@ def test_materialisation_manquante_detectee_par_etat():
 # --- MaterializationChainAudit : erreurs compensées --------------------------
 
 def test_audit_chaine_materialisation_ok_run_normal():
-    # un run normal (continu et segmenté) ne produit aucune erreur de chaîne
+    # un run normal (continu, segmenté et redémarré) ne produit aucune erreur
+    # de chaîne de matérialisation.
     conn, clock, wid = _fresh()
     SimulationEngine(conn, clock=clock).run_to(wid, to_iso(T0 + H24))
     assert materialization_chain_audit(conn, wid) == []
@@ -552,6 +553,20 @@ def test_audit_chaine_materialisation_ok_run_normal():
     se.run_to(wid, to_iso(T0 + timedelta(hours=8)))
     se.run_to(wid, to_iso(T0 + timedelta(hours=16)))
     se.run_to(wid, to_iso(T0 + H24))
+    assert materialization_chain_audit(conn, wid) == []
+    conn.close()
+    # redémarrage
+    d = tempfile.mkdtemp()
+    path = os.path.join(d, "w.db")
+    conn = connect_database(path)
+    ensure_schema(conn)
+    clock = FakeClock()
+    wid = WorldEngine(conn, clock=clock).init_world(name="Repro")["id"]
+    SimulationEngine(conn, clock=clock).run_to(wid, to_iso(T0 + timedelta(hours=12)))
+    conn.close()
+    conn = connect_database(path)
+    ensure_schema(conn)
+    SimulationEngine(conn, clock=FakeClock()).run_to(wid, to_iso(T0 + H24))
     assert materialization_chain_audit(conn, wid) == []
     conn.close()
 
@@ -576,27 +591,74 @@ def test_erreurs_compensees_blessure_detectees_par_audit_chaine():
     assert any(seq == 1 and "severity 99" in msg for seq, msg in errors)
 
 
+NEED_DEFS = {"satiete": {"rate_num": 2, "rate_den": 36}}
+ACTIVITY_DEFS = {"sleep": {"satiete": (80, 36)}}
+
+
+def _need_payload(seq, prev_val, new_val, prev_rem, new_rem, prev_at, new_at,
+                 num=2, den=36, rate_source="need_definition", activity_type=None):
+    return (seq, {
+        "character": "character_1", "reason": "passive",
+        "rate_source": rate_source, "activity_type": activity_type,
+        "previous_anchor_at": to_iso(prev_at), "new_anchor_at": to_iso(new_at),
+        "previous_values": {"satiete": prev_val}, "new_values": {"satiete": new_val},
+        "previous_remainders": {"satiete": prev_rem}, "new_remainders": {"satiete": new_rem},
+        "rate_nums": {"satiete": num}, "rate_dens": {"satiete": den},
+    })
+
+
 def test_erreurs_compensees_besoins_detectees_par_audit_chaine():
     # chaîne compensée : reste erroné à l'événement A, compensé à B ; l'état
     # final (valeur + reste) est identique à la chaîne correcte, mais A est
-    # incorrect (taux implicite non entier).
+    # incorrect (recalcul depuis le taux déclaré).
     events = [
-        (1, {
-            "character": "character_1", "reason": "passive",
-            "previous_anchor_at": to_iso(T0), "new_anchor_at": to_iso(T0 + timedelta(seconds=36)),
-            "previous_values": {"satiete": 100}, "new_values": {"satiete": 102},
-            "previous_remainders": {"satiete": 0}, "new_remainders": {"satiete": 1},
-        }),
-        (2, {
-            "character": "character_1", "reason": "passive",
-            "previous_anchor_at": to_iso(T0 + timedelta(seconds=36)), "new_anchor_at": to_iso(T0 + timedelta(seconds=72)),
-            "previous_values": {"satiete": 102}, "new_values": {"satiete": 104},
-            "previous_remainders": {"satiete": 1}, "new_remainders": {"satiete": 0},
-        }),
+        _need_payload(1, 100, 102, 0, 1, T0, T0 + timedelta(seconds=36)),   # reste erroné (attendu 0)
+        _need_payload(2, 102, 104, 1, 0, T0 + timedelta(seconds=36), T0 + timedelta(seconds=72)),  # compense
     ]
-    errors = _audit_needs_chain(events)
-    # l'événement A (seq 1) est signalé : taux implicite non entier
-    assert any(seq == 1 and "implied rate non-integer" in msg for seq, msg in errors)
+    errors = _audit_needs_chain(events, NEED_DEFS, ACTIVITY_DEFS)
+    # l'événement A (seq 1) est signalé : reste 1 != attendu 0
+    assert any(seq == 1 and "remainder 1" in msg for seq, msg in errors)
+
+
+def test_erreur_valeur_compensee_detectee():
+    # erreur de valeur compensée : 100→103 (erreur) →104 (compense) ; final
+    # identique à la chaîne correcte 100→102→104, mais A est incorrect.
+    events = [
+        _need_payload(1, 100, 103, 0, 0, T0, T0 + timedelta(seconds=36)),   # valeur erronée (attendu 102)
+        _need_payload(2, 103, 104, 0, 0, T0 + timedelta(seconds=36), T0 + timedelta(seconds=72)),  # compense
+    ]
+    errors = _audit_needs_chain(events, NEED_DEFS, ACTIVITY_DEFS)
+    assert any(seq == 1 and "value 103" in msg for seq, msg in errors)
+
+
+def test_taux_num_errone_resultat_coherent_detecte():
+    # taux_num erroné (3/36) avec résultat arithmétiquement cohérent avec ce
+    # faux taux : la valeur 103 est cohérente avec 3/36, mais le taux déclaré
+    # n'est pas le taux canonique 2/36 → détecté.
+    events = [_need_payload(1, 100, 103, 0, 0, T0, T0 + timedelta(seconds=36), num=3)]
+    errors = _audit_needs_chain(events, NEED_DEFS, ACTIVITY_DEFS)
+    assert any(seq == 1 and "declared rate 3/36 != canonical 2/36" in msg for seq, msg in errors)
+
+
+def test_taux_den_errone_detecte():
+    events = [_need_payload(1, 100, 102, 0, 0, T0, T0 + timedelta(seconds=36), den=18)]
+    errors = _audit_needs_chain(events, NEED_DEFS, ACTIVITY_DEFS)
+    assert any(seq == 1 and "declared rate 2/18 != canonical 2/36" in msg for seq, msg in errors)
+
+
+def test_mauvais_activity_type_detecte():
+    # rate_source="activity" mais activity_type inconnu des règles → détecté
+    events = [_need_payload(1, 100, 180, 0, 0, T0, T0 + timedelta(seconds=36),
+                            num=80, rate_source="activity", activity_type="rest")]
+    errors = _audit_needs_chain(events, NEED_DEFS, ACTIVITY_DEFS)
+    assert any(seq == 1 and "unknown canonical rate" in msg for seq, msg in errors)
+
+
+def test_taux_correct_resultat_incorrect_detecte():
+    # taux déclaré correct (2/36) mais résultat incorrect (105 au lieu de 102)
+    events = [_need_payload(1, 100, 105, 0, 0, T0, T0 + timedelta(seconds=36))]
+    errors = _audit_needs_chain(events, NEED_DEFS, ACTIVITY_DEFS)
+    assert any(seq == 1 and "value 105" in msg for seq, msg in errors)
 
 
 def test_clock_etat_coherents_apres_run_to():

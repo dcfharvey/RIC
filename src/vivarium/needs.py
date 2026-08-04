@@ -134,13 +134,17 @@ class NeedsEngine:
     def _materialize(
         self, c: sqlite3.Connection, world_id: int, character_key: str,
         target_at: str, reason: str, rates: dict[str, tuple[int, int]] | None = None,
+        rate_source: str = "need_definition", activity_type: str | None = None,
     ) -> dict[str, Any] | None:
         """Matérialise les besoins d'un personnage.
 
         `rates` (facultatif) permet d'utiliser un régime de taux précis (ex. celui
         d'une activité) ; sinon les taux de la définition (régime passif) sont
         utilisés. Regroupe les besoins dans une transaction et produit **un seul**
-        événement synthétique.
+        événement synthétique. L'événement porte le taux réellement appliqué
+        (`rate_nums`/`rate_dens`), sa source (`rate_source` : `need_definition` ou
+        `activity`) et `activity_type` (null en régime passif) pour permettre à
+        l'audit de re-vérifier chaque transition de façon non circulaire.
         """
         rows = self._join_rows(c, world_id, character_key)
         if not rows:
@@ -152,6 +156,8 @@ class NeedsEngine:
         prev_rem: dict[str, int] = {}
         new_vals: dict[str, int] = {}
         new_rem: dict[str, int] = {}
+        rate_nums: dict[str, int] = {}
+        rate_dens: dict[str, int] = {}
         for r in rows:
             if rates and r["need_key"] in rates:
                 num, den = rates[r["need_key"]]
@@ -167,6 +173,8 @@ class NeedsEngine:
             prev_rem[r["need_key"]] = r["rate_remainder"]
             new_vals[r["need_key"]] = v
             new_rem[r["need_key"]] = rem
+            rate_nums[r["need_key"]] = num
+            rate_dens[r["need_key"]] = den
             c.execute(
                 "UPDATE need_state SET value_milli = ?, rate_remainder = ?, "
                 "anchor_at = ?, updated_at = ? WHERE id = ?",
@@ -179,12 +187,16 @@ class NeedsEngine:
             {
                 "character": character_key,
                 "reason": reason,
+                "rate_source": rate_source,
+                "activity_type": activity_type,
                 "previous_anchor_at": previous_anchor,
                 "new_anchor_at": target_at,
                 "previous_values": prev_vals,
                 "new_values": new_vals,
                 "previous_remainders": prev_rem,
                 "new_remainders": new_rem,
+                "rate_nums": rate_nums,
+                "rate_dens": rate_dens,
             },
             occurred_at=target_at, recorded_at=recorded,
         )
@@ -209,8 +221,14 @@ class NeedsEngine:
         """Matérialisation en régime passif (taux de la définition)."""
         if _conn is None:
             with transaction(self._conn) as c:
-                return self._materialize(c, world_id, character_key, target_at, reason)
-        return self._materialize(_conn, world_id, character_key, target_at, reason)
+                return self._materialize(
+                    c, world_id, character_key, target_at, reason,
+                    rate_source="need_definition", activity_type=None,
+                )
+        return self._materialize(
+            _conn, world_id, character_key, target_at, reason,
+            rate_source="need_definition", activity_type=None,
+        )
 
     def materialize_with_rates(
         self,
@@ -221,13 +239,18 @@ class NeedsEngine:
         rates: dict[str, tuple[int, int]],
         *,
         _conn: sqlite3.Connection | None = None,
+        activity_type: str | None = None,
     ) -> dict[str, Any] | None:
         """Matérialisation sous un régime de taux précis (ex. une activité)."""
         if _conn is None:
             with transaction(self._conn) as c:
-                return self._materialize(c, world_id, character_key, target_at, reason, rates)
+                return self._materialize(
+                    c, world_id, character_key, target_at, reason, rates,
+                    rate_source="activity", activity_type=activity_type,
+                )
         return self._materialize(
-            _conn, world_id, character_key, target_at, reason, rates
+            _conn, world_id, character_key, target_at, reason, rates,
+            rate_source="activity", activity_type=activity_type,
         )
 
 

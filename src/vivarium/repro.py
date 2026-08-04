@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .injury import RECOVERY_RATES
+from .needs import derive as needs_derive
 from .util import parse_iso
 
 
@@ -229,15 +230,42 @@ def semantic_event_digest(conn: sqlite3.Connection, world_id: int) -> list[tuple
     return reproducible_semantic_projection(conn, world_id)
 
 
-def _audit_needs_chain(events: list[tuple[int, dict[str, Any]]]) -> list[tuple[int, str]]:
-    """Audit d'une chaîne de matérialisation de besoins (liste de (seq, payload)).
+def _canonical_rate(
+    need: str,
+    rate_source: str,
+    activity_type: str | None,
+    need_defs: dict[str, dict[str, Any]],
+    activity_defs: dict[str, dict[str, tuple[int, int]]],
+) -> tuple[int, int] | None:
+    """Taux canonique autorisé par les règles pour `need` à cet instant.
 
-    Vérifie : ancres monotones, bornes [0,100000], restes [0,36), continuité
-    (previous == new précédent), et taux implicite entier (détecte les erreurs
-    de reste compensées). Le taux attendu n'étant pas porté par l'événement, une
-    erreur de valeur compensée dont le taux implicite reste entier n'est pas
-    détectable ici — champ manquant : `rate_num`/`rate_den` (et type d'activité
-    pour les raisons liées à une activité).
+    `rate_source == "need_definition"` → taux passif de `need_definition` ;
+    `rate_source == "activity"` → taux de `activity_definition` pour
+    `activity_type`. Retourne None si la source/activité est inconnue.
+    """
+    if rate_source == "need_definition":
+        d = need_defs.get(need)
+        return (d["rate_num"], d["rate_den"]) if d else None
+    if rate_source == "activity":
+        ad = activity_defs.get(activity_type or "")
+        if ad and need in ad:
+            return ad[need]
+        return None
+    return None
+
+
+def _audit_needs_chain(
+    events: list[tuple[int, dict[str, Any]]],
+    need_defs: dict[str, dict[str, Any]],
+    activity_defs: dict[str, dict[str, tuple[int, int]]],
+) -> list[tuple[int, str]]:
+    """Audit complet d'une chaîne de matérialisation de besoins.
+
+    Vérifie, pour chaque événement : ancres monotones, continuité (previous ==
+    new précédent), bornes [0,100000] et restes [0,den), taux déclaré conforme au
+    taux canonique des règles (`need_definition`/`activity_definition`), et
+    recalcul exact de la valeur et du reste via la fonction canonique `derive`.
+    Détecte les erreurs compensées de valeur et de reste.
     """
     errors: list[tuple[int, str]] = []
     prev: dict[str, Any] | None = None
@@ -252,23 +280,31 @@ def _audit_needs_chain(events: list[tuple[int, dict[str, Any]]]) -> list[tuple[i
                     errors.append((seq, f"needs: value discontinuity {need}"))
                 if p["previous_remainders"][need] != prev["new_remainders"][need]:
                     errors.append((seq, f"needs: remainder discontinuity {need}"))
-        dt = int((na - pa).total_seconds())
+        rate_source = p.get("rate_source", "need_definition")
+        activity_type = p.get("activity_type")
         for need in p["new_values"]:
             nv = p["new_values"][need]
             nr = p["new_remainders"][need]
             pv = p["previous_values"][need]
             pr = p["previous_remainders"][need]
+            num = p["rate_nums"][need]
+            den = p["rate_dens"][need]
+            canonical = _canonical_rate(need, rate_source, activity_type, need_defs, activity_defs)
+            if canonical is None:
+                errors.append((seq, f"needs: unknown canonical rate {need}"))
+            elif (num, den) != canonical:
+                errors.append((seq, f"needs: declared rate {num}/{den} != canonical {canonical[0]}/{canonical[1]} {need}"))
             if not (0 <= nv <= 100000):
                 errors.append((seq, f"needs: value out of bounds {need}"))
-            if not (0 <= nr < 36):
+            if not (0 <= nr < den):
                 errors.append((seq, f"needs: remainder out of bounds {need}"))
-            delta = nv - pv
-            total = delta * 36 + nr
-            numer = total - pr
-            if dt > 0 and numer % dt != 0:
-                errors.append((seq, f"needs: implied rate non-integer {need}"))
-            elif dt == 0 and delta != 0:
-                errors.append((seq, f"needs: change at zero duration {need}"))
+            exp_v, exp_r = needs_derive(
+                pv, pr, p["previous_anchor_at"], p["new_anchor_at"], num, den
+            )
+            if exp_v != nv:
+                errors.append((seq, f"needs: value {nv} != expected {exp_v} {need}"))
+            if exp_r != nr:
+                errors.append((seq, f"needs: remainder {nr} != expected {exp_r} {need}"))
         prev = p
     return errors
 
@@ -325,6 +361,26 @@ def materialization_chain_audit(
     (seq, personnage, message) pour chaque événement incorrect.
     """
     errors: list[tuple[int, str, str]] = []
+    # Définitions (configuration créée au seed, non modifiée par la simulation) :
+    # elles représentent les règles en vigueur pour tous les événements du run.
+    need_defs: dict[str, dict[str, Any]] = {}
+    for r in conn.execute(
+        "SELECT need_key, rate_num, rate_den FROM need_definition WHERE world_id = ?",
+        (world_id,),
+    ).fetchall():
+        need_defs[r["need_key"]] = {"rate_num": r["rate_num"], "rate_den": r["rate_den"]}
+    activity_defs: dict[str, dict[str, tuple[int, int]]] = {}
+    for r in conn.execute(
+        "SELECT activity_type, satiete_rate, repos_rate, energie_rate, hygiene_rate "
+        "FROM activity_definition WHERE world_id = ?",
+        (world_id,),
+    ).fetchall():
+        activity_defs[r["activity_type"]] = {
+            "satiete": (r["satiete_rate"], 36),
+            "repos": (r["repos_rate"], 36),
+            "energie": (r["energie_rate"], 36),
+            "hygiene": (r["hygiene_rate"], 36),
+        }
     rows = conn.execute(
         "SELECT seq, payload FROM canonical_event "
         "WHERE world_id = ? AND event_type = 'needs_materialized' ORDER BY seq",
@@ -335,7 +391,7 @@ def materialization_chain_audit(
         p = json.loads(r["payload"])
         by_char.setdefault(p["character"], []).append((r["seq"], p))
     for char, events in by_char.items():
-        for seq, msg in _audit_needs_chain(events):
+        for seq, msg in _audit_needs_chain(events, need_defs, activity_defs):
             errors.append((seq, char, msg))
     rows = conn.execute(
         "SELECT seq, event_type, payload FROM canonical_event "

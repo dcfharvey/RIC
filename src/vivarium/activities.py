@@ -372,7 +372,7 @@ class ActivityEngine:
                 rates = self._rates(world_id, active["type"])
                 ne.materialize_with_rates(
                     world_id, character_key, active["planned_end_at"],
-                    "activity_end", rates, _conn=c,
+                    "activity_end", rates, _conn=c, activity_type=active["type"],
                 )
                 ie._materialize_injury_sim(
                     world_id, character_key, active["planned_end_at"],
@@ -398,7 +398,8 @@ class ActivityEngine:
             else:
                 rates = self._rates(world_id, active["type"])
                 ne.materialize_with_rates(
-                    world_id, character_key, at_time, "activity_ongoing", rates, _conn=c
+                    world_id, character_key, at_time, "activity_ongoing", rates,
+                    _conn=c, activity_type=active["type"],
                 )
                 ie._materialize_injury_sim(
                     world_id, character_key, at_time,
@@ -418,7 +419,8 @@ class ActivityEngine:
             now = self._clock.now_iso()
             rates = self._rates(world_id, active["type"])
             NeedsEngine(self._conn, clock=self._clock).materialize_with_rates(
-                world_id, character_key, canonical, "activity_abort", rates, _conn=c
+                world_id, character_key, canonical, "activity_abort", rates,
+                _conn=c, activity_type=active["type"],
             )
             InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
                 world_id, character_key, canonical,
