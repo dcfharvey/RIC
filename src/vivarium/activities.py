@@ -193,6 +193,8 @@ class ActivityEngine:
         character_key: str,
         activity_type: str,
         target_location_key: str,
+        *,
+        sim_now: str | None = None,
     ) -> dict[str, Any]:
         """Démarre une activité de façon **atomique** (une seule transaction).
 
@@ -240,8 +242,8 @@ class ActivityEngine:
             # 1) déplacements pièce par pièce, chacun tracé (même transaction)
             for step in path[1:]:
                 ce._move(c, world_id, character_key, step)
-            # 2) heure simulée de début
-            start_at = self._world().read_canonical_time(world_id)
+            # 2) heure simulée de début (explicite ou dérivée de l'horloge)
+            start_at = sim_now if sim_now is not None else self._world().read_canonical_time(world_id)
             # 3) matérialisation passive à l'heure de début
             NeedsEngine(self._conn, clock=self._clock).materialize_character_needs(
                 world_id, character_key, start_at, "activity_start", _conn=c

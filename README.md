@@ -142,6 +142,24 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
   repasse en régime passif ; `abort_activity` abandonne explicitement.
 - Toutes les transitions sont atomiques ; une lecture d'activité est pure.
 
+### Politique de décision et simulation (Sous-lot 3.2C)
+
+- `Intent(activity_type, target_location)` (contrat minimal) ;
+  `DecisionResult(intent, trigger_need, reason_code)` sépare la justification de
+  l'exécution (migration 0007 `character_profile`, entiers, sans REAL).
+- Politique **pure et déterministe** sur un `PolicyContext` immuable : urgence
+  normalisée = `déficit × 1000 // seuil`, comparaisons par **produits croisés**,
+  priorité par déficit normalisé (ordre fixe en égalité), gestion conjointe
+  repos/énergie (critique ⇒ sleep ; double-déficit ⇒ sleep ; modéré isolé ⇒ rest,
+  `rest_preference` graduée jamais opposée à un état critique), destination
+  courante sinon la plus courte (départage par clé), `idle` si rien sous seuil.
+- `SimulationEngine.run_to(world, target, max_transitions=2000)` : avance de
+  borne en borne, bornes simultanées traitées dans l'ordre de `character.key`,
+  heure cible en milieu d'activité sans clôture/décision, garde anti-boucle,
+  replis bornés, rapport (`last_time`, `transitions`, activités actives).
+- Les 4 profils seedés sont **neutres et identiques** (variations seulement en
+  tests). Reproductible : mêmes données + même heure cible ⇒ même état et même journal.
+
 ### Structure
 
 - `src/vivarium/` — paquet Python (package, configuration, journaux).

@@ -18,6 +18,7 @@ from .world import WORLD_DEFAULT_NAME, WorldEngine, get_status
 from .character import upgrade_development_world
 from .needs import upgrade_dev_needs
 from .activities import upgrade_dev_activities
+from .simulation import upgrade_dev_profiles
 
 
 def _resolve_db_path(args_db: str | None) -> Path:
@@ -97,6 +98,12 @@ def _run_upgrade_dev(conn) -> int:
         )
     else:
         print("Activités : aucun ajout (mise à niveau idempotente).")
+    added_profiles = upgrade_dev_profiles(conn, world["id"])
+    print(
+        f"Profils (neutres) ajoutés : {added_profiles}"
+        if added_profiles
+        else "Profils : aucun ajout (mise à niveau idempotente)."
+    )
     return 0
 
 

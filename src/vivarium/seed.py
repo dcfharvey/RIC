@@ -86,3 +86,18 @@ SEED_ACTIVITY_ALLOWED: list[tuple[str, str | None, str | None]] = [
     ("sleep", None, "bedroom"),
     # idle : lieu courant (aucune règle)
 ]
+
+# Profils seedés — valeurs NEUTRES identiques pour les 4 habitantes (3.2C).
+# Aucune différence canonique dérivée de la calibration ; les variations ne
+# doivent exister que dans des tests ciblés. Tout paramètre en milli.
+SEED_PROFILES: list[dict[str, int]] = [
+    {
+        "satiete_threshold_mult_milli": 1000,
+        "repos_threshold_mult_milli": 1000,
+        "energie_threshold_mult_milli": 1000,
+        "hygiene_threshold_mult_milli": 1000,
+        "rest_preference_milli": 0,
+        "idle_tolerance_milli": 0,
+    }
+    for _ in range(4)
+]

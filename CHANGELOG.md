@@ -50,6 +50,16 @@
   (`max` puis `min` avec reste), clôture d'activité échue à son heure canonique,
   abandon, lecture pure. 104 tests passants.
 
+## 0.8 — 3 août 2026
+
+- **Phase 3 — Sous-lot 3.2C** : politique de décision déterministe et simulation.
+  Migration 0007 `character_profile` (entiers, sans REAL ; profils neutres seedés),
+  `DeterministicPolicy` pure (`Intent`/`DecisionResult`), `PolicyContext` immuable,
+  urgence normalisée par produits croisés, gestion conjointe repos/énergie,
+  destination déterministe, `SimulationEngine.run_to` (bornes canoniques, bornes
+  simultanées ordonnées, heure cible en milieu d'activité, garde configurable,
+  replis bornés). Démo 24 h : ~460 transitions (garde 2000), reproducible. 126 tests passants.
+
 ## 0.1 — 3 août 2026
 
 - Création du dossier maître destiné à une IA programmeuse.

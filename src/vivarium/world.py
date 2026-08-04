@@ -34,6 +34,7 @@ from .seed import (
     SEED_LOCATIONS,
     SEED_NEEDS,
     SEED_OBJECTS,
+    SEED_PROFILES,
 )
 from .util import Clock, ClockError, new_uuid, now_utc, parse_iso, to_iso
 
@@ -189,6 +190,23 @@ class WorldEngine:
                     "VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
                     (new_uuid(), world_id, char_id, key, initial, now, now),
                 )
+        # Profils individuels neutres (aucune différence canonique).
+        for i, (char_key, char_id) in enumerate(sorted(character_ids.items())):
+            p = SEED_PROFILES[i]
+            c.execute(
+                "INSERT INTO character_profile "
+                "(character_id, world_id, satiete_threshold_mult_milli, "
+                " repos_threshold_mult_milli, energie_threshold_mult_milli, "
+                " hygiene_threshold_mult_milli, rest_preference_milli, "
+                " idle_tolerance_milli, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    char_id, world_id, p["satiete_threshold_mult_milli"],
+                    p["repos_threshold_mult_milli"],
+                    p["energie_threshold_mult_milli"],
+                    p["hygiene_threshold_mult_milli"],
+                    p["rest_preference_milli"], p["idle_tolerance_milli"], now,
+                ),
+            )
         # Catalogue d'activités (taux nets /36) + lieux autorisés.
         for typ, min_d, max_d, s, rp, e, h in SEED_ACTIVITIES:
             c.execute(
@@ -217,6 +235,7 @@ class WorldEngine:
                 "characters": len(SEED_CHARACTERS),
                 "needs": len(SEED_NEEDS),
                 "activities": len(SEED_ACTIVITIES),
+                "profiles": len(SEED_PROFILES),
             },
             occurred_at=now,
             recorded_at=now,
@@ -242,6 +261,7 @@ class WorldEngine:
         """
         with transaction(self._conn) as c:
             c.execute("DELETE FROM need_state WHERE world_id = ?", (world_id,))
+            c.execute("DELETE FROM character_profile WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM world_object WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM location_link WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM character WHERE world_id = ?", (world_id,))
