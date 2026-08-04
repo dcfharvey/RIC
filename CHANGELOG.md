@@ -114,13 +114,16 @@
   (séquences continues, aucun trou/doublon, `occurred_at` monotones, JSON et
   causalités valides), `reproducible_semantic_projection` (faits significatifs,
   matérialisation exclue, `seq` absolu renuméroté, causalité normalisée vers la
-  position relative de l'événement causal), `max_seq` (invariant séparé),
-  `SimulationRunReport`.
+  position relative de l'événement causal), `materialization_chain_audit`
+  (objet D : exactitude mathématique de chaque chaîne de matérialisation —
+  blessures recomptées depuis le régime, besoins vérifiés par ancres/continuité/
+  taux implicite entier ; détecte les erreurs compensées), `max_seq` (invariant
+  séparé), `SimulationRunReport`.
   Correction `occurred_at` canonique pour `needs_materialized` et
   `character_moved`. Scénarios 24 h (84 transitions), blessures, endurance 7 j
   (980 transitions) ; runs comparatifs A-G ; tests de pause/reprise/redémarrage,
-  crash/rollback, délai mural, absence de frontière. Aucune migration, aucun RNG.
-  207 tests passants (188 existants + 19 nouveaux).
+  crash/rollback, délai mural, absence de frontière, erreurs compensées.
+  Aucune migration, aucun RNG. 215 tests passants (188 + 27).
 
 ## 0.1 — 3 août 2026
 

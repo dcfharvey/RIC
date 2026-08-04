@@ -30,6 +30,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
 
+from .injury import RECOVERY_RATES
 from .util import parse_iso
 
 
@@ -226,6 +227,131 @@ def reproducible_semantic_projection(conn: sqlite3.Connection, world_id: int) ->
 def semantic_event_digest(conn: sqlite3.Connection, world_id: int) -> list[tuple]:
     """Alias de `reproducible_semantic_projection` (objet C)."""
     return reproducible_semantic_projection(conn, world_id)
+
+
+def _audit_needs_chain(events: list[tuple[int, dict[str, Any]]]) -> list[tuple[int, str]]:
+    """Audit d'une chaîne de matérialisation de besoins (liste de (seq, payload)).
+
+    Vérifie : ancres monotones, bornes [0,100000], restes [0,36), continuité
+    (previous == new précédent), et taux implicite entier (détecte les erreurs
+    de reste compensées). Le taux attendu n'étant pas porté par l'événement, une
+    erreur de valeur compensée dont le taux implicite reste entier n'est pas
+    détectable ici — champ manquant : `rate_num`/`rate_den` (et type d'activité
+    pour les raisons liées à une activité).
+    """
+    errors: list[tuple[int, str]] = []
+    prev: dict[str, Any] | None = None
+    for seq, p in events:
+        pa = parse_iso(p["previous_anchor_at"])
+        na = parse_iso(p["new_anchor_at"])
+        if na < pa:
+            errors.append((seq, "needs: new_anchor < previous_anchor"))
+        if prev is not None:
+            for need in p["previous_values"]:
+                if p["previous_values"][need] != prev["new_values"][need]:
+                    errors.append((seq, f"needs: value discontinuity {need}"))
+                if p["previous_remainders"][need] != prev["new_remainders"][need]:
+                    errors.append((seq, f"needs: remainder discontinuity {need}"))
+        dt = int((na - pa).total_seconds())
+        for need in p["new_values"]:
+            nv = p["new_values"][need]
+            nr = p["new_remainders"][need]
+            pv = p["previous_values"][need]
+            pr = p["previous_remainders"][need]
+            if not (0 <= nv <= 100000):
+                errors.append((seq, f"needs: value out of bounds {need}"))
+            if not (0 <= nr < 36):
+                errors.append((seq, f"needs: remainder out of bounds {need}"))
+            delta = nv - pv
+            total = delta * 36 + nr
+            numer = total - pr
+            if dt > 0 and numer % dt != 0:
+                errors.append((seq, f"needs: implied rate non-integer {need}"))
+            elif dt == 0 and delta != 0:
+                errors.append((seq, f"needs: change at zero duration {need}"))
+        prev = p
+    return errors
+
+
+def _audit_injury_chain(
+    events: list[tuple[int, str, dict[str, Any]]]
+) -> list[tuple[int, str]]:
+    """Audit d'une chaîne de matérialisation de blessure (liste de
+    (seq, event_type, payload)). Recompte sévérité et reste depuis le régime
+    (taux connu), détectant les erreurs compensées. Vérifie la guérison exacte
+    et l'absence de matérialisation après guérison.
+    """
+    errors: list[tuple[int, str]] = []
+    healed = False
+    for seq, etype, p in events:
+        if etype == "injury_healed":
+            healed = True
+            continue
+        if healed:
+            errors.append((seq, "injury: materialization after healed"))
+            continue
+        rate = RECOVERY_RATES.get(p.get("regime"))
+        if rate is None:
+            errors.append((seq, "injury: unknown regime"))
+            continue
+        prev_sev = p["previous"]["severity"]
+        prev_rem = p["previous"]["remainder"]
+        prev_anchor = parse_iso(p["previous"]["anchor"])
+        new_anchor = parse_iso(p["new"]["anchor"])
+        new_sev = p["new"]["severity"]
+        new_rem = p["new"]["remainder"]
+        dt = int((new_anchor - prev_anchor).total_seconds())
+        total = prev_rem + rate * dt
+        delta = total // 36
+        exp_rem = total - delta * 36
+        exp_sev = prev_sev - delta
+        if exp_sev != new_sev:
+            errors.append((seq, f"injury: severity {new_sev} != expected {exp_sev}"))
+        if exp_rem != new_rem:
+            errors.append((seq, f"injury: remainder {new_rem} != expected {exp_rem}"))
+        if new_sev < 0:
+            errors.append((seq, "injury: negative severity"))
+    return errors
+
+
+def materialization_chain_audit(
+    conn: sqlite3.Connection, world_id: int
+) -> list[tuple[int, str, str]]:
+    """Audit de cohérence mathématique des chaînes de matérialisation (objet D).
+
+    Vérifie, dans chaque journal brut pris séparément, la validité de chaque
+    trajectoire technique (besoins et blessures), sans exiger que le run continu
+    et le run segmenté aient le même découpage. Retourne une liste de
+    (seq, personnage, message) pour chaque événement incorrect.
+    """
+    errors: list[tuple[int, str, str]] = []
+    rows = conn.execute(
+        "SELECT seq, payload FROM canonical_event "
+        "WHERE world_id = ? AND event_type = 'needs_materialized' ORDER BY seq",
+        (world_id,),
+    ).fetchall()
+    by_char: dict[str, list[tuple[int, dict[str, Any]]]] = {}
+    for r in rows:
+        p = json.loads(r["payload"])
+        by_char.setdefault(p["character"], []).append((r["seq"], p))
+    for char, events in by_char.items():
+        for seq, msg in _audit_needs_chain(events):
+            errors.append((seq, char, msg))
+    rows = conn.execute(
+        "SELECT seq, event_type, payload FROM canonical_event "
+        "WHERE world_id = ? AND event_type IN "
+        "('injury_materialized','injury_healed') ORDER BY seq",
+        (world_id,),
+    ).fetchall()
+    by_inj: dict[tuple, list[tuple[int, str, dict[str, Any]]]] = {}
+    for r in rows:
+        p = json.loads(r["payload"])
+        key = (p.get("character"), p.get("cause_event_seq"))
+        by_inj.setdefault(key, []).append((r["seq"], r["event_type"], p))
+    for key, events in by_inj.items():
+        for seq, msg in _audit_injury_chain(events):
+            errors.append((seq, key[0], msg))
+    return errors
 
 
 @dataclass

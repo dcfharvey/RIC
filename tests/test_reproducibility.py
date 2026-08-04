@@ -24,7 +24,10 @@ from vivarium.injury import InjuryEngine
 from vivarium.migrations import ensure_schema
 from vivarium.repro import (
     SimulationRunReport,
+    _audit_injury_chain,
+    _audit_needs_chain,
     canonical_state_digest,
+    materialization_chain_audit,
     max_seq,
     raw_canonical_event_log,
     reproducible_semantic_projection,
@@ -534,6 +537,66 @@ def test_materialisation_manquante_detectee_par_etat():
     )
     assert canonical_state_digest(conn, wid) != correct
     conn.close()
+
+
+# --- MaterializationChainAudit : erreurs compensées --------------------------
+
+def test_audit_chaine_materialisation_ok_run_normal():
+    # un run normal (continu et segmenté) ne produit aucune erreur de chaîne
+    conn, clock, wid = _fresh()
+    SimulationEngine(conn, clock=clock).run_to(wid, to_iso(T0 + H24))
+    assert materialization_chain_audit(conn, wid) == []
+    conn.close()
+    conn, clock, wid = _fresh()
+    se = SimulationEngine(conn, clock=clock)
+    se.run_to(wid, to_iso(T0 + timedelta(hours=8)))
+    se.run_to(wid, to_iso(T0 + timedelta(hours=16)))
+    se.run_to(wid, to_iso(T0 + H24))
+    assert materialization_chain_audit(conn, wid) == []
+    conn.close()
+
+
+def test_erreurs_compensees_blessure_detectees_par_audit_chaine():
+    # chaîne compensée : 100 → 99 (erreur) → 96 (compense) ; final identique à
+    # la chaîne correcte 100 → 98 → 96, mais l'événement A est incorrect.
+    events = [
+        (1, "injury_materialized", {
+            "character": "character_1", "cause_event_seq": 7, "regime": "passive",
+            "previous": {"severity": 100, "anchor": to_iso(T0), "remainder": 0},
+            "new": {"severity": 99, "anchor": to_iso(T0 + timedelta(seconds=36)), "remainder": 0},
+        }),
+        (2, "injury_materialized", {
+            "character": "character_1", "cause_event_seq": 7, "regime": "passive",
+            "previous": {"severity": 99, "anchor": to_iso(T0 + timedelta(seconds=36)), "remainder": 0},
+            "new": {"severity": 96, "anchor": to_iso(T0 + timedelta(seconds=72)), "remainder": 0},
+        }),
+    ]
+    errors = _audit_injury_chain(events)
+    # l'événement A (seq 1) est signalé : 99 != 98 attendu
+    assert any(seq == 1 and "severity 99" in msg for seq, msg in errors)
+
+
+def test_erreurs_compensees_besoins_detectees_par_audit_chaine():
+    # chaîne compensée : reste erroné à l'événement A, compensé à B ; l'état
+    # final (valeur + reste) est identique à la chaîne correcte, mais A est
+    # incorrect (taux implicite non entier).
+    events = [
+        (1, {
+            "character": "character_1", "reason": "passive",
+            "previous_anchor_at": to_iso(T0), "new_anchor_at": to_iso(T0 + timedelta(seconds=36)),
+            "previous_values": {"satiete": 100}, "new_values": {"satiete": 102},
+            "previous_remainders": {"satiete": 0}, "new_remainders": {"satiete": 1},
+        }),
+        (2, {
+            "character": "character_1", "reason": "passive",
+            "previous_anchor_at": to_iso(T0 + timedelta(seconds=36)), "new_anchor_at": to_iso(T0 + timedelta(seconds=72)),
+            "previous_values": {"satiete": 102}, "new_values": {"satiete": 104},
+            "previous_remainders": {"satiete": 1}, "new_remainders": {"satiete": 0},
+        }),
+    ]
+    errors = _audit_needs_chain(events)
+    # l'événement A (seq 1) est signalé : taux implicite non entier
+    assert any(seq == 1 and "implied rate non-integer" in msg for seq, msg in errors)
 
 
 def test_clock_etat_coherents_apres_run_to():
