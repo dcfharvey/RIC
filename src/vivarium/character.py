@@ -20,6 +20,8 @@ import sqlite3
 from typing import Any
 
 from .db import transaction
+from .injury import InjuryEngine, MOVEMENT_SURCHARGE_MILLI, level
+from .needs import NeedsEngine
 from .seed import SEED_CHARACTERS
 from .util import Clock, new_uuid
 from .world import SOURCE_ENGINE, SOURCE_SYSTEM, _append_event
@@ -117,7 +119,13 @@ class CharacterEngine:
             return self._move(c, world_id, key, target_key)
 
     def _move(
-        self, c: sqlite3.Connection, world_id: int, key: str, target_key: str
+        self,
+        c: sqlite3.Connection,
+        world_id: int,
+        key: str,
+        target_key: str,
+        *,
+        sim_now: str | None = None,
     ) -> dict[str, Any]:
         """Préparation interne du déplacement, à exécuter dans une transaction
         déjà ouverte (c) — utilisée aussi par le démarrage atomique d'activité.
@@ -125,6 +133,8 @@ class CharacterEngine:
         - refus si le monde est en pause (la pause gèle toute la simulation) ;
         - refus d'un déplacement vers le lieu actuel ;
         - validation d'une seule arête dirigée via `GraphEngine` ;
+        - matérialisation canonique de la blessure à `sim_now` (heure simulée
+          courante, ou cible fournie par le simulateur) avant classification ;
         - met à jour la position et enregistre `character_moved` dans `c`.
         """
         status = self._conn.execute(
@@ -153,6 +163,50 @@ class CharacterEngine:
                 f"pas d'arête dirigée {cur_key!r} → {target_key!r} (déplacement refusé)"
             )
 
+        # --- blessure : matérialisation canonique avant classification (3.3B2) ---
+        # La blessure est matérialisée à l'heure simulée courante, dans la même
+        # transaction, avec le régime réellement actif (récupération pendant une
+        # activité active ; passif sinon). Un refus annule aussi ces matérialisations.
+        from_simulator = sim_now is not None
+        sim_now = sim_now or self._canonical_time(world_id)
+        ie = InjuryEngine(self._conn, clock=self._clock)
+        active = ie.active_injury_row(world_id, key)
+        surcharge = 0
+        effect_level = None
+        if active is not None:
+            regime = self._active_recovery_regime(world_id, key)
+            ie.materialize_injury(
+                world_id, key, sim_now, regime, _conn=c,
+                _skip_canonical_check=from_simulator,
+            )
+            row = ie.active_injury_row(world_id, key)
+            sev = row["severity_milli"]
+            effect_level = level(sev)
+            if effect_level == "severe":
+                raise CharacterError(
+                    f"blessure sévère : déplacement refusé pour {key!r}"
+                )
+            if effect_level == "moderate":
+                ne = NeedsEngine(self._conn, clock=self._clock)
+                e_val, e_rem = ne.derive_need(world_id, key, "energie", sim_now)
+                if e_val < MOVEMENT_SURCHARGE_MILLI:
+                    raise CharacterError(
+                        f"énergie insuffisante pour le déplacement "
+                        f"(blessure modérée, {key!r})"
+                    )
+                new_val = e_val - MOVEMENT_SURCHARGE_MILLI
+                new_rem = e_rem if new_val > 0 else 0
+                c.execute(
+                    "UPDATE need_state SET value_milli = ?, rate_remainder = ?, "
+                    "anchor_at = ?, updated_at = ? "
+                    "WHERE world_id = ? AND character_id = "
+                    "(SELECT id FROM character WHERE world_id = ? AND key = ?) "
+                    "AND need_key = 'energie'",
+                    (new_val, new_rem, sim_now, self._now_iso(),
+                     world_id, world_id, key),
+                )
+                surcharge = MOVEMENT_SURCHARGE_MILLI
+
         now = self._now_iso()
         target_id = self._location_id(world_id, target_key)
         c.execute(
@@ -160,15 +214,45 @@ class CharacterEngine:
             "WHERE world_id = ? AND key = ?",
             (target_id, now, world_id, key),
         )
+        payload = {"character": key, "from": cur_key, "to": target_key}
+        if effect_level is not None:
+            payload.update({
+                "base_energy_cost": 0,
+                "injury_energy_surcharge": surcharge,
+                "edge_count": 1,
+                "total_energy_cost": surcharge,
+                "injury_effect_level": effect_level,
+            })
         _append_event(
             c,
             world_id,
             SOURCE_ENGINE,
             "character_moved",
-            {"character": key, "from": cur_key, "to": target_key},
+            payload,
             recorded_at=now,
         )
         return self.character_sheet(world_id, key)
+
+    def _canonical_time(self, world_id: int) -> str:
+        from .world import WorldEngine  # évite un cycle d'import
+
+        return WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
+
+    def _active_activity_type(self, world_id: int, key: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT a.type FROM activity a "
+            "JOIN character ch ON ch.id = a.character_id "
+            "WHERE a.world_id = ? AND ch.key = ? AND a.status = 'active' "
+            "ORDER BY a.id DESC LIMIT 1",
+            (world_id, key),
+        ).fetchone()
+        return row["type"] if row else None
+
+    def _active_recovery_regime(self, world_id: int, key: str) -> str:
+        from .activities import recovery_regime  # lazy, évite le cycle d'import
+
+        atype = self._active_activity_type(world_id, key)
+        return recovery_regime(atype) if atype else "passive"
 
 
 def upgrade_development_world(

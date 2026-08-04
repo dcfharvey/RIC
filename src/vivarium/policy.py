@@ -64,6 +64,8 @@ class PolicyContext:
     profile: dict[str, int]                # les 6 paramètres du profil (milli)
     rates: dict[str, int]                  # taux passifs /36 par besoin
     accessible: dict[str, dict[str, int]] = field(default_factory=dict)
+    injury_level: str = "none"             # none/light/moderate/severe (dérivé)
+    recovery_boundary_seconds: int | None = None  # severe→moderate (None sinon)
 
 
 def _max_by_products(items: list[tuple[str, int, int]]) -> tuple[str, int, int]:
@@ -208,8 +210,22 @@ class DeterministicPolicy:
         if his:
             wait = min(his)
             if 0 < wait < MAX_IDLE:
-                return wait, ("no_need" if not has_deficient else "idle_floor")
-        return MAX_IDLE, "idle_safety_boundary"
+                return self._cap_idle(ctx, wait, "no_need" if not has_deficient else "idle_floor")
+        return self._cap_idle(ctx, MAX_IDLE, "idle_safety_boundary")
+
+    def _cap_idle(self, ctx, wait: int, reason: str) -> tuple[int, str]:
+        """Borne l'attente à la frontière de récupération severe→moderate.
+
+        Un personnage sévère sans activité utile doit être réveillé exactement à
+        l'instant du croisement (récupération passive pendant l'idle).
+        """
+        if ctx.injury_level == "severe" and ctx.recovery_boundary_seconds is not None:
+            rb = ctx.recovery_boundary_seconds
+            if rb <= 0:
+                return 1, "recovery_boundary"
+            if rb < wait:
+                return rb, "recovery_boundary"
+        return wait, reason
 
     def _act_single(self, ctx, activity, need_key, idle_floor, has_deficient) -> DecisionResult:
         v, s = ctx.needs[need_key], ctx.effective_thresholds[need_key]
@@ -262,6 +278,17 @@ class DeterministicPolicy:
             raise RuntimeError("idle passes par _idle_wait, pas par _result")
         dests = ctx.accessible.get(activity)
         if not dests:
+            # Personnage sévère sans destination accessible : attente dynamique
+            # (bornée à la frontière de récupération), pas un idle d'une seconde
+            # qui bouclerait. Sinon, comportement historique conservé.
+            if ctx.injury_level == "severe":
+                idle_floor = 100 + 400 * ctx.profile["idle_tolerance_milli"] // 1000
+                wait, reason = self._idle_wait(ctx, idle_floor, True)
+                if wait > 0:
+                    return DecisionResult(
+                        Intent("idle", ctx.current_location, duration_seconds=wait),
+                        trigger, reason,
+                    )
             intent = Intent("idle", ctx.current_location, duration_seconds=1)
             return DecisionResult(intent, trigger, "no_accessible_destination")
         min_dist = min(dests.values())

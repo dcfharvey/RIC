@@ -38,9 +38,13 @@ DEN = 36  # dénominateur canonique commun (même que besoins/activités)
 # Rapport sleep > rest > passive.
 RECOVERY_RATES: dict[str, int] = {"passive": 2, "rest": 6, "sleep": 12}
 
-# Niveaux de sévérité (observables ; effets de mobilité reportés à 3.3B2).
+# Niveaux de sévérité (observables ; effets de mobilité 3.3B2).
 SEV_LIGHT_MAX = 30000
 SEV_MODERATE_MAX = 60000
+
+# Surcharge énergétique d'une blessure modérée, par arête réellement traversée
+# (règle de jeu 3.3B2, en milli-énergie).
+MOVEMENT_SURCHARGE_MILLI = 500
 
 
 class InjuryError(RuntimeError):
@@ -96,6 +100,26 @@ def seconds_to_heal(severity: int, remainder: int, rate_num: int, rate_den: int)
     if severity <= 0:
         return 0
     manque = severity - 0
+    numer = manque * rate_den - remainder
+    if numer <= 0:
+        return 0
+    return (numer + rate_num - 1) // rate_num  # ceil
+
+
+def seconds_to_level(
+    severity: int, remainder: int, target: int, rate_num: int, rate_den: int
+) -> int | None:
+    """Plus petit dt >= 0 tel que la sévérité atteigne `target` sous `rate_num/rate_den`.
+
+    Généralisation de `seconds_to_heal` (qui correspond à `target = 0`). Retourne
+    `None` si aucun croisement n'est possible (taux nul ou négatif) ; `0` si déjà
+    à ou sous la cible.
+    """
+    if severity <= target:
+        return 0
+    if rate_num <= 0:
+        return None
+    manque = severity - target
     numer = manque * rate_den - remainder
     if numer <= 0:
         return 0
@@ -177,6 +201,28 @@ class InjuryEngine:
             row["recovery_anchor_at"], at,
             RECOVERY_RATES["passive"], DEN,
         )
+        return self._sheet_from(row, sev, rem)
+
+    def _sheet_at(
+        self, world_id: int, character_key: str, target_at: str
+    ) -> dict[str, Any] | None:
+        """Fiche dérivée à `target_at` (sans clamp sur l'horloge canonique).
+
+        Utilisée par `materialize_injury` pour rendre l'état à la cible de
+        matérialisation (le simulateur avance le temps simulé via ces cibles).
+        """
+        row = self.active_injury_row(world_id, character_key)
+        if row is None:
+            return None
+        sev, rem = derive(
+            row["severity_milli"], row["rate_remainder"],
+            row["recovery_anchor_at"], target_at,
+            RECOVERY_RATES["passive"], DEN,
+        )
+        return self._sheet_from(row, sev, rem)
+
+    @staticmethod
+    def _sheet_from(row: sqlite3.Row, sev: int, rem: int) -> dict[str, Any]:
         return {
             "public_id": row["public_id"],
             "kind": row["kind"],
@@ -362,7 +408,14 @@ class InjuryEngine:
     # --- Matérialisation / récupération ----------------------------------------
 
     def materialize_injury(
-        self, world_id: int, character_key: str, target_at: str, regime: str
+        self,
+        world_id: int,
+        character_key: str,
+        target_at: str,
+        regime: str,
+        *,
+        _conn: sqlite3.Connection | None = None,
+        _skip_canonical_check: bool = False,
     ) -> dict[str, Any] | None:
         """Matérialise la récupération de la blessure active à `target_at`.
 
@@ -370,6 +423,14 @@ class InjuryEngine:
         taux constant. Cible doit être >= ancre et <= heure canonique courante.
         Chaque modification réelle émet `injury_materialized` ; la guérison émet
         `injury_healed` à l'heure exacte (la même transaction).
+
+        `_conn` permet d'exécuter la matérialisation dans une transaction déjà
+        ouverte (utilisée par le moteur de déplacement et les transitions
+        d'activité), sans transaction imbriquée.
+
+        `_skip_canonical_check` est réservé au simulateur : il avance le temps
+        simulé via les cibles de matérialisation (horloge canonique gelée en
+        test), donc une cible au-delà de l'horloge courante y est légitime.
         """
         if regime not in RECOVERY_RATES:
             raise InjuryError(f"régime inconnu : {regime!r}")
@@ -379,67 +440,88 @@ class InjuryEngine:
             return None
         if parse_iso(target_at) < parse_iso(active["recovery_anchor_at"]):
             raise InjuryError("heure cible antérieure à l'heure d'ancrage")
-        cur = self._canonical_time(world_id)
-        if parse_iso(target_at) > parse_iso(cur):
-            raise InjuryError("cible au-delà de l'heure canonique courante")
+        if not _skip_canonical_check:
+            cur = self._canonical_time(world_id)
+            if parse_iso(target_at) > parse_iso(cur):
+                raise InjuryError("cible au-delà de l'heure canonique courante")
 
-        with transaction(self._conn) as c:
-            row = c.execute(
-                "SELECT * FROM injury WHERE id = ?", (active["id"],)
-            ).fetchone()
-            if row is None:
-                return None
-            sev, rem = derive(
-                row["severity_milli"], row["rate_remainder"],
-                row["recovery_anchor_at"], target_at, rate, DEN,
+        if _conn is not None:
+            self._materialize_injury_in(
+                _conn, world_id, character_key, target_at, regime, rate, active
             )
-            prev = {
-                "severity": row["severity_milli"],
-                "anchor": row["recovery_anchor_at"],
-                "remainder": row["rate_remainder"],
-            }
-            now = self._now()
-            if sev <= 0:
-                heal_sec = seconds_to_heal(
-                    row["severity_milli"], row["rate_remainder"], rate, DEN
-                )
-                heal_time = _add_seconds(row["recovery_anchor_at"], heal_sec)
-                new = {"severity": 0, "anchor": heal_time, "remainder": 0}
-                _append_event(
-                    c, world_id, SOURCE_ENGINE, "injury_materialized",
-                    {"character": character_key,
-                     "cause_event_seq": row["cause_event_seq"],
-                     "regime": regime, "reason": "recovery",
-                     "previous": prev, "new": new},
-                    occurred_at=heal_time, recorded_at=now,
-                )
-                _append_event(
-                    c, world_id, SOURCE_ENGINE, "injury_healed",
-                    {"character": character_key,
-                     "cause_event_seq": row["cause_event_seq"],
-                     "kind": row["kind"], "healed_at": heal_time},
-                    occurred_at=heal_time, recorded_at=now,
-                )
-                c.execute(
-                    "UPDATE injury SET severity_milli = 0, rate_remainder = 0, "
-                    "recovery_anchor_at = ?, recovered_at = ?, status = 'healed', "
-                    "updated_at = ? WHERE id = ?",
-                    (heal_time, heal_time, now, row["id"]),
-                )
-            elif (parse_iso(target_at) != parse_iso(row["recovery_anchor_at"])) or (sev != row["severity_milli"]) or (rem != row["rate_remainder"]):
-                new = {"severity": sev, "anchor": target_at, "remainder": rem}
-                _append_event(
-                    c, world_id, SOURCE_ENGINE, "injury_materialized",
-                    {"character": character_key,
-                     "cause_event_seq": row["cause_event_seq"],
-                     "regime": regime, "reason": "recovery",
-                     "previous": prev, "new": new},
-                    occurred_at=target_at, recorded_at=now,
-                )
-                c.execute(
-                    "UPDATE injury SET severity_milli = ?, rate_remainder = ?, "
-                    "recovery_anchor_at = ?, updated_at = ? WHERE id = ?",
-                    (sev, rem, target_at, now, row["id"]),
-                )
-            # sinon : aucune modification réelle → aucun événement, aucune écriture
-        return self.injury_sheet(world_id, character_key)
+            return self._sheet_at(world_id, character_key, target_at)
+        with transaction(self._conn) as c:
+            self._materialize_injury_in(
+                c, world_id, character_key, target_at, regime, rate, active
+            )
+        return self._sheet_at(world_id, character_key, target_at)
+
+    def _materialize_injury_in(
+        self,
+        c: sqlite3.Connection,
+        world_id: int,
+        character_key: str,
+        target_at: str,
+        regime: str,
+        rate: int,
+        active: sqlite3.Row,
+    ) -> None:
+        """Corps de la matérialisation, à exécuter dans une transaction ouverte `c`."""
+        row = c.execute(
+            "SELECT * FROM injury WHERE id = ?", (active["id"],)
+        ).fetchone()
+        if row is None:
+            return
+        sev, rem = derive(
+            row["severity_milli"], row["rate_remainder"],
+            row["recovery_anchor_at"], target_at, rate, DEN,
+        )
+        prev = {
+            "severity": row["severity_milli"],
+            "anchor": row["recovery_anchor_at"],
+            "remainder": row["rate_remainder"],
+        }
+        now = self._now()
+        if sev <= 0:
+            heal_sec = seconds_to_heal(
+                row["severity_milli"], row["rate_remainder"], rate, DEN
+            )
+            heal_time = _add_seconds(row["recovery_anchor_at"], heal_sec)
+            new = {"severity": 0, "anchor": heal_time, "remainder": 0}
+            _append_event(
+                c, world_id, SOURCE_ENGINE, "injury_materialized",
+                {"character": character_key,
+                 "cause_event_seq": row["cause_event_seq"],
+                 "regime": regime, "reason": "recovery",
+                 "previous": prev, "new": new},
+                occurred_at=heal_time, recorded_at=now,
+            )
+            _append_event(
+                c, world_id, SOURCE_ENGINE, "injury_healed",
+                {"character": character_key,
+                 "cause_event_seq": row["cause_event_seq"],
+                 "kind": row["kind"], "healed_at": heal_time},
+                occurred_at=heal_time, recorded_at=now,
+            )
+            c.execute(
+                "UPDATE injury SET severity_milli = 0, rate_remainder = 0, "
+                "recovery_anchor_at = ?, recovered_at = ?, status = 'healed', "
+                "updated_at = ? WHERE id = ?",
+                (heal_time, heal_time, now, row["id"]),
+            )
+        elif (parse_iso(target_at) != parse_iso(row["recovery_anchor_at"])) or (sev != row["severity_milli"]) or (rem != row["rate_remainder"]):
+            new = {"severity": sev, "anchor": target_at, "remainder": rem}
+            _append_event(
+                c, world_id, SOURCE_ENGINE, "injury_materialized",
+                {"character": character_key,
+                 "cause_event_seq": row["cause_event_seq"],
+                 "regime": regime, "reason": "recovery",
+                 "previous": prev, "new": new},
+                occurred_at=target_at, recorded_at=now,
+            )
+            c.execute(
+                "UPDATE injury SET severity_milli = ?, rate_remainder = ?, "
+                "recovery_anchor_at = ?, updated_at = ? WHERE id = ?",
+                (sev, rem, target_at, now, row["id"]),
+            )
+        # sinon : aucune modification réelle → aucun événement, aucune écriture

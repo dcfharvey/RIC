@@ -85,6 +85,22 @@
   événements `scripted_accident`/`injury_occurred`/`injury_materialized`/
   `injury_healed`. Effets de mobilité reportés à 3.3B2. 164 tests passants.
 
+## 0.11 — 3 août 2026
+
+- **Phase 3 — Sous-lot 3.3B2** : effets mécaniques des blessures. Classification
+  dérivée réutilisée (`level`/`SEV_LIGHT_MAX`/`SEV_MODERATE_MAX`), surcharge de
+  déplacement modérée **500 milli-énergie par arête** (`MOVEMENT_SURCHARGE_MILLI`),
+  matérialisation canonique de la blessure avant classification dans
+  `CharacterEngine._move` (régime réellement actif), blocage canonique du
+  déplacement en blessure sévère, `character_moved` enrichi
+  (`base_energy_cost`/`injury_energy_surcharge`/`edge_count`/`total_energy_cost`/
+  `injury_effect_level`), `seconds_to_level` (généralisation de `seconds_to_heal`),
+  `recovery_regime` dans `activities.py`, matérialisation de la blessure aux
+  frontières d'activité (`start_activity`/`advance_to`/`abort_activity`), politique
+  avertie exactement à la frontière `severe→moderate` (idle dynamique borné),
+  filtrage des destinations en niveau sévère (`_accessible`). Aucune migration.
+  188 tests passants (164 existants + 24 nouveaux).
+
 ## 0.1 — 3 août 2026
 
 - Création du dossier maître destiné à une IA programmeuse.

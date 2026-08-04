@@ -19,6 +19,7 @@ from typing import Any
 
 from .character import CharacterEngine, CharacterError
 from .db import transaction
+from .injury import InjuryEngine
 from .needs import NeedsEngine
 from .seed import SEED_ACTIVITIES, SEED_ACTIVITY_ALLOWED
 from .spatial import GraphEngine
@@ -27,6 +28,20 @@ from .util import Clock, new_uuid, parse_iso, to_iso
 from .world import SOURCE_ENGINE, SOURCE_SYSTEM, _append_event
 
 DEN = 36  # dénominateur canonique commun
+
+
+def recovery_regime(activity_type: str) -> str:
+    """Régime de récupération de blessure pour une activité active.
+
+    `sleep` et `rest` accélèrent la récupération ; toute autre activité (et
+    l'absence d'activité) utilise le régime passif.
+    """
+    if activity_type == "sleep":
+        return "sleep"
+    if activity_type == "rest":
+        return "rest"
+    return "passive"
+
 
 # Fin conditionnelle du sommeil (calibration provisoire).
 SLEEP_REPOS_TARGET = 98000
@@ -251,11 +266,16 @@ class ActivityEngine:
         path = self._path(world_id, cur_key, target_location_key)
 
         with transaction(self._conn) as c:
-            # 1) déplacements pièce par pièce, chacun tracé (même transaction)
-            for step in path[1:]:
-                ce._move(c, world_id, character_key, step)
-            # 2) heure simulée de début (explicite ou dérivée de l'horloge)
+            # 1) heure simulée de début (explicite ou dérivée de l'horloge)
             start_at = sim_now if sim_now is not None else self._world().read_canonical_time(world_id)
+            # 1b) matérialisation de la blessure (ancien régime passif) jusqu'au début
+            InjuryEngine(self._conn, clock=self._clock).materialize_injury(
+                world_id, character_key, start_at, "passive", _conn=c,
+                _skip_canonical_check=sim_now is not None,
+            )
+            # 2) déplacements pièce par pièce, chacun tracé (même transaction)
+            for step in path[1:]:
+                ce._move(c, world_id, character_key, step, sim_now=start_at)
             # 3) matérialisation passive à l'heure de début
             NeedsEngine(self._conn, clock=self._clock).materialize_character_needs(
                 world_id, character_key, start_at, "activity_start", _conn=c
@@ -330,12 +350,18 @@ class ActivityEngine:
             if active is None:
                 return None
             ne = NeedsEngine(self._conn, clock=self._clock)
+            ie = InjuryEngine(self._conn, clock=self._clock)
             now = self._clock.now_iso()
             if parse_iso(active["planned_end_at"]) <= parse_iso(at_time):
                 rates = self._rates(world_id, active["type"])
                 ne.materialize_with_rates(
                     world_id, character_key, active["planned_end_at"],
                     "activity_end", rates, _conn=c,
+                )
+                ie.materialize_injury(
+                    world_id, character_key, active["planned_end_at"],
+                    recovery_regime(active["type"]), _conn=c,
+                    _skip_canonical_check=True,
                 )
                 c.execute(
                     "UPDATE activity SET status = 'completed', updated_at = ? WHERE id = ?",
@@ -351,10 +377,19 @@ class ActivityEngine:
                 ne.materialize_character_needs(
                     world_id, character_key, at_time, "passive", _conn=c
                 )
+                ie.materialize_injury(
+                    world_id, character_key, at_time, "passive", _conn=c,
+                    _skip_canonical_check=True,
+                )
             else:
                 rates = self._rates(world_id, active["type"])
                 ne.materialize_with_rates(
                     world_id, character_key, at_time, "activity_ongoing", rates, _conn=c
+                )
+                ie.materialize_injury(
+                    world_id, character_key, at_time,
+                    recovery_regime(active["type"]), _conn=c,
+                    _skip_canonical_check=True,
                 )
         return self.activity_sheet(world_id, character_key)
 
@@ -368,6 +403,11 @@ class ActivityEngine:
             rates = self._rates(world_id, active["type"])
             NeedsEngine(self._conn, clock=self._clock).materialize_with_rates(
                 world_id, character_key, now, "activity_abort", rates, _conn=c
+            )
+            InjuryEngine(self._conn, clock=self._clock).materialize_injury(
+                world_id, character_key, now,
+                recovery_regime(active["type"]), _conn=c,
+                _skip_canonical_check=True,
             )
             c.execute(
                 "UPDATE activity SET status = 'aborted', updated_at = ? WHERE id = ?",

@@ -14,9 +14,23 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any
 
-from .activities import ActivityEngine, ActivityError, upgrade_dev_activities
+from .activities import (
+    ActivityEngine,
+    ActivityError,
+    recovery_regime,
+    upgrade_dev_activities,
+)
 from .character import CharacterEngine
 from .db import connect_database
+from .injury import (
+    DEN,
+    InjuryEngine,
+    RECOVERY_RATES,
+    SEV_MODERATE_MAX,
+    derive,
+    level,
+    seconds_to_level,
+)
 from .needs import NeedsEngine, upgrade_dev_needs
 from .policy import DeterministicPolicy, PolicyContext
 from .seed import SEED_PROFILES
@@ -111,7 +125,9 @@ class SimulationEngine:
         ).fetchone()
         return row["key"]
 
-    def _accessible(self, world_id: int, char: str) -> dict[str, dict[str, int]]:
+    def _accessible(
+        self, world_id: int, char: str, injury_level: str = "none"
+    ) -> dict[str, dict[str, int]]:
         cur = self._current_location(world_id, char)
         graph = GraphEngine(self._conn)
         out: dict[str, dict[str, int]] = {"idle": {cur: 0}}
@@ -122,7 +138,10 @@ class SimulationEngine:
             for key in self._ae.allowed_locations(world_id, atype):
                 path = graph.find_path(world_id, cur, key)
                 if path is not None:
-                    dests[key] = len(path) - 1  # nombre d'arêtes (0 si déjà sur place)
+                    dist = len(path) - 1  # nombre d'arêtes (0 si déjà sur place)
+                    if injury_level == "severe" and dist > 0:
+                        continue  # blessure sévère : aucun déplacement autonome
+                    dests[key] = dist
             out[atype] = dests
         return out
 
@@ -136,6 +155,25 @@ class SimulationEngine:
                 "SELECT need_key, rate_num FROM need_definition WHERE world_id = ?", (world_id,)
             )
         }
+        # blessure : niveau dérivé + frontière de récupération (régime actif)
+        ie = InjuryEngine(self._conn, clock=self._clock)
+        injury_level = "none"
+        recovery_boundary_seconds: int | None = None
+        active = ie.active_injury_row(world_id, char)
+        if active is not None:
+            sheet = self._ae.activity_sheet(world_id, char)
+            atype = sheet["type"] if sheet else None
+            regime = recovery_regime(atype) if atype else "passive"
+            rate = RECOVERY_RATES[regime]
+            sev, rem = derive(
+                active["severity_milli"], active["rate_remainder"],
+                active["recovery_anchor_at"], sim_now, rate, DEN,
+            )
+            injury_level = level(sev)
+            if injury_level == "severe":
+                recovery_boundary_seconds = seconds_to_level(
+                    sev, rem, SEV_MODERATE_MAX, rate, DEN
+                )
         return PolicyContext(
             character_key=char,
             needs=needs,
@@ -144,7 +182,9 @@ class SimulationEngine:
             current_location=self._current_location(world_id, char),
             profile=self._profile(world_id, char),
             rates=rates,
-            accessible=self._accessible(world_id, char),
+            accessible=self._accessible(world_id, char, injury_level),
+            injury_level=injury_level,
+            recovery_boundary_seconds=recovery_boundary_seconds,
         )
 
     # --- Décision + démarrage avec gardes --------------------------------------
