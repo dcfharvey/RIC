@@ -72,6 +72,11 @@ class GraphEngine:
             )
         }
 
+    def _canonical_time(self, world_id: int) -> str:
+        from .world import WorldEngine  # évite un cycle d'import
+
+        return WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
+
     # --- Lectures pures (aucune écriture) ---------------------------------------
 
     def can_traverse(self, world_id: int, a_key: str, b_key: str) -> bool:
@@ -230,6 +235,7 @@ class GraphEngine:
             _append_event(
                 c, world_id, SOURCE_OWNER, "link_added",
                 {"from": a_key, "to": b_key, "bidirectional": bidirectional, "kind": kind},
+                occurred_at=self._canonical_time(world_id),
                 recorded_at=_now_iso(self._clock),
             )
         return {"from": a_key, "to": b_key, "bidirectional": bidirectional, "kind": kind}
@@ -267,6 +273,7 @@ class GraphEngine:
             _append_event(
                 c, world_id, SOURCE_OWNER, "link_removed",
                 {"from": a_key, "to": b_key, "bidirectional": bidirectional},
+                occurred_at=self._canonical_time(world_id),
                 recorded_at=_now_iso(self._clock),
             )
         return {"from": a_key, "to": b_key, "bidirectional": bidirectional}

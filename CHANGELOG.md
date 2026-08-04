@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.13 — 4 août 2026
+
+- **Correctifs de fermeture de la Phase 3 (C-1, C-2, C-3)** — aucun bloquant
+  résiduel, aucune migration.
+- **C-1** : garde dans `CharacterEngine._move` — aucun déplacement pendant une
+  activité active (refus `CharacterError` avant toute matérialisation ou débit,
+  sans interruption silencieuse ; position, énergie, blessure, horloge et
+  journal inchangés). Le déplacement préparatoire de `start_activity` (avant la
+  création de l'activité) et le déplacement direct sans activité restent
+  fonctionnels.
+- **C-2** : `occurred_at` des mutations administratives situé dans le temps
+  canonique du monde (`read_canonical_time`), jamais à l'heure murale :
+  `rename_world`, `add_link`, `remove_link`, `create_character`. `recorded_at`
+  reste mural et distinct. `pause_world`, `resume_world`, `set_simulated_time`
+  et les événements du simulateur sont inchangés (déjà canoniques).
+- **C-3** : retrait de l'API publique `WorldEngine.append_event` ; seule
+  `_append_event` (interne, dans une transaction métier) subsiste. Plus aucune
+  API publique ne peut injecter un `event_type`/`payload`/`occurred_at`
+  arbitraire ni un événement sans mutation correspondante.
+- Tests : 228 passants (220 + 8 nouveaux, 1 remplacé).
+
 ## 0.2 — 3 août 2026
 
 - Approbation de `docs/AUDIT_INITIAL.md` par le propriétaire.

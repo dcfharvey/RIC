@@ -412,27 +412,15 @@ class WorldEngine:
 
     # --- Écritures d'état + trace canonique (même transaction) -----------------
 
-    def append_event(
-        self,
-        world_id: int,
-        source_kind: str,
-        event_type: str,
-        payload: dict[str, Any],
-        *,
-        occurred_at: str | None = None,
-    ) -> int:
-        """Ajoute un événement canonique seul (trace d'audit dédiée)."""
-        recorded = self._now_iso()
-        with transaction(self._conn) as c:
-            return _append_event(
-                c, world_id, source_kind, event_type, payload,
-                occurred_at=occurred_at, recorded_at=recorded,
-            )
-
     def rename_world(self, world_id: int, new_name: str) -> dict[str, Any]:
-        """Renomme un monde et trace l'événement dans la même transaction."""
+        """Renomme un monde et trace l'événement dans la même transaction.
+
+        L'événement est situé dans le temps canonique du monde
+        (`read_canonical_time`), jamais à l'heure murale d'écriture.
+        """
         with transaction(self._conn) as c:
             now = self._now_iso()
+            canonical = self.read_canonical_time(world_id)
             old = c.execute(
                 "SELECT name FROM worlds WHERE id = ?", (world_id,)
             ).fetchone()
@@ -443,8 +431,8 @@ class WorldEngine:
                 (new_name, now, world_id),
             )
             _append_event(c, world_id, SOURCE_OWNER, "world_renamed",
-                          {"from": old["name"], "to": new_name}, occurred_at=now,
-                          recorded_at=now)
+                          {"from": old["name"], "to": new_name},
+                          occurred_at=canonical, recorded_at=now)
         return self.get_world(world_id)
 
     # --- Lectures ---------------------------------------------------------------

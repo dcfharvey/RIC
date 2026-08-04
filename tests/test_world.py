@@ -7,7 +7,7 @@ import pytest
 from vivarium.db import connect_database, transaction
 from vivarium.migrations import ensure_schema
 from vivarium.seed import SEED_LOCATIONS, SEED_OBJECTS
-from vivarium.world import SOURCE_ENGINE, SOURCE_OWNER, WorldEngine, get_status
+from vivarium.world import WorldEngine, get_status
 
 
 @pytest.fixture
@@ -104,18 +104,134 @@ def test_identifiants_publics_uuid_distincts(setup):
     assert all(len(v) == 36 for v in values)
 
 
-def test_append_event_incremente_seq_et_source_extensible(setup):
-    conn, engine, world = setup
-    b1 = engine.append_event(world["id"], SOURCE_ENGINE, "test_event", {"n": 1})
-    b2 = engine.append_event(world["id"], SOURCE_OWNER, "owner_test", {"n": 2})
-    assert b2 > b1
-    rows = conn.execute(
-        "SELECT seq, source_kind, event_type, payload FROM canonical_event "
-        "WHERE world_id = ? AND event_type IN ('test_event','owner_test') ORDER BY seq",
-        (world["id"],),
-    ).fetchall()
-    assert [r["source_kind"] for r in rows] == [SOURCE_ENGINE, SOURCE_OWNER]
-    assert json.loads(rows[1]["payload"]) == {"n": 2}
+def test_aucune_api_publique_append_event(setup):
+    # C-3 : l'écriture brute d'événements est strictement interne ; aucune API
+    # publique générique ne permet d'injecter un event_type/payload/occurred_at
+    # arbitraire sans mutation métier correspondante.
+    _conn, engine, world = setup
+    assert not hasattr(engine, "append_event")
+    # les événements métier continuent d'incrémenter seq correctement
+    engine.rename_world(world["id"], "Nouveau nom")
+    seqs = [
+        r["seq"] for r in _conn.execute(
+            "SELECT seq FROM canonical_event WHERE world_id = ? ORDER BY seq",
+            (world["id"],),
+        )
+    ]
+    assert seqs == list(range(1, len(seqs) + 1))
+
+
+# --- C-2 : événements administratifs situés dans le temps canonique ----------
+
+class _FakeClock:
+    def __init__(self, start):
+        self._now = start
+
+    def now(self):
+        return self._now
+
+    def now_iso(self):
+        from vivarium.util import to_iso
+        return to_iso(self.now())
+
+    def advance(self, **kw):
+        from datetime import timedelta
+        self._now = self._now + timedelta(**kw)
+
+
+def _admin_clock():
+    from datetime import datetime, timezone
+    return _FakeClock(datetime(2026, 8, 4, 0, 0, 0, tzinfo=timezone.utc))
+
+
+def test_rename_world_apres_fast_forward_occurred_at_canonique():
+    from datetime import timedelta
+    from vivarium.simulation import SimulationEngine
+    from vivarium.repro import structural_event_audit
+    from vivarium.util import parse_iso, to_iso
+
+    clock = _admin_clock()
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    engine = WorldEngine(conn, clock=clock)
+    wid = engine.init_world(name="A")["id"]
+    T1 = clock.now() + timedelta(days=7)
+    SimulationEngine(conn, clock=clock).run_to(wid, to_iso(T1))
+    engine.rename_world(wid, "Nouveau nom")
+    row = conn.execute(
+        "SELECT occurred_at, recorded_at FROM canonical_event "
+        "WHERE world_id = ? AND event_type = 'world_renamed'", (wid,)
+    ).fetchone()
+    # occurred_at = heure canonique du monde (T1), pas l'heure murale (R0)
+    assert parse_iso(row["occurred_at"]) == T1
+    # recorded_at reste mural (distinct)
+    assert parse_iso(row["recorded_at"]) == clock.now()
+    # le journal demeure monotone
+    assert structural_event_audit(conn, wid)["occurred_at_monotonic"] is True
+
+
+def test_link_added_removed_apres_fast_forward_occurred_at_canonique():
+    from datetime import timedelta
+    from vivarium.simulation import SimulationEngine
+    from vivarium.spatial import GraphEngine
+    from vivarium.repro import structural_event_audit
+    from vivarium.util import parse_iso, to_iso
+
+    clock = _admin_clock()
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    engine = WorldEngine(conn, clock=clock)
+    wid = engine.init_world(name="A")["id"]
+    T1 = clock.now() + timedelta(days=7)
+    SimulationEngine(conn, clock=clock).run_to(wid, to_iso(T1))
+    g = GraphEngine(conn, clock=clock)
+    # paire non présente dans le seed (cuisine → salle_de_bain)
+    g.add_link(wid, "cuisine", "salle_de_bain", bidirectional=False)
+    g.remove_link(wid, "cuisine", "salle_de_bain", bidirectional=False)
+    for etype in ("link_added", "link_removed"):
+        row = conn.execute(
+            "SELECT occurred_at FROM canonical_event "
+            "WHERE world_id = ? AND event_type = ?", (wid, etype)
+        ).fetchone()
+        assert parse_iso(row["occurred_at"]) == T1
+    assert structural_event_audit(conn, wid)["occurred_at_monotonic"] is True
+
+
+def test_rename_world_paused_occurred_at_gel():
+    from vivarium.util import parse_iso
+
+    clock = _admin_clock()
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    engine = WorldEngine(conn, clock=clock)
+    wid = engine.init_world(name="A")["id"]
+    clock.advance(hours=2)
+    engine.pause_world(wid)
+    frozen = engine.read_canonical_time(wid)
+    clock.advance(hours=10)  # délai mural pendant la pause
+    engine.rename_world(wid, "Renommé")
+    row = conn.execute(
+        "SELECT occurred_at FROM canonical_event "
+        "WHERE world_id = ? AND event_type = 'world_renamed'", (wid,)
+    ).fetchone()
+    assert parse_iso(row["occurred_at"]) == parse_iso(frozen)
+
+
+def test_rename_world_actif_occurred_at_derive():
+    from vivarium.util import parse_iso
+
+    clock = _admin_clock()
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    engine = WorldEngine(conn, clock=clock)
+    wid = engine.init_world(name="A")["id"]
+    clock.advance(hours=3)  # monde actif : heure canonique dérivée = R0 + 3 h
+    engine.rename_world(wid, "Renommé")
+    row = conn.execute(
+        "SELECT occurred_at FROM canonical_event "
+        "WHERE world_id = ? AND event_type = 'world_renamed'", (wid,)
+    ).fetchone()
+    assert parse_iso(row["occurred_at"]) == clock.now()
 
 
 def test_json_invalide_rejete(setup):

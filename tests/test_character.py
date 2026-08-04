@@ -211,7 +211,7 @@ def test_upgrade_ajoute_seulement_les_manquants(tmp_path):
     db = tmp_path / "upgrade.db"
     conn = connect_database(db)
     ensure_schema(conn)
-    world = WorldEngine(conn).init_world(name="ÀUpgrader")
+    world = WorldEngine(conn, clock=FakeClock()).init_world(name="ÀUpgrader")
     wid = world["id"]
     # simule un monde existant sans personnages (connexion en autocommit)
     conn.execute("DELETE FROM need_state WHERE world_id = ?", (wid,))
@@ -232,7 +232,7 @@ def test_upgrade_ne_supprime_rien_existant(tmp_path):
     db = tmp_path / "up2.db"
     conn = connect_database(db)
     ensure_schema(conn)
-    world = WorldEngine(conn).init_world(name="SansChars")
+    world = WorldEngine(conn, clock=FakeClock()).init_world(name="SansChars")
     wid = world["id"]
     # conserve monde/horloge/lieux/objets/liens/événements ; retire seulement les personnages
     from vivarium.world import get_status
@@ -246,3 +246,99 @@ def test_upgrade_ne_supprime_rien_existant(tmp_path):
     assert after["counts"]["locations"] == 9
     assert after["counts"]["characters"] == 4
     assert after["counts"]["events"] >= before["counts"]["events"]
+
+
+# --- C-1 : aucun déplacement pendant une activité active ---------------------
+
+def _active_activity(conn, wid, char):
+    return conn.execute(
+        "SELECT a.type, a.status, l.key AS loc FROM activity a "
+        "JOIN character ch ON ch.id = a.character_id "
+        "JOIN location l ON l.id = a.location_id "
+        "WHERE a.world_id = ? AND ch.key = ? AND a.status = 'active'",
+        (wid, char),
+    ).fetchone()
+
+
+def _energy(conn, wid, char):
+    return dict(conn.execute(
+        "SELECT value_milli, rate_remainder, anchor_at FROM need_state ns "
+        "JOIN character ch ON ch.id = ns.character_id "
+        "WHERE ns.world_id = ? AND ch.key = ? AND ns.need_key = 'energie'",
+        (wid, char),
+    ).fetchone())
+
+
+def test_move_pendant_activite_active_refuse_et_atomique(setup):
+    from vivarium.activities import ActivityEngine
+    from vivarium.injury import InjuryEngine
+
+    conn, ce, wid = setup
+    ae = ActivityEngine(conn, clock=FakeClock())
+    ie = InjuryEngine(conn, clock=FakeClock())
+
+    # déplace vers la cuisine puis démarre eat (activité active à cuisine)
+    ce.move_character(wid, "character_1", "couloir")
+    ce.move_character(wid, "character_1", "salon")
+    ce.move_character(wid, "character_1", "cuisine")
+    ae.start_activity(wid, "character_1", "eat", "cuisine", sim_now=to_iso(T0))
+    ie.inflict_injury(wid, "character_1", 40000)
+
+    before_pos = ce.character_sheet(wid, "character_1")["location_key"]
+    before_energy = _energy(conn, wid, "character_1")
+    before_injury = dict(conn.execute(
+        "SELECT severity_milli, rate_remainder, recovery_anchor_at, status "
+        "FROM injury WHERE world_id = ?", (wid,)
+    ).fetchone())
+    before_activity = dict(_active_activity(conn, wid, "character_1"))
+    before_events = conn.execute(
+        "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (wid,)
+    ).fetchone()[0]
+
+    with pytest.raises(CharacterError, match="activité est active"):
+        ce.move_character(wid, "character_1", "salon")
+
+    # position, énergie, blessure, activité, journal inchangés (rollback)
+    assert ce.character_sheet(wid, "character_1")["location_key"] == before_pos
+    assert _energy(conn, wid, "character_1") == before_energy
+    assert dict(conn.execute(
+        "SELECT severity_milli, rate_remainder, recovery_anchor_at, status "
+        "FROM injury WHERE world_id = ?", (wid,)
+    ).fetchone()) == before_injury
+    assert dict(_active_activity(conn, wid, "character_1")) == before_activity
+    assert conn.execute(
+        "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (wid,)
+    ).fetchone()[0] == before_events
+
+
+def test_move_pendant_activite_active_refuse_avant_debit(setup):
+    from vivarium.activities import ActivityEngine
+
+    conn, ce, wid = setup
+    ae = ActivityEngine(conn, clock=FakeClock())
+    ce.move_character(wid, "character_1", "couloir")
+    ce.move_character(wid, "character_1", "salon")
+    ce.move_character(wid, "character_1", "cuisine")
+    ae.start_activity(wid, "character_1", "eat", "cuisine", sim_now=to_iso(T0))
+    # la garde est vérifiée avant toute matérialisation ou débit
+    with pytest.raises(CharacterError):
+        ce.move_character(wid, "character_1", "salon")
+    assert _energy(conn, wid, "character_1")["value_milli"] == 70000  # inchangé
+
+
+def test_move_preparatoire_start_activity_fonctionne(setup):
+    from vivarium.activities import ActivityEngine
+
+    conn, ce, wid = setup
+    ae = ActivityEngine(conn, clock=FakeClock())
+    # aucun déplacement direct : le déplacement préparatoire de start_activity
+    # (avant la création de l'activité) doit continuer de fonctionner
+    sheet = ae.start_activity(wid, "character_1", "clean", "salle_de_bain", sim_now=to_iso(T0))
+    assert sheet["type"] == "clean"
+    assert ce.character_sheet(wid, "character_1")["location_key"] == "salle_de_bain"
+
+
+def test_move_direct_normal_sans_activite_fonctionne(setup):
+    conn, ce, wid = setup
+    ce.move_character(wid, "character_1", "couloir")
+    assert ce.character_sheet(wid, "character_1")["location_key"] == "couloir"

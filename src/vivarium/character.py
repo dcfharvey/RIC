@@ -70,6 +70,7 @@ class CharacterEngine:
         loc_id = self._location_id(world_id, location_key)
         with transaction(self._conn) as c:
             now = self._now_iso()
+            canonical = self._canonical_time(world_id)
             c.execute(
                 "INSERT INTO character "
                 "(public_id, world_id, key, name, adult, current_location_id, "
@@ -82,7 +83,7 @@ class CharacterEngine:
                 source,
                 "character_created",
                 {"character": key, "name": name, "location": location_key},
-                recorded_at=now,
+                occurred_at=canonical, recorded_at=now,
             )
         return self.character_sheet(world_id, key)
 
@@ -144,6 +145,16 @@ class CharacterEngine:
             raise CharacterError(f"monde introuvable : {world_id}")
         if status["status"] == "paused":
             raise CharacterError("le monde est en pause : aucun déplacement possible")
+
+        # --- garde C-1 : aucun déplacement pendant une activité active ---
+        # Une API publique ne doit jamais pouvoir créer une divergence entre la
+        # position du personnage et le lieu de son activité active. Refus sans
+        # interruption silencieuse : ni position, ni énergie, ni blessure, ni
+        # horloge, ni journal ne sont modifiés (rollback de la transaction).
+        if self._active_activity_type(world_id, key) is not None:
+            raise CharacterError(
+                f"déplacement refusé pour {key!r} : une activité est active"
+            )
 
         current = self._conn.execute(
             "SELECT ch.current_location_id, l.key AS cur_key "
