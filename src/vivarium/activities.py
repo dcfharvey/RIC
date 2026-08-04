@@ -19,7 +19,11 @@ from typing import Any
 
 from .character import CharacterEngine, CharacterError
 from .db import transaction
-from .injury import InjuryEngine
+from .injury import (
+    MOVEMENT_SURCHARGE_MILLI,
+    InjuryEngine,
+    level,
+)
 from .needs import NeedsEngine
 from .seed import SEED_ACTIVITIES, SEED_ACTIVITY_ALLOWED
 from .spatial import GraphEngine
@@ -269,10 +273,20 @@ class ActivityEngine:
             # 1) heure simulée de début (explicite ou dérivée de l'horloge)
             start_at = sim_now if sim_now is not None else self._world().read_canonical_time(world_id)
             # 1b) matérialisation de la blessure (ancien régime passif) jusqu'au début
-            InjuryEngine(self._conn, clock=self._clock).materialize_injury(
-                world_id, character_key, start_at, "passive", _conn=c,
-                _skip_canonical_check=sim_now is not None,
-            )
+            ie = InjuryEngine(self._conn, clock=self._clock)
+            ie._materialize_injury_sim(world_id, character_key, start_at, "passive", _conn=c)
+            # 1c) prévalidation du coût total de blessure avant le premier déplacement
+            edge_count = len(path) - 1
+            row = ie.active_injury_row(world_id, character_key)
+            if row is not None and level(row["severity_milli"]) == "moderate" and edge_count > 0:
+                total = MOVEMENT_SURCHARGE_MILLI * edge_count
+                ne = NeedsEngine(self._conn, clock=self._clock)
+                e_val, _ = ne.derive_need(world_id, character_key, "energie", start_at)
+                if e_val < total:
+                    raise ActivityError(
+                        f"énergie insuffisante pour le trajet complet "
+                        f"(blessure modérée, {character_key!r})"
+                    )
             # 2) déplacements pièce par pièce, chacun tracé (même transaction)
             for step in path[1:]:
                 ce._move(c, world_id, character_key, step, sim_now=start_at)
@@ -358,10 +372,9 @@ class ActivityEngine:
                     world_id, character_key, active["planned_end_at"],
                     "activity_end", rates, _conn=c,
                 )
-                ie.materialize_injury(
+                ie._materialize_injury_sim(
                     world_id, character_key, active["planned_end_at"],
                     recovery_regime(active["type"]), _conn=c,
-                    _skip_canonical_check=True,
                 )
                 c.execute(
                     "UPDATE activity SET status = 'completed', updated_at = ? WHERE id = ?",
@@ -377,19 +390,17 @@ class ActivityEngine:
                 ne.materialize_character_needs(
                     world_id, character_key, at_time, "passive", _conn=c
                 )
-                ie.materialize_injury(
+                ie._materialize_injury_sim(
                     world_id, character_key, at_time, "passive", _conn=c,
-                    _skip_canonical_check=True,
                 )
             else:
                 rates = self._rates(world_id, active["type"])
                 ne.materialize_with_rates(
                     world_id, character_key, at_time, "activity_ongoing", rates, _conn=c
                 )
-                ie.materialize_injury(
+                ie._materialize_injury_sim(
                     world_id, character_key, at_time,
                     recovery_regime(active["type"]), _conn=c,
-                    _skip_canonical_check=True,
                 )
         return self.activity_sheet(world_id, character_key)
 
@@ -404,10 +415,9 @@ class ActivityEngine:
             NeedsEngine(self._conn, clock=self._clock).materialize_with_rates(
                 world_id, character_key, now, "activity_abort", rates, _conn=c
             )
-            InjuryEngine(self._conn, clock=self._clock).materialize_injury(
+            InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
                 world_id, character_key, now,
                 recovery_regime(active["type"]), _conn=c,
-                _skip_canonical_check=True,
             )
             c.execute(
                 "UPDATE activity SET status = 'aborted', updated_at = ? WHERE id = ?",

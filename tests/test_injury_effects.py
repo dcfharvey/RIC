@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from vivarium.activities import ActivityEngine, recovery_regime
+from vivarium.activities import ActivityEngine, ActivityError, recovery_regime
 from vivarium.character import CharacterEngine, CharacterError
 from vivarium.db import connect_database
 from vivarium.injury import (
@@ -190,11 +190,22 @@ def test_modere_energie_insuffisante_chemin_atomique_rollback():
     ie.inflict_injury(wid, "character_1", 40000)
     _set_energy(conn, wid, "character_1", 800)
     before = len(_events(conn, wid))
-    with pytest.raises(CharacterError):
+    injury_before = dict(conn.execute(
+        "SELECT severity_milli, rate_remainder, recovery_anchor_at, status "
+        "FROM injury WHERE world_id = ?", (wid,)
+    ).fetchone())
+    # prévalidation du coût total avant le premier déplacement → ActivityError
+    with pytest.raises(ActivityError):
         ae.start_activity(wid, "character_1", "clean", "salle_de_bain", sim_now=to_iso(T0))
-    # position inchangée, énergie inchangée, journal inchangé
+    # position inchangée, énergie inchangée, blessure persistante inchangée,
+    # journal canonique inchangé (rollback complet)
     assert _location(conn, wid, "character_1") == "salon"
     assert _energy(conn, wid, "character_1")["value_milli"] == 800
+    injury_after = dict(conn.execute(
+        "SELECT severity_milli, rate_remainder, recovery_anchor_at, status "
+        "FROM injury WHERE world_id = ?", (wid,)
+    ).fetchone())
+    assert injury_after == injury_before
     assert len(_events(conn, wid)) == before
 
 

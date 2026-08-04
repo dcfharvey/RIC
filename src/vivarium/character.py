@@ -175,10 +175,10 @@ class CharacterEngine:
         effect_level = None
         if active is not None:
             regime = self._active_recovery_regime(world_id, key)
-            ie.materialize_injury(
-                world_id, key, sim_now, regime, _conn=c,
-                _skip_canonical_check=from_simulator,
-            )
+            if from_simulator:
+                ie._materialize_injury_sim(world_id, key, sim_now, regime, _conn=c)
+            else:
+                ie.materialize_injury(world_id, key, sim_now, regime, _conn=c)
             row = ie.active_injury_row(world_id, key)
             sev = row["severity_milli"]
             effect_level = level(sev)
@@ -214,15 +214,18 @@ class CharacterEngine:
             "WHERE world_id = ? AND key = ?",
             (target_id, now, world_id, key),
         )
-        payload = {"character": key, "from": cur_key, "to": target_key}
-        if effect_level is not None:
-            payload.update({
-                "base_energy_cost": 0,
-                "injury_energy_surcharge": surcharge,
-                "edge_count": 1,
-                "total_energy_cost": surcharge,
-                "injury_effect_level": effect_level,
-            })
+        # Contrat stable de `character_moved` : les cinq champs de coût/blessure
+        # sont toujours présents, avec des valeurs neutres en l'absence d'effet.
+        payload = {
+            "character": key,
+            "from": cur_key,
+            "to": target_key,
+            "base_energy_cost": 0,
+            "injury_energy_surcharge": surcharge,
+            "edge_count": 1,
+            "total_energy_cost": surcharge,
+            "injury_effect_level": effect_level or "none",
+        }
         _append_event(
             c,
             world_id,

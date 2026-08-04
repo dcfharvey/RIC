@@ -103,7 +103,11 @@ def test_deplacement_valide_arête_dirigee(setup):
         (wid,),
     ).fetchone()
     import json
-    assert json.loads(row["payload"]) == {"character": "character_1", "from": "chambre_1", "to": "couloir"}
+    assert json.loads(row["payload"]) == {
+        "character": "character_1", "from": "chambre_1", "to": "couloir",
+        "base_energy_cost": 0, "injury_energy_surcharge": 0, "edge_count": 1,
+        "total_energy_cost": 0, "injury_effect_level": "none",
+    }
 
 
 def test_deplacement_refuse_non_adjacent(setup):

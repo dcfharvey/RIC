@@ -415,7 +415,6 @@ class InjuryEngine:
         regime: str,
         *,
         _conn: sqlite3.Connection | None = None,
-        _skip_canonical_check: bool = False,
     ) -> dict[str, Any] | None:
         """Matérialise la récupération de la blessure active à `target_at`.
 
@@ -428,10 +427,48 @@ class InjuryEngine:
         ouverte (utilisée par le moteur de déplacement et les transitions
         d'activité), sans transaction imbriquée.
 
-        `_skip_canonical_check` est réservé au simulateur : il avance le temps
-        simulé via les cibles de matérialisation (horloge canonique gelée en
-        test), donc une cible au-delà de l'horloge courante y est légitime.
+        L'API publique applique toujours la garde `target_at <= heure canonique`.
+        Le simulateur, qui avance le temps simulé via les cibles de matérialisation
+        (horloge canonique gelée en test), utilise la méthode réservée
+        `_materialize_injury_sim`.
         """
+        return self._materialize(
+            world_id, character_key, target_at, regime,
+            _conn=_conn, check_canonical=True,
+        )
+
+    def _materialize_injury_sim(
+        self,
+        world_id: int,
+        character_key: str,
+        target_at: str,
+        regime: str,
+        *,
+        _conn: sqlite3.Connection | None = None,
+    ) -> dict[str, Any] | None:
+        """Variante réservée au simulateur : aucune garde sur l'horloge canonique.
+
+        Le simulateur avance le temps simulé via les cibles de matérialisation
+        (l'horloge canonique reste gelée en test), donc une cible au-delà de
+        l'horloge courante y est légitime. Toutes les autres protections
+        (régime connu, cible >= ancre, atomicité, événements) restent actives.
+        """
+        return self._materialize(
+            world_id, character_key, target_at, regime,
+            _conn=_conn, check_canonical=False,
+        )
+
+    def _materialize(
+        self,
+        world_id: int,
+        character_key: str,
+        target_at: str,
+        regime: str,
+        *,
+        _conn: sqlite3.Connection | None = None,
+        check_canonical: bool = True,
+    ) -> dict[str, Any] | None:
+        """Corps commun de la matérialisation (public et simulateur)."""
         if regime not in RECOVERY_RATES:
             raise InjuryError(f"régime inconnu : {regime!r}")
         rate = RECOVERY_RATES[regime]
@@ -440,7 +477,7 @@ class InjuryEngine:
             return None
         if parse_iso(target_at) < parse_iso(active["recovery_anchor_at"]):
             raise InjuryError("heure cible antérieure à l'heure d'ancrage")
-        if not _skip_canonical_check:
+        if check_canonical:
             cur = self._canonical_time(world_id)
             if parse_iso(target_at) > parse_iso(cur):
                 raise InjuryError("cible au-delà de l'heure canonique courante")
