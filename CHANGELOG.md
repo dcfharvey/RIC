@@ -101,6 +101,23 @@
   filtrage des destinations en niveau sévère (`_accessible`). Aucune migration.
   188 tests passants (164 existants + 24 nouveaux).
 
+## 0.12 — 3 août 2026
+
+- **Phase 3 — Sous-lot 3.3C** : reproductibilité finale et fermeture technique.
+  Helper interne `WorldEngine._advance_clock` : chaque transition temporelle
+  (`start_activity`, `advance_to`, `abort_activity`) pose atomiquement
+  `simulated_now = cible` et `real_updated_at = Clock.now` dans sa transaction
+  (rollback annule aussi l'horloge ; aucun `clock_updated`). Outils de
+  comparaison `src/vivarium/repro.py` : `canonical_state_digest` (références par
+  clés logiques, `character.name` inclus, rowids/UUID/muraux exclus),
+  `semantic_event_digest` (faits significatifs, matérialisation exclue, `seq`
+  absolu non comparé), `max_seq` (invariant séparé), `SimulationRunReport`.
+  Correction `occurred_at` canonique pour `needs_materialized` et
+  `character_moved`. Scénarios 24 h (84 transitions), blessures, endurance 7 j
+  (980 transitions) ; runs comparatifs A-G ; tests de pause/reprise/redémarrage,
+  crash/rollback, délai mural, absence de frontière. Aucune migration, aucun RNG.
+  207 tests passants (188 existants + 19 nouveaux).
+
 ## 0.1 — 3 août 2026
 
 - Création du dossier maître destiné à une IA programmeuse.

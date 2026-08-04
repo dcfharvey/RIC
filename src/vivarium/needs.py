@@ -63,11 +63,18 @@ def derive(
     return new_value, new_remainder
 
 
-def _emit_event(c, world_id: int, payload: dict[str, Any], recorded_at: str) -> None:
+def _emit_event(
+    c: sqlite3.Connection,
+    world_id: int,
+    payload: dict[str, Any],
+    recorded_at: str,
+    occurred_at: str | None = None,
+) -> None:
     from .world import SOURCE_ENGINE, _append_event  # évite un cycle d'import
 
     _append_event(
-        c, world_id, SOURCE_ENGINE, "needs_materialized", payload, recorded_at=recorded_at
+        c, world_id, SOURCE_ENGINE, "needs_materialized", payload,
+        occurred_at=occurred_at, recorded_at=recorded_at,
     )
 
 
@@ -179,7 +186,7 @@ class NeedsEngine:
                 "previous_remainders": prev_rem,
                 "new_remainders": new_rem,
             },
-            recorded_at=recorded,
+            occurred_at=target_at, recorded_at=recorded,
         )
         return {
             "previous_anchor_at": previous_anchor,

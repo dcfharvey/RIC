@@ -391,6 +391,25 @@ class WorldEngine:
             )
         return self.get_world(world_id)
 
+    def _advance_clock(
+        self, world_id: int, target_at: str, _conn: sqlite3.Connection
+    ) -> None:
+        """Avance l'horloge canonique à `target_at` dans la transaction en cours.
+
+        Pose atomiquement `simulated_now = target_at` et `real_updated_at =
+        Clock.now` (heure murale), dans la transaction `_conn` déjà ouverte.
+        Réservé aux transitions temporelles du simulateur (`start_activity`,
+        `advance_to`, `abort_activity`) : aucune API publique n'avance l'horloge
+        silencieusement. Un rollback de la transaction annule aussi cette mise à
+        jour. Aucun événement `clock_updated` n'est émis (la progression du run
+        est tracée par ses propres événements).
+        """
+        _conn.execute(
+            "UPDATE canonical_clock SET simulated_now = ?, real_updated_at = ? "
+            "WHERE world_id = ?",
+            (target_at, self._now_iso(), world_id),
+        )
+
     # --- Écritures d'état + trace canonique (même transaction) -----------------
 
     def append_event(

@@ -327,6 +327,8 @@ class ActivityEngine:
                 },
                 occurred_at=start_at, recorded_at=now,
             )
+            # 7) avancement de l'horloge canonique à l'instant de début
+            self._world()._advance_clock(world_id, start_at, c)
         return self.activity_sheet(world_id, character_key)
 
     def _character_id(self, world_id: int, character_key: str) -> int:
@@ -402,6 +404,8 @@ class ActivityEngine:
                     world_id, character_key, at_time,
                     recovery_regime(active["type"]), _conn=c,
                 )
+            # avancement de l'horloge canonique à l'instant atteint
+            self._world()._advance_clock(world_id, at_time, c)
         return self.activity_sheet(world_id, character_key)
 
     def abort_activity(self, world_id: int, character_key: str) -> dict[str, Any] | None:
@@ -410,13 +414,14 @@ class ActivityEngine:
             active = self._active_row(c, world_id, character_key)
             if active is None:
                 raise ActivityError("aucune activité active à abandonner")
+            canonical = self._world().read_canonical_time(world_id)
             now = self._clock.now_iso()
             rates = self._rates(world_id, active["type"])
             NeedsEngine(self._conn, clock=self._clock).materialize_with_rates(
-                world_id, character_key, now, "activity_abort", rates, _conn=c
+                world_id, character_key, canonical, "activity_abort", rates, _conn=c
             )
             InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
-                world_id, character_key, now,
+                world_id, character_key, canonical,
                 recovery_regime(active["type"]), _conn=c,
             )
             c.execute(
@@ -426,8 +431,10 @@ class ActivityEngine:
             _append_event(
                 c, world_id, SOURCE_ENGINE, "activity_aborted",
                 {"character": character_key, "activity": active["type"]},
-                occurred_at=now, recorded_at=now,
+                occurred_at=canonical, recorded_at=now,
             )
+            # avancement de l'horloge canonique à l'instant d'abandon
+            self._world()._advance_clock(world_id, canonical, c)
         return self.activity_sheet(world_id, character_key)
 
     def _active_row(self, c: sqlite3.Connection, world_id: int, character_key: str):

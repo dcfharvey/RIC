@@ -232,7 +232,7 @@ class CharacterEngine:
             SOURCE_ENGINE,
             "character_moved",
             payload,
-            recorded_at=now,
+            occurred_at=sim_now, recorded_at=now,
         )
         return self.character_sheet(world_id, key)
 
