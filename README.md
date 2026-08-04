@@ -160,6 +160,25 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 - Les 4 profils seedés sont **neutres et identiques** (variations seulement en
   tests). Reproductible : mêmes données + même heure cible ⇒ même état et même journal.
 
+### Attente dynamique et sommeil naturel (Sous-lot 3.3A)
+
+- `Intent` transporte `duration_seconds` : **obligatoire et borné** `1..MAX_IDLE`
+  (8 h) pour `idle`, **refusé** pour `eat`/`clean`/`rest`/`sleep` (durées définies ou
+  conditionnelles). Le moteur valide toujours la durée reçue de la politique.
+- **Attente dynamique** : l'`idle` ne dure plus 15 min fixes. Il se termine à la
+  **première seconde où la décision changerait** — franchissement d'un seuil
+  d'intervention, dépassement du palier d'urgence, ou franchissement critique —
+  calculé mathématiquement (aucun tick par minute), en tenant compte du reste
+  rationnel ; sinon plafond de sécurité `idle_safety_boundary` (8 h). Une unique
+  longue attente remplace les séries de micro-cycles.
+- **Règle de sommeil naturelle** : repos **ou** énergie critique ⇒ `sleep` ; repos
+  déficient ⇒ `sleep` ; seule énergie modérée (repos acceptable) ⇒ `rest` ; les deux
+  déficients ⇒ `sleep`. `rest_preference` ne peut jamais empêcher le sommeil exigé.
+  Aucun retunage de taux.
+- Démo 24 h corrigée : **84** transitions (vs 460), **28** idle (vs 168),
+  **128** matérialisations (vs 692), ≥ 1 sommeil de 8 h par habitante, aucun besoin
+  hors bornes, aucune boucle d'attente, journal et état identiques sur 2 exécutions.
+
 ### Structure
 
 - `src/vivarium/` — paquet Python (package, configuration, journaux).

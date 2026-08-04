@@ -69,7 +69,8 @@ SEED_NEEDS: list[tuple[str, str, int, int, int, int]] = [
 # (activity_type, min_duration_seconds, max_duration_seconds,
 #  satiete_rate, repos_rate, energie_rate, hygiene_rate)  -- tous /36 par seconde
 SEED_ACTIVITIES: list[tuple[str, int, int, int, int, int, int]] = [
-    ("idle", 900, 900, -80, -60, -50, -30),
+    # idle : durée dynamique (portée par Intent, 1..MAX_IDLE) ; ici plage de sécurité
+    ("idle", 1, 28800, -80, -60, -50, -30),
     ("eat", 1800, 1800, 1200, -60, 32, -30),
     ("rest", 3600, 3600, -80, 30, 27, -30),
     ("clean", 900, 900, -80, -60, -50, 2400),

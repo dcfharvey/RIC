@@ -8,6 +8,7 @@ from vivarium.activities import ActivityEngine, ActivityError, upgrade_dev_activ
 from vivarium.db import connect_database, transaction as _tx
 from vivarium.migrations import ensure_schema, load_migrations, split_sql_statements
 from vivarium.needs import NeedsEngine, derive
+from vivarium.policy import MAX_IDLE
 from vivarium.spatial import GraphEngine
 from vivarium.util import new_uuid, now_utc, to_iso, parse_iso
 from vivarium.world import WorldEngine
@@ -246,6 +247,53 @@ def test_une_seule_activite_active_et_rollback_du_trajet(setup):
     ).fetchone()["key"]
     assert pos == "chambre_1"
     assert ae.activity_sheet(wid, "character_1") is not None  # c'est toujours le sleep
+
+
+# --- Durée dynamique de l'attente (3.3A) --------------------------------------
+
+def test_idle_exige_une_duree(setup):
+    conn, _clock, ae, wid = setup
+    with pytest.raises(ActivityError):
+        ae.start_activity(wid, "character_1", "idle", "chambre_1")
+
+
+def test_idle_duree_invalide(setup):
+    conn, _clock, ae, wid = setup
+    for bad in (0, -5, MAX_IDLE + 1):
+        with pytest.raises(ActivityError):
+            ae.start_activity(wid, "character_1", "idle", "chambre_1", duration_seconds=bad)
+
+
+def test_idle_duree_valide_planifiee(setup):
+    conn, _clock, ae, wid = setup
+    ae.start_activity(wid, "character_1", "idle", "chambre_1", duration_seconds=60)
+    sheet = ae.activity_sheet(wid, "character_1")
+    assert sheet["type"] == "idle"
+    assert (parse_iso(sheet["planned_end_at"]) - T0).total_seconds() == 60
+
+
+def test_duree_libre_refusee_pour_activites_fixes(setup):
+    conn, _clock, ae, wid = setup
+    # la durée n'est libre que pour idle ; eat/clean/rest/sleep la refusent
+    for typ, dest in (("eat", "cuisine"), ("clean", "salle_de_bain"),
+                      ("rest", "salon"), ("sleep", "chambre_1")):
+        with pytest.raises(ActivityError):
+            ae.start_activity(wid, "character_1", typ, dest, duration_seconds=60)
+
+
+def test_idle_rejette_autre_lieu_que_courant(setup):
+    conn, _clock, ae, wid = setup
+    # character_1 est dans chambre_1 ; idle ne peut cibler que le lieu courant
+    with pytest.raises(ActivityError):
+        ae.start_activity(wid, "character_1", "idle", "salon", duration_seconds=60)
+
+
+def test_idle_refuse_pendant_pause(setup):
+    conn, _clock, ae, wid = setup
+    from vivarium.world import WorldEngine
+    WorldEngine(conn, clock=_clock).pause_world(wid)
+    with pytest.raises(ActivityError):
+        ae.start_activity(wid, "character_1", "idle", "chambre_1", duration_seconds=60)
 
 
 # --- Migration de conversion vers /36 ------------------------------------------

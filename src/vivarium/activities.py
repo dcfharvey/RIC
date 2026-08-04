@@ -22,6 +22,7 @@ from .db import transaction
 from .needs import NeedsEngine
 from .seed import SEED_ACTIVITIES, SEED_ACTIVITY_ALLOWED
 from .spatial import GraphEngine
+from .policy import MAX_IDLE
 from .util import Clock, new_uuid, parse_iso, to_iso
 from .world import SOURCE_ENGINE, SOURCE_SYSTEM, _append_event
 
@@ -195,6 +196,7 @@ class ActivityEngine:
         target_location_key: str,
         *,
         sim_now: str | None = None,
+        duration_seconds: int | None = None,
     ) -> dict[str, Any]:
         """Démarre une activité de façon **atomique** (une seule transaction).
 
@@ -222,8 +224,18 @@ class ActivityEngine:
         if activity_type == "idle":
             if target_location_key != cur_key:
                 raise ActivityError("idle exige le lieu courant")
+            if duration_seconds is None:
+                raise ActivityError("idle exige une durée explicite")
+            if not 1 <= duration_seconds <= MAX_IDLE:
+                raise ActivityError(
+                    f"durée idle invalide (doit être 1..{MAX_IDLE})"
+                )
         else:
             self._def(world_id, activity_type)  # activité connue
+            if duration_seconds is not None:
+                raise ActivityError(
+                    f"durée libre refusée pour {activity_type!r} (définie ou conditionnelle)"
+                )
             self._location_id(world_id, target_location_key)  # existante
             if not self.is_allowed(world_id, activity_type, target_location_key):
                 raise ActivityError(
@@ -251,6 +263,8 @@ class ActivityEngine:
             # 4) fin planifiée
             if activity_type == "sleep":
                 planned_end = self._sleep_planned_end(c, world_id, character_key, start_at)
+            elif activity_type == "idle":
+                planned_end = _add_seconds(start_at, duration_seconds)
             else:
                 d = self._def(world_id, activity_type)
                 planned_end = _add_seconds(start_at, d["min_duration_seconds"])

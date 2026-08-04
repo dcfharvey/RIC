@@ -60,6 +60,19 @@
   simultanées ordonnées, heure cible en milieu d'activité, garde configurable,
   replis bornés). Démo 24 h : ~460 transitions (garde 2000), reproducible. 126 tests passants.
 
+## 0.9 — 3 août 2026
+
+- **Phase 3 — Sous-lot 3.3A** : correction de l'attente et accessibilité du sommeil.
+  Attente **dynamique** : `Intent.duration_seconds` obligatoire et borné `1..MAX_IDLE`
+  (8 h) pour `idle`, refusé pour `eat`/`clean`/`rest`/`sleep`. L'`idle` se termine à la
+  première seconde où la décision changerait (franchissement d'un seuil / palier
+  d'urgence / critique), calculée mathématiquement avec le reste rationnel (aucun
+  tick par minute), sinon plafond `idle_safety_boundary`. Règle de sommeil naturelle :
+  repos/énergie critique ⇒ sleep ; repos déficient ⇒ sleep ; seule énergie modérée
+  ⇒ rest ; `rest_preference` ne bloque jamais le sommeil exigé. Aucun retunage de taux.
+  Démo 24 h : **84** transitions (vs 460), **28** idle (vs 168), **128** matérialisations
+  (vs 692), ≥ 1 sommeil de 8 h par habitante, aucune boucle, reproductible. 143 tests passants.
+
 ## 0.1 — 3 août 2026
 
 - Création du dossier maître destiné à une IA programmeuse.

@@ -127,17 +127,23 @@ class SimulationEngine:
         return out
 
     def _context(self, world_id: int, char: str, sim_now: str) -> PolicyContext:
-        needs = {
-            k: v["value_milli"]
-            for k, v in NeedsEngine(self._conn, clock=self._clock)
-            .derive_character(world_id, char, sim_now).items()
+        derived = NeedsEngine(self._conn, clock=self._clock).derive_character(world_id, char, sim_now)
+        needs = {k: d["value_milli"] for k, d in derived.items()}
+        remainders = {k: d["rate_remainder"] for k, d in derived.items()}
+        rates = {
+            r["need_key"]: r["rate_num"]
+            for r in self._conn.execute(
+                "SELECT need_key, rate_num FROM need_definition WHERE world_id = ?", (world_id,)
+            )
         }
         return PolicyContext(
             character_key=char,
             needs=needs,
+            need_remainders=remainders,
             effective_thresholds=self._effective_thresholds(world_id, char),
             current_location=self._current_location(world_id, char),
             profile=self._profile(world_id, char),
+            rates=rates,
             accessible=self._accessible(world_id, char),
         )
 
@@ -153,10 +159,13 @@ class SimulationEngine:
             self._ae.start_activity(
                 world_id, char, dec.intent.activity_type,
                 dec.intent.target_location_key, sim_now=sim_now,
+                duration_seconds=dec.intent.duration_seconds,
             )
         except ActivityError:
             current = ctx.current_location
-            self._ae.start_activity(world_id, char, "idle", current, sim_now=sim_now)
+            self._ae.start_activity(
+                world_id, char, "idle", current, sim_now=sim_now, duration_seconds=60
+            )
             self._guard_fallback(world_id, char, ctx, dec, fallback)
             return True
         if dec.intent.activity_type == "idle" and dec.reason_code == "no_accessible_destination":
