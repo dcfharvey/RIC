@@ -73,6 +73,18 @@
   Démo 24 h : **84** transitions (vs 460), **28** idle (vs 168), **128** matérialisations
   (vs 692), ≥ 1 sommeil de 8 h par habitante, aucune boucle, reproductible. 143 tests passants.
 
+## 0.10 — 3 août 2026
+
+- **Phase 3 — Sous-lot 3.3B1** : blessures de mobilité — état, causalité et
+  récupération. Migration 0008 `injury` (sévérité entière /36, CHECK d'invariants
+  `active`/`healed`, une seule active par index partiel, historique immuable), FK +
+  `UNIQUE(world_id, cause_event_seq)` vers `canonical_event`, déclencheur de
+  terminalité `healed`, `script_accident`/`injure_character`/`inflict_injury`
+  (combiné atomique), `started_at = cause.occurred_at`, régimes de récupération
+  typés `passive`/`rest`/`sleep`, reste rationnel, guérison à l'heure exacte,
+  événements `scripted_accident`/`injury_occurred`/`injury_materialized`/
+  `injury_healed`. Effets de mobilité reportés à 3.3B2. 164 tests passants.
+
 ## 0.1 — 3 août 2026
 
 - Création du dossier maître destiné à une IA programmeuse.

@@ -179,6 +179,32 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
   **128** matérialisations (vs 692), ≥ 1 sommeil de 8 h par habitante, aucun besoin
   hors bornes, aucune boucle d'attente, journal et état identiques sur 2 exécutions.
 
+### Blessures de mobilité : état, causalité et récupération (Sous-lot 3.3B1)
+
+- Table `injury` (migration 0008) : une blessure générique `mobility`, sévérité
+  entière `severity_milli ∈ [0,100000]` (aucune REAL), statut `active`/`healed`
+  (CHECK combiné d'invariants), **une seule active** par personnage (index partiel),
+  historique immuable.
+- **Cause canonique** : `UNIQUE(world_id, cause_event_seq)` et FK vers
+  `canonical_event(world_id, seq)` — une cause ne produit qu'une blessure et ne
+  peut être réutilisée après consommation.
+- **Terminalité** : déclencheur interdisant toute transition `healed → …` et toute
+  modification corporelle d'une blessure guérie ; une nouvelle blessure est une
+  nouvelle ligne.
+- **Temps** : `started_at = recovery_anchor_at = cause.occurred_at` (`seq` cause <
+  `seq` constat) ; `injure_character` restreint aux causes dont `occurred_at` est
+  égal à l'heure canonique courante (cause ancienne refusée).
+- **Récupération** : régimes typés `passive`/`rest`/`sleep` (taux 2/6/12 sur 36),
+  reste rationnel persistant, indépendance au découpage et au changement de régime,
+  guérison à l'heure exacte (ancre fixée à cette heure), rejet des cibles
+  antérieures ou futures.
+- **Événements** : `scripted_accident` (source `owner`), `injury_occurred`,
+  `injury_materialized` (audit, seulement si écriture réelle), `injury_healed`.
+- API : `script_accident`, `injure_character`, `inflict_injury` (combiné atomique),
+  `materialize_injury`, `injury_sheet` (lecture pure).
+- Les **effets de mobilité** (déplacements, activités, politique, coût d'énergie)
+  sont reportés à 3.3B2.
+
 ### Structure
 
 - `src/vivarium/` — paquet Python (package, configuration, journaux).
