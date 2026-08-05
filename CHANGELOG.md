@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.14 — 4 août 2026
+
+- **Consolidation documentaire v0.2** — Phase 3 techniquement fermée (`7e5459e`,
+  228 tests, `FERMETURE APPROUVABLE`). Aucun changement de code, seed, migration ou test.
+- `docs/00_DOSSIER_MAITRE_IA.md` v0.2 : dossier maître consolidé (implémenté /
+  normatif futur / historique), moteur canonique déterministe, contrats stabilisés,
+  limites, dettes, séquence vers Phase 4 (vertical slice administratif).
+- `docs/01_REGISTRE_DECISIONS.md` v0.2 : DEC-001..060 + CLA-001..004 avec statuts
+  (implémenté / normatif futur / supersédée) ; casting de référence (femme humaine,
+  louve anthro, slime, chat) ; Phase 4 = vertical slice administratif.
+- `docs/02_MATRICE_EXIGENCES.md` v0.2 : F/NF/INV/AF avec colonne d'état.
+- `docs/03_DECISIONS_OUVERTES.md` v0.2 : OD révisées (OD-009 partiellement fermée).
+- `docs/05_GABARITS.md` v0.2 : ajout du contrat de lot standard.
+- `README.md` : mise à jour minimale (3.3B2/3.3C et fermeture Phase 3).
+- Intégration documentaire des documents post-audit et de traçabilité
+  (Exigences v0.1, Demande v0.2, Feuille de route v0.1, Registre des audits v0.9,
+  Index maître v0.3, Mémoire v10) ; documents archivés dans `docs/history/` (voir commit de consolidation v0.2).
+
 ## 0.13 — 4 août 2026
 
 - **Correctifs de fermeture de la Phase 3 (C-1, C-2, C-3)** — aucun bloquant
@@ -23,7 +41,7 @@
 
 ## 0.2 — 3 août 2026
 
-- Approbation de `docs/AUDIT_INITIAL.md` par le propriétaire.
+- Approbation de `docs/history/AUDIT_INITIAL.md` par le propriétaire.
 - Décisions : Python 3.12 comme référence (OD-001 fermé) ; clarifications CLA-001 (autorité/perceptibilité), CLA-002 (temps 1:1 et rattrapage), CLA-003 (modification directe d’un personnage).
 - **Phase 0** réalisée : dépôt Git initialisé, paquet Python minimal (`src/vivarium`), configuration (`config/`), journaux (`logs/`), accès SQLite vérifié, tests de fumée (11 tests passants). Aucune logique métier (personnage, simulation, LLM, Discord, mémoire, technicien) ajoutée.
 - Règle de sûreté CLA-004 : `init --force` est destructif, réservé au développement, refusé par défaut pour tout monde réel/persistant/non-développement et non exécutable implicitement par Discord ou une commande propriétaire.

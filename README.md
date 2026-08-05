@@ -10,11 +10,11 @@ Les fichiers du dossier `sources/` proviennent des cinq documents de conception 
 
 ## Première commande
 
-Copier le contenu de `docs/04_PROMPT_DEMARRAGE.md` dans l’environnement agentique après avoir ouvert le dossier du projet.
+Copier le contenu de `docs/history/04_PROMPT_DEMARRAGE.md` dans l’environnement agentique après avoir ouvert le dossier du projet.
 
 ## Règle essentielle
 
-Ne pas demander « construis tout ». Exiger d’abord `AUDIT_INITIAL.md`, puis travailler par phases approuvées.
+Ne pas demander « construis tout ». Exiger d’abord `docs/history/AUDIT_INITIAL.md`, puis travailler par phases approuvées.
 
 ## Développement (Phase 0)
 
@@ -204,6 +204,31 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
   `materialize_injury`, `injury_sheet` (lecture pure).
 - Les **effets de mobilité** (déplacements, activités, politique, coût d'énergie)
   sont reportés à 3.3B2.
+
+### Effets mécaniques des blessures (Sous-lot 3.3B2)
+
+- Classification dérivée `light`/`moderate`/`severe` (seuils 30000/60000).
+- Blessure légère : aucun coût. Blessure modérée : surcharge de déplacement
+  **500 milli-énergie par arête**. Blessure sévère : aucun mouvement autonome,
+  activités locales conservées.
+- Matérialisation canonique de la blessure avant classification, régime réellement
+  actif ; `character_moved` au payload stable (5 champs).
+- Garde : aucun déplacement pendant une activité active.
+
+### Reproductibilité et fermeture (Sous-lot 3.3C)
+
+- `repro.py` : `canonical_state_digest`, `raw_canonical_event_log`,
+  `structural_event_audit`, `reproducible_semantic_projection`,
+  `materialization_chain_audit`, `max_seq`, `SimulationRunReport`.
+- Helper interne `_advance_clock` ; progression `run_to` sans `clock_updated`.
+- Garantie : même état + mêmes règles + mêmes commandes + mêmes valeurs d'horloge
+  injectées + même ordre canonique = même état et même journal sémantique.
+
+### Fermeture technique de la Phase 3
+
+Phase 3 techniquement fermée au commit `7e5459e` : **228 tests réussis**, verdict
+`FERMETURE APPROUVABLE`. Le dossier maître est désormais `docs/00_DOSSIER_MAITRE_IA.md`
+v0.2 (consolidation post-audit). Aucune Phase 4 commencée.
 
 ### Structure
 
