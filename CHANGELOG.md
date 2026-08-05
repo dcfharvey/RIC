@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.19 — 4 août 2026
+
+- **Phase 4.1D — Premier tableau de bord local simple** (`src/vivarium/static/`).
+- Interface sombre et compacte, JavaScript natif uniquement (aucun framework,
+  aucun CDN, aucune dépendance, aucune étape de build).
+- Lectures administratives existantes (mondes, dashboard, personnages, fiche,
+  journal) et quatre commandes existantes (pause, resume, rename, move).
+- Routes statiques fermées : `GET /`, `GET /static/style.css`, `GET /static/app.js`
+  (+ HEAD) ; aucun listing, aucun accès arbitraire, aucun chemin construit depuis
+  l'entrée client, aucune connexion SQLite pour le statique.
+- Jeton local injecté dans une balise meta (`vivarium-token`) à la diffusion de
+  `GET /`, retirée du DOM par `app.js` ; transmis uniquement dans
+  `X-Vivarium-Token` pour les POST ; aucun stockage persistant, aucune URL, aucun
+  log.
+- Rafraîchissement manuel uniquement (bouton « Rafraîchir »), sans polling ni
+  `setInterval` ; conservation du monde/personnage sélectionnés et de l'état
+  précédent en cas d'échec.
+- Sécurité front-end : affichage par `textContent`/`createElement` (jamais par
+  concaténation HTML), aucun `eval`/`Function`/`document.write`, aucune ressource
+  externe, `encodeURIComponent` sur les segments dynamiques.
+- Accessibilité minimale (labels, focus visible, `aria-live`), responsive simple
+  (empilement sous ~900 px).
+- Aucune migration, aucun seed, aucun changement de casting, aucune logique
+  cognitive, aucun Discord, aucun LLM, aucun accès distant.
+- Tests : 428 réussis (413 + 15 nouveaux).
+
 ## 0.18 — 4 août 2026
 
 - **Phase 4.1C — Serveur HTTP local minimal** (`src/vivarium/web.py`).

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="vivarium-token" content="__VIVARIUM_TOKEN__">
+  <title>Vivarium — Tableau de bord</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>VIVARIUM</h1>
+    <span id="world-name" class="world-name">—</span>
+    <span id="world-status" class="status">—</span>
+    <span id="canonical-time" class="time">—</span>
+    <button id="refresh-btn" type="button">Rafraîchir</button>
+  </header>
+
+  <main class="layout">
+    <section class="panel worlds-panel" aria-labelledby="worlds-title">
+      <h2 id="worlds-title">Mondes</h2>
+      <ul id="world-list" class="list"></ul>
+    </section>
+
+    <section class="panel chars-panel" aria-labelledby="chars-title">
+      <h2 id="chars-title">Personnages</h2>
+      <ul id="char-list" class="list"></ul>
+    </section>
+
+    <section class="panel detail-panel" aria-labelledby="detail-title">
+      <h2 id="detail-title">Personnage sélectionné</h2>
+      <dl id="char-detail" class="detail"></dl>
+    </section>
+
+    <section class="panel commands-panel" aria-labelledby="commands-title">
+      <h2 id="commands-title">Commandes</h2>
+      <div class="command-row">
+        <button id="pause-btn" type="button">Pause</button>
+        <button id="resume-btn" type="button">Reprendre</button>
+      </div>
+      <form id="rename-form" class="command-form">
+        <label for="rename-input">Nouveau nom</label>
+        <input id="rename-input" type="text" autocomplete="off">
+        <button type="submit">Enregistrer</button>
+      </form>
+      <form id="move-form" class="command-form">
+        <label for="move-input">Destination (clé de lieu)</label>
+        <input id="move-input" type="text" autocomplete="off">
+        <button type="submit">Déplacer</button>
+      </form>
+      <p id="command-message" class="message" role="status"></p>
+    </section>
+
+    <section class="panel journal-panel" aria-labelledby="journal-title">
+      <h2 id="journal-title">Journal récent</h2>
+      <ul id="journal-list" class="list"></ul>
+    </section>
+  </main>
+
+  <p id="global-message" class="global-message" role="status" aria-live="polite"></p>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -17,6 +17,7 @@ pour les mutations (POST).
 
 from __future__ import annotations
 
+import html
 import http.server
 import json
 import logging
@@ -36,6 +37,12 @@ MAX_BODY_BYTES = 65536
 
 # Borne maximale d'un identifiant SQLite signé 64 bits (C-5).
 SQLITE_MAX_INT = 9223372036854775807
+
+# Répertoire des fichiers statiques du tableau de bord (Phase 4.1D).
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+# Placeholder du jeton local dans le modèle HTML (remplacé à la diffusion).
+TOKEN_PLACEHOLDER = "__VIVARIUM_TOKEN__"
 
 # Tables attendues pour une base compatible (schéma Phase 3, 8 migrations).
 REQUIRED_TABLES = frozenset(
@@ -174,7 +181,12 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             self._check_host()
             self._check_origin()
             kind, args = self._resolve_route()
-            if self.command in ("GET", "HEAD"):
+            if kind in ("index", "style", "app"):
+                if self.command in ("GET", "HEAD"):
+                    self._serve_static(kind, send_body=(self.command == "GET"))
+                else:
+                    raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
+            elif self.command in ("GET", "HEAD"):
                 if kind == "command":
                     raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
                 self._serve_get(kind, args, send_body=(self.command == "GET"))
@@ -239,9 +251,17 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
         raw = urlsplit(self.path).path
         if not raw.startswith("/"):
             raise HttpError(404, "not_found", "Route inconnue.")
+        if raw == "/":
+            return ("index", [])
         if "//" in raw or raw.endswith("/"):
             raise HttpError(400, "invalid_path", "Chemin invalide.")
         parts = raw.split("/")[1:]
+        # Routes statiques explicites et fermées (aucun chemin construit depuis
+        # l'entrée client ; aucun listing ni accès arbitraire).
+        if parts == ["static", "style.css"]:
+            return ("style", [])
+        if parts == ["static", "app.js"]:
+            return ("app", [])
         if not parts or parts[0] != "api":
             raise HttpError(404, "not_found", "Route inconnue.")
         if parts == ["api", "worlds"]:
@@ -264,6 +284,34 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "commands":
             return ("command", [parts[2]])
         raise HttpError(404, "not_found", "Route inconnue.")
+
+    # --- fichiers statiques (Phase 4.1D) --------------------------------------
+
+    def _serve_static(self, kind: str, send_body: bool = True) -> None:
+        """Sert un fichier statique fermé, sans ouvrir de connexion SQLite."""
+        if kind == "index":
+            body = self._index_html().encode("utf-8")
+            ctype = "text/html; charset=utf-8"
+        elif kind == "style":
+            body = (STATIC_DIR / "style.css").read_bytes()
+            ctype = "text/css; charset=utf-8"
+        elif kind == "app":
+            body = (STATIC_DIR / "app.js").read_bytes()
+            ctype = "application/javascript; charset=utf-8"
+        else:  # pragma: no cover - routeur garantit la fermeture
+            raise HttpError(404, "not_found", "Route inconnue.")
+        self._send_bytes(200, body, ctype, send_body=send_body)
+
+    def _index_html(self) -> str:
+        """Lit le modèle HTML et y injecte le jeton local (une seule occurrence)."""
+        template = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        count = template.count(TOKEN_PLACEHOLDER)
+        if count != 1:
+            raise RuntimeError(
+                f"placeholder de jeton attendu une seule fois, trouvé {count}"
+            )
+        token = html.escape(self.server.token, quote=True)
+        return template.replace(TOKEN_PLACEHOLDER, token)
 
     # --- lectures (GET) -------------------------------------------------------
 
@@ -420,10 +468,11 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
 
     # --- réponses -------------------------------------------------------------
 
-    def _send_json(self, status: int, obj: dict, send_body: bool = True) -> None:
-        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+    def _send_bytes(
+        self, status: int, body: bytes, content_type: str, send_body: bool = True
+    ) -> None:
         self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -431,6 +480,10 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         if send_body:
             self.wfile.write(body)
+
+    def _send_json(self, status: int, obj: dict, send_body: bool = True) -> None:
+        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self._send_bytes(status, body, "application/json; charset=utf-8", send_body=send_body)
 
     def _send_error(self, status: int, code: str, message: str, send_body: bool = True) -> None:
         self._send_json(
