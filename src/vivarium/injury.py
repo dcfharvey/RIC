@@ -203,6 +203,33 @@ class InjuryEngine:
         )
         return self._sheet_from(row, sev, rem)
 
+    def injury_sheet_at(
+        self,
+        world_id: int,
+        character_key: str,
+        target_at: str,
+        regime: str,
+    ) -> dict[str, Any] | None:
+        """Fiche dérivée pure à `target_at` sous un régime de récupération explicite.
+
+        Lecture pure : aucune écriture, aucune matérialisation, aucune ancre
+        modifiée, aucun événement. `regime` ∈ {passive, rest, sleep} ; les
+        activités sans récupération particulière utilisent `passive`. La sévérité
+        et le niveau sont dérivés à la frontière exacte (guérison à zéro,
+        changement de niveau).
+        """
+        if regime not in RECOVERY_RATES:
+            raise InjuryError(f"régime inconnu : {regime!r}")
+        row = self.active_injury_row(world_id, character_key)
+        if row is None:
+            return None
+        sev, rem = derive(
+            row["severity_milli"], row["rate_remainder"],
+            row["recovery_anchor_at"], target_at,
+            RECOVERY_RATES[regime], DEN,
+        )
+        return self._sheet_from(row, sev, rem)
+
     def _sheet_at(
         self, world_id: int, character_key: str, target_at: str
     ) -> dict[str, Any] | None:

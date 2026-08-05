@@ -19,7 +19,7 @@ import sqlite3
 from contextlib import contextmanager
 from typing import Any
 
-from .activities import ActivityEngine
+from .activities import ActivityEngine, recovery_regime
 from .character import CharacterEngine, CharacterError
 from .injury import InjuryEngine
 from .needs import NeedsEngine
@@ -78,7 +78,14 @@ class AdminReadService:
         ).fetchone()
         return row["m"] if row else 0
 
-    def _character_view(self, world_id: int, character_key: str) -> dict[str, Any]:
+    def _character_view(
+        self, world_id: int, character_key: str, observed: str
+    ) -> dict[str, Any]:
+        """Fiche administrative d'un personnage à l'instant `observed` déjà capturé.
+
+        La blessure est dérivée au régime de récupération réellement applicable
+        (régime de l'activité active, `passive` sinon) via `InjuryEngine`.
+        """
         ce = CharacterEngine(self._conn, clock=self._clock)
         try:
             sheet = ce.character_sheet(world_id, character_key)
@@ -86,7 +93,6 @@ class AdminReadService:
             raise AdminReadError(
                 f"personnage introuvable : {character_key!r}"
             ) from None
-        observed = self._world_engine().read_canonical_time(world_id)
         needs = NeedsEngine(self._conn, clock=self._clock).derive_character(
             world_id, character_key, observed
         )
@@ -94,8 +100,9 @@ class AdminReadService:
         activity = ActivityEngine(self._conn, clock=self._clock).activity_sheet(
             world_id, character_key
         )
-        injury = InjuryEngine(self._conn, clock=self._clock).injury_sheet(
-            world_id, character_key, observed
+        regime = recovery_regime(activity["type"]) if activity else "passive"
+        injury = InjuryEngine(self._conn, clock=self._clock).injury_sheet_at(
+            world_id, character_key, observed, regime
         )
         return {
             "character": {
@@ -130,19 +137,25 @@ class AdminReadService:
             }
 
     def list_character_views(self, world_id: int) -> list[dict[str, Any]]:
-        """Vues administratives de tous les personnages du monde."""
+        """Vues administratives de tous les personnages, à un instant commun.
+
+        Un seul snapshot de lecture, un seul `observed_canonical_at` pour toute la
+        liste, chaque fiche construite à cet instant.
+        """
         with self._read_snapshot():
             self._require_world(world_id)
+            observed = self._world_engine().read_canonical_time(world_id)
             chars = CharacterEngine(self._conn, clock=self._clock).list_characters(
                 world_id
             )
-            return [self._character_view(world_id, c["key"]) for c in chars]
+            return [self._character_view(world_id, c["key"], observed) for c in chars]
 
     def character_view(self, world_id: int, character_key: str) -> dict[str, Any]:
         """Fiche administrative d'un personnage (données réellement disponibles)."""
         with self._read_snapshot():
             self._require_world(world_id)
-            return self._character_view(world_id, character_key)
+            observed = self._world_engine().read_canonical_time(world_id)
+            return self._character_view(world_id, character_key, observed)
 
     def journal_view(
         self,
@@ -157,6 +170,9 @@ class AdminReadService:
         pour une page au-delà de la dernière séquence. `include_payload=False` par
         défaut ; le payload brut n'est fourni que sur demande explicite.
         """
+        # Pagination par OFFSET : acceptable pour le petit journal local du MVP ;
+        # pourra être remplacée par une pagination par curseur si le volume devient
+        # important (limite documentée A-3, non construite dans 4.1A).
         if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
             raise ValueError("limit doit être un entier strictement positif")
         if limit > MAX_JOURNAL_LIMIT:

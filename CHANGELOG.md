@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.16 — 4 août 2026
+
+- **Correctifs 4.1A (A-1, A-2, A-3)** — lecture blessure au régime actif.
+- `InjuryEngine.injury_sheet_at(world_id, character_key, target_at, regime)` :
+  dérivation pure d'une blessure à un instant donné sous un régime explicite
+  (passive/rest/sleep), sans écriture ni matérialisation ; frontières exactes
+  (guérison à zéro, changement de niveau).
+- `AdminReadService.character_view` : dérive la blessure au régime de
+  récupération réellement applicable (régime de l'activité active via
+  `recovery_regime`, `passive` sinon) ; plus de blessure obsolète pendant
+  rest/sleep.
+- `AdminReadService.list_character_views` : un seul snapshot de lecture, un seul
+  `observed_canonical_at` pour toute la liste.
+- A-3 documenté : pagination par `OFFSET` acceptable pour le petit journal local
+  du MVP ; pagination par curseur reportée (non construite).
+- Aucune migration, aucun changement de seed, de casting, de commande ou
+  d'interface web.
+- Tests : 263 réussis (249 + 14 nouveaux).
+
 ## 0.15 — 4 août 2026
 
 - **Phase 4.1A — Couche de lecture administrative** (lecture seule).

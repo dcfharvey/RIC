@@ -276,3 +276,94 @@ def test_snapshot_coherent_vue_composee(setup):
     # dashboard et vue personnage partagent le même instant observé
     d = _service(conn, clock).dashboard(wid)
     assert d["observed_canonical_at"] == v["observed_canonical_at"]
+
+
+def test_list_character_views_instant_commun(setup):
+    conn, clock, wid = setup
+    clock.advance(hours=1)
+    views = _service(conn, clock).list_character_views(wid)
+    assert len(views) == 4
+    observed = views[0]["observed_canonical_at"]
+    # tous les éléments partagent exactement le même instant observé
+    assert all(v["observed_canonical_at"] == observed for v in views)
+
+
+# --- Blessure dérivée au régime actif (A-1) ---------------------------------
+
+def _move_to(conn, clock, wid, char, target):
+    from vivarium.spatial import GraphEngine
+    ce = CharacterEngine(conn, clock=clock)
+    cur = ce.character_sheet(wid, char)["location_key"]
+    if cur == target:
+        return
+    for step in GraphEngine(conn).find_path(wid, cur, target)[1:]:
+        ce.move_character(wid, char, step)
+
+
+def test_character_view_pendant_rest(setup):
+    conn, clock, wid = setup
+    ce = CharacterEngine(conn, clock=clock)
+    ae = ActivityEngine(conn, clock=clock)
+    ie = InjuryEngine(conn, clock=clock)
+    _move_to(conn, clock, wid, "character_1", "salon")
+    ie.inflict_injury(wid, "character_1", 60060)
+    ae.start_activity(wid, "character_1", "rest", "salon", sim_now=to_iso(T0))
+    clock.advance(seconds=360)  # rest 6/36 : 60060 → 60000 (moderate)
+    v = _service(conn, clock).character_view(wid, "character_1")
+    assert v["activity"]["type"] == "rest"
+    # dérivé au régime rest (6/36), pas passif (2/36)
+    assert v["injury"]["severity_milli"] == 60000
+    assert v["injury"]["level"] == "moderate"
+
+
+def test_character_view_pendant_sleep(setup):
+    conn, clock, wid = setup
+    ce = CharacterEngine(conn, clock=clock)
+    ae = ActivityEngine(conn, clock=clock)
+    ie = InjuryEngine(conn, clock=clock)
+    _move_to(conn, clock, wid, "character_1", "chambre_1")
+    ie.inflict_injury(wid, "character_1", 60060)
+    ae.start_activity(wid, "character_1", "sleep", "chambre_1", sim_now=to_iso(T0))
+    clock.advance(seconds=180)  # sleep 12/36 : 60060 → 60000 (moderate)
+    v = _service(conn, clock).character_view(wid, "character_1")
+    assert v["activity"]["type"] == "sleep"
+    assert v["injury"]["severity_milli"] == 60000
+    assert v["injury"]["level"] == "moderate"
+
+
+def test_character_view_pendant_eat_passif(setup):
+    conn, clock, wid = setup
+    ce = CharacterEngine(conn, clock=clock)
+    ae = ActivityEngine(conn, clock=clock)
+    ie = InjuryEngine(conn, clock=clock)
+    _move_to(conn, clock, wid, "character_1", "cuisine")
+    ie.inflict_injury(wid, "character_1", 60060)
+    ae.start_activity(wid, "character_1", "eat", "cuisine", sim_now=to_iso(T0))
+    clock.advance(seconds=180)  # eat : régime passif 2/36 → 60050
+    v = _service(conn, clock).character_view(wid, "character_1")
+    assert v["activity"]["type"] == "eat"
+    assert v["injury"]["severity_milli"] == 60050
+    assert v["injury"]["level"] == "severe"
+
+
+def test_character_view_blessure_aucune_materialisation_apres_correction(setup):
+    conn, clock, wid = setup
+    ie = InjuryEngine(conn, clock=clock)
+    ie.inflict_injury(wid, "character_1", 40000)
+    clock.advance(hours=2)
+    before = dict(conn.execute(
+        "SELECT severity_milli, rate_remainder, recovery_anchor_at, status "
+        "FROM injury WHERE world_id = ?", (wid,)
+    ).fetchone())
+    before_events = conn.execute(
+        "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (wid,)
+    ).fetchone()[0]
+    _service(conn, clock).character_view(wid, "character_1")
+    after = dict(conn.execute(
+        "SELECT severity_milli, rate_remainder, recovery_anchor_at, status "
+        "FROM injury WHERE world_id = ?", (wid,)
+    ).fetchone())
+    assert after == before
+    assert conn.execute(
+        "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (wid,)
+    ).fetchone()[0] == before_events

@@ -337,3 +337,103 @@ def test_pas_de_colonne_REAL(setup):
     conn, _clock, _ie, wid = setup
     types = [r["type"].upper() for r in conn.execute("PRAGMA table_info(injury)")]
     assert "REAL" not in types
+
+
+# --- injury_sheet_at : dérivation pure sous régime explicite (4.1A) ----------
+
+def _injury_at(ie, wid, char, at, regime):
+    return ie.injury_sheet_at(wid, char, to_iso(at), regime)
+
+
+def test_injury_sheet_at_passive(setup):
+    conn, clock, ie, wid = setup
+    ie.inflict_injury(wid, "character_1", 3000)
+    clock.advance(seconds=3600)
+    sheet = _injury_at(ie, wid, "character_1", clock.now(), "passive")
+    # 3000 sous 2/36 pendant 3600 s = 200 ; reste 3000-200=2800
+    assert sheet["severity_milli"] == 2800
+    assert sheet["level"] == "light"
+
+
+def test_injury_sheet_at_rest(setup):
+    conn, clock, ie, wid = setup
+    ie.inflict_injury(wid, "character_1", 60000)
+    clock.advance(seconds=3600)
+    sheet = _injury_at(ie, wid, "character_1", clock.now(), "rest")
+    # 60000 sous 6/36 pendant 3600 s = 600 ; reste 59400
+    assert sheet["severity_milli"] == 59400
+
+
+def test_injury_sheet_at_sleep(setup):
+    conn, clock, ie, wid = setup
+    ie.inflict_injury(wid, "character_1", 60000)
+    clock.advance(seconds=3600)
+    sheet = _injury_at(ie, wid, "character_1", clock.now(), "sleep")
+    # 60000 sous 12/36 pendant 3600 s = 1200 ; reste 58800
+    assert sheet["severity_milli"] == 58800
+
+
+def test_injury_sheet_at_severe_moderate_frontiere(setup):
+    conn, clock, ie, wid = setup
+    ie.inflict_injury(wid, "character_1", 60060)
+    # sous sleep 12/36 : croisement severe→moderate à 180 s
+    before = _injury_at(ie, wid, "character_1", T0 + timedelta(seconds=179), "sleep")
+    at = _injury_at(ie, wid, "character_1", T0 + timedelta(seconds=180), "sleep")
+    after = _injury_at(ie, wid, "character_1", T0 + timedelta(seconds=181), "sleep")
+    assert before["level"] == "severe"
+    assert at["severity_milli"] == 60000 and at["level"] == "moderate"
+    assert after["level"] == "moderate"
+
+
+def test_injury_sheet_at_moderate_light_frontiere(setup):
+    conn, clock, ie, wid = setup
+    ie.inflict_injury(wid, "character_1", 30060)
+    # sous sleep 12/36 : croisement moderate→light à 180 s
+    at = _injury_at(ie, wid, "character_1", T0 + timedelta(seconds=180), "sleep")
+    assert at["severity_milli"] == 30000 and at["level"] == "light"
+
+
+def test_injury_sheet_at_guerison_exacte(setup):
+    conn, clock, ie, wid = setup
+    ie.inflict_injury(wid, "character_1", 3000)
+    # sous sleep 12/36 : guérison à 3000*36/12 = 9000 s
+    at = _injury_at(ie, wid, "character_1", T0 + timedelta(seconds=9000), "sleep")
+    assert at["severity_milli"] == 0
+    assert at["level"] == "none"
+
+
+def test_injury_sheet_at_avant_apres_frontiere(setup):
+    conn, clock, ie, wid = setup
+    ie.inflict_injury(wid, "character_1", 60060)
+    before = _injury_at(ie, wid, "character_1", T0 + timedelta(seconds=179), "sleep")
+    at = _injury_at(ie, wid, "character_1", T0 + timedelta(seconds=180), "sleep")
+    after = _injury_at(ie, wid, "character_1", T0 + timedelta(seconds=183), "sleep")
+    assert before["severity_milli"] > at["severity_milli"]
+    assert at["severity_milli"] == 60000
+    assert after["severity_milli"] < at["severity_milli"]
+
+
+def test_injury_sheet_at_aucune_ecriture(setup):
+    conn, clock, ie, wid = setup
+    ie.inflict_injury(wid, "character_1", 40000)
+    clock.advance(hours=2)
+    before = dict(conn.execute(
+        "SELECT severity_milli, rate_remainder, recovery_anchor_at, status "
+        "FROM injury WHERE world_id = ?", (wid,)
+    ).fetchone())
+    before_events = len(_events(conn, wid))
+    for regime in ("passive", "rest", "sleep"):
+        _injury_at(ie, wid, "character_1", clock.now(), regime)
+    after = dict(conn.execute(
+        "SELECT severity_milli, rate_remainder, recovery_anchor_at, status "
+        "FROM injury WHERE world_id = ?", (wid,)
+    ).fetchone())
+    assert after == before
+    assert len(_events(conn, wid)) == before_events
+
+
+def test_injury_sheet_at_regime_inconnu(setup):
+    _conn, _clock, ie, wid = setup
+    ie.inflict_injury(wid, "character_1", 3000)
+    with pytest.raises(InjuryError):
+        _injury_at(ie, wid, "character_1", T0, "bogus")
