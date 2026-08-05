@@ -26,6 +26,30 @@
   cognitive, aucun Discord, aucun LLM, aucun accès distant.
 - Tests : 428 réussis (413 + 15 nouveaux).
 
+### Correctifs visuels et d'affichage (D-1 à D-8)
+
+- **D-1 — Énergie** : l'unité interne confirmée est `value_milli` (millièmes de
+  pourcentage) ; affichage humain `value/1000` (ex. 69379 → 69,38 %), deux
+  décimales max, zéros décimaux retirés, même format dans la liste et la fiche.
+- **D-2 — Dates** : conversion locale via `toLocaleDateString`/`toLocaleTimeString`
+  (barre supérieure « 4 août 2026 · 21:50 », journal « 21:49 » ou « 4 août · 21:49 »),
+  sans millisecondes ni suffixe UTC ; date invalide → fallback « — ».
+- **D-3 — Journal** : 20 événements les plus récents affichés (l'API renvoie en
+  ordre croissant, inversé côté présentation), panneau à hauteur contrainte avec
+  défilement interne, entrées compactes, aucun payload brut.
+- **D-4 — Grille** : deux lignes — MONDES | PERSONNAGES | PERSONNAGE SÉLECTIONNÉ
+  puis JOURNAL (large) | COMMANDES (compact) ; empilement sous ~900 px conservé.
+- **D-5 — Messages** : succès temporaire (disparaît après 4 s, timer unique),
+  erreurs persistantes, aucun `alert()`.
+- **D-6 — Liste personnages** : clé en zone principale, lieu secondaire, énergie
+  alignée à droite.
+- **D-7 — Fiche** : énergie humaine, activité/blessure absentes → « — », aucun
+  `null`/`undefined`/objet brut, pas de champ « type » inventé.
+- **D-8 — Barre supérieure** : statut ACTIF / EN PAUSE, date/heure locale
+  compacte, alignement propre.
+- Aucune modification de moteur, de schéma, de seed ou de casting.
+- Tests : 436 réussis (428 + 8 nouveaux).
+
 ## 0.18 — 4 août 2026
 
 - **Phase 4.1C — Serveur HTTP local minimal** (`src/vivarium/web.py`).

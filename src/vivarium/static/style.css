@@ -26,8 +26,8 @@ body {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 14px;
+  gap: 14px;
+  padding: 10px 16px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
 }
@@ -35,14 +35,23 @@ body {
 .world-name { font-weight: 600; }
 .status.active { color: var(--ok); }
 .status.paused { color: var(--warn); }
-.time { color: var(--text-dim); margin-left: auto; }
+.time { color: var(--text-dim); margin-left: auto; white-space: nowrap; }
 
 .layout {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 240px 1fr 1fr;
+  grid-template-areas:
+    "worlds chars detail"
+    "journal journal commands";
   gap: 10px;
   padding: 10px;
+  align-items: start;
 }
+.worlds-panel { grid-area: worlds; }
+.chars-panel { grid-area: chars; }
+.detail-panel { grid-area: detail; }
+.journal-panel { grid-area: journal; }
+.commands-panel { grid-area: commands; }
 
 .panel {
   background: var(--panel);
@@ -63,9 +72,25 @@ body {
 .list li.selected { background: var(--sel); }
 .list li:hover { background: var(--panel-hover); }
 
+/* liste des personnages : clé / lieu / énergie alignée à droite */
+.char-row { display: flex; align-items: center; gap: 8px; }
+.char-main { font-weight: 600; }
+.char-sub { color: var(--text-dim); font-size: 12px; flex: 1; }
+.char-energy { color: var(--text); font-size: 12px; white-space: nowrap; }
+
 .detail { margin: 0; }
 .detail dt { color: var(--text-dim); font-size: 12px; }
 .detail dd { margin: 0 0 6px; }
+
+/* journal : hauteur contrainte + défilement interne */
+.journal-panel .list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.journal-row { display: flex; gap: 10px; align-items: baseline; cursor: default; }
+.journal-row:hover { background: transparent; }
+.journal-time { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+.journal-summary { color: var(--text); }
 
 .command-row { display: flex; gap: 8px; margin-bottom: 10px; }
 
@@ -99,6 +124,7 @@ button:focus-visible, input:focus-visible {
   border-radius: 4px;
   padding: 5px 8px;
   font: inherit;
+  min-width: 0;
 }
 
 .message { min-height: 18px; font-size: 13px; margin: 4px 0 0; }
@@ -119,5 +145,13 @@ button:focus-visible, input:focus-visible {
 .global-message.error { border-color: var(--err); color: var(--err); }
 
 @media (max-width: 900px) {
-  .layout { grid-template-columns: 1fr; }
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "worlds"
+      "chars"
+      "detail"
+      "journal"
+      "commands";
+  }
 }

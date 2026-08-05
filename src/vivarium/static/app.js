@@ -15,6 +15,9 @@
     meta.remove();
   }
 
+  // Nombre maximal d'événements du journal affichés (les plus récents).
+  var MAX_JOURNAL_SHOWN = 20;
+
   var state = {
     worlds: [],
     worldId: null,
@@ -41,6 +44,41 @@
   var moveInput = document.getElementById("move-input");
   var refreshBtn = document.getElementById("refresh-btn");
 
+  // --- formatage (unité interne : millièmes de pourcentage) ---
+  // `energy` = `value_milli` : 1000 unités = 100 % (ex. 69379 → 69,379 %).
+  function formatEnergy(value) {
+    if (value == null) return "—";
+    var percent = Math.round((value / 1000) * 100) / 100;
+    var s = percent.toFixed(2).replace(/\.?0+$/, "").replace(".", ",");
+    return s + " %";
+  }
+
+  function parseDate(iso) {
+    if (!iso) return null;
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function formatTopDate(iso) {
+    var d = parseDate(iso);
+    if (!d) return "—";
+    var date = d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    var time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    return date + " · " + time;
+  }
+
+  function formatJournalTime(iso) {
+    var d = parseDate(iso);
+    if (!d) return "—";
+    var time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    var now = new Date();
+    var sameDay = d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+    if (sameDay) return time;
+    var date = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    return date + " · " + time;
+  }
+
   function safeMessage(e) {
     return (e && e.message) ? e.message : "Erreur inconnue.";
   }
@@ -50,9 +88,18 @@
     globalMessage.className = "global-message" + (isError ? " error" : "");
   }
 
+  var successTimer = null;
   function showCommand(msg, isError) {
     commandMessage.textContent = msg;
     commandMessage.className = "message" + (isError ? " error" : " success");
+    if (successTimer) { clearTimeout(successTimer); successTimer = null; }
+    if (!isError) {
+      // message de succès temporaire ; les erreurs restent affichées
+      successTimer = setTimeout(function () {
+        commandMessage.textContent = "";
+        commandMessage.className = "message";
+      }, 4000);
+    }
   }
 
   function clear(el) { el.replaceChildren(); }
@@ -136,9 +183,24 @@
     state.characters.forEach(function (cv) {
       var c = cv.character;
       var li = document.createElement("li");
-      var energy = (cv.energy != null) ? Math.round(cv.energy / 10) + "%" : "—";
-      li.textContent = c.key + " · " + c.location + " · énergie " + energy;
+      li.classList.add("char-row");
       if (c.key === state.characterKey) li.classList.add("selected");
+
+      var main = document.createElement("span");
+      main.className = "char-main";
+      main.textContent = c.key;
+
+      var sub = document.createElement("span");
+      sub.className = "char-sub";
+      sub.textContent = c.location || "—";
+
+      var en = document.createElement("span");
+      en.className = "char-energy";
+      en.textContent = formatEnergy(cv.energy);
+
+      li.appendChild(main);
+      li.appendChild(sub);
+      li.appendChild(en);
       li.addEventListener("click", function () { selectCharacter(c.key); });
       charList.appendChild(li);
     });
@@ -164,12 +226,12 @@
     var cv = state.characters.find(function (x) { return x.character.key === state.characterKey; });
     if (!cv) return;
     var c = cv.character;
-    addDetail("Nom", c.name);
-    addDetail("Clé", c.key);
-    addDetail("Lieu", c.location);
-    addDetail("Énergie", (cv.energy != null) ? Math.round(cv.energy / 10) + "%" : "—");
-    addDetail("Activité", cv.activity ? cv.activity.type : "—");
-    addDetail("Blessure", cv.injury && cv.injury.severity != null ? cv.injury.severity : "—");
+    addDetail("Nom", c.name || "—");
+    addDetail("Clé", c.key || "—");
+    addDetail("Lieu", c.location || "—");
+    addDetail("Énergie", formatEnergy(cv.energy));
+    addDetail("Activité", cv.activity && cv.activity.type ? cv.activity.type : "—");
+    addDetail("Blessure", cv.injury && cv.injury.level ? cv.injury.level : "—");
   }
 
   function renderJournal(events) {
@@ -182,7 +244,15 @@
     }
     events.forEach(function (ev) {
       var li = document.createElement("li");
-      li.textContent = (ev.occurred_at || "") + " — " + (ev.summary || ev.event_type);
+      li.classList.add("journal-row");
+      var time = document.createElement("span");
+      time.className = "journal-time";
+      time.textContent = formatJournalTime(ev.occurred_at);
+      var summary = document.createElement("span");
+      summary.className = "journal-summary";
+      summary.textContent = ev.summary || ev.event_type;
+      li.appendChild(time);
+      li.appendChild(summary);
       journalList.appendChild(li);
     });
   }
@@ -191,7 +261,7 @@
     worldName.textContent = dash.world.name;
     worldStatus.textContent = dash.world.status === "paused" ? "EN PAUSE" : "ACTIF";
     worldStatus.className = "status " + dash.world.status;
-    canonicalTime.textContent = dash.observed_canonical_at || "";
+    canonicalTime.textContent = formatTopDate(dash.observed_canonical_at);
     updateCommandButtons(dash.world.status);
     if (renameForm) renameInput.value = dash.world.name || "";
   }
@@ -227,7 +297,10 @@
       if (worldId != null) {
         dash = await apiGet("/api/worlds/" + encodeURIComponent(worldId));
         chars = await apiGet("/api/worlds/" + encodeURIComponent(worldId) + "/characters");
-        events = await apiGet("/api/worlds/" + encodeURIComponent(worldId) + "/events?limit=50&offset=0&include_payload=false");
+        // L'API renvoie le journal en ordre croissant (ancien → récent) :
+        // on conserve les MAX_JOURNAL_SHOWN plus récents puis on inverse.
+        var all = await apiGet("/api/worlds/" + encodeURIComponent(worldId) + "/events?limit=200&offset=0&include_payload=false");
+        events = all.slice(-MAX_JOURNAL_SHOWN).reverse();
         if (!chars.some(function (cv) { return cv.character.key === charKey; })) {
           charKey = chars.length ? chars[0].character.key : null;
         }
@@ -315,7 +388,6 @@
       showCommand("Indiquez une clé de lieu.", true);
       return;
     }
-    var self = this;
     runCommand("move", {
       world_id: state.worldId,
       character_key: state.characterKey,

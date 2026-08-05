@@ -6,6 +6,7 @@ sécurité du front-end (pas d'innerHTML dynamique, pas d'éval, pas de polling)
 """
 
 import http.client
+import json
 import threading
 
 import pytest
@@ -191,8 +192,7 @@ def test_app_js_securite():
         "document.cookie",
         "http://",
         "https://",
-        "setInterval",
-        "setTimeout",
+        "setInterval",  # pas de polling
     ]:
         assert bad not in js, bad
     assert "textContent" in js
@@ -209,3 +209,99 @@ def test_index_html_structure():
     assert "__VIVARIUM_TOKEN__" in html
     assert "/static/style.css" in html
     assert "/static/app.js" in html
+
+
+# --- Énergie (D-1) -----------------------------------------------------------
+
+def _fmt_energy(v):
+    # réplique de formatEnergy (unité interne : millièmes de pourcentage).
+    # Arrondi demi-supérieur, identique à Math.round côté JS.
+    percent = int((v / 1000) * 100 + 0.5) / 100
+    s = ("%.2f" % percent).rstrip("0").rstrip(".").replace(".", ",")
+    return s + " %"
+
+
+def test_energie_unite_milli_pourcent():
+    # 1000 unités = 100 % ; l'unité interne est value_milli (millièmes)
+    assert _fmt_energy(0) == "0 %"
+    assert _fmt_energy(7000) == "7 %"
+    assert _fmt_energy(100000) == "100 %"
+    assert _fmt_energy(69379) == "69,38 %"
+    assert _fmt_energy(6985) == "6,99 %"  # pas 69,85 % (unité réelle)
+
+
+def test_app_js_convertit_energie_en_milli_pourcent():
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert "/ 1000" in js
+    assert "formatEnergy" in js
+    assert "toFixed(2)" in js
+
+
+def test_energie_js_reelle_via_node():
+    import re
+    import shutil
+    import subprocess
+
+    if shutil.which("node") is None:
+        pytest.skip("node non disponible")
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    m = re.search(r"function formatEnergy\(value\) \{.*?\n  \}", js, re.S)
+    assert m is not None
+    script = m.group(0) + "\n" + (
+        "console.log(JSON.stringify([formatEnergy(0),formatEnergy(7000),"
+        "formatEnergy(69379),formatEnergy(100000),formatEnergy(6985)]));"
+    )
+    out = subprocess.run(
+        ["node", "-e", script], capture_output=True, text=True, timeout=10
+    )
+    assert out.returncode == 0, out.stderr
+    values = json.loads(out.stdout.strip())
+    assert values == ["0 %", "7 %", "69,38 %", "100 %", "6,99 %"]
+
+
+# --- Dates (D-2) -------------------------------------------------------------
+
+def test_app_js_format_dates():
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert "formatTopDate" in js
+    assert "formatJournalTime" in js
+    assert "toLocaleDateString" in js
+    assert "toLocaleTimeString" in js
+    assert "isNaN" in js  # date invalide gérée
+    # pas de millisecondes visibles dans les formats
+    assert "toLocaleTimeString(\"fr-FR\", { hour: \"2-digit\", minute: \"2-digit\" })" in js
+
+
+# --- Journal (D-3) -----------------------------------------------------------
+
+def test_app_js_journal_reduit_et_ordre():
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert "MAX_JOURNAL_SHOWN = 20" in js
+    assert ".slice(-MAX_JOURNAL_SHOWN).reverse()" in js  # plus récents en premier
+    assert "limit=200" in js
+
+
+def test_css_journal_scroll_interne():
+    css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+    assert "max-height" in css
+    assert "overflow-y: auto" in css
+
+
+# --- Grille (D-4) ------------------------------------------------------------
+
+def test_css_grille_equilibree():
+    css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+    assert "grid-template-areas" in css
+    assert "\"worlds chars detail\"" in css
+    assert "\"journal journal commands\"" in css
+    assert "@media (max-width: 900px)" in css
+
+
+# --- Messages (D-5) ----------------------------------------------------------
+
+def test_app_js_message_succes_temporaire():
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert "setTimeout" in js
+    assert "clearTimeout" in js
+    assert "successTimer" in js
+    assert "alert(" not in js
