@@ -696,3 +696,125 @@ def test_en_tetes_reponse(server):
     assert headers["X-Content-Type-Options"] == "nosniff"
     assert headers["Referrer-Policy"] == "no-referrer"
     assert int(headers["Content-Length"]) > 0
+
+
+# --- Méthodes non permises (C-2) ---------------------------------------------
+
+@pytest.mark.parametrize("method", ["PUT", "PATCH", "DELETE", "OPTIONS"])
+def test_methode_non_permise_route_connue(server, method):
+    srv, port, wid = server
+    status, data, headers = _request(port, method, f"/api/worlds/{wid}")
+    assert status == 405
+    assert data["ok"] is False and data["error"]["code"] == "method_not_allowed"
+    assert "Access-Control-Allow-Origin" not in headers
+    assert headers["Content-Type"].startswith("application/json")
+
+
+@pytest.mark.parametrize("method", ["PUT", "PATCH", "DELETE", "OPTIONS"])
+def test_methode_non_permise_route_inconnue(server, method):
+    srv, port, _ = server
+    status, data, _ = _request(port, method, "/api/bogus")
+    assert status == 404
+    assert data["error"]["code"] == "not_found"
+
+
+def test_head_route_inconnue_sans_corps(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "HEAD", "/api/bogus")
+    assert status == 404
+    assert data is None  # HEAD ne renvoie aucun corps
+
+
+@pytest.mark.parametrize("method", ["PUT", "PATCH", "DELETE", "OPTIONS"])
+def test_methode_non_permise_aucun_html(server, method):
+    srv, port, wid = server
+    status, data, _ = _request(port, method, f"/api/worlds/{wid}")
+    assert status == 405
+    assert data is not None and "ok" in data  # JSON, jamais HTML
+
+
+def test_head_route_connue_sans_corps(server):
+    srv, port, wid = server
+    status, data, headers = _request(port, "HEAD", f"/api/worlds/{wid}")
+    assert status == 200
+    assert data is None  # aucun corps
+    assert int(headers["Content-Length"]) > 0
+    assert headers["Content-Type"].startswith("application/json")
+
+
+# --- Cycle de vie (C-3) ------------------------------------------------------
+
+def test_shutdown_sans_serve_ne_bloque_pas(tmp_path):
+    db, _ = _make_db(tmp_path)
+    srv = create_server(db, host="127.0.0.1", port=0)
+    shutdown(srv)
+    shutdown(srv)  # idempotent
+
+
+def test_double_shutdown_apres_serve(tmp_path):
+    db, _ = _make_db(tmp_path)
+    srv = create_server(db, host="127.0.0.1", port=0)
+    thread = threading.Thread(target=serve, args=(srv,), daemon=True)
+    thread.start()
+    shutdown(srv)
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    shutdown(srv)  # second shutdown ne bloque pas
+
+
+def test_port_libree_apres_fermeture(tmp_path):
+    db, _ = _make_db(tmp_path)
+    srv = create_server(db, host="127.0.0.1", port=0)
+    port = srv.server_address[1]
+    shutdown(srv)
+    srv2 = create_server(db, host="127.0.0.1", port=port)
+    assert srv2.server_address[1] == port
+    srv2.server_close()
+
+
+# --- Validation du port (C-4) -------------------------------------------------
+
+@pytest.mark.parametrize("port", [True, False, -1, 65536, 70000, 1.5, "80", None])
+def test_create_server_refuse_port_invalide(tmp_path, port):
+    db, _ = _make_db(tmp_path)
+    with pytest.raises(WebServerError):
+        create_server(db, host="127.0.0.1", port=port)
+
+
+def test_create_server_port_zero_ephemere(tmp_path):
+    db, _ = _make_db(tmp_path)
+    srv = create_server(db, host="127.0.0.1", port=0)
+    assert srv.server_address[1] > 0
+    srv.server_close()
+
+
+# --- world_id hors plage (C-5) ------------------------------------------------
+
+def test_world_id_max_sqlite(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/worlds/9223372036854775807")
+    assert status == 404  # syntaxiquement valide mais inexistant
+
+
+@pytest.mark.parametrize(
+    "value", ["9223372036854775808", "999999999999999999999999999999"]
+)
+def test_world_id_hors_plage_400(server, value):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{value}")
+    assert status == 400
+    assert data["error"]["code"] == "invalid_parameters"
+
+
+# --- Validation de base non destructive (C-1) --------------------------------
+
+def test_validation_base_non_destructive(tmp_path):
+    import hashlib
+
+    db, _ = _make_db(tmp_path)
+    size_before = db.stat().st_size
+    hash_before = hashlib.sha256(db.read_bytes()).hexdigest()
+    srv = create_server(db, host="127.0.0.1", port=0)
+    srv.server_close()
+    assert db.stat().st_size == size_before
+    assert hashlib.sha256(db.read_bytes()).hexdigest() == hash_before

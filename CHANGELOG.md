@@ -30,6 +30,30 @@
   HTML/CSS/JS, aucun travail sur 4.1D.
 - Tests : 383 réussis (309 + 74 nouveaux).
 
+### Correctifs de revue (C-2 à C-5)
+
+- **C-2 — Méthodes non permises** : `do_PUT`, `do_PATCH`, `do_DELETE`,
+  `do_OPTIONS`, `do_HEAD` définies ; plus aucun comportement HTML 501 hérité.
+  Route connue → 405 JSON, route inconnue → 404 JSON, aucun CORS, aucune
+  connexion SQLite. `HEAD` renvoie les mêmes statut/en-têtes que la réponse
+  équivalente avec `Content-Length` correct et aucun corps.
+- **C-3 — Cycle de vie** : état explicite `_serving` sur `VivariumHTTPServer` ;
+  `shutdown()` ne bloque jamais si `serve_forever` n'est pas actif (idempotent,
+  borné) ; `shutdown sans serve`, double shutdown, port libéré et redémarrage
+  fonctionnent.
+- **C-4 — Port** : validation propre dans `create_server` (entier non booléen,
+  0-65535) ; `True`/`False`/négatif/`>65535`/flottant/chaîne/`None` refusés
+  par `WebServerError` (plus de `OverflowError`/`TypeError` bruts).
+- **C-5 — world_id** : borne SQLite signée 64 bits ; valeur hors plage → 400,
+  maximum syntaxiquement valide → 404, plus aucun `OverflowError` interne.
+- **C-1 — Validation base** : conservé `mode=ro` (WAL) ; fichier principal et
+  schéma inchangés, aucune migration. La création de sidecars `-wal`/`-shm` par
+  l'ouverture normale d'une base WAL est acceptée et documentée (non canonique).
+- **C-6 / C-7** : documentées comme limites mineures acceptées (Host
+  sensible à la casse, doublons de clés JSON « dernier gagnant », absence de
+  timeout applicatif sur corps incomplet).
+- Tests : 413 réussis (383 + 30 nouveaux).
+
 ## 0.17 — 4 août 2026
 
 - **Phase 4.1B — Commandes administratives sûres et durcissement des frontières**.

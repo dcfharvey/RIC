@@ -34,6 +34,9 @@ logger = logging.getLogger("vivarium.web")
 # Limite de taille du corps des requêtes (D-5).
 MAX_BODY_BYTES = 65536
 
+# Borne maximale d'un identifiant SQLite signé 64 bits (C-5).
+SQLITE_MAX_INT = 9223372036854775807
+
 # Tables attendues pour une base compatible (schéma Phase 3, 8 migrations).
 REQUIRED_TABLES = frozenset(
     {
@@ -146,6 +149,24 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         self._handle()
 
+    # Méthodes non permises : jamais le comportement HTML 501 hérité (C-2).
+    # Chacune route vers `_handle`, qui retourne 405 JSON sur route connue et
+    # 404 JSON sur route inconnue, sans ouvrir de connexion SQLite.
+    def do_PUT(self) -> None:
+        self._handle()
+
+    def do_PATCH(self) -> None:
+        self._handle()
+
+    def do_DELETE(self) -> None:
+        self._handle()
+
+    def do_OPTIONS(self) -> None:
+        self._handle()
+
+    def do_HEAD(self) -> None:
+        self._handle()
+
     # --- flux principal -------------------------------------------------------
 
     def _handle(self) -> None:
@@ -153,10 +174,10 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             self._check_host()
             self._check_origin()
             kind, args = self._resolve_route()
-            if self.command == "GET":
+            if self.command in ("GET", "HEAD"):
                 if kind == "command":
                     raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
-                self._serve_get(kind, args)
+                self._serve_get(kind, args, send_body=(self.command == "GET"))
             elif self.command == "POST":
                 if kind != "command":
                     raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
@@ -164,12 +185,12 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             else:
                 raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
         except HttpError as e:
-            self._send_error(e.status, e.code, e.message)
+            self._send_error(e.status, e.code, e.message, send_body=(self.command != "HEAD"))
         except (BrokenPipeError, ConnectionResetError):
             return
         except Exception:
             logger.exception("erreur interne du serveur HTTP")
-            self._send_error(500, "internal", "Erreur interne.")
+            self._send_error(500, "internal", "Erreur interne.", send_body=(self.command != "HEAD"))
 
     # --- protection locale ----------------------------------------------------
 
@@ -246,7 +267,7 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
 
     # --- lectures (GET) -------------------------------------------------------
 
-    def _serve_get(self, kind: str, args: list[str]) -> None:
+    def _serve_get(self, kind: str, args: list[str], send_body: bool = True) -> None:
         conn = connect_database(self.server.db_path)
         try:
             svc = AdminReadService(conn)
@@ -266,11 +287,11 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
                 data = svc.journal_view(wid, **query)
             else:  # pragma: no cover - routeur garantit la fermeture
                 raise HttpError(404, "not_found", "Route inconnue.")
-            self._send_json(200, {"ok": True, "data": data, "error": None})
+            self._send_json(200, {"ok": True, "data": data, "error": None}, send_body=send_body)
         except AdminReadError as e:
-            self._send_error(404, "not_found", str(e))
+            self._send_error(404, "not_found", str(e), send_body=send_body)
         except ValueError as e:
-            self._send_error(400, "invalid_parameters", str(e))
+            self._send_error(400, "invalid_parameters", str(e), send_body=send_body)
         finally:
             conn.close()
 
@@ -347,7 +368,10 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
     def _parse_world_id(self, segment: str) -> int:
         if not isinstance(segment, str) or not segment.isdigit():
             raise HttpError(400, "invalid_parameters", "world_id invalide.")
-        return int(segment)
+        value = int(segment)
+        if value > SQLITE_MAX_INT:
+            raise HttpError(400, "invalid_parameters", "world_id hors plage.")
+        return value
 
     def _parse_character_key(self, segment: str) -> str:
         key = unquote(segment)
@@ -396,7 +420,7 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
 
     # --- réponses -------------------------------------------------------------
 
-    def _send_json(self, status: int, obj: dict) -> None:
+    def _send_json(self, status: int, obj: dict, send_body: bool = True) -> None:
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -405,23 +429,48 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
-        self.wfile.write(body)
+        if send_body:
+            self.wfile.write(body)
 
-    def _send_error(self, status: int, code: str, message: str) -> None:
+    def _send_error(self, status: int, code: str, message: str, send_body: bool = True) -> None:
         self._send_json(
-            status, {"ok": False, "data": None, "error": {"code": code, "message": message}}
+            status,
+            {"ok": False, "data": None, "error": {"code": code, "message": message}},
+            send_body=send_body,
         )
 
 
 class VivariumHTTPServer(http.server.HTTPServer):
-    """Serveur HTTP local mono-thread portant la base et le jeton."""
+    """Serveur HTTP local mono-thread portant la base et le jeton.
+
+    Cycle de vie explicite (C-3) : `_serving` indique si `serve_forever` est
+    actif. `shutdown()` ne bloque que si une boucle de service est réellement
+    en cours ; sinon il retourne immédiatement (idempotent, borné).
+    """
 
     def __init__(
         self, server_address: tuple[str, int], db_path: Path, token: str
     ) -> None:
         self.db_path = Path(db_path)
         self.token = token
+        self._serving = False
         super().__init__(server_address, VivariumRequestHandler)
+
+    def serve_forever(self, poll_interval: float = 0.5) -> None:
+        self._serving = True
+        try:
+            super().serve_forever(poll_interval)
+        finally:
+            self._serving = False
+
+    def shutdown(self) -> None:
+        # Ne bloque jamais si aucune boucle serve_forever n'est active.
+        if self._serving:
+            super().shutdown()
+
+    def server_close(self) -> None:
+        self._serving = False
+        super().server_close()
 
 
 def create_server(
@@ -429,24 +478,37 @@ def create_server(
 ) -> VivariumHTTPServer:
     """Crée un serveur local validé, sans démarrer l'écoute.
 
-    Refuse toute adresse de liaison autre que `127.0.0.1`. Valide la base en
-    lecture (sans migration ni création). Génère le jeton local au démarrage.
+    Refuse toute adresse de liaison autre que `127.0.0.1`. Valide le port
+    (entier, non booléen, 0-65535). Valide la base en lecture (sans migration
+    ni création). Génère le jeton local au démarrage.
     """
     if host != "127.0.0.1":
         raise WebServerError(
             f"adresse de liaison non autorisée : {host!r} (seul 127.0.0.1)"
         )
+    if isinstance(port, bool) or not isinstance(port, int):
+        raise WebServerError(f"port invalide : {port!r}")
+    if port < 0 or port > 65535:
+        raise WebServerError(f"port hors plage : {port}")
     _validate_db(db_path)
     token = secrets.token_urlsafe(32)
     return VivariumHTTPServer((host, port), db_path, token)
 
 
 def serve(server: VivariumHTTPServer) -> None:
-    """Lance la boucle d'écoute (bloquante)."""
-    server.serve_forever()
+    """Lance la boucle d'écoute (bloquante).
+
+    Marque le serveur comme en service avant `serve_forever` afin qu'un
+    `shutdown` concurrent ne bloque pas (C-3).
+    """
+    server._serving = True
+    try:
+        server.serve_forever()
+    finally:
+        server._serving = False
 
 
 def shutdown(server: VivariumHTTPServer) -> None:
-    """Arrête proprement le serveur et libère le socket."""
+    """Arrête proprement le serveur et libère le socket (idempotent, borné)."""
     server.shutdown()
     server.server_close()
