@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.15 — 4 août 2026
+
+- **Phase 4.1A — Couche de lecture administrative** (lecture seule).
+- `src/vivarium/admin.py` : `AdminReadService` (frontière de lecture SQL confinée),
+  `list_worlds`, `dashboard`, `list_character_views`, `character_view`,
+  `journal_view` (pagination bornée par `seq`, payload masqué par défaut,
+  résumés déterministes, type inconnu → résumé générique).
+- Vues composées sous transaction de lecture SQLite (snapshot cohérent),
+  `observed_canonical_at` capturé une seule fois, besoins/blessures dérivés à cet
+  instant, aucune écriture ni matérialisation.
+- Aucune migration, aucun changement de seed, de casting, de `world.py`, de
+  commande ou d'interface web.
+- Tests : 249 réussis (228 existants + 21 nouveaux dans `tests/test_admin_read.py`).
+
 ## 0.14 — 4 août 2026
 
 - **Consolidation documentaire v0.2** — Phase 3 techniquement fermée (`7e5459e`,
