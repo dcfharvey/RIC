@@ -1,0 +1,698 @@
+"""Tests de la Phase 4.1C — serveur HTTP local minimal (web.py).
+
+Couvre : liaison/cycle de vie, protection Host/Origin/jeton, validation des
+requêtes, routes GET et POST, enveloppes JSON, statuts HTTP, fermeture des
+connexions et absence de fuite du jeton.
+"""
+
+import http.client
+import json
+import socket
+import threading
+
+import pytest
+
+from vivarium.db import connect_database
+from vivarium.migrations import ensure_schema
+from vivarium.web import WebServerError, create_server, serve, shutdown
+from vivarium.world import WorldEngine
+
+
+def _make_db(tmp_path, name="world.db", *, world_name="Admin"):
+    db = tmp_path / name
+    conn = connect_database(db)
+    ensure_schema(conn)
+    wid = WorldEngine(conn).init_world(name=world_name)["id"]
+    conn.close()
+    return db, wid
+
+
+@pytest.fixture
+def server(tmp_path):
+    db, wid = _make_db(tmp_path)
+    srv = create_server(db, host="127.0.0.1", port=0)
+    port = srv.server_address[1]
+    thread = threading.Thread(target=serve, args=(srv,), daemon=True)
+    thread.start()
+    yield srv, port, wid
+    shutdown(srv)
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+
+
+def _request(
+    port,
+    method,
+    path,
+    *,
+    headers=None,
+    body=None,
+    token=None,
+    host=None,
+    content_length=None,
+):
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest(method, path, skip_host=(host is not None))
+    hdrs = dict(headers or {})
+    if token is not None:
+        hdrs["X-Vivarium-Token"] = token
+    if host is not None:
+        hdrs["Host"] = host
+    if body is not None:
+        hdrs.setdefault("Content-Type", "application/json")
+    for k, v in hdrs.items():
+        conn.putheader(k, v)
+    if body is not None:
+        if isinstance(body, (dict, list)):
+            body = json.dumps(body).encode("utf-8")
+        if content_length is None:
+            conn.putheader("Content-Length", str(len(body)))
+        else:
+            conn.putheader("Content-Length", str(content_length))
+        conn.endheaders(message_body=body)
+    else:
+        conn.endheaders()
+    resp = conn.getresponse()
+    raw = resp.read()
+    status = resp.status
+    headers_out = dict(resp.getheaders())
+    conn.close()
+    try:
+        parsed = json.loads(raw.decode("utf-8"))
+    except Exception:
+        parsed = None
+    return status, parsed, headers_out
+
+
+# --- Démarrage et validation de la base --------------------------------------
+
+@pytest.mark.parametrize(
+    "host",
+    ["0.0.0.0", "::", "::1", "localhost", "", "192.168.1.5"],
+)
+def test_create_server_refuse_liaison_non_loopback(tmp_path, host):
+    db, _ = _make_db(tmp_path)
+    with pytest.raises(WebServerError):
+        create_server(db, host=host)
+
+
+def test_create_server_refuse_base_inexistante(tmp_path):
+    with pytest.raises(WebServerError):
+        create_server(tmp_path / "absent.db")
+
+
+def test_create_server_refuse_base_invalide(tmp_path):
+    bad = tmp_path / "bad.db"
+    bad.write_text("pas une base sqlite", encoding="utf-8")
+    with pytest.raises(WebServerError):
+        create_server(bad)
+
+
+def test_create_server_refuse_schema_incompatible(tmp_path):
+    db, _ = _make_db(tmp_path)
+    conn = connect_database(db)
+    conn.execute("DELETE FROM migrations WHERE version = 8")
+    conn.commit()
+    conn.close()
+    with pytest.raises(WebServerError):
+        create_server(db)
+
+
+def test_create_server_port_zero_et_adresse(tmp_path):
+    db, _ = _make_db(tmp_path)
+    srv = create_server(db, host="127.0.0.1", port=0)
+    try:
+        assert srv.server_address[0] == "127.0.0.1"
+        assert srv.server_address[1] > 0
+        assert srv.db_path == db
+        assert srv.token
+    finally:
+        srv.server_close()
+
+
+def test_serveur_demarrage_arret_propre(tmp_path):
+    db, _ = _make_db(tmp_path)
+    srv = create_server(db, host="127.0.0.1", port=0)
+    thread = threading.Thread(target=serve, args=(srv,), daemon=True)
+    thread.start()
+    shutdown(srv)
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+
+
+# --- Host ---------------------------------------------------------------------
+
+def test_host_127_valide(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/worlds", host=f"127.0.0.1:{port}")
+    assert status == 200 and data["ok"] is True
+
+
+def test_host_localhost_valide(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/worlds", host=f"localhost:{port}")
+    assert status == 200 and data["ok"] is True
+
+
+def test_host_port_incorrect_refuse(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/worlds", host=f"127.0.0.1:{port + 1}")
+    assert status == 403 and data["error"]["code"] == "forbidden"
+
+
+def test_host_externe_refuse(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/worlds", host=f"evil.com:{port}")
+    assert status == 403
+
+
+def test_host_absent_refuse(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/worlds", host="")
+    assert status == 403
+
+
+def test_host_malforme_refuse(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/worlds", host="127.0.0.1:notaport")
+    assert status == 403
+
+
+# --- Origin -------------------------------------------------------------------
+
+def test_origin_absente_acceptee(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/worlds")
+    assert status == 200
+
+
+def test_origin_127_acceptee(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "GET", "/api/worlds", headers={"Origin": f"http://127.0.0.1:{port}"}
+    )
+    assert status == 200
+
+
+def test_origin_localhost_acceptee(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "GET", "/api/worlds", headers={"Origin": f"http://localhost:{port}"}
+    )
+    assert status == 200
+
+
+def test_origin_externe_refusee(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "GET", "/api/worlds", headers={"Origin": "http://evil.com"}
+    )
+    assert status == 403
+
+
+def test_origin_port_different_refuse(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "GET", "/api/worlds", headers={"Origin": f"http://127.0.0.1:{port + 1}"}
+    )
+    assert status == 403
+
+
+def test_origin_schema_different_refuse(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "GET", "/api/worlds", headers={"Origin": f"https://127.0.0.1:{port}"}
+    )
+    assert status == 403
+
+
+def test_origin_null_refusee(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "GET", "/api/worlds", headers={"Origin": "null"}
+    )
+    assert status == 403
+
+
+def test_origin_externe_refusee_sur_post(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/commands/pause",
+        headers={"Origin": "http://evil.com"},
+        body={"world_id": 1},
+        token=srv.token,
+    )
+    assert status == 403
+
+
+def test_aucun_cors_permissif(server):
+    srv, port, _ = server
+    status, data, headers = _request(port, "GET", "/api/worlds")
+    assert "Access-Control-Allow-Origin" not in headers
+
+
+# --- Jeton --------------------------------------------------------------------
+
+def test_post_bon_jeton(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body={"world_id": wid}, token=srv.token
+    )
+    assert status == 200 and data["ok"] is True
+
+
+def test_post_jeton_absent(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "POST", "/api/commands/pause", body={"world_id": wid})
+    assert status == 403 and data["error"]["code"] == "forbidden"
+
+
+def test_post_jeton_vide(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body={"world_id": wid}, token=""
+    )
+    assert status == 403
+
+
+def test_post_jeton_incorrect(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body={"world_id": wid}, token="wrong"
+    )
+    assert status == 403
+
+
+def _raw_request(port, method, path, headers, body=b""):
+    """Envoie une requête HTTP brute (en-têtes encodés latin-1).
+
+    Utilisé pour les cas que http.client encode mal (jeton non-ASCII).
+    """
+    s = socket.create_connection(("127.0.0.1", port), timeout=5)
+    lines = [f"{method} {path} HTTP/1.1"]
+    for k, v in headers.items():
+        lines.append(f"{k}: {v}")
+    head = "\r\n".join(lines) + "\r\n\r\n"
+    s.sendall(head.encode("latin-1") + body)
+    s.shutdown(socket.SHUT_WR)
+    data = b""
+    while True:
+        chunk = s.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+    s.close()
+    head_part, _, body_part = data.partition(b"\r\n\r\n")
+    status = int(head_part.split(b" ")[1])
+    return status, body_part.decode("utf-8")
+
+
+def test_post_jeton_unicode_incorrect(server):
+    srv, port, wid = server
+    body = json.dumps({"world_id": wid}).encode("utf-8")
+    status, _ = _raw_request(
+        port,
+        "POST",
+        "/api/commands/pause",
+        {
+            "Host": f"127.0.0.1:{port}",
+            "X-Vivarium-Token": "t\xf6ken",  # latin-1 : ö
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        },
+        body,
+    )
+    assert status == 403
+
+
+def test_jeton_jamais_dans_reponse(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body={"world_id": wid}, token=srv.token
+    )
+    assert srv.token not in json.dumps(data)
+
+
+def test_jeton_jamais_dans_logs(server, caplog):
+    srv, port, wid = server
+    import logging
+
+    with caplog.at_level(logging.INFO):
+        _request(port, "POST", "/api/commands/pause", body={"world_id": wid}, token=srv.token)
+        _request(port, "POST", "/api/commands/pause", body={"world_id": wid}, token="bad")
+    assert srv.token not in caplog.text
+
+
+# --- GET ----------------------------------------------------------------------
+
+def test_get_list_worlds(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", "/api/worlds")
+    assert status == 200 and data["ok"] is True
+    assert any(w["id"] == wid for w in data["data"])
+
+
+def test_get_dashboard(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}")
+    assert status == 200
+    assert data["data"]["world"]["id"] == wid
+    assert "observed_canonical_at" in data["data"]
+    assert "last_seq" in data["data"]
+
+
+def test_get_characters(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/characters")
+    assert status == 200
+    assert len(data["data"]) == 4
+
+
+def test_get_character(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/characters/character_1")
+    assert status == 200
+    assert data["data"]["character"]["key"] == "character_1"
+
+
+def test_get_events(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events")
+    assert status == 200
+    assert isinstance(data["data"], list)
+    assert len(data["data"]) > 0
+    assert "payload" not in data["data"][0]
+
+
+def test_get_events_include_payload(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port, "GET", f"/api/worlds/{wid}/events?include_payload=true"
+    )
+    assert status == 200
+    assert "payload" in data["data"][0]
+
+
+def test_get_events_pagination(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?limit=2&offset=0")
+    assert status == 200 and len(data["data"]) == 2
+    status2, page2, _ = _request(
+        port, "GET", f"/api/worlds/{wid}/events?limit=2&offset=2"
+    )
+    assert status2 == 200
+    assert data["data"][0]["seq"] < page2["data"][0]["seq"]
+
+
+def test_get_events_page_vide(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?offset=99999")
+    assert status == 200 and data["data"] == []
+
+
+def test_get_monde_inexistant(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/worlds/9999")
+    assert status == 404
+
+
+def test_get_personnage_inexistant(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/characters/ghost")
+    assert status == 404
+
+
+def test_get_world_id_invalide(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/worlds/abc")
+    assert status == 400
+
+
+def test_get_character_unicode(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port, "GET", f"/api/worlds/{wid}/characters/character_%31"
+    )
+    assert status in (200, 404)
+
+
+def test_get_slash_final_refuse(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/")
+    assert status == 400
+
+
+def test_get_route_inconnue(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/bogus")
+    assert status == 404
+
+
+def test_get_methode_invalide(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "POST", f"/api/worlds/{wid}", body={})
+    assert status == 405
+
+
+def test_get_parametres_inconnus(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?bogus=1")
+    assert status == 400
+
+
+def test_get_parametres_repetes(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?limit=1&limit=2")
+    assert status == 400
+
+
+def test_get_limit_invalide(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?limit=0")
+    assert status == 400
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?limit=201")
+    assert status == 400
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?limit=abc")
+    assert status == 400
+
+
+def test_get_offset_invalide(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?offset=-1")
+    assert status == 400
+
+
+def test_get_include_payload_invalide(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?include_payload=yes")
+    assert status == 400
+
+
+# --- POST ---------------------------------------------------------------------
+
+def test_post_pause_resume(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body={"world_id": wid}, token=srv.token
+    )
+    assert status == 200 and data["data"]["status"] == "paused"
+    status, data, _ = _request(
+        port, "POST", "/api/commands/resume", body={"world_id": wid}, token=srv.token
+    )
+    assert status == 200 and data["data"]["status"] == "active"
+
+
+def test_post_rename(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/rename", body={"world_id": wid, "name": "  X  "}, token=srv.token
+    )
+    assert status == 200 and data["data"]["name"] == "X"
+
+
+def test_post_move(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/commands/move",
+        body={"world_id": wid, "character_key": "character_1", "destination": "couloir"},
+        token=srv.token,
+    )
+    assert status == 200 and data["data"]["to"] == "couloir"
+
+
+def test_post_refus_metier_409(server):
+    srv, port, wid = server
+    _request(port, "POST", "/api/commands/pause", body={"world_id": wid}, token=srv.token)
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body={"world_id": wid}, token=srv.token
+    )
+    assert status == 409 and data["error"]["code"] == "already_paused"
+
+
+def test_post_commande_inconnue(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/teleport", body={"world_id": wid}, token=srv.token
+    )
+    assert status == 400 and data["error"]["code"] == "unknown_command"
+
+
+def test_post_parametres_supplementaires(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body={"world_id": wid, "extra": 1}, token=srv.token
+    )
+    assert status == 400 and data["error"]["code"] == "invalid_parameters"
+
+
+def test_post_parametres_absents(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body={}, token=srv.token
+    )
+    assert status == 400 and data["error"]["code"] == "invalid_parameters"
+
+
+def test_post_bool_pour_world_id(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body={"world_id": True}, token=srv.token
+    )
+    assert status == 400 and data["error"]["code"] == "invalid_parameters"
+
+
+def test_post_json_invalide(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body=b"{not json", token=srv.token
+    )
+    assert status == 400
+
+
+def test_post_json_non_objet(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body=[1, 2], token=srv.token
+    )
+    assert status == 400
+
+
+def test_post_corps_vide(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body=b"", token=srv.token
+    )
+    assert status == 400
+
+
+def test_post_content_length_absent(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/commands/pause",
+        headers={"Content-Type": "application/json"},
+        token=srv.token,
+    )
+    assert status == 411
+
+
+def test_post_content_length_invalide(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/commands/pause",
+        body=b"{}",
+        content_length="abc",
+        token=srv.token,
+    )
+    assert status == 400
+
+
+def test_post_corps_trop_gros(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/commands/pause",
+        body=b"{}",
+        content_length=65537,
+        token=srv.token,
+    )
+    assert status == 413
+
+
+def test_post_content_type_absent(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body=b"{}", token=srv.token,
+        headers={"Content-Type": ""},
+    )
+    assert status == 415
+
+
+def test_post_content_type_invalide(server):
+    srv, port, _ = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body=b"{}", token=srv.token,
+        headers={"Content-Type": "text/plain"},
+    )
+    assert status == 415
+
+
+def test_post_charset_valide(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port, "POST", "/api/commands/pause", body={"world_id": wid}, token=srv.token,
+        headers={"Content-Type": "application/json; charset=utf-8"},
+    )
+    assert status == 200
+
+
+# --- Erreurs internes et connexions -------------------------------------------
+
+def test_exception_inattendue_masquee(server, monkeypatch):
+    srv, port, wid = server
+    from vivarium import admin as admin_mod
+
+    def boom(self, world_id):
+        raise RuntimeError("SECRET /path/secret.db")
+    monkeypatch.setattr(admin_mod.WorldEngine, "get_world", boom)
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}")
+    assert status == 500
+    assert data["error"]["code"] == "internal"
+    assert "SECRET" not in json.dumps(data)
+    assert "secret.db" not in json.dumps(data)
+
+
+def test_serveur_reutilisable_apres_erreur(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", "/api/worlds/9999")
+    assert status == 404
+    status, data, _ = _request(port, "GET", "/api/worlds")
+    assert status == 200
+
+
+def test_serveur_reutilisable_apres_refus_host(server):
+    srv, port, _ = server
+    status, data, _ = _request(port, "GET", "/api/worlds", host="evil.com:1")
+    assert status == 403
+    status, data, _ = _request(port, "GET", "/api/worlds")
+    assert status == 200
+
+
+# --- En-têtes -----------------------------------------------------------------
+
+def test_en_tetes_reponse(server):
+    srv, port, _ = server
+    status, data, headers = _request(port, "GET", "/api/worlds")
+    assert headers["Content-Type"].startswith("application/json")
+    assert headers["Cache-Control"] == "no-store"
+    assert headers["X-Content-Type-Options"] == "nosniff"
+    assert headers["Referrer-Policy"] == "no-referrer"
+    assert int(headers["Content-Length"]) > 0

@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.18 — 4 août 2026
+
+- **Phase 4.1C — Serveur HTTP local minimal** (`src/vivarium/web.py`).
+- API publique : `create_server(db_path, host="127.0.0.1", port=0)`, `serve(server)`,
+  `shutdown(server)` ; instance exposant `db_path`, `token`, `server_address`.
+- Serveur `http.server.HTTPServer` mono-thread, bibliothèque standard uniquement,
+  écoute sur `127.0.0.1` uniquement (refus de `0.0.0.0`, `::`, `::1`, `localhost`,
+  adresses externes).
+- Validation de la base au démarrage strictement en lecture (fichier existant,
+  base SQLite lisible, tables requises, version de schéma = 8 migrations) ;
+  aucune migration, aucune création implicite de base.
+- Protection locale : validation Host (`127.0.0.1`/`localhost` + port réel),
+  validation Origin (locale uniquement, refus sur toutes les routes `/api/`),
+  jeton local `X-Vivarium-Token` obligatoire pour les POST (généré par
+  `secrets.token_urlsafe(32)`, comparé par `secrets.compare_digest`), aucun CORS.
+- Routes GET : `/api/worlds`, `/api/worlds/{id}`, `/api/worlds/{id}/characters`,
+  `/api/worlds/{id}/characters/{key}`, `/api/worlds/{id}/events`.
+- Route POST fermée : `/api/commands/{command}` (pause/resume/rename/move),
+  redoublée par le dispatcher fermé d'AdminCommandService ; paramètres
+  supplémentaires refusés.
+- Enveloppes JSON stables, statuts HTTP exacts (200/400/403/404/405/409/411/413/415/500),
+  en-têtes de sécurité (Content-Type, Cache-Control no-store, nosniff,
+  Referrer-Policy), aucune CORS permissive.
+- Connexion SQLite par requête, fermée dans un `finally` ; aucune connexion ou
+  curseur global ; aucune écriture directe ; aucune fuite du jeton (réponses et
+  logs) ; erreurs internes masquées en 500 et consignées côté serveur.
+- Aucune migration, aucun seed, aucun changement de casting, aucun fichier
+  HTML/CSS/JS, aucun travail sur 4.1D.
+- Tests : 383 réussis (309 + 74 nouveaux).
+
 ## 0.17 — 4 août 2026
 
 - **Phase 4.1B — Commandes administratives sûres et durcissement des frontières**.
