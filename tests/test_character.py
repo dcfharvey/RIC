@@ -342,3 +342,76 @@ def test_move_direct_normal_sans_activite_fonctionne(setup):
     conn, ce, wid = setup
     ce.move_character(wid, "character_1", "couloir")
     assert ce.character_sheet(wid, "character_1")["location_key"] == "couloir"
+
+
+# --- 4.1B : codes stables de CharacterError sur les refus de déplacement -----
+
+def test_character_error_codes_refus(setup):
+    from vivarium.activities import ActivityEngine
+    from vivarium.injury import InjuryEngine
+    from vivarium.util import to_iso
+
+    conn, ce, wid = setup
+    ae = ActivityEngine(conn, clock=FakeClock())
+    ie = InjuryEngine(conn, clock=FakeClock())
+
+    # personnage inexistant
+    with pytest.raises(CharacterError) as e:
+        ce.move_character(wid, "ghost", "couloir")
+    assert e.value.code == "character_not_found"
+
+    # destination inexistante (GraphError, pas CharacterError)
+    from vivarium.spatial import GraphError
+    with pytest.raises(GraphError):
+        ce.move_character(wid, "character_1", "ghost_location")
+
+    # destination inaccessible (arête directe absente)
+    with pytest.raises(CharacterError) as e:
+        ce.move_character(wid, "character_1", "cuisine")
+    assert e.value.code == "invalid_destination"
+
+    # monde en pause
+    WorldEngine(conn, clock=FakeClock()).pause_world(wid)
+    with pytest.raises(CharacterError) as e:
+        ce.move_character(wid, "character_1", "couloir")
+    assert e.value.code == "world_paused"
+    WorldEngine(conn, clock=FakeClock()).resume_world(wid)
+
+    # activité active
+    ce.move_character(wid, "character_1", "couloir")
+    ce.move_character(wid, "character_1", "salon")
+    ce.move_character(wid, "character_1", "cuisine")
+    ae.start_activity(wid, "character_1", "eat", "cuisine", sim_now=to_iso(T0))
+    with pytest.raises(CharacterError) as e:
+        ce.move_character(wid, "character_1", "salon")
+    assert e.value.code == "activity_active"
+    ae.abort_activity(wid, "character_1")
+
+    # blessure sévère
+    ie.inflict_injury(wid, "character_1", 70000)
+    with pytest.raises(CharacterError) as e:
+        ce.move_character(wid, "character_1", "salon")
+    assert e.value.code == "injury_severe"
+
+    # énergie insuffisante (blessure modérée + énergie basse) sur character_2
+    # (character_1 a déjà une blessure active sévère ; une seule active/personnage)
+    ce.move_character(wid, "character_2", "couloir")
+    ce.move_character(wid, "character_2", "salon")
+    ie.inflict_injury(wid, "character_2", 40000)
+    conn.execute(
+        "UPDATE need_state SET value_milli = 499, rate_remainder = 0, anchor_at = ? "
+        "WHERE world_id = ? AND need_key = 'energie' AND character_id = "
+        "(SELECT id FROM character WHERE world_id = ? AND key = 'character_2')",
+        (to_iso(T0), wid, wid),
+    )
+    with pytest.raises(CharacterError) as e:
+        ce.move_character(wid, "character_2", "cuisine")
+    assert e.value.code == "insufficient_energy"
+
+
+def test_character_error_construction_compatible(setup):
+    # la construction historique (message seul) reste valide
+    err = CharacterError("message simple")
+    assert err.code is None
+    err2 = CharacterError("message", code="activity_active")
+    assert err2.code == "activity_active"

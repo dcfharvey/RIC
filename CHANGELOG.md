@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.17 — 4 août 2026
+
+- **Phase 4.1B — Commandes administratives sûres et durcissement des frontières**.
+- `WorldError` (world.py) avec `code` stable : `invalid_name`, `already_paused`,
+  `already_active`.
+- `WorldEngine.rename_world` : validation autoritative (chaîne, non vide après
+  suppression des espaces, longueur ≤ `WORLD_NAME_MAX_LEN=120`), valeur
+  normalisée enregistrée et dans le payload, refus avant toute mutation/événement.
+- `WorldEngine.pause_world` / `resume_world` : refus autoritatif des répétitions
+  (`already_paused` / `already_active`) dans la même transaction (aucune fenêtre
+  lecture-validation-écriture séparée), aucune mutation d'horloge ni événement.
+- `CharacterError` porte un `code` stable (world_not_found, world_paused,
+  character_not_found, invalid_destination, activity_active, injury_severe,
+  insufficient_energy) ; construction historique (message seul) préservée.
+- `AdminCommandService` (admin.py) : dispatcher fermé à pause/resume/rename/move,
+  format stable `{ok, command, data, error}`, validation des paramètres
+  (world_id réel, bool refusé, chaînes non vides), traduction des erreurs par
+  type/code (jamais par texte), `unknown_command`, `internal` masqué.
+- Aucune migration, aucun changement de seed, de casting, de serveur HTTP ou de
+  tableau de bord.
+- Tests : 296 réussis (263 + 33 nouveaux).
+
 ## 0.16 — 4 août 2026
 
 - **Correctifs 4.1A (A-1, A-2, A-3)** — lecture blessure au régime actif.

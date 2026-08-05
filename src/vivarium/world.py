@@ -49,6 +49,20 @@ SOURCE_OWNER = "owner"
 STATUS_ACTIVE = "active"
 STATUS_PAUSED = "paused"
 
+# Longueur maximale du nom d'un monde (validation autoritative de rename_world).
+WORLD_NAME_MAX_LEN = 120
+
+
+class WorldError(RuntimeError):
+    """Erreur métier de monde (nom invalide, transition d'état invalide).
+
+    Porte un `code` stable pour la traduction par la couche application.
+    """
+
+    def __init__(self, message: str, *, code: str) -> None:
+        super().__init__(message)
+        self.code = code
+
 
 def _append_event(
     conn: sqlite3.Connection,
@@ -301,22 +315,32 @@ class WorldEngine:
     def pause_world(self, world_id: int) -> dict[str, Any]:
         """Gèle le temps : matérialise l'heure courante puis fige.
 
-        Calcule l'heure simulée courante, la fixe comme nouveau `simulated_now`,
-        repose `real_updated_at` et passe le monde en `paused`. État + événement
-        canonique dans la même transaction.
+        Transition atomique : lecture du statut, validation, calcul temporel,
+        mutation et événement dans la même transaction. Une pause d'un monde déjà
+        `paused` est refusée (`WorldError already_paused`) sans aucune mutation,
+        modification d'horloge ni événement.
         """
-        frozen = self.read_canonical_time(world_id)
         from .needs import NeedsEngine  # évite un cycle d'import
 
-        needs = NeedsEngine(self._conn, clock=self._clock)
-        char_keys = [
-            r["key"]
-            for r in self._conn.execute(
-                "SELECT key FROM character WHERE world_id = ?", (world_id,)
-            )
-        ]
         with transaction(self._conn) as c:
             now = self._now_iso()
+            status = c.execute(
+                "SELECT status FROM worlds WHERE id = ?", (world_id,)
+            ).fetchone()
+            if status is None:
+                raise KeyError(f"monde introuvable : {world_id}")
+            if status["status"] == STATUS_PAUSED:
+                raise WorldError(
+                    "le monde est déjà en pause", code="already_paused"
+                )
+            frozen = self.read_canonical_time(world_id)
+            needs = NeedsEngine(self._conn, clock=self._clock)
+            char_keys = [
+                r["key"]
+                for r in c.execute(
+                    "SELECT key FROM character WHERE world_id = ?", (world_id,)
+                )
+            ]
             # Matérialiser les besoins à l'heure simulée figée, dans la même
             # transaction que le gel de l'horloge et du statut (atomique).
             for key in char_keys:
@@ -341,17 +365,25 @@ class WorldEngine:
     def resume_world(self, world_id: int) -> dict[str, Any]:
         """Reprend le temps actif sans rattraper la durée de la pause.
 
-        Conserve exactement l'heure simulée gelée, repose `real_updated_at` à
-        l'heure réelle de reprise et remet le statut à `active`.
+        Transition atomique : lecture du statut, validation, mutation et événement
+        dans la même transaction. Une reprise d'un monde déjà `active` est
+        refusée (`WorldError already_active`) sans aucune mutation ni événement.
         """
         with transaction(self._conn) as c:
             now = self._now_iso()
+            status = c.execute(
+                "SELECT status FROM worlds WHERE id = ?", (world_id,)
+            ).fetchone()
+            if status is None:
+                raise KeyError(f"monde introuvable : {world_id}")
+            if status["status"] == STATUS_ACTIVE:
+                raise WorldError(
+                    "le monde est déjà actif", code="already_active"
+                )
             frozen = c.execute(
                 "SELECT simulated_now FROM canonical_clock WHERE world_id = ?",
                 (world_id,),
             ).fetchone()
-            if frozen is None:
-                raise KeyError(f"monde introuvable : {world_id}")
             frozen = frozen["simulated_now"]
             c.execute(
                 "UPDATE canonical_clock SET real_updated_at = ? WHERE world_id = ?",
@@ -415,9 +447,25 @@ class WorldEngine:
     def rename_world(self, world_id: int, new_name: str) -> dict[str, Any]:
         """Renomme un monde et trace l'événement dans la même transaction.
 
-        L'événement est situé dans le temps canonique du monde
-        (`read_canonical_time`), jamais à l'heure murale d'écriture.
+        Validation autoritative du nom (avant toute mutation) : chaîne, non vide
+        après suppression des espaces périphériques, longueur ≤ WORLD_NAME_MAX_LEN.
+        La valeur enregistrée est la valeur normalisée. L'événement est situé dans
+        le temps canonique du monde (`read_canonical_time`), jamais à l'heure murale.
         """
+        if not isinstance(new_name, str):
+            raise WorldError(
+                "le nom du monde doit être une chaîne", code="invalid_name"
+            )
+        normalized = new_name.strip()
+        if not normalized:
+            raise WorldError(
+                "le nom du monde ne peut pas être vide", code="invalid_name"
+            )
+        if len(normalized) > WORLD_NAME_MAX_LEN:
+            raise WorldError(
+                f"le nom du monde ne peut pas dépasser {WORLD_NAME_MAX_LEN} caractères",
+                code="invalid_name",
+            )
         with transaction(self._conn) as c:
             now = self._now_iso()
             canonical = self.read_canonical_time(world_id)
@@ -428,10 +476,10 @@ class WorldEngine:
                 raise KeyError(f"monde introuvable : {world_id}")
             c.execute(
                 "UPDATE worlds SET name = ?, updated_at = ? WHERE id = ?",
-                (new_name, now, world_id),
+                (normalized, now, world_id),
             )
             _append_event(c, world_id, SOURCE_OWNER, "world_renamed",
-                          {"from": old["name"], "to": new_name},
+                          {"from": old["name"], "to": normalized},
                           occurred_at=canonical, recorded_at=now)
         return self.get_world(world_id)
 

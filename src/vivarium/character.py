@@ -29,7 +29,15 @@ from .spatial import GraphEngine
 
 
 class CharacterError(RuntimeError):
-    """Erreur de personnage (personnage ou lieu introuvable, mouvement refusé)."""
+    """Erreur de personnage (personnage ou lieu introuvable, mouvement refusé).
+
+    Porte un `code` stable facultatif pour la traduction par la couche
+    application (jamais par analyse du texte du message).
+    """
+
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class CharacterEngine:
@@ -142,9 +150,14 @@ class CharacterEngine:
             "SELECT status FROM worlds WHERE id = ?", (world_id,)
         ).fetchone()
         if status is None:
-            raise CharacterError(f"monde introuvable : {world_id}")
+            raise CharacterError(
+                f"monde introuvable : {world_id}", code="world_not_found"
+            )
         if status["status"] == "paused":
-            raise CharacterError("le monde est en pause : aucun déplacement possible")
+            raise CharacterError(
+                "le monde est en pause : aucun déplacement possible",
+                code="world_paused",
+            )
 
         # --- garde C-1 : aucun déplacement pendant une activité active ---
         # Une API publique ne doit jamais pouvoir créer une divergence entre la
@@ -153,7 +166,8 @@ class CharacterEngine:
         # horloge, ni journal ne sont modifiés (rollback de la transaction).
         if self._active_activity_type(world_id, key) is not None:
             raise CharacterError(
-                f"déplacement refusé pour {key!r} : une activité est active"
+                f"déplacement refusé pour {key!r} : une activité est active",
+                code="activity_active",
             )
 
         current = self._conn.execute(
@@ -163,15 +177,20 @@ class CharacterEngine:
             (world_id, key),
         ).fetchone()
         if current is None:
-            raise CharacterError(f"personnage introuvable : {key!r}")
+            raise CharacterError(
+                f"personnage introuvable : {key!r}", code="character_not_found"
+            )
         cur_key = current["cur_key"]
         if cur_key == target_key:
-            raise CharacterError(f"{key!r} est déjà dans {cur_key!r}")
+            raise CharacterError(
+                f"{key!r} est déjà dans {cur_key!r}", code="invalid_destination"
+            )
 
         graph = GraphEngine(self._conn)
         if not graph.can_traverse(world_id, cur_key, target_key):
             raise CharacterError(
-                f"pas d'arête dirigée {cur_key!r} → {target_key!r} (déplacement refusé)"
+                f"pas d'arête dirigée {cur_key!r} → {target_key!r} (déplacement refusé)",
+                code="invalid_destination",
             )
 
         # --- blessure : matérialisation canonique avant classification (3.3B2) ---
@@ -195,7 +214,8 @@ class CharacterEngine:
             effect_level = level(sev)
             if effect_level == "severe":
                 raise CharacterError(
-                    f"blessure sévère : déplacement refusé pour {key!r}"
+                    f"blessure sévère : déplacement refusé pour {key!r}",
+                    code="injury_severe",
                 )
             if effect_level == "moderate":
                 ne = NeedsEngine(self._conn, clock=self._clock)
@@ -203,7 +223,8 @@ class CharacterEngine:
                 if e_val < MOVEMENT_SURCHARGE_MILLI:
                     raise CharacterError(
                         f"énergie insuffisante pour le déplacement "
-                        f"(blessure modérée, {key!r})"
+                        f"(blessure modérée, {key!r})",
+                        code="insufficient_energy",
                     )
                 new_val = e_val - MOVEMENT_SURCHARGE_MILLI
                 new_rem = e_rem if new_val > 0 else 0

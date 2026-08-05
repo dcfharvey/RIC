@@ -7,7 +7,12 @@ import pytest
 from vivarium.db import connect_database, transaction
 from vivarium.migrations import ensure_schema
 from vivarium.seed import SEED_LOCATIONS, SEED_OBJECTS
-from vivarium.world import WorldEngine, get_status
+from vivarium.world import (
+    WORLD_NAME_MAX_LEN,
+    WorldEngine,
+    WorldError,
+    get_status,
+)
 
 
 @pytest.fixture
@@ -329,3 +334,107 @@ def test_cle_etrangere_refuse_objet_orphelin(setup):
                 "VALUES (?,?,?,?,?,?,?,?)",
                 ("z" * 36, world["id"], 999999, "orphelin", "Objet", "furniture", "present", "2026-01-01T00:00:00+00:00"),
             )
+
+
+# --- Durcissement 4.1B : rename_world et pause/resume répétées ---------------
+
+def _events(conn, wid, etype):
+    return conn.execute(
+        "SELECT COUNT(*) FROM canonical_event WHERE world_id = ? AND event_type = ?",
+        (wid, etype),
+    ).fetchone()[0]
+
+
+def test_rename_world_valide_normalise(setup):
+    conn, engine, world = setup
+    engine.rename_world(world["id"], "  Nouveau nom  ")
+    assert engine.get_world(world["id"])["name"] == "Nouveau nom"
+    row = conn.execute(
+        "SELECT payload FROM canonical_event WHERE world_id = ? AND event_type='world_renamed'",
+        (world["id"],),
+    ).fetchone()
+    assert json.loads(row["payload"])["to"] == "Nouveau nom"
+
+
+def test_rename_world_refus_vide(setup):
+    conn, engine, world = setup
+    before = engine.get_world(world["id"])["name"]
+    before_events = _events(conn, world["id"], "world_renamed")
+    with pytest.raises(WorldError) as ei:
+        engine.rename_world(world["id"], "")
+    assert ei.value.code == "invalid_name"
+    assert engine.get_world(world["id"])["name"] == before
+    assert _events(conn, world["id"], "world_renamed") == before_events
+
+
+def test_rename_world_refus_espaces_seulement(setup):
+    conn, engine, world = setup
+    before_events = _events(conn, world["id"], "world_renamed")
+    with pytest.raises(WorldError) as ei:
+        engine.rename_world(world["id"], "   ")
+    assert ei.value.code == "invalid_name"
+    assert _events(conn, world["id"], "world_renamed") == before_events
+
+
+def test_rename_world_refus_mauvais_type(setup):
+    conn, engine, world = setup
+    before_events = _events(conn, world["id"], "world_renamed")
+    with pytest.raises(WorldError) as ei:
+        engine.rename_world(world["id"], 123)
+    assert ei.value.code == "invalid_name"
+    assert _events(conn, world["id"], "world_renamed") == before_events
+
+
+def test_rename_world_longueur_exacte_120(setup):
+    conn, engine, world = setup
+    name = "a" * WORLD_NAME_MAX_LEN
+    engine.rename_world(world["id"], name)
+    assert engine.get_world(world["id"])["name"] == name
+
+
+def test_rename_world_longueur_121_refuse(setup):
+    conn, engine, world = setup
+    before_events = _events(conn, world["id"], "world_renamed")
+    with pytest.raises(WorldError) as ei:
+        engine.rename_world(world["id"], "a" * (WORLD_NAME_MAX_LEN + 1))
+    assert ei.value.code == "invalid_name"
+    assert _events(conn, world["id"], "world_renamed") == before_events
+
+
+def test_pause_repetee_refusee(setup):
+    conn, engine, world = setup
+    engine.pause_world(world["id"])
+    before_events = _events(conn, world["id"], "world_paused")
+    with pytest.raises(WorldError) as ei:
+        engine.pause_world(world["id"])
+    assert ei.value.code == "already_paused"
+    assert _events(conn, world["id"], "world_paused") == before_events
+    assert engine.get_world(world["id"])["status"] == "paused"
+
+
+def test_resume_repetee_refusee(setup):
+    conn, engine, world = setup
+    engine.pause_world(world["id"])
+    engine.resume_world(world["id"])
+    before_events = _events(conn, world["id"], "world_resumed")
+    with pytest.raises(WorldError) as ei:
+        engine.resume_world(world["id"])
+    assert ei.value.code == "already_active"
+    assert _events(conn, world["id"], "world_resumed") == before_events
+    assert engine.get_world(world["id"])["status"] == "active"
+
+
+def test_pause_repetee_aucune_modification_horloge(setup):
+    conn, engine, world = setup
+    engine.pause_world(world["id"])
+    clock_before = conn.execute(
+        "SELECT simulated_now, real_updated_at FROM canonical_clock WHERE world_id = ?",
+        (world["id"],),
+    ).fetchone()
+    with pytest.raises(WorldError):
+        engine.pause_world(world["id"])
+    clock_after = conn.execute(
+        "SELECT simulated_now, real_updated_at FROM canonical_clock WHERE world_id = ?",
+        (world["id"],),
+    ).fetchone()
+    assert tuple(clock_before) == tuple(clock_after)

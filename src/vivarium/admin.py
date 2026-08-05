@@ -23,8 +23,9 @@ from .activities import ActivityEngine, recovery_regime
 from .character import CharacterEngine, CharacterError
 from .injury import InjuryEngine
 from .needs import NeedsEngine
+from .spatial import GraphError
 from .util import Clock
-from .world import WorldEngine
+from .world import WorldEngine, WorldError
 
 # Limite maximale de la pagination du journal (lecture bornée).
 MAX_JOURNAL_LIMIT = 200
@@ -235,4 +236,184 @@ class AdminReadService:
         for key in ("character", "character_key"):
             if key in payload and isinstance(payload[key], str):
                 return payload[key]
-        return None
+
+
+class AdminCommandService:
+    """Commandes administratives sûres (couche application, indépendante de HTTP).
+
+    Dispatcher fermé aux quatre commandes `pause`, `resume`, `rename`, `move`.
+    Toute erreur métier est traduite en un code stable ; aucun événement ni
+    mutation en cas de refus. Aucun SQL d'écriture, aucun appel à `_append_event`,
+    aucun Prepared Change, aucune logique HTTP.
+    """
+
+    COMMANDS = frozenset({"pause", "resume", "rename", "move"})
+
+    def __init__(self, conn: sqlite3.Connection, clock: Clock | None = None) -> None:
+        self._conn = conn
+        self._clock = clock or Clock()
+
+    def _world(self) -> WorldEngine:
+        return WorldEngine(self._conn, clock=self._clock)
+
+    # --- format de réponse stable -------------------------------------------
+
+    @staticmethod
+    def _ok(command: str, data: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True, "command": command, "data": data, "error": None}
+
+    @staticmethod
+    def _err(command: str, code: str, message: str) -> dict[str, Any]:
+        return {
+            "ok": False,
+            "command": command,
+            "data": None,
+            "error": {"code": code, "message": message},
+        }
+
+    # --- validation des paramètres ------------------------------------------
+
+    @staticmethod
+    def _require_world_id(world_id: Any) -> None:
+        # bool est une sous-classe de int : refuser True/False.
+        if isinstance(world_id, bool) or not isinstance(world_id, int):
+            raise ValueError("world_id invalide")
+
+    @staticmethod
+    def _require_str(value: Any, name: str) -> None:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{name} invalide")
+
+    # --- commandes -----------------------------------------------------------
+
+    def pause(self, world_id: Any) -> dict[str, Any]:
+        try:
+            self._require_world_id(world_id)
+        except ValueError:
+            return self._err("pause", "invalid_parameters", "Paramètres invalides.")
+        try:
+            result = self._world().pause_world(world_id)
+        except KeyError:
+            return self._err("pause", "world_not_found", "Monde introuvable.")
+        except WorldError as e:
+            return self._err("pause", e.code, str(e))
+        except Exception:
+            return self._err("pause", "internal", "Erreur interne.")
+        return self._ok("pause", {
+            "world_id": result["id"],
+            "status": result["status"],
+            "observed_canonical_at": self._world().read_canonical_time(world_id),
+        })
+
+    def resume(self, world_id: Any) -> dict[str, Any]:
+        try:
+            self._require_world_id(world_id)
+        except ValueError:
+            return self._err("resume", "invalid_parameters", "Paramètres invalides.")
+        try:
+            result = self._world().resume_world(world_id)
+        except KeyError:
+            return self._err("resume", "world_not_found", "Monde introuvable.")
+        except WorldError as e:
+            return self._err("resume", e.code, str(e))
+        except Exception:
+            return self._err("resume", "internal", "Erreur interne.")
+        return self._ok("resume", {
+            "world_id": result["id"],
+            "status": result["status"],
+            "observed_canonical_at": self._world().read_canonical_time(world_id),
+        })
+
+    def rename(self, world_id: Any, name: Any) -> dict[str, Any]:
+        try:
+            self._require_world_id(world_id)
+            # Prévalidation ergonomique : `name` doit être une chaîne. Les cas
+            # vide / espaces / trop long sont laissés au moteur (invalid_name).
+            if not isinstance(name, str):
+                raise ValueError("name invalide")
+        except ValueError:
+            return self._err("rename", "invalid_parameters", "Paramètres invalides.")
+        try:
+            result = self._world().rename_world(world_id, name)
+        except KeyError:
+            return self._err("rename", "world_not_found", "Monde introuvable.")
+        except WorldError as e:
+            return self._err("rename", e.code, str(e))
+        except Exception:
+            return self._err("rename", "internal", "Erreur interne.")
+        return self._ok("rename", {
+            "world_id": result["id"],
+            "name": result["name"],
+        })
+
+    def move(
+        self, world_id: Any, character_key: Any, destination: Any
+    ) -> dict[str, Any]:
+        try:
+            self._require_world_id(world_id)
+            self._require_str(character_key, "character_key")
+            self._require_str(destination, "destination")
+        except ValueError:
+            return self._err("move", "invalid_parameters", "Paramètres invalides.")
+        try:
+            self._world().get_world(world_id)
+        except KeyError:
+            return self._err("move", "world_not_found", "Monde introuvable.")
+        ce = CharacterEngine(self._conn, clock=self._clock)
+        try:
+            origin = ce.character_sheet(world_id, character_key)["location_key"]
+        except CharacterError:
+            return self._err("move", "character_not_found", "Personnage introuvable.")
+        except KeyError:
+            return self._err("move", "world_not_found", "Monde introuvable.")
+        try:
+            result = ce.move_character(world_id, character_key, destination)
+        except KeyError:
+            return self._err("move", "world_not_found", "Monde introuvable.")
+        except GraphError:
+            return self._err(
+                "move", "destination_not_found", "Destination inexistante."
+            )
+        except CharacterError as e:
+            code = e.code if e.code else "character_error"
+            return self._err("move", code, str(e))
+        except Exception:
+            return self._err("move", "internal", "Erreur interne.")
+        return self._ok("move", {
+            "character": result["key"],
+            "from": origin,
+            "to": result["location_key"],
+            "energy_cost": self._last_move_cost(world_id, character_key),
+        })
+
+    def _last_move_cost(self, world_id: int, character_key: str) -> int:
+        """Coût énergétique du dernier déplacement (lecture, aucun effet de bord)."""
+        row = self._conn.execute(
+            "SELECT payload FROM canonical_event WHERE world_id = ? "
+            "AND event_type = 'character_moved' "
+            "AND json_extract(payload, '$.character') = ? ORDER BY seq DESC LIMIT 1",
+            (world_id, character_key),
+        ).fetchone()
+        if row is None:
+            return 0
+        return json.loads(row["payload"]).get("total_energy_cost", 0)
+
+    # --- dispatcher fermé ----------------------------------------------------
+
+    def execute(self, command: str, params: Any) -> dict[str, Any]:
+        """Route vers l'une des quatre commandes ; aucune résolution dynamique."""
+        if not isinstance(params, dict):
+            return self._err(command, "invalid_parameters", "Paramètres invalides.")
+        if command == "pause":
+            return self.pause(params.get("world_id"))
+        if command == "resume":
+            return self.resume(params.get("world_id"))
+        if command == "rename":
+            return self.rename(params.get("world_id"), params.get("name"))
+        if command == "move":
+            return self.move(
+                params.get("world_id"),
+                params.get("character_key"),
+                params.get("destination"),
+            )
+        return self._err(command, "unknown_command", "Commande inconnue.")
