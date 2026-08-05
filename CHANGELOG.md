@@ -22,6 +22,22 @@
   tableau de bord.
 - Tests : 296 réussis (263 + 33 nouveaux).
 
+### Renforcement de couverture (correctifs B-1 / B-4)
+
+- `test_exception_inattendue_masquee_internal` exerce réellement la voie
+  `internal` : exception inattendue levée dans la transaction de pause, réponse
+  `{ok, command, data, error}` exacte, code `internal`, message générique, aucune
+  fuite de détail, rollback complet, connexion réutilisable.
+- `test_refus_aucune_mutation_ni_evenement` paramétré : les 14 catégories de
+  refus (already_paused, already_active, invalid_name, world_not_found,
+  character_not_found, destination_not_found, invalid_destination,
+  activity_active, injury_severe, insufficient_energy, world_paused,
+  invalid_parameters, unknown_command, internal) sont vérifiées sans mutation
+  ni événement (état, nom, statut, horloge, position, énergie, activité,
+  blessure, max_seq, digest).
+- Aucun fichier de production modifié.
+- Tests : 309 réussis.
+
 ## 0.16 — 4 août 2026
 
 - **Correctifs 4.1A (A-1, A-2, A-3)** — lecture blessure au régime actif.

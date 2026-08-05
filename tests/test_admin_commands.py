@@ -236,31 +236,202 @@ def test_reponses_json_serialisables(setup):
 
 # --- Absence de mutation / événement lors des refus --------------------------
 
-def test_refus_aucune_mutation_ni_evenement(setup):
-    conn, clock, wid = setup
-    svc = _svc(conn, clock)
-    # pause valide : état de référence après mutation légitime
+def _snapshot(conn, wid):
+    """Capture l'état canonique pertinent pour vérifier l'absence de mutation."""
+    world = conn.execute(
+        "SELECT name, status FROM worlds WHERE id = ?", (wid,)
+    ).fetchone()
+    clock = conn.execute(
+        "SELECT simulated_now, real_updated_at FROM canonical_clock WHERE world_id = ?",
+        (wid,),
+    ).fetchone()
+    chars = {
+        r["key"]: r["loc"]
+        for r in conn.execute(
+            "SELECT ch.key, l.key AS loc FROM character ch "
+            "JOIN location l ON l.id = ch.current_location_id WHERE ch.world_id = ?",
+            (wid,),
+        ).fetchall()
+    }
+    energy = {
+        r["key"]: r["value_milli"]
+        for r in conn.execute(
+            "SELECT ch.key, ns.value_milli FROM need_state ns "
+            "JOIN character ch ON ch.id = ns.character_id "
+            "WHERE ns.world_id = ? AND ns.need_key = 'energie'",
+            (wid,),
+        ).fetchall()
+    }
+    return {
+        "world": dict(world),
+        "clock": dict(clock),
+        "chars": chars,
+        "energy": energy,
+        "activities": conn.execute(
+            "SELECT COUNT(*) FROM activity WHERE world_id = ?", (wid,)
+        ).fetchone()[0],
+        "injuries": conn.execute(
+            "SELECT COUNT(*) FROM injury WHERE world_id = ?", (wid,)
+        ).fetchone()[0],
+        "events": conn.execute(
+            "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (wid,)
+        ).fetchone()[0],
+        "max_seq": max_seq(conn, wid),
+        "digest": canonical_state_digest(conn, wid),
+    }
+
+
+def _scenario_already_paused(conn, clock, wid, svc, mp):
     svc.pause(wid)
-    before_state = canonical_state_digest(conn, wid)
-    before_seq = max_seq(conn, wid)
-    # une série de refus uniquement (aucun événement, aucune mutation)
-    svc.pause(wid)  # already_paused
-    svc.rename(wid, "   ")  # invalid_name
-    svc.move(wid, "ghost", "couloir")  # character_not_found
-    svc.move(wid, "character_1", "ghost_location")  # destination_not_found
-    svc.move(wid, "character_1", "cuisine")  # invalid_destination
-    svc.execute("bogus", {})  # unknown_command
-    svc.execute("pause", {"world_id": "x"})  # invalid_parameters
-    # les refus n'ont rien muté ni journalisé
-    assert canonical_state_digest(conn, wid) == before_state
-    assert max_seq(conn, wid) == before_seq
+    return lambda: svc.pause(wid)
 
 
-def test_exception_inattendue_masquee_internal(setup):
+def _scenario_already_active(conn, clock, wid, svc, mp):
+    svc.pause(wid)
+    svc.resume(wid)
+    return lambda: svc.resume(wid)
+
+
+def _scenario_invalid_name(conn, clock, wid, svc, mp):
+    return lambda: svc.rename(wid, "   ")
+
+
+def _scenario_world_not_found(conn, clock, wid, svc, mp):
+    return lambda: svc.pause(9999)
+
+
+def _scenario_character_not_found(conn, clock, wid, svc, mp):
+    return lambda: svc.move(wid, "ghost", "couloir")
+
+
+def _scenario_destination_not_found(conn, clock, wid, svc, mp):
+    return lambda: svc.move(wid, "character_1", "ghost_location")
+
+
+def _scenario_invalid_destination(conn, clock, wid, svc, mp):
+    return lambda: svc.move(wid, "character_1", "cuisine")
+
+
+def _scenario_activity_active(conn, clock, wid, svc, mp):
+    ae = ActivityEngine(conn, clock=clock)
+    _move_to(conn, clock, wid, "character_1", "cuisine")
+    ae.start_activity(wid, "character_1", "eat", "cuisine", sim_now=to_iso(T0))
+    return lambda: svc.move(wid, "character_1", "salon")
+
+
+def _scenario_injury_severe(conn, clock, wid, svc, mp):
+    ie = InjuryEngine(conn, clock=clock)
+    _move_to(conn, clock, wid, "character_1", "salon")
+    ie.inflict_injury(wid, "character_1", 70000)
+    return lambda: svc.move(wid, "character_1", "cuisine")
+
+
+def _scenario_insufficient_energy(conn, clock, wid, svc, mp):
+    ie = InjuryEngine(conn, clock=clock)
+    _move_to(conn, clock, wid, "character_1", "salon")
+    ie.inflict_injury(wid, "character_1", 40000)
+    conn.execute(
+        "UPDATE need_state SET value_milli = 499, rate_remainder = 0, anchor_at = ? "
+        "WHERE world_id = ? AND need_key = 'energie' AND character_id = "
+        "(SELECT id FROM character WHERE world_id = ? AND key = 'character_1')",
+        (to_iso(T0), wid, wid),
+    )
+    return lambda: svc.move(wid, "character_1", "cuisine")
+
+
+def _scenario_world_paused(conn, clock, wid, svc, mp):
+    WorldEngine(conn, clock=clock).pause_world(wid)
+    return lambda: svc.move(wid, "character_1", "couloir")
+
+
+def _scenario_invalid_parameters(conn, clock, wid, svc, mp):
+    return lambda: svc.execute("pause", {"world_id": "x"})
+
+
+def _scenario_unknown_command(conn, clock, wid, svc, mp):
+    return lambda: svc.execute("teleport", {"world_id": wid})
+
+
+def _scenario_internal(conn, clock, wid, svc, mp):
+    from vivarium.needs import NeedsEngine
+
+    def boom(self, world_id, character_key, target_at, reason, *, _conn=None):
+        raise RuntimeError(
+            "SECRET /path/to/secret.db line 42 sql=SELECT * FROM secret_table"
+        )
+    mp.setattr(NeedsEngine, "materialize_character_needs", boom)
+    return lambda: svc.pause(wid)
+
+
+REFUSAL_SCENARIOS = [
+    pytest.param(_scenario_already_paused, id="already_paused"),
+    pytest.param(_scenario_already_active, id="already_active"),
+    pytest.param(_scenario_invalid_name, id="invalid_name"),
+    pytest.param(_scenario_world_not_found, id="world_not_found"),
+    pytest.param(_scenario_character_not_found, id="character_not_found"),
+    pytest.param(_scenario_destination_not_found, id="destination_not_found"),
+    pytest.param(_scenario_invalid_destination, id="invalid_destination"),
+    pytest.param(_scenario_activity_active, id="activity_active"),
+    pytest.param(_scenario_injury_severe, id="injury_severe"),
+    pytest.param(_scenario_insufficient_energy, id="insufficient_energy"),
+    pytest.param(_scenario_world_paused, id="world_paused"),
+    pytest.param(_scenario_invalid_parameters, id="invalid_parameters"),
+    pytest.param(_scenario_unknown_command, id="unknown_command"),
+    pytest.param(_scenario_internal, id="internal"),
+]
+
+
+@pytest.mark.parametrize("scenario", REFUSAL_SCENARIOS)
+def test_refus_aucune_mutation_ni_evenement(scenario, setup, monkeypatch):
+    """Chaque refus métier ne produit aucune mutation ni aucun événement."""
     conn, clock, wid = setup
     svc = _svc(conn, clock)
-    # forcer une exception inattendue via un monde inexistant dans un chemin
-    # non couvert par KeyError (ici rename sur monde inexistant -> KeyError géré) ;
-    # on vérifie qu'une commande inconnue ne lève pas et retourne un format stable.
-    r = svc.execute("pause", {"world_id": 9999})
-    assert r["ok"] is False and r["error"]["code"] == "world_not_found"
+    command = scenario(conn, clock, wid, svc, monkeypatch)
+    before = _snapshot(conn, wid)
+    r = command()
+    assert r["ok"] is False
+    assert r["data"] is None
+    assert _snapshot(conn, wid) == before
+
+
+def test_exception_inattendue_masquee_internal(setup, monkeypatch):
+    """Une exception inattendue dans une commande est masquée en `internal`.
+
+    L'exception est levée à l'intérieur de la transaction de pause (pendant la
+    matérialisation des besoins) : on vérifie le masquage, l'absence de fuite,
+    le rollback complet et la réutilisabilité de la connexion.
+    """
+    from vivarium.needs import NeedsEngine
+
+    conn, clock, wid = setup
+    svc = _svc(conn, clock)
+    before = _snapshot(conn, wid)
+
+    def boom(self, world_id, character_key, target_at, reason, *, _conn=None):
+        raise RuntimeError(
+            "SECRET /path/to/secret.db line 42 sql=SELECT * FROM secret_table"
+        )
+    monkeypatch.setattr(NeedsEngine, "materialize_character_needs", boom)
+
+    r = svc.pause(wid)
+    # structure exacte
+    assert set(r.keys()) == {"ok", "command", "data", "error"}
+    assert r["ok"] is False
+    assert r["command"] == "pause"
+    assert r["data"] is None
+    assert r["error"]["code"] == "internal"
+    assert r["error"]["message"] == "Erreur interne."
+    # aucune fuite de détail sensible
+    raw = json.dumps(r)
+    assert "SECRET" not in raw
+    assert "secret.db" not in raw
+    assert "secret_table" not in raw
+    assert "Traceback" not in raw
+    # aucune mutation / événement (rollback complet)
+    assert _snapshot(conn, wid) == before
+    # aucune transaction ouverte restante
+    assert conn.in_transaction is False
+    # connexion réutilisable après restauration
+    monkeypatch.undo()
+    r2 = svc.rename(wid, "OK")
+    assert r2["ok"] is True and r2["data"]["name"] == "OK"
