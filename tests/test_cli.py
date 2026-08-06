@@ -54,7 +54,13 @@ def test_cli_upgrade_dev_idempotent(tmp_path, capsys):
     assert "existent déjà" in out
 
 
-def test_cli_llm_status_reports_a_missing_local_configuration(monkeypatch, capsys):
+def test_cli_llm_status_lists_models_before_a_model_is_configured(monkeypatch, capsys):
+    class Provider:
+        def __init__(self, settings): pass
+        def list_models(self): return ("gemma-local",)
+
     monkeypatch.delenv("VIVARIUM_LLM_MODEL", raising=False)
-    assert main(["llm-status"]) == 2
-    assert "missing_llm_model" in capsys.readouterr().err
+    monkeypatch.setattr("vivarium.cognition.LMStudioProvider", Provider)
+    assert main(["llm-status"]) == 1
+    captured = capsys.readouterr()
+    assert "gemma-local" in captured.out and "VIVARIUM_LLM_MODEL" in captured.err

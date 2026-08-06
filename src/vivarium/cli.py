@@ -138,14 +138,17 @@ def _run_llm_status() -> int:
     from .cognition import CognitionError, LMStudioProvider, LocalLLMSettings
 
     try:
-        settings = LocalLLMSettings.from_environment()
+        settings = LocalLLMSettings.from_environment(require_model=False)
         models = LMStudioProvider(settings).list_models()
     except CognitionError as exc:
         print(f"LLM local : {exc.code} — {exc}", file=__import__("sys").stderr)
         return 2
     print(f"LLM local : connecté à {settings.base_url}")
-    print(f"Modèle configuré : {settings.model_id}")
+    print(f"Modèle configuré : {settings.model_id or 'aucun'}")
     print("Modèles chargés : " + (", ".join(models) if models else "aucun"))
+    if not settings.model_id:
+        print("Configure VIVARIUM_LLM_MODEL avec un identifiant ci-dessus.", file=__import__("sys").stderr)
+        return 1
     if settings.model_id not in models:
         print("Attention : le modèle configuré n'est pas chargé dans LM Studio.", file=__import__("sys").stderr)
         return 1

@@ -32,10 +32,9 @@ est clair; ne copie pas des dizaines de Go dans `C:\AI\Vivarium social`.
 1. Dans LM Studio, télécharge ou importe Gemma 4 12B, puis charge-le.
 2. Ouvre **Developer** et démarre le serveur local (port par défaut `1234`),
    sans activer le réseau local pour le moment.
-3. Note l'identifiant exact du modèle chargé.
-4. Copie `config/.env.example` vers `config/.env` (hors Git), puis remplis
-   `VIVARIUM_LLM_MODEL` avec cet identifiant. Une variable exportée dans le
-   shell garde priorité sur ce fichier.
+3. Copie `config/.env.example` vers `config/.env` (hors Git), sans remplir le
+   modèle pour l'instant. Une variable exportée dans le shell garde priorité
+   sur ce fichier.
 
 Ensuite, dans un terminal ouvert à la racine du projet, lance :
 
@@ -43,8 +42,10 @@ Ensuite, dans un terminal ouvert à la racine du projet, lance :
 ./.venv/Scripts/python.exe -m vivarium llm-status
 ```
 
-La commande ne lit que LM Studio : elle confirme l'URL, l'identifiant configuré
-et la liste des modèles actuellement chargés; elle ne modifie aucun monde.
+La commande ne lit que LM Studio : elle affiche d'abord la liste des modèles
+chargés, même si aucun n'est encore configuré. Copie ensuite l'identifiant
+choisi dans `VIVARIUM_LLM_MODEL`, puis relance-la pour confirmation. Elle ne
+modifie aucun monde.
 
 Le programme n'essaie pas de lancer LM Studio, télécharger un poids ou choisir
 une quantification en silence. Tu charges le modèle; le code se connecte au

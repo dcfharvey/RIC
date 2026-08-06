@@ -113,7 +113,7 @@ class LocalLLMSettings:
     max_tokens: int = DEFAULT_MAX_TOKENS
 
     @classmethod
-    def from_environment(cls) -> "LocalLLMSettings":
+    def from_environment(cls, *, require_model: bool = True) -> "LocalLLMSettings":
         dotenv = _dotenv_values()
         value = lambda name, default="": os.environ.get(name, dotenv.get(name, default))
         raw = value("VIVARIUM_LLM_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT_SECONDS))
@@ -128,15 +128,15 @@ class LocalLLMSettings:
             value("VIVARIUM_LLM_API_TOKEN") or None,
             timeout,
             max_tokens,
-        ).validated()
+        ).validated(require_model=require_model)
 
-    def validated(self) -> "LocalLLMSettings":
+    def validated(self, *, require_model: bool = True) -> "LocalLLMSettings":
         parsed = urlparse(self.base_url)
         if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
             raise CognitionError("le serveur LLM doit être local", code="unsafe_llm_endpoint")
         if not parsed.path.rstrip("/").endswith("/v1"):
             raise CognitionError("l'URL LLM doit se terminer par /v1", code="invalid_llm_configuration")
-        if not self.model_id:
+        if require_model and not self.model_id:
             raise CognitionError("modèle LLM non configuré", code="missing_llm_model")
         if not isinstance(self.timeout_seconds, (int, float)) or not 1 <= self.timeout_seconds <= 300:
             raise CognitionError("délai LLM hors limites", code="invalid_llm_configuration")
@@ -255,7 +255,7 @@ class LMStudioProvider:
     }
 
     def __init__(self, settings: LocalLLMSettings) -> None:
-        self._settings = settings.validated()
+        self._settings = settings.validated(require_model=False)
 
     @staticmethod
     def _prompt(context: CognitionContext) -> str:
@@ -266,6 +266,8 @@ class LMStudioProvider:
         )
 
     def decide(self, context: CognitionContext) -> CognitionDecision:
+        if not self._settings.model_id:
+            raise CognitionError("modèle LLM non configuré", code="missing_llm_model")
         body = {
             "model": self._settings.model_id, "temperature": 0.2,
             "max_tokens": self._settings.max_tokens,
