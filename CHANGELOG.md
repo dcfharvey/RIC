@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.27 — 6 août 2026
+
+- Première fondation de l'environnement composable : la politique topologique
+  est déclarée par monde (`strong_anchor` ou `none`), au lieu de supposer un
+  salon codé en dur. Le seed technique choisit `salon` comme ancre seulement
+  comme donnée de ce monde.
+- Documentation d'architecture : `docs/18_ARCHITECTURE_ENVIRONNEMENT.md`.
+- Migration 0017; tests : 504 réussis.
+
 ## 0.26 — 6 août 2026
 
 - **Phase 4.2L — fermeture sûre de passage préparée** : `remove_link` vérifie

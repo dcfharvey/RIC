@@ -53,6 +53,23 @@ def test_init_cree_world_clock_lieux_objets_et_evenements(setup):
     ).fetchall()
     types = [r["event_type"] for r in events]
     assert types == ["world_created"] + ["character_created"] * 4 + ["world_seeded"]
+    policy = conn.execute(
+        "SELECT p.policy_key, l.key AS anchor FROM world_topology_policy p "
+        "JOIN location l ON l.id = p.anchor_location_id WHERE p.world_id = ?",
+        (world["id"],),
+    ).fetchone()
+    assert tuple(policy) == ("strong_anchor", "salon")
+
+
+def test_monde_non_seed_utilise_une_politique_topologique_neutre():
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    world = WorldEngine(conn).init_world(name="Vide", seed=False)
+    policy = conn.execute(
+        "SELECT policy_key, anchor_location_id FROM world_topology_policy WHERE world_id = ?",
+        (world["id"],),
+    ).fetchone()
+    assert tuple(policy) == ("none", None)
 
 
 def test_reouverture_retrouve_le_monde(tmp_path):

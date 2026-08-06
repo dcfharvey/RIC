@@ -323,8 +323,8 @@ class AdminChangeService:
             if not connectivity["ok"]:
                 raise AdminChangeError(
                     "fermeture refusée : elle isolerait un ou plusieurs lieux "
-                    f"(depuis salon={connectivity['unreachable_from_salon']}, "
-                    f"vers salon={connectivity['unreachable_to_salon']})",
+                    f"(depuis ancre={connectivity['unreachable_from_anchor']}, "
+                    f"vers ancre={connectivity['unreachable_to_anchor']})",
                     code="would_isolate_location",
                 )
             payload = {

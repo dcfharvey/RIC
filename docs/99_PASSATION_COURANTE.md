@@ -21,13 +21,14 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
   (exposition HTTP locale du même pipeline) ;
-- migration courante : `0016_admin_change_remove_link.sql` ;
+- migration courante : `0017_world_topology_policy.sql` ;
 - dernier test complet avant 4.2J : **469 passed** ;
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
 - test complet après 4.2K : **486 passed** ;
 - test complet après le banc minimal : **495 passed** ;
 - test complet après fermeture sûre de passage : **502 passed** ;
+- test complet après politique topologique : **504 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes

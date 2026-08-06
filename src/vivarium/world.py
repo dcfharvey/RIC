@@ -112,6 +112,12 @@ class WorldEngine:
     def _now_iso(self) -> str:
         return self._clock.now_iso()
 
+    @staticmethod
+    def _has_topology_policy_table(conn: sqlite3.Connection) -> bool:
+        return conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'world_topology_policy'"
+        ).fetchone() is not None
+
     # --- Création / destruction -------------------------------------------------
 
     def init_world(self, name: str | None = None, seed: bool = True) -> dict[str, Any]:
@@ -142,6 +148,13 @@ class WorldEngine:
             )
             if seed:
                 self._seed_world(c, world_id, now)
+            elif self._has_topology_policy_table(c):
+                c.execute(
+                    "INSERT INTO world_topology_policy "
+                    "(world_id, policy_key, anchor_location_id, configured_at) "
+                    "VALUES (?, 'none', NULL, ?)",
+                    (world_id, now),
+                )
         return self.get_world(world_id)
 
     def _seed_world(self, c: sqlite3.Connection, world_id: int, now: str) -> None:
@@ -154,6 +167,13 @@ class WorldEngine:
                 (new_uuid(), world_id, key, name, kind, capacity, now),
             )
             location_ids[key] = cur.lastrowid
+        if self._has_topology_policy_table(c):
+            c.execute(
+                "INSERT INTO world_topology_policy "
+                "(world_id, policy_key, anchor_location_id, configured_at) "
+                "VALUES (?, 'strong_anchor', ?, ?)",
+                (world_id, location_ids["salon"], now),
+            )
         for key, name, kind, loc_key in SEED_OBJECTS:
             c.execute(
                 "INSERT INTO world_object "

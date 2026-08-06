@@ -24,7 +24,6 @@ from collections import deque
 from typing import Any
 
 from .db import transaction
-from .seed import SEED_LINKS
 from .util import Clock, new_uuid
 from .world import SOURCE_OWNER, _append_event
 
@@ -102,20 +101,35 @@ class GraphEngine:
         *,
         excluded_edges: frozenset[tuple[int, int]] = frozenset(),
     ) -> dict[str, Any]:
-        """Vérifie les deux sens de connectivité entre chaque lieu et le salon.
+        """Vérifie la politique topologique déclarée du monde.
 
         Le graphe est orienté : être atteignable depuis le salon ne suffit pas
         si une résidente ne peut plus y revenir. Cette lecture est aussi sûre
         dans la transaction qui vient de retirer un passage.
         """
+        policy = self._conn.execute(
+            "SELECT policy_key, anchor_location_id FROM world_topology_policy WHERE world_id = ?",
+            (world_id,),
+        ).fetchone()
+        if policy is None or policy["policy_key"] == "none":
+            return {
+                "ok": True,
+                "policy": "none",
+                "anchor": None,
+                "root_missing": False,
+                "unreachable_from_anchor": [],
+                "unreachable_to_anchor": [],
+            }
         id_to_key = self._id_to_key(world_id)
-        root = next((location_id for location_id, key in id_to_key.items() if key == "salon"), None)
-        if root is None:
+        root = policy["anchor_location_id"]
+        if root not in id_to_key:
             return {
                 "ok": False,
+                "policy": policy["policy_key"],
+                "anchor": None,
                 "root_missing": True,
-                "unreachable_from_salon": sorted(id_to_key.values()),
-                "unreachable_to_salon": sorted(id_to_key.values()),
+                "unreachable_from_anchor": sorted(id_to_key.values()),
+                "unreachable_to_anchor": sorted(id_to_key.values()),
             }
         outgoing: dict[int, list[int]] = {location_id: [] for location_id in id_to_key}
         incoming: dict[int, list[int]] = {location_id: [] for location_id in id_to_key}
@@ -146,9 +160,11 @@ class GraphEngine:
         unreachable_to = sorted(id_to_key[location_id] for location_id in id_to_key.keys() - to_salon)
         return {
             "ok": not unreachable_from and not unreachable_to,
+            "policy": policy["policy_key"],
+            "anchor": id_to_key[root],
             "root_missing": False,
-            "unreachable_from_salon": unreachable_from,
-            "unreachable_to_salon": unreachable_to,
+            "unreachable_from_anchor": unreachable_from,
+            "unreachable_to_anchor": unreachable_to,
         }
 
     def _canonical_time(self, world_id: int) -> str:
@@ -257,27 +273,22 @@ class GraphEngine:
 
         connectivity = self._connectivity_report(world_id)
 
-        missing_reciprocal: list[tuple[str, str]] = []
-        for a, b in SEED_LINKS:
-            if not (self.can_traverse(world_id, a, b) and self.can_traverse(world_id, b, a)):
-                missing_reciprocal.append((a, b))
-
         ok = (
             self_loops == 0
             and duplicates == 0
             and not fk
             and connectivity["ok"]
-            and not missing_reciprocal
         )
         return {
             "ok": ok,
             "self_loops": self_loops,
             "duplicate_edges": duplicates,
             "fk_violations": fk,
-            "unreachable_from_salon": connectivity["unreachable_from_salon"],
-            "unreachable_to_salon": connectivity["unreachable_to_salon"],
+            "topology_policy": connectivity["policy"],
+            "topology_anchor": connectivity["anchor"],
+            "unreachable_from_anchor": connectivity["unreachable_from_anchor"],
+            "unreachable_to_anchor": connectivity["unreachable_to_anchor"],
             "root_missing": connectivity["root_missing"],
-            "missing_reciprocal": missing_reciprocal,
         }
 
     def preview_remove_link(
@@ -424,8 +435,8 @@ class GraphEngine:
         if not connectivity["ok"]:
             raise GraphError(
                 "fermeture refusée : elle isolerait un ou plusieurs lieux "
-                f"(depuis salon={connectivity['unreachable_from_salon']}, "
-                f"vers salon={connectivity['unreachable_to_salon']})",
+                f"(depuis ancre={connectivity['unreachable_from_anchor']}, "
+                f"vers ancre={connectivity['unreachable_to_anchor']})",
                 code="would_isolate_location",
             )
         canonical_at = self._canonical_time(world_id)
@@ -459,8 +470,8 @@ class GraphEngine:
         if not preview["connectivity"]["ok"]:
             raise GraphError(
                 "fermeture refusée : elle isolerait un ou plusieurs lieux "
-                f"(depuis salon={preview['connectivity']['unreachable_from_salon']}, "
-                f"vers salon={preview['connectivity']['unreachable_to_salon']})",
+                f"(depuis ancre={preview['connectivity']['unreachable_from_anchor']}, "
+                f"vers ancre={preview['connectivity']['unreachable_to_anchor']})",
                 code="would_isolate_location",
             )
         with transaction(self._conn) as conn:

@@ -79,10 +79,11 @@ def test_integrite_du_seed(graph):
     assert rep["self_loops"] == 0
     assert rep["duplicate_edges"] == 0
     assert rep["fk_violations"] == []
-    assert rep["unreachable_from_salon"] == []
-    assert rep["unreachable_to_salon"] == []
+    assert rep["topology_policy"] == "strong_anchor"
+    assert rep["topology_anchor"] == "salon"
+    assert rep["unreachable_from_anchor"] == []
+    assert rep["unreachable_to_anchor"] == []
     assert rep["root_missing"] is False
-    assert rep["missing_reciprocal"] == []
 
 
 # --- Sens uniques et direction -------------------------------------------------
@@ -205,6 +206,21 @@ def test_suppression_qui_isole_refusee_et_rollback_complet(graph):
     ).fetchone()[0] == before_events
 
 
+def test_politique_none_autorise_un_monde_a_zones_separees(graph):
+    conn, g, wid = graph
+    conn.execute(
+        "UPDATE world_topology_policy SET policy_key = 'none', anchor_location_id = NULL "
+        "WHERE world_id = ?", (wid,)
+    )
+
+    g.remove_link(wid, "couloir", "chambre_1")
+
+    report = g.check_graph_integrity(wid)
+    assert report["ok"] is True
+    assert report["topology_policy"] == "none"
+    assert g.can_traverse(wid, "couloir", "chambre_1") is False
+
+
 # --- Intégrité / lectures pures -------------------------------------------------
 
 def test_lectures_spatiales_aucune_ecriture_ni_evenement(graph):
@@ -241,8 +257,8 @@ def test_aucun_trajet_si_lieu_isole(graph):
         )
     assert g.find_path(wid, "salon", "cave") is None
     rep = g.check_graph_integrity(wid)
-    assert "cave" in rep["unreachable_from_salon"]
-    assert "cave" in rep["unreachable_to_salon"]
+    assert "cave" in rep["unreachable_from_anchor"]
+    assert "cave" in rep["unreachable_to_anchor"]
 
 
 def test_boucle_sur_soi_refusee(graph):
