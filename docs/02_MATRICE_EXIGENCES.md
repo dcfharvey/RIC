@@ -10,7 +10,7 @@
 | ID | Exigence | État |
 | --- | --- | --- |
 | F-01 | Créer, charger, sauvegarder et restaurer un monde persistant. | partiel (création/chargement ; sauvegarde/restauration futures) |
-| F-02 | Créer cinq entités MVP — quatre résidentes sapientes et un chat — avec identité, traits, valeurs, intérêts, besoins, objectifs, relations et mémoire adaptés à leur profil cognitif. | partiel (catalogue, gabarits et instanciation génériques; identité/besoins techniques; casting, traits/valeurs/relations/mémoire futurs) |
+| F-02 | Créer cinq entités MVP — quatre résidentes sapientes et un chat — avec identité, traits, valeurs, intérêts, besoins, objectifs, relations et mémoire adaptés à leur profil cognitif. | partiel (catalogue et cinq gabarits v1, instanciation générique, identité/besoins techniques; traits/valeurs/relations/mémoire futurs) |
 | F-03 | Faire avancer le temps réel, gérer pause/reprise et rattrapage condensé. | partiel (1:1 + pause/reprise ; rattrapage futur) |
 | F-04 | Permettre aux personnages de proposer des intentions selon leur état subjectif. | partiel (politique déterministe ; subjectivité future) |
 | F-05 | Valider toute intention par le moteur avant modification du monde. | implémenté (moteur seul autorité) |
@@ -37,7 +37,7 @@
 | NF-07 | Mesurer coûts, jetons, latences, erreurs et charge locale. | futur |
 | NF-08 | Appliquer le moindre privilège et des permissions configurables. | futur |
 | NF-09 | Faire évoluer les schémas et règles par versions et migrations. | implémenté (11 migrations) |
-| NF-10 | Couvrir les comportements essentiels par des tests reproductibles. | implémenté (453 tests) |
+| NF-10 | Couvrir les comportements essentiels par des tests reproductibles. | implémenté (455 tests) |
 | NF-11 | Rester discret sur l’ordinateur personnel : pas de boucle à haute fréquence ni croissance mémoire non bornée. | implémenté (borne de transitions) |
 | NF-12 | Être compréhensible et maintenable par une autre IA ou un autre développeur. | implémenté (documentation + code) |
 

@@ -173,6 +173,68 @@ class CharacterTemplateService:
             )
         return self.get_version(key, version)
 
+    def install_published_catalog(
+        self, templates: Iterable[tuple[Any, Any, Iterable[Any]]]
+    ) -> list[dict[str, Any]]:
+        """Installe des gabarits logiciels version 1, atomiquement et sans dérive."""
+        try:
+            entries = tuple(templates)
+        except TypeError as exc:
+            raise TemplateError("catalogue de gabarits invalide") from exc
+        normalized: list[tuple[str, str, tuple[dict[str, Any], ...]]] = []
+        seen: set[str] = set()
+        for entry in entries:
+            if not isinstance(entry, tuple) or len(entry) != 3:
+                raise TemplateError("catalogue de gabarits invalide")
+            key = self._key(entry[0])
+            definition_json = self._definition(entry[1])
+            components = self._components(entry[2])
+            if key in seen:
+                raise TemplateError("catalogue de gabarits contient un doublon")
+            seen.add(key)
+            normalized.append((key, definition_json, components))
+
+        with transaction(self._conn) as conn:
+            for key, definition_json, components in normalized:
+                errors = self._validation_errors(conn, components)
+                if errors:
+                    raise TemplateError(errors[0]["code"])
+                components_json = json.dumps(
+                    components,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                )
+                template = conn.execute(
+                    "SELECT id FROM character_template WHERE key = ?", (key,)
+                ).fetchone()
+                if template is None:
+                    cur = conn.execute(
+                        "INSERT INTO character_template (public_id, key, created_at) VALUES (?, ?, ?)",
+                        (new_uuid(), key, now_utc()),
+                    )
+                    conn.execute(
+                        "INSERT INTO character_template_version "
+                        "(template_id, version, status, definition_json, component_bindings_json, "
+                        "created_at, published_at) VALUES (?, 1, 'published', ?, ?, ?, ?)",
+                        (cur.lastrowid, definition_json, components_json, now_utc(), now_utc()),
+                    )
+                    continue
+                version = conn.execute(
+                    "SELECT status, definition_json, component_bindings_json "
+                    "FROM character_template_version WHERE template_id = ? AND version = 1",
+                    (template["id"],),
+                ).fetchone()
+                if (
+                    version is None
+                    or version["status"] != "published"
+                    or version["definition_json"] != definition_json
+                    or version["component_bindings_json"] != components_json
+                ):
+                    raise TemplateError("catalogue de gabarits incompatible avec l'existant")
+        return [self.get_version(key, 1) for key, _, _ in normalized]
+
     def validate(self, key: Any, version: Any) -> dict[str, Any]:
         """Retourne un diagnostic déterministe; ne modifie jamais le gabarit."""
         template = self.get_version(key, version)

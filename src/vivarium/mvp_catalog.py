@@ -58,6 +58,49 @@ MVP_COMPONENT_CATALOG: tuple[tuple[str, str, dict[str, Any]], ...] = (
             },
         },
     ),
+    (
+        "component",
+        "appearance.descriptive",
+        {
+            "title": "Apparence descriptive",
+            "engine_status": "descriptive_only",
+            "config_schema": {
+                "required": ["summary"],
+                "properties": {"summary": {"type": "string"}},
+                "additional_properties": False,
+            },
+        },
+    ),
+    (
+        "component",
+        "personality.initial_dispositions",
+        {
+            "title": "Dispositions initiales",
+            "engine_status": "descriptive_only",
+            "config_schema": {
+                "required": ["summary"],
+                "properties": {"summary": {"type": "string"}},
+                "additional_properties": False,
+            },
+        },
+    ),
+    (
+        "component",
+        "physiology.resource_dependent_state",
+        {
+            "title": "État dépendant d'une ressource physiologique",
+            "engine_status": "future_canonical_state",
+            "config_schema": {
+                "required": ["resource_key", "high_state", "low_state"],
+                "properties": {
+                    "resource_key": {"type": "string"},
+                    "high_state": {"type": "string"},
+                    "low_state": {"type": "string"},
+                },
+                "additional_properties": False,
+            },
+        },
+    ),
 )
 
 

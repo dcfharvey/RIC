@@ -1,7 +1,7 @@
 # Vivarium social artificiel
 ## Dossier maître d’implémentation destiné à une IA programmeuse
 
-**Version :** 0.7
+**Version :** 0.8
 **Date :** 5 août 2026
 **Statut :** source normative unique du dépôt après fermeture technique de la Phase 3
 **Public cible :** IA programmeuse, agent de développement ou développeur humain
@@ -151,7 +151,7 @@ Toute écriture passe par `db.transaction` + `world._append_event` (helper inter
 ## 9. Personnages (implémenté, provisoire)
 
 - Quatre personnages techniques `character_1..4`, tous adultes, positions canoniques initiales en chambres 1..4.
-- **Statut** : placeholders provisoires de test. Le casting MVP définitif compte cinq entités : quatre résidentes sapientes adultes (Sophie et Erika, humaines ; une louve anthro ; une slime à apparence féminine) et un chat domestique non sapient. Elles seront créées ou migrées par le futur gestionnaire d’entités (Phase 4), jamais ajoutées comme un seed spécial.
+- **Statut** : placeholders provisoires de test. Le casting MVP définitif compte cinq entités : Sophie et Erika (humaines sapientes adultes), Luna (louve anthro sapiente adulte), Chuu (slime sapiente adulte à apparence féminine) et Patoune (chatte domestique non sapiente). Leurs données de conception sont dans `docs/08_CASTING_MVP.md`. Elles seront créées ou migrées par le futur gestionnaire d’entités (Phase 4), jamais ajoutées comme un seed spécial.
 - `key` immuable ; `name` modifiable ; une seule position canonique active.
 
 ## 10. Besoins (implémenté)
@@ -222,7 +222,7 @@ Capacités prouvées : horloge canonique, monde actif/paused, redémarrage, beso
 - Personnages encore techniques (placeholders).
 - Aucune interface administrative complète.
 - Aucun LLM intégré au moteur canonique.
-- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée et le catalogue minimal de composants MVP; le pipeline de changement profond, les gestionnaires administratifs complets et les résidentes MVP restent futurs.
+- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée, le catalogue minimal de composants MVP et les cinq gabarits v1; le pipeline de changement profond, les gestionnaires administratifs complets et les résidentes MVP dans un monde restent futurs.
 
 ## 19. Dettes techniques (documentées, non bloquantes)
 
@@ -263,6 +263,7 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v0.5** (5 août 2026) : gabarits liés à des versions précises de composants et validation structurelle déterministe de leur configuration; aucune instance définitive n'est encore créée.
 - **v0.6** (5 août 2026) : instanciation atomique depuis un gabarit publié, avec provenance et définition initiale figées; aucune résidente MVP n'est encore créée ni migrée.
 - **v0.7** (5 août 2026) : catalogue MVP publié (morphologie, profil cognitif, besoins standards), sans confondre contrats descriptifs et mécanismes réellement exécutés.
+- **v0.8** (5 août 2026) : gabarits v1 de Sophie, Erika, Luna, Chuu et Patoune; le contrat d'hydratation de Chuu est explicite mais pas encore simulé.
 
 ## 24. Annexes et références
 
