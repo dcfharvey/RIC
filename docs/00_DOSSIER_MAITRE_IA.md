@@ -1,7 +1,7 @@
 # Vivarium social artificiel
 ## Dossier maître d’implémentation destiné à une IA programmeuse
 
-**Version :** 1.6
+**Version :** 1.7
 **Date :** 6 août 2026
 **Statut :** source normative unique du dépôt après fermeture technique de la Phase 3
 **Public cible :** IA programmeuse, agent de développement ou développeur humain
@@ -127,6 +127,7 @@ Charger l’état canonique → mettre à jour besoins/routines déterministes �
 - `policy.py` : politique déterministe pure.
 - `simulation.py` : orchestration `run_to` de borne en borne.
 - `repro.py` : digests et audits de reproductibilité.
+- `bench.py` : scénarios temporaires isolés, comparaisons et rapports d'audit.
 
 Toute écriture passe par `db.transaction` + `world._append_event` (helper interne). Aucune API publique ne permet d’écrire un événement brut sans mutation métier (C-3 corrigé).
 
@@ -248,7 +249,7 @@ Les systèmes suivants sont des **exigences normatives futures**, jamais présen
 ## 21. Séquence vers la Phase 4
 
 - **Phase 4 = premier vertical slice administratif** : registre minimal de composants/capacités/unités, pipeline de validation, API `prepare / validate / impact / confirm`, journal administratif, gestionnaire d’univers, gestionnaire de modèles et d’entités, interface web locale, création ou migration de la résidence et des cinq entités définitives.
-- **Avant les couches subjectives** : construire un banc d'essai moteur reproductible et isolé. Il devient le critère de validation des interactions de systèmes, sans écrire dans le monde MVP ni appeler un LLM dans sa première version.
+- **Avant les couches subjectives** : le banc d'essai moteur reproductible et isolé est livré. Il devient le critère de validation des interactions de systèmes, sans écrire dans le monde MVP ni appeler un LLM dans sa première version. Voir `docs/16_BANC_ESSAI_MOTEUR.md`.
 - L’ancienne définition « actions, scènes, événements, perceptions » est **supersédée** dans la séquence immédiate et devient une étape ultérieure (boucle monde–action–perception).
 
 ## 22. Règles de changement
@@ -272,7 +273,8 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v1.3** (6 août 2026) : action topologique `add_link` préparée, avec conservation auditée des plans lors de l'évolution du schéma administratif; aucune suppression de passage ou changement de personnage.
 - **v1.4** (6 août 2026) : monde MVP propre séparé des mondes de test; banc d'essai moteur reproductible placé avant perception, cognition et social.
 - **v1.5** (6 août 2026) : clarification de vocabulaire : résidence initiale = monde d'intégration pré-MVP; MVP = simulateur social présentable après les couches vivantes.
-- **v1.6** (6 août 2026) : chronologie logicielle explicite : état actuel `0.0.0.dev0` pré-alpha; premier MVP alpha au jalon `0.1.0a1`.
+- **v1.6** (6 août 2026) : chronologie logicielle explicite : état initial `0.0.0.dev0` pré-alpha; premier MVP alpha au jalon `0.1.0a1`.
+- **v1.7** (6 août 2026) : banc d'essai minimal livré; version logicielle `0.0.1.dev0`.
 
 ## 24. Annexes et références
 

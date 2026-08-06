@@ -14,7 +14,7 @@ validation du moteur qui croît avec lui.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.0.0.dev0` — pré-alpha.
+**Version logicielle actuelle :** `0.0.1.dev0` — pré-alpha.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
@@ -23,14 +23,14 @@ validation du moteur qui croît avec lui.
 - cinq gabarits MVP : livrés, mais aucune résidente n'est encore créée dans un
   monde réel ;
 - cognition, perception, mémoire et social : futurs ;
-- banc d'essai : décidé, à construire avant ces systèmes subjectifs.
+- banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
 ## Jalons de version produit
 
 | Version | Place dans la roadmap | Signification |
 | --- | --- | --- |
 | `0.0.0.dev0` | État actuel | Pré-alpha : fondations rigoureuses, mais pas encore de boucle sociale complète. |
-| `0.0.1.dev0` | Après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
+| `0.0.1.dev0` | État actuel, après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
 | `0.0.2.dev0` | Après le monde d'intégration | Les cinq vraies configurations peuvent être assemblées et réinitialisées sans histoire officielle. |
 | `0.1.0a1` | Fin de l'étape 5 | **Premier MVP alpha** : boucle sociale minimale complète et présentable, encore réinitialisable. |
 | `0.1.0b1` | Après essais prolongés | Bêta : le MVP tourne durablement; les défauts restants sont recherchés par observation réelle. |
@@ -48,7 +48,7 @@ Finir les mutations spatiales dont l'impact peut être structurel : fermeture de
 passage avec détection d'isolement, puis seulement les premiers lieux/objets si
 un cas concret l'exige. Aucune suppression ne doit devenir une voie rapide.
 
-### 2. Banc d'essai minimal du moteur
+### 2. Banc d'essai minimal du moteur — livré
 
 Construire un outil sans LLM et sans interface graphique qui :
 
@@ -59,9 +59,9 @@ Construire un outil sans LLM et sans interface graphique qui :
 - compare deux exécutions identiques ou deux variantes ;
 - ne modifie jamais une base MVP ou un monde de développement existant.
 
-La première version est un outil pour l'IA et les tests automatisés. Une
-interface d'exploration humaine pourra venir ensuite, si elle répond à une
-friction observée.
+La première version est un outil pour l'IA et les tests automatisés. Voir
+`docs/16_BANC_ESSAI_MOTEUR.md`. Une interface d'exploration humaine pourra
+venir ensuite, si elle répond à une friction observée.
 
 ### 3. Scénarios d'acceptation inter-systèmes
 

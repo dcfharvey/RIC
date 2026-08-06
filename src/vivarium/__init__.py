@@ -4,4 +4,4 @@ Pré-alpha : fondations canoniques et administratives en construction. Le
 simulateur social présentable n'est pas encore atteint.
 """
 
-__version__ = "0.0.0.dev0"
+__version__ = "0.0.1.dev0"

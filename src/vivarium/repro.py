@@ -52,8 +52,8 @@ def canonical_state_digest(conn: sqlite3.Connection, world_id: int) -> dict[str,
     """Digest déterministe de l'état canonique, références par clés logiques."""
     d: dict[str, Any] = {}
 
-    w = conn.execute("SELECT status FROM worlds WHERE id = ?", (world_id,)).fetchone()
-    d["worlds"] = {"status": w["status"]}
+    w = conn.execute("SELECT name, status FROM worlds WHERE id = ?", (world_id,)).fetchone()
+    d["worlds"] = {"name": w["name"], "status": w["status"]}
 
     c = conn.execute(
         "SELECT simulated_now FROM canonical_clock WHERE world_id = ?", (world_id,)

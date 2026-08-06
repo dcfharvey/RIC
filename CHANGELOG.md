@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.25 — 6 août 2026
+
+- **Banc d'essai minimal du moteur** : `vivarium.bench` exécute un scénario
+  déclaratif dans une SQLite temporaire isolée, avec horloge injectée et actions
+  strictement fermées. Il produit état, journaux, refus attendus et audits, puis
+  compare deux runs sans utiliser UUID ni rowid comme preuve.
+- Contrat de pause explicite : le temps canonique reste gelé; aucune action à
+  une heure future n'est simulée avant une reprise au même instant canonique.
+- `canonical_state_digest` inclut maintenant le nom du monde : un renommage ne
+  peut plus être invisibilisé par une comparaison de scénarios.
+- Documentation : `docs/16_BANC_ESSAI_MOTEUR.md`; jalon logiciel atteint :
+  `0.0.1.dev0` (toujours pré-alpha).
+- Tests : 495 réussis.
+
 ## 0.24 — 6 août 2026
 
 - La version logicielle est corrigée de `0.1.0` à `0.0.0.dev0` : le projet est

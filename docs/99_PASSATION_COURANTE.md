@@ -15,7 +15,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 
 ## État vérifié
 
-- version logicielle : `0.0.0.dev0` (**pré-alpha**). Les numéros de documents
+- version logicielle : `0.0.1.dev0` (**pré-alpha**). Les numéros de documents
   et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
 - commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
   signifie que cette passation décrit l'état de `HEAD` ;
@@ -26,6 +26,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
 - test complet après 4.2K : **486 passed** ;
+- test complet après le banc minimal : **495 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -61,7 +62,9 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 
 ## Prochaine action recommandée
 
-La priorité structurante est maintenant le **banc d'essai minimal du moteur**.
-La fermeture de passage pourra devenir son premier scénario de validation
-topologique. Ne pas commencer par modifier une habitante ou créer le monde MVP
-sans le protocole renforcé correspondant.
+Le banc d'essai minimal est maintenant livré (`vivarium.bench`) : scénarios
+isolés, actions déclaratives fermées, rapports/audits et comparaison de runs.
+Le prochain lot est l'ajout de scénarios d'acceptation inter-systèmes, à
+commencer par un cas spatial ou ressource réellement utile. Ne pas commencer
+par modifier une habitante ou créer le monde MVP sans le protocole renforcé
+correspondant.
