@@ -16,6 +16,8 @@ contient ni SQLite, ni journal canonique brut, ni informations cachées d'autrui
 Toute traversée repasse dans `ActionOrchestrator` : les préconditions réelles
 restent donc jugées par le moteur. Une réponse malformée, une action inventée
 ou un serveur non local est refusé explicitement.
+Chaque appel porte aussi un plafond de sortie (`VIVARIUM_LLM_MAX_TOKENS=128` par
+défaut), puisqu'il s'agit d'une courte décision JSON et non d'un dialogue.
 
 Ce lot ne prétend pas encore donner personnalité, mémoire narrative ou boucle
 de simulation au modèle. Il rend d'abord la connexion et sa frontière testables.

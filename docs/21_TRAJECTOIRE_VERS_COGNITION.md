@@ -177,8 +177,18 @@ validateurs) permettent de les brancher sans les inventer prématurément.
 
 ## Point de départ actuel
 
-Les lots E et F sont livrés; le lot G est amorcé avec une attention pure et
-bornée. Mémoire, social et LLM restent futurs.
+Les lots E et F sont livrés; le lot G possède désormais une attention pure
+bornée et une première trace subjective privée, append-only et auditée. Le lot
+J possède une première frontière LLM locale sans boucle autonome : contexte
+borné, sortie JSON validée, timeout et plafond de sortie. Les relations, la
+décision sociale, l'interprétation narrative, la personnalité mécanistique et
+le dialogue restent futurs.
+
+Le prochain essai après chargement de Gemma sera un test local contrôlé avec
+`llm-status`, puis des réponses sur les scénarios de banc existants. Il ne faut
+pas activer une boucle de résidentes ni inventer des personnalités dans le
+prompt avant la livraison des systèmes de personnalité, motivations et de leur
+contrat de persistance.
 
 Les portes 1 et 2 sont livrées : blueprint, connecteurs à état, traversée,
 règles de résidence et monde d'intégration atomique. Le contrat fermé du lot E,

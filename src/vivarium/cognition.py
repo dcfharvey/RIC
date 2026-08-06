@@ -30,6 +30,7 @@ from .util import Clock
 COGNITION_SCHEMA_VERSION = 1
 DEFAULT_LM_STUDIO_BASE_URL = "http://127.0.0.1:1234/v1"
 DEFAULT_TIMEOUT_SECONDS = 45.0
+DEFAULT_MAX_TOKENS = 128
 MAX_DIRECT_EVENTS, MAX_MEMORIES, MAX_ATTENTION = 10, 10, 8
 
 
@@ -109,6 +110,7 @@ class LocalLLMSettings:
     model_id: str
     api_token: str | None
     timeout_seconds: float
+    max_tokens: int = DEFAULT_MAX_TOKENS
 
     @classmethod
     def from_environment(cls) -> "LocalLLMSettings":
@@ -117,13 +119,15 @@ class LocalLLMSettings:
         raw = value("VIVARIUM_LLM_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT_SECONDS))
         try:
             timeout = float(raw)
+            max_tokens = int(value("VIVARIUM_LLM_MAX_TOKENS", str(DEFAULT_MAX_TOKENS)))
         except ValueError as exc:
-            raise CognitionError("délai LLM invalide", code="invalid_llm_configuration") from exc
+            raise CognitionError("budget ou délai LLM invalide", code="invalid_llm_configuration") from exc
         return cls(
             value("VIVARIUM_LLM_BASE_URL", DEFAULT_LM_STUDIO_BASE_URL),
             value("VIVARIUM_LLM_MODEL").strip(),
             value("VIVARIUM_LLM_API_TOKEN") or None,
             timeout,
+            max_tokens,
         ).validated()
 
     def validated(self) -> "LocalLLMSettings":
@@ -136,6 +140,8 @@ class LocalLLMSettings:
             raise CognitionError("modèle LLM non configuré", code="missing_llm_model")
         if not isinstance(self.timeout_seconds, (int, float)) or not 1 <= self.timeout_seconds <= 300:
             raise CognitionError("délai LLM hors limites", code="invalid_llm_configuration")
+        if not isinstance(self.max_tokens, int) or isinstance(self.max_tokens, bool) or not 16 <= self.max_tokens <= 512:
+            raise CognitionError("budget de sortie LLM hors limites", code="invalid_llm_configuration")
         return self
 
 
@@ -262,6 +268,7 @@ class LMStudioProvider:
     def decide(self, context: CognitionContext) -> CognitionDecision:
         body = {
             "model": self._settings.model_id, "temperature": 0.2,
+            "max_tokens": self._settings.max_tokens,
             "messages": [
                 {"role": "system", "content": "Tu proposes une seule action structurée, jamais un fait du monde."},
                 {"role": "user", "content": self._prompt(context)},

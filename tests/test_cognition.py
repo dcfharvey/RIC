@@ -111,6 +111,7 @@ def test_lm_studio_request_uses_the_structured_output_endpoint(monkeypatch, setu
     assert decision.action == "no_action"
     assert captured["url"].endswith("/v1/chat/completions") and captured["timeout"] == 12
     assert sent["response_format"]["type"] == "json_schema"
+    assert sent["max_tokens"] == 128
     assert sent["response_format"]["json_schema"]["schema"]["additionalProperties"] is False
 
 
