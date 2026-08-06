@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.30 — 6 août 2026
+
+- Blueprints environnementaux versionnés et publiables : lieux, connecteurs,
+  objets initiaux et politique topologique sont validés comme un ensemble.
+- Un blueprint publié instancie atomiquement un monde neuf avec horloge,
+  provenance immuable et événement canonique; aucun rowid ne pollue le
+  snapshot reproductible.
+- Migration 0020; documentation : `docs/22_BLUEPRINTS_ENVIRONNEMENT.md`;
+  tests : 525 réussis.
+
 ## 0.29 — 6 août 2026
 
 - Presets environnementaux versionnés : lieux et connecteurs disposent de

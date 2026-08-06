@@ -21,7 +21,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
   (exposition HTTP locale du même pipeline) ;
-- migration courante : `0019_environment_archetype.sql` ;
+- migration courante : `0020_environment_blueprint.sql` ;
 - dernier test complet avant 4.2J : **469 passed** ;
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
@@ -31,6 +31,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - test complet après politique topologique : **504 passed** ;
 - test complet après objets et contenance : **514 passed** ;
 - test complet après presets d'environnement : **520 passed** ;
+- test complet après blueprints d'environnement : **525 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -45,6 +46,8 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   avec lieu effectif matérialisé, capacité et refus des cycles ;
 - presets de lieux et connecteurs validés, publiés et immuables, prêts pour
   le futur instanciateur de blueprint ;
+- blueprints versionnés et instanciation atomique d'un monde neuf, avec
+  provenance logique figée des lieux et des connecteurs ;
 - plan admin pour `rename_world` : hash, expiration, version optimiste par
   séquence canonique, audit séparé, application atomique et retry idempotent ;
 - plan admin pour `add_link` : passage entre deux lieux existants, une ou deux
@@ -75,8 +78,10 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 
 Le banc d'essai minimal est maintenant livré (`vivarium.bench`) : scénarios
 isolés, actions déclaratives fermées, rapports/audits et comparaison de runs.
-Les objets, leur contenance et les presets d'environnement sont aussi livrés;
-voir `docs/19_OBJETS_ET_CONTENANCE.md` et `docs/20_PRESETS_ENVIRONNEMENT.md`.
-Le prochain lot recommandé est le blueprint et son instanciateur propre, puis
-des scénarios d'acceptation inter-systèmes. Ne pas commencer par modifier une
-habitante ou créer le monde MVP sans le protocole renforcé correspondant.
+Les objets, leur contenance, les presets et les blueprints d'environnement sont
+aussi livrés; voir `docs/19_OBJETS_ET_CONTENANCE.md`,
+`docs/20_PRESETS_ENVIRONNEMENT.md` et `docs/22_BLUEPRINTS_ENVIRONNEMENT.md`.
+Le prochain lot recommandé est le connecteur à état simple, puis la traversée
+validée et des scénarios d'acceptation inter-systèmes. Ne pas commencer par
+modifier une habitante ou créer le monde MVP sans le protocole renforcé
+correspondant.

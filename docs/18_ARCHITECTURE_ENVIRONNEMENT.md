@@ -79,7 +79,7 @@ de la topologie; aucun objet ne crée implicitement un lieu ni un passage.
 1. politique topologique configurable — livré;
 2. objets et contenance objet‑dans‑objet — livré;
 3. contrats/presets de lieu et connecteur — livrés;
-4. blueprint et instanciateur de monde propre;
+4. blueprint et instanciateur de monde propre — livré;
 5. connecteurs à état simple;
 6. validation de traversée dépendante de l'entité;
 7. eau, conteneurs, ventilation et formes de Chuu lorsque leurs règles sont

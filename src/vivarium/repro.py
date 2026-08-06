@@ -55,6 +55,24 @@ def canonical_state_digest(conn: sqlite3.Connection, world_id: int) -> dict[str,
     w = conn.execute("SELECT name, status FROM worlds WHERE id = ?", (world_id,)).fetchone()
     d["worlds"] = {"name": w["name"], "status": w["status"]}
 
+    has_environment_origin = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'world_environment_origin'"
+    ).fetchone() is not None
+    if has_environment_origin:
+        origin = conn.execute(
+            "SELECT b.key, o.blueprint_version, o.resolved_definition_json "
+            "FROM world_environment_origin o JOIN environment_blueprint b ON b.id = o.blueprint_id "
+            "WHERE o.world_id = ?",
+            (world_id,),
+        ).fetchone()
+        d["world_environment_origin"] = (
+            None if origin is None else {
+                "blueprint_key": origin["key"],
+                "blueprint_version": origin["blueprint_version"],
+                "resolved_definition": json.loads(origin["resolved_definition_json"]),
+            }
+        )
+
     c = conn.execute(
         "SELECT simulated_now FROM canonical_clock WHERE world_id = ?", (world_id,)
     ).fetchone()

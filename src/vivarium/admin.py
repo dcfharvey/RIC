@@ -231,6 +231,7 @@ class AdminReadService:
             "world_object_moved": "Objet déplacé",
             "object_contained": "Objet placé dans un conteneur",
             "object_removed_from_container": "Objet retiré d'un conteneur",
+            "environment_blueprint_instantiated": "Environnement instancié",
         }
         return summaries.get(event_type, f"Événement {event_type}")
 

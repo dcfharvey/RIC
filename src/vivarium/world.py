@@ -118,43 +118,50 @@ class WorldEngine:
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'world_topology_policy'"
         ).fetchone() is not None
 
+    @staticmethod
+    def _has_table(conn: sqlite3.Connection, name: str) -> bool:
+        return conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)
+        ).fetchone() is not None
+
+    def _create_empty_world_in_transaction(
+        self, c: sqlite3.Connection, name: str, *, seeded: bool
+    ) -> tuple[int, str]:
+        """Crée monde, horloge et premier fait dans une transaction appelante."""
+        now = self._now_iso()
+        cur = c.execute(
+            "INSERT INTO worlds (public_id, name, status, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (new_uuid(), name, STATUS_ACTIVE, now, now),
+        )
+        world_id = cur.lastrowid
+        c.execute(
+            "INSERT INTO canonical_clock "
+            "(public_id, world_id, simulated_now, real_updated_at) VALUES (?, ?, ?, ?)",
+            (new_uuid(), world_id, now, now),
+        )
+        _append_event(
+            c, world_id, SOURCE_SYSTEM, "world_created", {"name": name, "seeded": seeded},
+            occurred_at=now, recorded_at=now,
+        )
+        if not seeded and self._has_topology_policy_table(c):
+            c.execute(
+                "INSERT INTO world_topology_policy "
+                "(world_id, policy_key, anchor_location_id, configured_at) "
+                "VALUES (?, 'none', NULL, ?)",
+                (world_id, now),
+            )
+        return world_id, now
+
     # --- Création / destruction -------------------------------------------------
 
     def init_world(self, name: str | None = None, seed: bool = True) -> dict[str, Any]:
         """Crée un monde de développement avec sa résidence et son horloge."""
         name = name or WORLD_DEFAULT_NAME
         with transaction(self._conn) as c:
-            now = self._now_iso()
-            cur = c.execute(
-                "INSERT INTO worlds (public_id, name, status, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (new_uuid(), name, STATUS_ACTIVE, now, now),
-            )
-            world_id = cur.lastrowid
-            c.execute(
-                "INSERT INTO canonical_clock "
-                "(public_id, world_id, simulated_now, real_updated_at) VALUES (?, ?, ?, ?)",
-                (new_uuid(), world_id, now, now),
-            )
-            # L'état créé ci-dessus et sa trace canonique partagent la même transaction.
-            _append_event(
-                c,
-                world_id,
-                SOURCE_SYSTEM,
-                "world_created",
-                {"name": name, "seeded": seed},
-                occurred_at=now,
-                recorded_at=now,
-            )
+            world_id, now = self._create_empty_world_in_transaction(c, name, seeded=seed)
             if seed:
                 self._seed_world(c, world_id, now)
-            elif self._has_topology_policy_table(c):
-                c.execute(
-                    "INSERT INTO world_topology_policy "
-                    "(world_id, policy_key, anchor_location_id, configured_at) "
-                    "VALUES (?, 'none', NULL, ?)",
-                    (world_id, now),
-                )
         return self.get_world(world_id)
 
     def _seed_world(self, c: sqlite3.Connection, world_id: int, now: str) -> None:
@@ -294,6 +301,12 @@ class WorldEngine:
         à la suppression d'un journal d'audit).
         """
         with transaction(self._conn) as c:
+            if self._has_table(c, "world_location_origin"):
+                c.execute("DELETE FROM world_location_origin WHERE world_id = ?", (world_id,))
+            if self._has_table(c, "world_environment_origin"):
+                c.execute("DELETE FROM world_environment_origin WHERE world_id = ?", (world_id,))
+            if self._has_topology_policy_table(c):
+                c.execute("DELETE FROM world_topology_policy WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM need_state WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM character_profile WHERE world_id = ?", (world_id,))
             c.execute(
