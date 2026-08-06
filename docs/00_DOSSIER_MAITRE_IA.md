@@ -1,7 +1,7 @@
 # Vivarium social artificiel
 ## Dossier maître d’implémentation destiné à une IA programmeuse
 
-**Version :** 1.3
+**Version :** 1.4
 **Date :** 6 août 2026
 **Statut :** source normative unique du dépôt après fermeture technique de la Phase 3
 **Public cible :** IA programmeuse, agent de développement ou développeur humain
@@ -248,6 +248,7 @@ Les systèmes suivants sont des **exigences normatives futures**, jamais présen
 ## 21. Séquence vers la Phase 4
 
 - **Phase 4 = premier vertical slice administratif** : registre minimal de composants/capacités/unités, pipeline de validation, API `prepare / validate / impact / confirm`, journal administratif, gestionnaire d’univers, gestionnaire de modèles et d’entités, interface web locale, création ou migration de la résidence et des cinq entités définitives.
+- **Avant les couches subjectives** : construire un banc d'essai moteur reproductible et isolé. Il devient le critère de validation des interactions de systèmes, sans écrire dans le monde MVP ni appeler un LLM dans sa première version.
 - L’ancienne définition « actions, scènes, événements, perceptions » est **supersédée** dans la séquence immédiate et devient une étape ultérieure (boucle monde–action–perception).
 
 ## 22. Règles de changement
@@ -269,10 +270,12 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v1.1** (6 août 2026) : premier plan administratif immuable (`prepare -> validate -> impact -> confirm`) pour un renommage de monde; hash exact, expiration, concurrence optimiste, audit séparé et retry idempotent.
 - **v1.2** (6 août 2026) : API HTTP locale du pipeline préparé, protégée par jeton pour les deux mutations et les deux lectures administratives; aucune interface visuelle nouvelle.
 - **v1.3** (6 août 2026) : action topologique `add_link` préparée, avec conservation auditée des plans lors de l'évolution du schéma administratif; aucune suppression de passage ou changement de personnage.
+- **v1.4** (6 août 2026) : monde MVP propre séparé des mondes de test; banc d'essai moteur reproductible placé avant perception, cognition et social.
 
 ## 24. Annexes et références
 
 - Registre des décisions : `docs/01_REGISTRE_DECISIONS.md` v0.3.
+- Roadmap active : `docs/15_ROADMAP_ACTIVE.md`.
 - Matrice des exigences : `docs/02_MATRICE_EXIGENCES.md` v0.4.
 - Passation opérationnelle : `docs/99_PASSATION_COURANTE.md`.
 - Décisions ouvertes : `docs/03_DECISIONS_OUVERTES.md` v0.3.

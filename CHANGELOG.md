@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.22 — 6 août 2026
+
+- Roadmap active ajoutée : le banc d'essai reproductible devient une étape
+  centrale avant les systèmes subjectifs et le monde MVP.
+- Décision consignée : monde MVP propre, distinct des mondes de test et du
+  monde technique de développement.
+
 ## 0.21 — 6 août 2026
 
 - **Phase 4.2K — ajout de passage préparé** : nouveau plan `add_link` pour

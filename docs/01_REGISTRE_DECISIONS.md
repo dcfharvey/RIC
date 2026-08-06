@@ -1,7 +1,7 @@
 # Registre des décisions autoritatives
 
-**Version :** 0.2
-**Date :** 4 août 2026
+**Version :** 0.3
+**Date :** 6 août 2026
 **Statut :** actif — registre consolidé après fermeture technique de la Phase 3
 **Source :** dossier maître v0.1, clarifications CLA-001..004, demande de changement post-audit v0.2, index maître des décisions v0.3
 
@@ -95,3 +95,10 @@ Statuts : `implémenté` (présent dans le code et testé), `normatif futur` (di
 | DEC-058 | Séparation des journaux : journal canonique, audit administratif, diagnostics techniques distincts. | **normatif futur** |
 | DEC-059 | LLM sans autorité : propose et formule ; ne fixe ni vérité, ni capacité, ni mémoire, ni émotion, ni relation, ni consentement, ni résultat canonique. | **normatif futur** |
 | DEC-060 | Consentement indépendant : aucune affection, confiance, intimité, autorité, attirance, promesse ou relation ne constitue un consentement actuel. | **normatif futur** |
+
+## E. Clarifications du 6 août 2026
+
+| ID | Décision | Statut |
+| --- | --- | --- |
+| CLA-005 | Le monde MVP sera une base propre, distincte des mondes temporaires de tests automatisés et du monde technique de développement. Les mondes de test peuvent être clonés ou éphémères; ils ne modifient jamais l'histoire MVP. | **actif** |
+| DEC-061 | Un banc d'essai reproductible devient un outil central de validation du moteur. Il définit des conditions contrôlées, exécute des variantes isolées et compare leurs résultats. La première version, sans LLM, précède les systèmes de perception, cognition et social. | **actif** |

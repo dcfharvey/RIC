@@ -53,10 +53,12 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - L'interface peut attendre; lorsque touchée, elle doit être inspectée
   visuellement. Style : console sombre, dense et lisible, jamais dashboard SaaS
   ou papier texturé.
+- Le monde MVP doit être une base propre, séparée des mondes techniques et des
+  exécutions de banc d'essai. Voir `docs/15_ROADMAP_ACTIVE.md`.
 
 ## Prochaine action recommandée
 
-Le prochain changement utile est la **fermeture** d'un passage : il doit analyser
-si des lieux deviennent inaccessibles avant confirmation. Ne pas commencer par
-modifier une habitante ou créer le monde MVP sans le protocole renforcé
-correspondant.
+La priorité structurante est maintenant le **banc d'essai minimal du moteur**.
+La fermeture de passage pourra devenir son premier scénario de validation
+topologique. Ne pas commencer par modifier une habitante ou créer le monde MVP
+sans le protocole renforcé correspondant.
