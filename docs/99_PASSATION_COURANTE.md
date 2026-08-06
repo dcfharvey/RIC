@@ -38,6 +38,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - test complet après calibration de Chuu et profils de ressource atomiques :
   **541 passed** ;
 - test complet après catalogue et blueprint de résidence : **547 passed** ;
+- test complet après assemblage du monde d'intégration : **551 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -98,9 +99,9 @@ Les objets, leur contenance, les presets et les blueprints d'environnement sont
 aussi livrés; voir `docs/19_OBJETS_ET_CONTENANCE.md`,
 `docs/20_PRESETS_ENVIRONNEMENT.md`, `docs/22_BLUEPRINTS_ENVIRONNEMENT.md` et
 `docs/23_CONNECTEURS_ETAT.md` et `docs/24_TRAVERSEE_VALIDEE.md`. Le prochain
-lot recommandé est d'assembler atomiquement le monde d'intégration depuis le
-blueprint publié, ses règles standards et les cinq résidentes. Elles arrivent
-ensemble à l'entrée extérieure, à côté de la boîte aux lettres. Voir
+le monde d'intégration peut désormais être assemblé atomiquement; voir
+`docs/32_ASSEMBLAGE_MONDE_INTEGRATION.md`. Les cinq résidentes arrivent ensemble
+à l'entrée extérieure, à côté de la boîte aux lettres. Voir
 `docs/25_REGLES_MONDE_STANDARD.md` et
 `docs/26_CALIBRATION_CHUU.md` et `docs/27_CONTEXTE_INITIAL_RESIDENTES.md`.
 Elles savent uniquement qu'elles ont volontairement accepté cette colocation

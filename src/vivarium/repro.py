@@ -55,6 +55,15 @@ def canonical_state_digest(conn: sqlite3.Connection, world_id: int) -> dict[str,
     w = conn.execute("SELECT name, status FROM worlds WHERE id = ?", (world_id,)).fetchone()
     d["worlds"] = {"name": w["name"], "status": w["status"]}
 
+    has_initial_context = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'world_initial_context'"
+    ).fetchone() is not None
+    if has_initial_context:
+        context = conn.execute(
+            "SELECT facts_json FROM world_initial_context WHERE world_id = ?", (world_id,)
+        ).fetchone()
+        d["world_initial_context"] = None if context is None else json.loads(context["facts_json"])
+
     has_environment_origin = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'world_environment_origin'"
     ).fetchone() is not None

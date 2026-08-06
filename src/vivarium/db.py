@@ -8,7 +8,11 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
+from itertools import count
 from pathlib import Path
+
+
+_SAVEPOINT_SEQUENCE = count(1)
 
 
 def connect_database(path: Path) -> sqlite3.Connection:
@@ -38,6 +42,18 @@ def transaction(conn: sqlite3.Connection):
     émis à l'intérieur d'un seul `transaction(...)` pour ne jamais laisser
     d'état partiellement appliqué (INV-016).
     """
+    if conn.in_transaction:
+        savepoint = f"vivarium_nested_{next(_SAVEPOINT_SEQUENCE)}"
+        conn.execute(f"SAVEPOINT {savepoint}")
+        try:
+            yield conn
+        except BaseException:
+            conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+            raise
+        else:
+            conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+        return
     conn.execute("BEGIN IMMEDIATE")
     try:
         yield conn

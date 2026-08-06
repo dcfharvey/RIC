@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.36 — 6 août 2026
+
+- Assemblage atomique du monde d'intégration et contexte initial partagé,
+  immuable et journalisé; migration 0022.
+- Transactions imbriquées via savepoints, afin que les services existants
+  puissent participer à une même opération atomique.
+- Tests : 551 réussis.
+
 ## 0.35 — 6 août 2026
 
 - Les blueprints peuvent déclarer l'état initial d'un connecteur; un état fermé
