@@ -25,15 +25,16 @@ from .beliefs import BeliefService
 from .character import CharacterEngine
 from .perception import PerceptionService
 from .registry import _KEY_RE
+from .social import SocialService
 from .subjective_memory import SubjectiveMemoryService
 from .util import Clock
 
 
-COGNITION_SCHEMA_VERSION = 3
+COGNITION_SCHEMA_VERSION = 4
 DEFAULT_LM_STUDIO_BASE_URL = "http://127.0.0.1:1234"
 DEFAULT_TIMEOUT_SECONDS = 45.0
 DEFAULT_MAX_TOKENS = 128
-MAX_DIRECT_EVENTS, MAX_MEMORIES, MAX_ATTENTION, MAX_BELIEFS, MAX_EMOTIONS = 10, 10, 8, 10, 6
+MAX_DIRECT_EVENTS, MAX_MEMORIES, MAX_ATTENTION, MAX_BELIEFS, MAX_EMOTIONS, MAX_RELATIONSHIPS, MAX_BOUNDARIES = 10, 10, 8, 10, 6, 8, 8
 
 
 class CognitionError(ValueError):
@@ -168,6 +169,8 @@ class CognitionContext:
     beliefs: tuple[Mapping[str, Any], ...]
     mood: Mapping[str, Any] | None
     emotions: tuple[Mapping[str, Any], ...]
+    relationships: tuple[Mapping[str, Any], ...]
+    boundaries: tuple[Mapping[str, Any], ...]
     allowed_traversals: tuple[Mapping[str, str], ...]
     schema_version: int = COGNITION_SCHEMA_VERSION
 
@@ -179,6 +182,7 @@ class CognitionContext:
             "attention": _plain(self.attention), "direct_events": _plain(self.direct_events),
             "memories": _plain(self.memories), "beliefs": _plain(self.beliefs),
             "mood": _plain(self.mood), "emotions": _plain(self.emotions),
+            "relationships": _plain(self.relationships), "boundaries": _plain(self.boundaries),
             "allowed_traversals": _plain(self.allowed_traversals),
         }
 
@@ -200,6 +204,9 @@ class CognitionContextService:
         affect = AffectService(self._conn, clock=self._clock)
         mood = affect.mood(world_id, character_key)
         emotions = affect.active_episodes(world_id, character_key, limit=MAX_EMOTIONS)
+        social = SocialService(self._conn, clock=self._clock)
+        relationships = social.relationships(world_id, character_key, limit=MAX_RELATIONSHIPS)
+        boundaries = social.active_boundaries(world_id, character_key, limit=MAX_BOUNDARIES)
         allowed: list[Mapping[str, str]] = []
         for item in attention.available:
             if item.source_kind != "perception:adjacent_connector":
@@ -215,7 +222,9 @@ class CognitionContextService:
             tuple(_freeze(_plain(memory)) for memory in memories),
             tuple(_freeze(_plain(belief)) for belief in beliefs),
             None if mood is None else _freeze(_plain(mood)),
-            tuple(_freeze(_plain(emotion)) for emotion in emotions), tuple(allowed),
+            tuple(_freeze(_plain(emotion)) for emotion in emotions),
+            tuple(_freeze(_plain(relationship)) for relationship in relationships),
+            tuple(_freeze(_plain(boundary)) for boundary in boundaries), tuple(allowed),
         )
 
 

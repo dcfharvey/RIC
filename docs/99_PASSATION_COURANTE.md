@@ -27,7 +27,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
   (exposition HTTP locale du même pipeline) ;
-- migration courante : `0030_subjective_affect.sql` ;
+- migration courante : `0031_social_boundaries.sql` ;
 - dernier test complet avant 4.2J : **469 passed** ;
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
@@ -55,6 +55,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après audit subjectif séparé : **580 passed** ;
 - test complet après croyances sourcées et révisions auditées : **624 passed** ;
 - test complet après états affectifs subjectifs : **629 passed** ;
+- test complet après relations, limites et permissions : **634 passed** ;
 - test complet après frontière LLM locale et banc de fumée : **592 passed** ;
 - test complet après politique pure d'admissibilité des appels LLM :
   **599 passed** ;

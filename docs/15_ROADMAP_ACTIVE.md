@@ -59,6 +59,9 @@ tests et documentation après un lot à conséquences étendues.
 - affect subjectif initial : livré partiellement (humeur, épisodes causés,
   résolution auditée et contexte LLM v3); dynamique, expression et régulation
   restent futurs ;
+- social initial : livré partiellement (relations directionnelles sourcées,
+  limites et permissions explicites, contexte LLM v4); réparation, réseau,
+  consentement opérationnel et actes sociaux restent futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
 ## Jalons de version produit

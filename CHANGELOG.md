@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.51 — 6 août 2026
+
+- Relations privées directionnelles, multidimensionnelles et sourcées : une
+  variation est petite, auditée et jamais inférée dans le sens inverse.
+- Limites personnelles et permissions situationnelles explicites/révocables,
+  séparées de la capacité canonique, de la relation et du consentement.
+  Migration `0031`; contexte LLM v4.
+
 ## 0.50 — 6 août 2026
 
 - États affectifs subjectifs initiaux : humeur diffuse (valence/activation) et

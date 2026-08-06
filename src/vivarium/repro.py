@@ -749,6 +749,33 @@ def subjective_affect_audit(conn: sqlite3.Connection, world_id: int) -> list[str
     return findings
 
 
+def subjective_social_audit(conn: sqlite3.Connection, world_id: int) -> list[str]:
+    """Vérifie la causalité minimale des vues sociales et des permissions."""
+    findings: list[str] = []
+    relationships = conn.execute(
+        "SELECT view.id, view.owner_character_id, view.target_character_id, view.last_event_id, "
+        "event.owner_character_id AS event_owner, event.target_character_id AS event_target, trace.character_id AS trace_owner "
+        "FROM relationship_view view LEFT JOIN relationship_event event ON event.id=view.last_event_id "
+        "LEFT JOIN relationship_evidence evidence ON evidence.view_id=view.id "
+        "LEFT JOIN subjective_trace trace ON trace.id=evidence.trace_id WHERE view.world_id=? GROUP BY view.id",
+        (world_id,),
+    ).fetchall()
+    for view in relationships:
+        if view["event_owner"] != view["owner_character_id"] or view["event_target"] != view["target_character_id"]:
+            findings.append(f"relationship {view['id']}: missing or mismatched latest event")
+        if view["trace_owner"] != view["owner_character_id"]:
+            findings.append(f"relationship {view['id']}: inaccessible evidence")
+    for table, event_table, label in (("personal_boundary", "personal_boundary_event", "boundary"), ("situational_permission", "situational_permission_event", "permission")):
+        rows = conn.execute(
+            f"SELECT state.id, state.last_event_id, event.id AS event_id FROM {table} state LEFT JOIN {event_table} event ON event.id=state.last_event_id WHERE state.world_id=?",
+            (world_id,),
+        ).fetchall()
+        for row in rows:
+            if row["event_id"] is None:
+                findings.append(f"{label} {row['id']}: missing latest event")
+    return findings
+
+
 @dataclass
 class SimulationRunReport:
     """Rapport stable de simulation (outil de test/diagnostic, non canonique)."""

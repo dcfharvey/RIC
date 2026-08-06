@@ -91,3 +91,8 @@ Pour les états affectifs, l'audit a vérifié que l'humeur et l'épisode ne son
 pas des faits canoniques, que l'épisode exige une trace privée accessible et
 que toute mise à jour pointe vers un événement privé plus récent. La suite
 complète a validé **629 tests**.
+
+Pour le social initial, l'audit a vérifié que les vues sont directionnelles,
+que leur preuve appartient à la bonne résidente et que les permissions ne sont
+pas inférées depuis une relation. Les limites restent des politiques sociales,
+pas des blocages physiques. La suite complète a validé **634 tests**.
