@@ -63,3 +63,6 @@ Google indique que Gemma 4 12B peut utiliser LM Studio et vise des machines avec
 La qualité, vitesse et quantification de Gemma 4 12B sur la machine réelle ne
 sont pas encore mesurées. Elles seront testées avec le serveur local et le banc,
 jamais déduites de la seule fiche du modèle.
+
+L'absence du serveur ou une réponse invalide provoque un refus explicite de la
+couche cognitive avant toute action; cela ne laisse aucun effet canonique.

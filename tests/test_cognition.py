@@ -10,6 +10,7 @@ from vivarium.cognition import (
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
+from vivarium.repro import canonical_state_digest, max_seq
 from vivarium.util import to_iso
 
 
@@ -88,6 +89,20 @@ def test_provider_cannot_bypass_the_response_contract(setup):
     with pytest.raises(CognitionError) as raised:
         CognitionTurnService(conn, provider, clock=clock).run(wid, "sophie", "gemma_invalid")
     assert raised.value.code == "invalid_llm_response"
+
+
+def test_unavailable_model_cannot_leave_a_canonical_side_effect(setup):
+    conn, wid, clock = setup
+
+    class UnavailableProvider:
+        def decide(self, context):
+            raise CognitionError("LM Studio est inaccessible", code="llm_unavailable")
+
+    before_state, before_seq = canonical_state_digest(conn, wid), max_seq(conn, wid)
+    with pytest.raises(CognitionError) as raised:
+        CognitionTurnService(conn, UnavailableProvider(), clock=clock).run(wid, "sophie", "gemma_offline")
+    assert raised.value.code == "llm_unavailable"
+    assert canonical_state_digest(conn, wid) == before_state and max_seq(conn, wid) == before_seq
 
 
 def test_lm_studio_request_uses_the_structured_output_endpoint(monkeypatch, setup):

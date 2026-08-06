@@ -53,7 +53,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après première trace subjective : **578 passed** ;
 - test complet après rappel subjectif minimal : **579 passed** ;
 - test complet après audit subjectif séparé : **580 passed** ;
-- test complet après frontière LLM locale : **589 passed** ;
+- test complet après frontière LLM locale : **590 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
