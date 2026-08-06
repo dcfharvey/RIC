@@ -21,6 +21,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Mapping
 
+from .action_contract import ActionOrchestrator, IntentProposal
 from .activities import ActivityEngine
 from .character import CharacterEngine
 from .db import connect_database
@@ -43,6 +44,14 @@ from .world import WorldEngine
 
 class BenchScenarioError(ValueError):
     """Scenario declaratif invalide ou resultat different de son contrat."""
+
+
+class _BenchActionRefused(RuntimeError):
+    """Adaptateur local : le banc rend un refus structuré visible comme résultat."""
+
+    def __init__(self, code: str | None) -> None:
+        self.code = code
+        super().__init__(code or "action_refused")
 
 
 class BenchClock(Clock):
@@ -316,6 +325,17 @@ def _apply_action(conn: sqlite3.Connection, clock: BenchClock, world_id: int, ac
         WorldConnectorService(conn, clock=clock).set_state(
             world_id, params["connector_key"], params["state"]
         )
+    elif action.kind == "intent_traverse":
+        params = _require_params(
+            action, {"proposal_id", "actor_key", "connector_key", "target_location_key"}, {"origin"}
+        )
+        proposal = IntentProposal.traverse(
+            params["proposal_id"], params["actor_key"], params["connector_key"],
+            params["target_location_key"], origin=params.get("origin", "cognition"),
+        )
+        result = ActionOrchestrator(conn, clock=clock).execute(world_id, proposal)
+        if result.status == "refused":
+            raise _BenchActionRefused(result.reason_code)
     else:
         raise BenchScenarioError(f"action de banc inconnue : {action.kind!r}")
 

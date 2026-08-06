@@ -155,8 +155,9 @@ Ils seront ajoutés quand une scène ou un test concret les rendra nécessaires.
 Les abstractions déjà posées (ressources, objets, contenance, connecteurs et
 validateurs) permettent de les brancher sans les inventer prématurément.
 
-## Point de départ immédiat
+## Point de départ actuel
 
-Le prochain travail est le **lot A : blueprint et instanciateur atomique**.
-Sa réussite rendra possible le monde d'intégration; les lots B et C lui
-donneront ensuite une circulation canonique fiable avant l'entrée en cognition.
+Les portes 1 et 2 sont livrées : blueprint, connecteurs à état, traversée,
+règles de résidence et monde d'intégration atomique. Le lot E commence par le
+contrat d'action fermé v1, avec une traversée structurée sans LLM; voir
+`docs/34_CONTRAT_ACTION_COGNITION.md`. Les lots F à J restent futurs.

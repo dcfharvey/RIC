@@ -12,6 +12,10 @@ situation, observée et comparée **avant** de contaminer le monde MVP. Le banc
 d'essai n'est donc pas une interface de fin de projet : c'est une couche de
 validation du moteur qui croît avec lui.
 
+La routine `docs/35_ROUTINE_AUDIT_SILENCIEUX.md` est une porte de qualité
+complémentaire : elle recherche les écarts entre état, journal, audits, banc,
+tests et documentation après un lot à conséquences étendues.
+
 ## État actuel
 
 **Version logicielle actuelle :** `0.0.2.dev0` — pré-alpha.
@@ -32,7 +36,8 @@ validation du moteur qui croît avec lui.
 - règles standard de résidence installables hors du seed technique : livrées;
   la calibration déclarative de Chuu et l'arrivée initiale commune à la boîte
   aux lettres sont définies; l'instanciation réelle peut être préparée ;
-- cognition, perception, mémoire et social : futurs ;
+- contrat fermé moteur–cognition v1 : livré pour une traversée structurée;
+  perception, mémoire et social restent futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
 ## Jalons de version produit

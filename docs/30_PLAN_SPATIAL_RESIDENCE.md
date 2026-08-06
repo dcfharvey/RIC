@@ -1,8 +1,8 @@
 # Plan spatial — résidence initiale
 
-**Statut :** plan de travail du futur blueprint. Seuls les liens explicitement
-confirmés sont canoniques; aucune connexion manquante ne doit être devinée au
-moment de l'instanciation.
+**Statut :** blueprint v1 livré. Ce document conserve les décisions spatiales
+confirmées; aucune connexion manquante ne doit être devinée lors d'une future
+révision du blueprint.
 
 ## Lieux prévus
 

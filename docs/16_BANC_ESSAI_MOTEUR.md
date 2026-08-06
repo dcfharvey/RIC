@@ -25,7 +25,8 @@ Un `BenchScenario` fixe :
 
 Les actions supportées sont fermées et explicitement validées : pause/reprise,
 renommage, déplacement, démarrage/abandon d'activité, blessure injectée et
-ajout/retrait sûr de passage. Il n'existe aucune action générique SQL ou Python.
+ajout/retrait sûr de passage et intention de traversée via le contrat fermé.
+Il n'existe aucune action générique SQL ou Python.
 
 Chaque action déclare `expected="applied"` ou `expected="refused"`. Un refus
 attendu est conservé dans le rapport; un résultat contraire est une erreur de
@@ -36,6 +37,10 @@ exécution.
 figé : une reprise doit donc être déclarée à cette même heure avant une nouvelle
 progression. Une future extension pourra ajouter une chronologie murale
 distincte si un test doit mesurer explicitement une durée de pause.
+
+`intent_traverse` construit une `IntentProposal` contrôlée, puis passe par
+`ActionOrchestrator`; il sert à tester la frontière moteur–cognition sans
+ouvrir un chemin d'écriture alternatif.
 
 ## Preuves produites
 

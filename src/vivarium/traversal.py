@@ -88,7 +88,13 @@ class TraversalEngine:
             return {"allowed": False, "reason": exc.code, "connector": connector_key, "to": target_key}
 
     def traverse_character(
-        self, world_id: Any, character_key: Any, connector_key: Any, target_key: Any
+        self,
+        world_id: Any,
+        character_key: Any,
+        connector_key: Any,
+        target_key: Any,
+        *,
+        action_provenance: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Franchit un connecteur réel ou annule entièrement la tentative."""
         world_id = self._world_id(world_id)
@@ -99,7 +105,8 @@ class TraversalEngine:
             self._assert_traversable(world_id, character_key, connector_key, target_key)
             try:
                 result = CharacterEngine(conn, clock=self._clock)._move(
-                    conn, world_id, character_key, target_key, connector_key=connector_key
+                    conn, world_id, character_key, target_key, connector_key=connector_key,
+                    action_provenance=action_provenance,
                 )
             except CharacterError as exc:
                 raise TraversalError(str(exc), code=exc.code or "character_move_refused") from exc

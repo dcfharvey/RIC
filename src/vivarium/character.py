@@ -137,6 +137,7 @@ class CharacterEngine:
         *,
         sim_now: str | None = None,
         connector_key: str | None = None,
+        action_provenance: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Préparation interne du déplacement, à exécuter dans une transaction
         déjà ouverte (c) — utilisée aussi par le démarrage atomique d'activité.
@@ -292,6 +293,8 @@ class CharacterEngine:
         }
         if connector_key is not None:
             payload["connector"] = connector_key
+        if action_provenance is not None:
+            payload["action_provenance"] = dict(action_provenance)
         _append_event(
             c,
             world_id,

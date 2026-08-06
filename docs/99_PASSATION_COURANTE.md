@@ -40,6 +40,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - test complet après catalogue et blueprint de résidence : **547 passed** ;
 - test complet après assemblage du monde d'intégration : **551 passed** ;
 - test complet après possession de personnage : **559 passed** ;
+- test complet après contrat d'action moteur–cognition v1 : **564 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -50,6 +51,8 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   ensemble par le monde d'intégration atomique ;
 - ressources génériques à bandes et effets déclaratifs, sans imposer une
   émotion ou narration ;
+- contrat fermé moteur–cognition v1 : une intention de traversée peut être
+  acceptée ou refusée sans LLM, avec provenance sur le fait canonique ;
 - objets portables, installations fixes et contenance objet‑dans‑objet,
   avec lieu effectif matérialisé, capacité et refus des cycles ;
 - possession physique générique : un objet portable suit son personnage sans

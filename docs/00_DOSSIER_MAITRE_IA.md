@@ -152,7 +152,7 @@ Toute écriture passe par `db.transaction` + `world._append_event` (helper inter
 ## 9. Personnages (implémenté, provisoire)
 
 - Quatre personnages techniques `character_1..4`, tous adultes, positions canoniques initiales en chambres 1..4.
-- **Statut** : placeholders provisoires de test. Le casting MVP définitif compte cinq entités : Sophie et Erika (humaines sapientes adultes), Luna (louve anthro sapiente adulte), Chuu (slime sapiente adulte à apparence féminine) et Patoune (chatte domestique non sapiente). Leurs données de conception sont dans `docs/08_CASTING_MVP.md`. Elles seront créées ou migrées par le futur gestionnaire d’entités (Phase 4), jamais ajoutées comme un seed spécial.
+- **Statut** : les placeholders techniques restent réservés aux tests. Le casting MVP définitif compte cinq entités : Sophie et Erika (humaines sapientes adultes), Luna (louve anthro sapiente adulte), Chuu (slime sapiente adulte à apparence féminine) et Patoune (chatte domestique non sapiente). Leurs données sont dans `docs/08_CASTING_MVP.md`; elles sont instanciées génériquement dans le monde d'intégration, jamais ajoutées comme un seed spécial.
 - `key` immuable ; `name` modifiable ; une seule position canonique active.
 
 ## 10. Besoins (implémenté)
@@ -223,7 +223,7 @@ Capacités prouvées : horloge canonique, monde actif/paused, redémarrage, beso
 - Personnages encore techniques (placeholders).
 - Aucune interface administrative complète.
 - Aucun LLM intégré au moteur canonique.
-- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée, le catalogue minimal de composants MVP, les cinq gabarits v1, le noyau générique de ressources et leurs effets déclaratifs, un pipeline administratif immuable, son API locale et les premiers changements topologiques préparés (ajout et fermeture sûre de passage). Les changements profonds, les gestionnaires administratifs complets et les résidentes MVP dans un monde restent futurs.
+- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée, le catalogue minimal de composants MVP, les cinq gabarits v1, le noyau générique de ressources et leurs effets déclaratifs, un pipeline administratif immuable, son API locale et les premiers changements topologiques préparés (ajout et fermeture sûre de passage). Le monde d'intégration instancie désormais les cinq résidentes et leur résidence; les changements profonds et gestionnaires administratifs complets restent futurs.
 
 ## 19. Dettes techniques (documentées, non bloquantes)
 

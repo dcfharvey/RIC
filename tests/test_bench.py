@@ -46,6 +46,27 @@ def test_bench_isole_produit_rapport_auditable_et_json():
     assert '"refusals": []' in output
 
 
+def test_bench_exercise_the_closed_intent_contract_in_integration_world():
+    scenario = BenchScenario(
+        name="intention de traversée",
+        start_at=_at(), target_at=_at(), initial_world="integration",
+        actions=(BenchAction(
+            at=_at(), kind="intent_traverse",
+            params={
+                "proposal_id": "bench_entree", "actor_key": "sophie",
+                "connector_key": "porte_entree", "target_location_key": "salon",
+            },
+        ),),
+    )
+
+    report = run_bench(scenario)
+
+    assert report.is_healthy
+    assert report.canonical_state["character"]["sophie"]["location"] == "salon"
+    assert any(event[0] == "character_moved" and '"proposal_id":"bench_entree"' in event[3]
+               for event in report.semantic_events)
+
+
 def test_bench_reproduit_strictement_le_meme_scenario():
     scenario = _base(
         (

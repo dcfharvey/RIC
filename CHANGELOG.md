@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.38 — 6 août 2026
+
+- Première frontière moteur–cognition, sans LLM : intention immuable et
+  versionnée, provenance et budget explicites, routeur fermé et résultat
+  accepté/refusé stable. La traversée est le premier verbe autorisé.
+- Une action acceptée rattache sa proposition à l'événement canonique; les
+  `WorldFact` retournés sont profondément immuables. Le banc exerce la
+  frontière dans le monde d'intégration.
+- Audit silencieux formalisé et appliqué : documentation active remise à jour;
+  aucune corruption moteur trouvée. Voir `docs/34_CONTRAT_ACTION_COGNITION.md`
+  et `docs/35_ROUTINE_AUDIT_SILENCIEUX.md`; tests : 564 réussis.
+
 ## 0.37 — 6 août 2026
 
 - Possession physique générique : un objet portable peut être pris, posé et

@@ -8,7 +8,8 @@ possession physique de personnage (`0023`; voir `docs/33_POSSESSION_PERSONNAGE.m
 Le Vivarium distingue maintenant une **installation** (fixe) d'un **objet
 portable**. Un objet peut aussi être un conteneur d'autres objets. Cette
 contenance est une hiérarchie physique; elle ne remplace ni le graphe de
-déplacement entre lieux ni le futur port par un personnage.
+déplacement entre lieux ni la possession par un personnage, désormais fournie
+par `docs/33_POSSESSION_PERSONNAGE.md`.
 
 ## Contrat actuel
 
