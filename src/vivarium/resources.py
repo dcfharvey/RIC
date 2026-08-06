@@ -118,69 +118,156 @@ class ResourceEngine:
         bands = self._bands(bands)
 
         with transaction(self._conn) as conn:
-            character = conn.execute(
-                "SELECT id FROM character WHERE world_id = ? AND key = ?",
-                (world_id, character_key),
-            ).fetchone()
-            if character is None:
-                raise ResourceError("personnage ou monde introuvable")
-            existing = conn.execute(
-                "SELECT 1 FROM resource_state WHERE character_id = ? AND resource_key = ?",
-                (character["id"], resource_key),
-            ).fetchone()
-            if existing is not None:
-                raise ResourceError("ressource déjà enregistrée pour ce personnage")
-            definition = conn.execute(
-                "SELECT name FROM resource_definition WHERE world_id = ? AND resource_key = ?",
-                (world_id, resource_key),
-            ).fetchone()
-            now = self._clock.now_iso()
-            from .world import WorldEngine, SOURCE_SYSTEM, _append_event
-
-            canonical_now = WorldEngine(conn, clock=self._clock).read_canonical_time(world_id)
-            if definition is None:
-                conn.execute(
-                    "INSERT INTO resource_definition "
-                    "(public_id, world_id, resource_key, name, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (new_uuid(), world_id, resource_key, name, now),
-                )
-            elif definition["name"] != name:
-                raise ResourceError("définition de ressource incompatible dans ce monde")
-            cur = conn.execute(
-                "INSERT INTO resource_state "
-                "(public_id, world_id, character_id, resource_key, value_milli, rate_num, "
-                "rate_den, rate_remainder, anchor_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
-                (
-                    new_uuid(), world_id, character["id"], resource_key,
-                    initial_value_milli, rate_num, rate_den, canonical_now, now,
-                ),
-            )
-            resource_id = cur.lastrowid
-            for state_key, lower, upper in bands:
-                conn.execute(
-                    "INSERT INTO resource_state_band "
-                    "(resource_state_id, state_key, min_milli, max_milli) VALUES (?, ?, ?, ?)",
-                    (resource_id, state_key, lower, upper),
-                )
-            state_key = self._state_key(conn, resource_id, initial_value_milli)
-            _append_event(
+            canonical_now = self._register_resource_in_transaction(
                 conn,
                 world_id,
-                SOURCE_SYSTEM,
-                "resource_registered",
-                {
-                    "character": character_key,
-                    "resource": resource_key,
-                    "initial_value_milli": initial_value_milli,
-                    "rate_num": rate_num,
-                    "rate_den": rate_den,
-                    "state": state_key,
-                },
-                occurred_at=canonical_now,
-                recorded_at=now,
+                character_key,
+                resource_key,
+                name,
+                initial_value_milli,
+                rate_num,
+                rate_den,
+                bands,
             )
         return self.read_resource(world_id, character_key, resource_key, canonical_now)
+
+    def register_resource_profile(
+        self,
+        world_id: Any,
+        character_key: Any,
+        resource_key: Any,
+        name: Any,
+        initial_value_milli: Any,
+        rate_num: Any,
+        rate_den: Any,
+        bands: Iterable[Any],
+        effects_by_state: Any,
+    ) -> dict[str, Any]:
+        """Installe une ressource, ses bandes et leurs effets en un seul commit.
+
+        C'est le chemin approprié quand une physiologie ou un équipement est
+        défini d'avance. Une erreur de contrat ne peut donc jamais laisser une
+        ressource à moitié configurée dans le monde.
+        """
+        world_id = self._integer(world_id, "monde", 1)
+        character_key = self._key(character_key, "clé de personnage")
+        resource_key = self._key(resource_key, "clé de ressource")
+        if not isinstance(name, str) or not name.strip():
+            raise ResourceError("nom de ressource invalide")
+        initial_value_milli = self._integer(initial_value_milli, "valeur initiale", MIN_MILLI)
+        rate_num = self._integer(rate_num, "numérateur de taux")
+        rate_den = self._integer(rate_den, "dénominateur de taux", 1)
+        if initial_value_milli > MAX_MILLI:
+            raise ResourceError("valeur initiale invalide")
+        bands = self._bands(bands)
+        if not isinstance(effects_by_state, dict):
+            raise ResourceError("effets de profil invalides")
+        expected_states = {state_key for state_key, _lower, _upper in bands}
+        if set(effects_by_state) != expected_states:
+            raise ResourceError("effets de profil incomplets")
+        effects = {
+            state_key: self._effects(effects_by_state[state_key])
+            for state_key in expected_states
+        }
+        with transaction(self._conn) as conn:
+            canonical_now = self._register_resource_in_transaction(
+                conn,
+                world_id,
+                character_key,
+                resource_key,
+                name,
+                initial_value_milli,
+                rate_num,
+                rate_den,
+                bands,
+            )
+            for state_key, _lower, _upper in bands:
+                self._declare_band_effects_in_transaction(
+                    conn,
+                    world_id,
+                    character_key,
+                    resource_key,
+                    state_key,
+                    effects[state_key],
+                    canonical_now,
+                )
+        return self.active_effects(world_id, character_key, resource_key, canonical_now)
+
+    def _register_resource_in_transaction(
+        self,
+        conn: sqlite3.Connection,
+        world_id: int,
+        character_key: str,
+        resource_key: str,
+        name: str,
+        initial_value_milli: int,
+        rate_num: int,
+        rate_den: int,
+        bands: tuple[tuple[str, int, int], ...],
+    ) -> str:
+        character = conn.execute(
+            "SELECT id FROM character WHERE world_id = ? AND key = ?",
+            (world_id, character_key),
+        ).fetchone()
+        if character is None:
+            raise ResourceError("personnage ou monde introuvable")
+        existing = conn.execute(
+            "SELECT 1 FROM resource_state WHERE character_id = ? AND resource_key = ?",
+            (character["id"], resource_key),
+        ).fetchone()
+        if existing is not None:
+            raise ResourceError("ressource déjà enregistrée pour ce personnage")
+        definition = conn.execute(
+            "SELECT name FROM resource_definition WHERE world_id = ? AND resource_key = ?",
+            (world_id, resource_key),
+        ).fetchone()
+        now = self._clock.now_iso()
+        from .world import WorldEngine, SOURCE_SYSTEM, _append_event
+
+        canonical_now = WorldEngine(conn, clock=self._clock).read_canonical_time(world_id)
+        if definition is None:
+            conn.execute(
+                "INSERT INTO resource_definition "
+                "(public_id, world_id, resource_key, name, created_at) VALUES (?, ?, ?, ?, ?)",
+                (new_uuid(), world_id, resource_key, name, now),
+            )
+        elif definition["name"] != name:
+            raise ResourceError("définition de ressource incompatible dans ce monde")
+        cur = conn.execute(
+            "INSERT INTO resource_state "
+            "(public_id, world_id, character_id, resource_key, value_milli, rate_num, "
+            "rate_den, rate_remainder, anchor_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
+            (
+                new_uuid(), world_id, character["id"], resource_key,
+                initial_value_milli, rate_num, rate_den, canonical_now, now,
+            ),
+        )
+        resource_id = cur.lastrowid
+        for state_key, lower, upper in bands:
+            conn.execute(
+                "INSERT INTO resource_state_band "
+                "(resource_state_id, state_key, min_milli, max_milli) VALUES (?, ?, ?, ?)",
+                (resource_id, state_key, lower, upper),
+            )
+        state_key = self._state_key(conn, resource_id, initial_value_milli)
+        _append_event(
+            conn,
+            world_id,
+            SOURCE_SYSTEM,
+            "resource_registered",
+            {
+                "character": character_key,
+                "resource": resource_key,
+                "initial_value_milli": initial_value_milli,
+                "rate_num": rate_num,
+                "rate_den": rate_den,
+                "state": state_key,
+            },
+            occurred_at=canonical_now,
+            recorded_at=now,
+        )
+        return canonical_now
 
     @staticmethod
     def _state_key(conn: sqlite3.Connection, resource_id: int, value_milli: int) -> str:
@@ -333,6 +420,70 @@ class ResourceEngine:
             )
         return self.read_resource(world_id, character_key, resource_key, target_at)
 
+    def adjust_resource(
+        self,
+        world_id: Any,
+        character_key: Any,
+        resource_key: Any,
+        delta_milli: Any,
+        target_at: str,
+        reason: str,
+    ) -> dict[str, Any]:
+        """Applique un gain ou une perte bornée d'une ressource à un instant donné.
+
+        La valeur est d'abord dérivée depuis son ancre, puis le delta est
+        appliqué exactement. Un dépassement est refusé entièrement : le moteur
+        ne transforme jamais silencieusement une quantité demandée en une
+        quantité tronquée.
+        """
+        world_id = self._integer(world_id, "monde", 1)
+        character_key = self._key(character_key, "clé de personnage")
+        resource_key = self._key(resource_key, "clé de ressource")
+        if not isinstance(delta_milli, int) or isinstance(delta_milli, bool) or delta_milli == 0:
+            raise ResourceError("ajustement de ressource invalide")
+        if not isinstance(target_at, str) or not isinstance(reason, str) or not reason:
+            raise ResourceError("ajustement de ressource invalide")
+        with transaction(self._conn) as conn:
+            row = self._row(world_id, character_key, resource_key)
+            previous_value, previous_remainder = derive(
+                row["value_milli"], row["rate_remainder"], row["anchor_at"], target_at,
+                row["rate_num"], row["rate_den"],
+            )
+            new_value = previous_value + delta_milli
+            if not MIN_MILLI <= new_value <= MAX_MILLI:
+                raise ResourceError("ajustement de ressource hors limites")
+            previous_state = self._state_key(conn, row["id"], previous_value)
+            new_state = self._state_key(conn, row["id"], new_value)
+            now = self._clock.now_iso()
+            conn.execute(
+                "UPDATE resource_state SET value_milli = ?, rate_remainder = ?, anchor_at = ?, "
+                "updated_at = ? WHERE id = ?",
+                (new_value, previous_remainder, target_at, now, row["id"]),
+            )
+            from .world import SOURCE_ENGINE, _append_event
+
+            _append_event(
+                conn,
+                world_id,
+                SOURCE_ENGINE,
+                "resource_adjusted",
+                {
+                    "character": character_key,
+                    "resource": resource_key,
+                    "reason": reason,
+                    "delta_milli": delta_milli,
+                    "previous_value_milli": previous_value,
+                    "new_value_milli": new_value,
+                    "previous_state": previous_state,
+                    "new_state": new_state,
+                    "rate_num": row["rate_num"],
+                    "rate_den": row["rate_den"],
+                },
+                occurred_at=target_at,
+                recorded_at=now,
+            )
+        return self.read_resource(world_id, character_key, resource_key, target_at)
+
     def declare_band_effects(
         self,
         world_id: Any,
@@ -348,50 +499,71 @@ class ResourceEngine:
         state_key = self._key(state_key, "state_key")
         effects = self._effects(effects)
         with transaction(self._conn) as conn:
-            row = self._row(world_id, character_key, resource_key)
-            band = conn.execute(
-                "SELECT id FROM resource_state_band WHERE resource_state_id = ? AND state_key = ?",
-                (row["id"], state_key),
-            ).fetchone()
-            if band is None:
-                raise ResourceError("bande de ressource introuvable")
-            if conn.execute(
-                "SELECT 1 FROM resource_state_effect WHERE resource_state_band_id = ?",
-                (band["id"],),
-            ).fetchone() is not None:
-                raise ResourceError("les effets de cette bande sont déjà déclarés")
-            for effect in effects:
-                conn.execute(
-                    "INSERT INTO resource_state_effect "
-                    "(resource_state_band_id, effect_type, effect_key, availability, value_milli) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (
-                        band["id"],
-                        effect["effect_type"],
-                        effect["effect_key"],
-                        effect["availability"],
-                        effect["value_milli"],
-                    ),
-                )
-            from .world import WorldEngine, SOURCE_SYSTEM, _append_event
+            from .world import WorldEngine
 
-            now = self._clock.now_iso()
             canonical_now = WorldEngine(conn, clock=self._clock).read_canonical_time(world_id)
-            _append_event(
+            self._declare_band_effects_in_transaction(
                 conn,
                 world_id,
-                SOURCE_SYSTEM,
-                "resource_effects_declared",
-                {
-                    "character": character_key,
-                    "resource": resource_key,
-                    "state": state_key,
-                    "effects": effects,
-                },
-                occurred_at=canonical_now,
-                recorded_at=now,
+                character_key,
+                resource_key,
+                state_key,
+                effects,
+                canonical_now,
             )
         return self.active_effects(world_id, character_key, resource_key, canonical_now)["effects"]
+
+    def _declare_band_effects_in_transaction(
+        self,
+        conn: sqlite3.Connection,
+        world_id: int,
+        character_key: str,
+        resource_key: str,
+        state_key: str,
+        effects: tuple[dict[str, Any], ...],
+        canonical_now: str,
+    ) -> None:
+        row = self._row(world_id, character_key, resource_key)
+        band = conn.execute(
+            "SELECT id FROM resource_state_band WHERE resource_state_id = ? AND state_key = ?",
+            (row["id"], state_key),
+        ).fetchone()
+        if band is None:
+            raise ResourceError("bande de ressource introuvable")
+        if conn.execute(
+            "SELECT 1 FROM resource_state_effect WHERE resource_state_band_id = ?",
+            (band["id"],),
+        ).fetchone() is not None:
+            raise ResourceError("les effets de cette bande sont déjà déclarés")
+        for effect in effects:
+            conn.execute(
+                "INSERT INTO resource_state_effect "
+                "(resource_state_band_id, effect_type, effect_key, availability, value_milli) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    band["id"],
+                    effect["effect_type"],
+                    effect["effect_key"],
+                    effect["availability"],
+                    effect["value_milli"],
+                ),
+            )
+        from .world import SOURCE_SYSTEM, _append_event
+
+        _append_event(
+            conn,
+            world_id,
+            SOURCE_SYSTEM,
+            "resource_effects_declared",
+            {
+                "character": character_key,
+                "resource": resource_key,
+                "state": state_key,
+                "effects": effects,
+            },
+            occurred_at=canonical_now,
+            recorded_at=self._clock.now_iso(),
+        )
 
     def active_effects(
         self, world_id: Any, character_key: Any, resource_key: Any, target_at: str

@@ -14,7 +14,7 @@
 | OD-006 | Politique chiffrée d’oubli et consolidation | Phase 6 | Définir après observation de la mémoire réelle. |
 | OD-007 | Rétention des prompts, sorties et logs | Avant API réelle | Arbitrer diagnostic, confidentialité et coût disque. |
 | OD-008 | Recherche sémantique et embeddings | Après mémoire de base | Commencer sans dépendance vectorielle obligatoire. |
-| OD-009 | Casting final, biographies et verrous canoniques | **partiellement fermée** — le casting MVP est fixé à Sophie, Erika, Luna, Chuu et Patoune; les profils initiaux sont consignés dans `docs/08_CASTING_MVP.md`. Les biographies approfondies, la calibration chiffrée et les verrous d'évolution restent à définir avant instanciation réelle. | Toute entité doit être créée par le pipeline générique de modèles et d’instances. |
+| OD-009 | Casting final, biographies et verrous canoniques | **partiellement fermée** — le casting MVP est fixé à Sophie, Erika, Luna, Chuu et Patoune; les profils initiaux sont consignés dans `docs/08_CASTING_MVP.md`. La calibration de Chuu est définie; les biographies approfondies, placements initiaux et verrous d'évolution restent à définir avant instanciation réelle. | Toute entité doit être créée par le pipeline générique de modèles et d’instances. |
 | OD-010 | Structure exacte des salons et commandes Discord | Avant Phase 10 | Définir à partir des flux validés. |
 | OD-011 | Détail stocké pour préférences et événements intimes | Phases 6 à 7 | Conserver ce qui est utile à la continuité, avec visibilité protégée. |
 | OD-012 | Rétention des snapshots | Avant essais destructifs | Valeur initiale proposée puis ajustée selon espace disque. |

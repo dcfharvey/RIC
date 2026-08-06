@@ -36,12 +36,9 @@ comme tendances contextualisées, jamais comme scripts.
 - lorsqu'elle est une flaque pouvant tenir dans un seau : cognition très
   simplifiée.
 
-**Verrou technique :** le moteur possède maintenant les ressources, leurs
-bandes d'état et des effets déclaratifs de disponibilité/signal. Avant
-l'instanciation de Chuu, il reste à fixer ses seuils et taux d'hydratation,
-puis à déclarer les effets sur sa forme, ses capacités accessibles et son profil
-cognitif. Aucun texte de personnage ne doit remplacer ou ignorer ces
-conséquences.
+**Calibration MVP :** ses seuils, son taux et ses effets déclaratifs sont
+maintenant fixés dans `docs/26_CALIBRATION_CHUU.md`. Aucun texte de personnage
+ne doit remplacer ou ignorer ces conséquences canoniques.
 
 ## Patoune
 

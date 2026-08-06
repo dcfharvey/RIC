@@ -234,6 +234,10 @@ class AdminReadService:
             "environment_blueprint_instantiated": "Environnement instancié",
             "connector_state_changed": "État de connecteur modifié",
             "world_rules_installed": "Règles du monde installées",
+            "resource_registered": "Ressource configurée",
+            "resource_effects_declared": "Effets de ressource déclarés",
+            "resource_materialized": "Ressource matérialisée",
+            "resource_adjusted": "Ressource ajustée",
         }
         return summaries.get(event_type, f"Événement {event_type}")
 

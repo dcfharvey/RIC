@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.34 — 6 août 2026
+
+- Chuu dispose d'une calibration déclarative d'hydratation : quatre bandes de
+  forme/cognition, effets explicites et cadence physiologique calculable.
+- Les ressources peuvent maintenant être configurées avec toutes leurs bandes
+  et effets dans un unique commit atomique, ou ajustées à une heure donnée avec
+  un delta exact et borné.
+- Documentation : `docs/26_CALIBRATION_CHUU.md`; tests : 541 réussis.
+
 ## 0.33 — 6 août 2026
 
 - Les besoins et activités standards de résidence peuvent maintenant être

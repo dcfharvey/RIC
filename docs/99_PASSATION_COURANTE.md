@@ -35,6 +35,8 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - test complet après connecteurs à état : **528 passed** ;
 - test complet après traversée validée : **532 passed** ;
 - test complet après règles standard de monde : **535 passed** ;
+- test complet après calibration de Chuu et profils de ressource atomiques :
+  **541 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -57,6 +59,8 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   d'un monde blueprint respectent aussi ces états et journalisent la cause ;
 - les règles standard de résidence s'installent hors seed, avec vérification
   stricte et idempotence, prêtes pour le monde d'intégration ;
+- les ressources peuvent recevoir d'un coup leurs bandes et effets déclaratifs;
+  Chuu dispose de sa calibration MVP, sans branche spécifique du moteur ;
 - plan admin pour `rename_world` : hash, expiration, version optimiste par
   séquence canonique, audit séparé, application atomique et retry idempotent ;
 - plan admin pour `add_link` : passage entre deux lieux existants, une ou deux
@@ -91,7 +95,7 @@ Les objets, leur contenance, les presets et les blueprints d'environnement sont
 aussi livrés; voir `docs/19_OBJETS_ET_CONTENANCE.md`,
 `docs/20_PRESETS_ENVIRONNEMENT.md`, `docs/22_BLUEPRINTS_ENVIRONNEMENT.md` et
 `docs/23_CONNECTEURS_ETAT.md` et `docs/24_TRAVERSEE_VALIDEE.md`. Le prochain
-lot recommandé est de terminer la calibration déclarative de Chuu et les
-placements initiaux, puis d'instancier le monde d'intégration et ses scénarios
-d'acceptation. Voir `docs/25_REGLES_MONDE_STANDARD.md`. Ne pas créer le monde
-MVP sans le protocole renforcé correspondant.
+lot recommandé est de fixer les placements initiaux, puis d'instancier le monde
+d'intégration et ses scénarios d'acceptation. Voir
+`docs/25_REGLES_MONDE_STANDARD.md` et `docs/26_CALIBRATION_CHUU.md`. Ne pas
+créer le monde MVP sans le protocole renforcé correspondant.

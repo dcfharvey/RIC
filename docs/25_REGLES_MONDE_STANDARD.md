@@ -29,7 +29,7 @@ tous les futurs univers.
 ## Ce qui attend encore ta décision
 
 Le monde d'intégration réel ne sera pas instancié avant que les éléments
-explicitement ouverts soient fixés : en particulier la calibration de Chuu
-(hydratation, seuils et effets) et la répartition initiale des résidentes.
-Le pipeline est prêt; il ne transformera pas une hypothèse en histoire
-officielle.
+explicitement ouverts soient fixés : en particulier la répartition initiale des
+résidentes. La calibration de Chuu est désormais définie séparément dans
+`docs/26_CALIBRATION_CHUU.md`. Le pipeline ne transforme jamais une hypothèse
+en histoire officielle.
