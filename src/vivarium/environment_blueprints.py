@@ -14,6 +14,7 @@ from .util import Clock, new_uuid, now_utc
 from .world import SOURCE_SYSTEM, WORLD_NAME_MAX_LEN, WorldEngine, _append_event
 
 _POLICIES = frozenset({"none", "strong_anchor"})
+_CONNECTOR_STATES = frozenset({"available", "closed", "blocked"})
 
 
 class BlueprintError(ValueError):
@@ -91,14 +92,24 @@ class EnvironmentBlueprintService:
         connectors: list[dict[str, Any]] = []
         connector_keys: set[str] = set()
         for item in value["connectors"]:
-            if not isinstance(item, dict) or set(item) != {"key", "from", "to", "archetype"}:
+            if not isinstance(item, dict) or set(item) not in (
+                {"key", "from", "to", "archetype"},
+                {"key", "from", "to", "archetype", "initial_state"},
+            ):
                 raise BlueprintError("connecteur de blueprint invalide")
             key = cls._key(item["key"], "cle de connecteur")
             source, target = cls._key(item["from"], "origine"), cls._key(item["to"], "destination")
             if key in connector_keys or source not in location_keys or target not in location_keys or source == target:
                 raise BlueprintError("connecteur de blueprint invalide")
             connector_keys.add(key)
-            connectors.append({"key": key, "from": source, "to": target, "archetype": cls._reference(item["archetype"])})
+            initial_state = item.get("initial_state", "available")
+            if initial_state not in _CONNECTOR_STATES:
+                raise BlueprintError("etat initial de connecteur invalide")
+            connectors.append({
+                "key": key, "from": source, "to": target,
+                "archetype": cls._reference(item["archetype"]),
+                "initial_state": initial_state,
+            })
 
         if not isinstance(value["objects"], list):
             raise BlueprintError("objets initiaux invalides")
@@ -158,13 +169,24 @@ class EnvironmentBlueprintService:
         for item in definition["connectors"]:
             archetype = cls._published_archetype(conn, CONNECTOR, item["archetype"])
             contract = json.loads(archetype["contract_json"])
+            initial_state = item.get("initial_state", "available")
+            if initial_state not in _CONNECTOR_STATES:
+                raise BlueprintError("etat initial de connecteur invalide")
+            if initial_state == "closed" and "closable" not in contract["features"]:
+                raise BlueprintError("connecteur ferme non fermable")
             edges = [(item["from"], item["to"])]
             if contract["directions"] == "bidirectional":
                 edges.append((item["to"], item["from"]))
             if any(edge in directed for edge in edges):
                 raise BlueprintError("connecteurs produisent une arete dupliquee")
             directed.update(edges)
-            connectors.append({**item, "archetype_contract": contract, "archetype_id": archetype["id"], "directed_edges": edges})
+            connectors.append({
+                **item,
+                "initial_state": initial_state,
+                "archetype_contract": contract,
+                "archetype_id": archetype["id"],
+                "directed_edges": edges,
+            })
         if definition["topology"]["policy"] == "strong_anchor":
             anchor = definition["topology"]["anchor"]
             outgoing: dict[str, set[str]] = {key: set() for key in location_map}
@@ -212,6 +234,57 @@ class EnvironmentBlueprintService:
                 version = conn.execute("SELECT COALESCE(MAX(version), 0) + 1 FROM environment_blueprint_version WHERE blueprint_id = ?", (blueprint_id,)).fetchone()[0]
             conn.execute("INSERT INTO environment_blueprint_version (blueprint_id, version, status, definition_json, created_at) VALUES (?, ?, 'draft', ?, ?)", (blueprint_id, version, self._json(definition), now_utc()))
         return self.get_version(key, version)
+
+    def install_published_catalog(
+        self, entries: Any
+    ) -> list[dict[str, Any]]:
+        """Installe des blueprints v1 validés, atomiquement et sans dérive."""
+        try:
+            raw = tuple(entries)
+        except TypeError as exc:
+            raise BlueprintError("catalogue de blueprints invalide") from exc
+        normalized: list[tuple[str, dict[str, Any], str]] = []
+        seen: set[str] = set()
+        for entry in raw:
+            if not isinstance(entry, tuple) or len(entry) != 2:
+                raise BlueprintError("catalogue de blueprints invalide")
+            key = self._key(entry[0])
+            definition = self._definition(entry[1])
+            if key in seen:
+                raise BlueprintError("catalogue de blueprints contient un doublon")
+            seen.add(key)
+            normalized.append((key, definition, self._json(definition)))
+        with transaction(self._conn) as conn:
+            for _key, definition, _definition_json in normalized:
+                self._resolve(conn, definition)
+            for key, _definition, definition_json in normalized:
+                blueprint = conn.execute(
+                    "SELECT id FROM environment_blueprint WHERE key = ?", (key,)
+                ).fetchone()
+                if blueprint is None:
+                    cur = conn.execute(
+                        "INSERT INTO environment_blueprint (public_id, key, created_at) VALUES (?, ?, ?)",
+                        (new_uuid(), key, now_utc()),
+                    )
+                    conn.execute(
+                        "INSERT INTO environment_blueprint_version "
+                        "(blueprint_id, version, status, definition_json, created_at, published_at) "
+                        "VALUES (?, 1, 'published', ?, ?, ?)",
+                        (cur.lastrowid, definition_json, now_utc(), now_utc()),
+                    )
+                    continue
+                version = conn.execute(
+                    "SELECT status, definition_json FROM environment_blueprint_version "
+                    "WHERE blueprint_id = ? AND version = 1",
+                    (blueprint["id"],),
+                ).fetchone()
+                if (
+                    version is None
+                    or version["status"] != "published"
+                    or version["definition_json"] != definition_json
+                ):
+                    raise BlueprintError("catalogue de blueprints incompatible avec l'existant")
+        return [self.get_version(key, 1) for key, _definition, _json in normalized]
 
     def get_version(self, key: Any, version: Any) -> dict[str, Any]:
         key, version = self._key(key), self._version(version)
@@ -274,8 +347,8 @@ class EnvironmentBlueprintService:
                 conn.execute("UPDATE world_topology_policy SET policy_key = 'strong_anchor', anchor_location_id = ?, configured_at = ? WHERE world_id = ?", (location_ids[topology["anchor"]], now, world_id))
             for item in resolved["connectors"]:
                 cur = conn.execute(
-                    "INSERT INTO world_connector (public_id, world_id, key, archetype_id, archetype_version, from_location_id, to_location_id, directions, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'available', ?)",
-                    (new_uuid(), world_id, item["key"], item["archetype_id"], item["archetype"]["version"], location_ids[item["from"]], location_ids[item["to"]], item["archetype_contract"]["directions"], now),
+                    "INSERT INTO world_connector (public_id, world_id, key, archetype_id, archetype_version, from_location_id, to_location_id, directions, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (new_uuid(), world_id, item["key"], item["archetype_id"], item["archetype"]["version"], location_ids[item["from"]], location_ids[item["to"]], item["archetype_contract"]["directions"], item["initial_state"], now),
                 )
                 for source, target in item["directed_edges"]:
                     conn.execute(

@@ -200,6 +200,59 @@ class EnvironmentArchetypeService:
         ).fetchall()
         return [self.get_version(archetype_kind, row["key"], row["version"]) for row in rows]
 
+    def install_published_catalog(
+        self, entries: Iterable[tuple[Any, Any, Any]]
+    ) -> list[dict[str, Any]]:
+        """Installe des presets v1 figés, entièrement ou pas du tout."""
+        try:
+            raw = tuple(entries)
+        except TypeError as exc:
+            raise EnvironmentArchetypeError("catalogue d'archetypes invalide") from exc
+        normalized: list[tuple[str, str, dict[str, Any], str]] = []
+        seen: set[tuple[str, str]] = set()
+        for entry in raw:
+            if not isinstance(entry, tuple) or len(entry) != 3:
+                raise EnvironmentArchetypeError("catalogue d'archetypes invalide")
+            archetype_kind = self._kind(entry[0])
+            key = self._key(entry[1])
+            contract = self._contract(archetype_kind, entry[2])
+            identity = (archetype_kind, key)
+            if identity in seen:
+                raise EnvironmentArchetypeError("catalogue d'archetypes contient un doublon")
+            seen.add(identity)
+            normalized.append((archetype_kind, key, contract, self._json(contract)))
+        with transaction(self._conn) as conn:
+            for archetype_kind, key, _contract, contract_json in normalized:
+                archetype = conn.execute(
+                    "SELECT id FROM environment_archetype WHERE archetype_kind = ? AND key = ?",
+                    (archetype_kind, key),
+                ).fetchone()
+                if archetype is None:
+                    cur = conn.execute(
+                        "INSERT INTO environment_archetype (public_id, archetype_kind, key, created_at) "
+                        "VALUES (?, ?, ?, ?)",
+                        (new_uuid(), archetype_kind, key, now_utc()),
+                    )
+                    conn.execute(
+                        "INSERT INTO environment_archetype_version "
+                        "(archetype_id, version, status, contract_json, created_at, published_at) "
+                        "VALUES (?, 1, 'published', ?, ?, ?)",
+                        (cur.lastrowid, contract_json, now_utc(), now_utc()),
+                    )
+                    continue
+                version = conn.execute(
+                    "SELECT status, contract_json FROM environment_archetype_version "
+                    "WHERE archetype_id = ? AND version = 1",
+                    (archetype["id"],),
+                ).fetchone()
+                if (
+                    version is None
+                    or version["status"] != "published"
+                    or version["contract_json"] != contract_json
+                ):
+                    raise EnvironmentArchetypeError("catalogue d'archetypes incompatible avec l'existant")
+        return [self.get_version(kind, key, 1) for kind, key, _contract, _json in normalized]
+
     def create_place_draft(self, key: Any, contract: Any) -> dict[str, Any]:
         return self.create_draft(PLACE, key, contract)
 

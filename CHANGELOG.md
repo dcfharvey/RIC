@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35 — 6 août 2026
+
+- Les blueprints peuvent déclarer l'état initial d'un connecteur; un état fermé
+  est refusé si le preset n'est pas fermable.
+- Catalogues v1 atomiques pour presets environnementaux et blueprints; aucun
+  catalogue invalide ne laisse d'entrée partielle.
+- La résidence initiale est une recette publiée et testée : lieux, circulation,
+  mobilier fixe, cour, piscine, remise, sous-sol et stationnement.
+- Documentation : `docs/31_BLUEPRINT_RESIDENCE_INITIALE.md`; tests : 547 réussis.
+
 ## 0.34 — 6 août 2026
 
 - Chuu dispose d'une calibration déclarative d'hydratation : quatre bandes de

@@ -132,3 +132,71 @@ def test_destroying_blueprint_world_is_refused_by_append_only_history(setup):
         WorldEngine(conn, clock=FakeClock()).destroy_world(world["id"])
 
     assert canonical_state_digest(conn, world["id"]) == before
+
+
+def test_blueprint_can_initialize_a_closable_connector_closed(setup):
+    conn, blueprints = setup
+    closed = {
+        **BLUEPRINT,
+        "connectors": [{
+            **BLUEPRINT["connectors"][0], "initial_state": "closed",
+        }],
+    }
+    blueprints.create_draft("closed_door", closed)
+    blueprints.publish("closed_door", 1)
+
+    world = blueprints.instantiate("closed_door", 1)
+
+    assert conn.execute(
+        "SELECT state FROM world_connector WHERE world_id = ? AND key = 'porte_salon_cuisine'",
+        (world["id"],),
+    ).fetchone()[0] == "closed"
+    assert GraphEngine(conn).find_path(world["id"], "salon", "cuisine") == ["salon", "cuisine"]
+
+
+def test_blueprint_refuses_closed_initial_state_for_non_closable_connector(setup):
+    conn, blueprints = setup
+    archetypes = EnvironmentArchetypeService(conn)
+    archetypes.create_connector_draft("arch", {
+        "name": "Arche", "traversal_modes": ["walk"],
+        "directions": "bidirectional", "features": ["open"],
+    })
+    archetypes.publish("connector", "arch", 1)
+    invalid = {
+        **BLUEPRINT,
+        "connectors": [{
+            **BLUEPRINT["connectors"][0],
+            "archetype": {"key": "arch", "version": 1},
+            "initial_state": "closed",
+        }],
+    }
+    blueprints.create_draft("closed_arch", invalid)
+
+    with pytest.raises(BlueprintError, match="ferme non fermable"):
+        blueprints.publish("closed_arch", 1)
+
+    assert conn.execute(
+        "SELECT status FROM environment_blueprint_version WHERE blueprint_id = "
+        "(SELECT id FROM environment_blueprint WHERE key = 'closed_arch')"
+    ).fetchone()[0] == "draft"
+
+
+def test_resolve_treats_legacy_connector_without_initial_state_as_available(setup):
+    conn, blueprints = setup
+    blueprints.create_draft("legacy", BLUEPRINT)
+    row = conn.execute(
+        "SELECT id, definition_json FROM environment_blueprint_version WHERE blueprint_id = "
+        "(SELECT id FROM environment_blueprint WHERE key = 'legacy')"
+    ).fetchone()
+    legacy_json = row["definition_json"].replace(',"initial_state":"available"', '')
+    conn.execute(
+        "UPDATE environment_blueprint_version SET definition_json = ? WHERE id = ?",
+        (legacy_json, row["id"]),
+    )
+    blueprints.publish("legacy", 1)
+
+    world = blueprints.instantiate("legacy", 1)
+
+    assert conn.execute(
+        "SELECT state FROM world_connector WHERE world_id = ?", (world["id"],)
+    ).fetchone()[0] == "available"

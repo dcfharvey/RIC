@@ -37,6 +37,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - test complet après règles standard de monde : **535 passed** ;
 - test complet après calibration de Chuu et profils de ressource atomiques :
   **541 passed** ;
+- test complet après catalogue et blueprint de résidence : **547 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -61,6 +62,8 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   stricte et idempotence, prêtes pour le monde d'intégration ;
 - les ressources peuvent recevoir d'un coup leurs bandes et effets déclaratifs;
   Chuu dispose de sa calibration MVP, sans branche spécifique du moteur ;
+- le catalogue de la résidence initiale est publié, validé et instanciable;
+  voir `docs/31_BLUEPRINT_RESIDENCE_INITIALE.md` ;
 - plan admin pour `rename_world` : hash, expiration, version optimiste par
   séquence canonique, audit séparé, application atomique et retry idempotent ;
 - plan admin pour `add_link` : passage entre deux lieux existants, une ou deux
@@ -95,9 +98,10 @@ Les objets, leur contenance, les presets et les blueprints d'environnement sont
 aussi livrés; voir `docs/19_OBJETS_ET_CONTENANCE.md`,
 `docs/20_PRESETS_ENVIRONNEMENT.md`, `docs/22_BLUEPRINTS_ENVIRONNEMENT.md` et
 `docs/23_CONNECTEURS_ETAT.md` et `docs/24_TRAVERSEE_VALIDEE.md`. Le prochain
-lot recommandé est d'instancier le monde d'intégration et ses scénarios
-d'acceptation. Les cinq résidentes arrivent ensemble à l'entrée extérieure, à
-côté de la boîte aux lettres. Voir `docs/25_REGLES_MONDE_STANDARD.md` et
+lot recommandé est d'assembler atomiquement le monde d'intégration depuis le
+blueprint publié, ses règles standards et les cinq résidentes. Elles arrivent
+ensemble à l'entrée extérieure, à côté de la boîte aux lettres. Voir
+`docs/25_REGLES_MONDE_STANDARD.md` et
 `docs/26_CALIBRATION_CHUU.md` et `docs/27_CONTEXTE_INITIAL_RESIDENTES.md`.
 Elles savent uniquement qu'elles ont volontairement accepté cette colocation
 financée avec allocation; les relations initiales sont neutres. La résidence
@@ -105,5 +109,6 @@ prévue comporte aussi une buanderie; sa gestion fonctionnelle de vêtements est
 un lot environnemental ultérieur, décrit dans `docs/28_VETEMENTS_ET_BUANDERIE.md`.
 L'inventaire concret de la résidence est dans
 `docs/29_INVENTAIRE_RESIDENCE_INITIALE.md`; le plan de ses connexions est suivi
-dans `docs/30_PLAN_SPATIAL_RESIDENCE.md`. Ne pas créer le monde MVP sans le
+dans `docs/30_PLAN_SPATIAL_RESIDENCE.md` et sa recette publiée dans
+`docs/31_BLUEPRINT_RESIDENCE_INITIALE.md`. Ne pas créer le monde MVP sans le
 protocole renforcé correspondant.

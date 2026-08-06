@@ -22,15 +22,14 @@ moment de l'instanciation.
 
 | Origine | Destination | Connecteur | État initial |
 | --- | --- | --- | --- |
-| cuisine | cour arrière | porte patio | `closed` |
-| entrée extérieure | salon | porte d'entrée | `closed` |
-| couloir | sous-sol | porte de sous-sol | `closed` |
+| cuisine | cour arrière | porte patio | `available` |
+| entrée extérieure | salon | porte d'entrée | `available` |
+| couloir | sous-sol | porte de sous-sol | `available` |
 | entrée extérieure | stationnement extérieur | passage extérieur ouvert | `available` |
 
-La porte patio et la porte d'entrée sont des connecteurs franchissables et
-fermables. Leur présence dans le graphe est distincte de leur état : fermées,
-elles conservent le lien spatial mais refusent une traversée jusqu'à leur
-ouverture.
+La porte patio, la porte d'entrée et les autres portes sont des connecteurs
+franchissables et fermables. Leur présence dans le graphe est distincte de leur
+état. Elles commencent disponibles : aucun état fermé initial n'a été demandé.
 
 L'entrée extérieure contient la boîte aux lettres : les cinq résidentes y
 apparaissent ensemble au premier instant. La cour arrière contient la clôture,
@@ -41,8 +40,9 @@ de cette porte, via un escalier escamotable commandé par corde. Il ne peut pas
 encore être codé comme une porte `closed` : le futur preset de connecteur devra
 exprimer au minimum les états physiques `retracted` et `deployed`.
 
-## À préciser avant le blueprint publié
+## Décisions retenues pour le blueprint v1
 
-- connexions du salon, couloir, chambres, salle de bain et buanderie;
-- éventuels accès propres à la piscine ou à la remise;
-- connexion exacte du grenier lorsque le connecteur rétractable sera conçu.
+- salon ↔ cuisine et salon ↔ couloir : arches ouvertes;
+- couloir ↔ quatre chambres, salle de bain et buanderie : portes;
+- cour arrière ↔ remise : porte; cour arrière ↔ piscine : échelle;
+- le grenier reste hors du blueprint jusqu'au support du connecteur rétractable.
