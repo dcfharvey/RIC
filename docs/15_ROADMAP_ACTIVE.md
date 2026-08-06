@@ -22,6 +22,8 @@ validation du moteur qui croît avec lui.
   livrés ;
 - cinq gabarits MVP : livrés, mais aucune résidente n'est encore créée dans un
   monde réel ;
+- objets portables, installations fixes et contenance objet‑dans‑objet :
+  livrés; port par personnage, liquides et formes restent futurs ;
 - cognition, perception, mémoire et social : futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 

@@ -69,6 +69,26 @@ def canonical_state_digest(conn: sqlite3.Connection, world_id: int) -> dict[str,
         chars[r["key"]] = {"name": r["name"], "location": r["loc"]}
     d["character"] = dict(sorted(chars.items()))
 
+    objects: dict[str, dict[str, Any]] = {}
+    for r in conn.execute(
+        "SELECT o.key, o.name, o.kind, o.state, o.portable, o.container_capacity, "
+        "l.key AS location_key, p.key AS parent_key "
+        "FROM world_object o JOIN location l ON l.id = o.location_id "
+        "LEFT JOIN world_object p ON p.id = o.parent_object_id "
+        "WHERE o.world_id = ?",
+        (world_id,),
+    ).fetchall():
+        objects[r["key"]] = {
+            "name": r["name"],
+            "kind": r["kind"],
+            "state": r["state"],
+            "portable": bool(r["portable"]),
+            "container_capacity": r["container_capacity"],
+            "location": r["location_key"],
+            "parent": r["parent_key"],
+        }
+    d["world_object"] = dict(sorted(objects.items()))
+
     prof: dict[str, dict[str, int]] = {}
     for r in conn.execute(
         "SELECT ch.key, cp.satiete_threshold_mult_milli, cp.repos_threshold_mult_milli, "

@@ -227,6 +227,10 @@ class AdminReadService:
             "clock_updated": "Horloge ajustée",
             "link_added": "Passage ajouté",
             "link_removed": "Passage retiré",
+            "world_object_created": "Objet créé",
+            "world_object_moved": "Objet déplacé",
+            "object_contained": "Objet placé dans un conteneur",
+            "object_removed_from_container": "Objet retiré d'un conteneur",
         }
         return summaries.get(event_type, f"Événement {event_type}")
 

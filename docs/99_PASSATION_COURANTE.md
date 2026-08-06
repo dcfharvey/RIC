@@ -21,7 +21,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
   (exposition HTTP locale du même pipeline) ;
-- migration courante : `0017_world_topology_policy.sql` ;
+- migration courante : `0018_object_containment.sql` ;
 - dernier test complet avant 4.2J : **469 passed** ;
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
@@ -29,6 +29,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - test complet après le banc minimal : **495 passed** ;
 - test complet après fermeture sûre de passage : **502 passed** ;
 - test complet après politique topologique : **504 passed** ;
+- test complet après objets et contenance : **514 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -39,6 +40,8 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   instanciés comme résidentes réelles ;
 - ressources génériques à bandes et effets déclaratifs, sans imposer une
   émotion ou narration ;
+- objets portables, installations fixes et contenance objet‑dans‑objet,
+  avec lieu effectif matérialisé, capacité et refus des cycles ;
 - plan admin pour `rename_world` : hash, expiration, version optimiste par
   séquence canonique, audit séparé, application atomique et retry idempotent ;
 - plan admin pour `add_link` : passage entre deux lieux existants, une ou deux
@@ -66,7 +69,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 
 Le banc d'essai minimal est maintenant livré (`vivarium.bench`) : scénarios
 isolés, actions déclaratives fermées, rapports/audits et comparaison de runs.
-La fermeture sûre de passage est également livrée : connectivité
-salon↔lieux, impact figé et route HTTP locale. Le prochain lot est l'ajout de
+Les objets et leur contenance initiale sont aussi livrés; voir
+`docs/19_OBJETS_ET_CONTENANCE.md`. Le prochain lot recommandé reste l'ajout de
 scénarios d'acceptation inter-systèmes. Ne pas commencer par modifier une
 habitante ou créer le monde MVP sans le protocole renforcé correspondant.

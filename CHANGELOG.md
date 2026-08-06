@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.28 — 6 août 2026
+
+- Gestionnaire d'objets : création et lecture d'installations fixes ou
+  d'objets portables, avec journal canonique et déplacement atomique.
+- Gestionnaire de contenance : conteneurs explicites, capacité directe,
+  sous-arbres, lieu effectif matérialisé et refus des cycles.
+- Migration 0018 : cohérence SQLite inter-mondes, parent‑lieu et cycle de
+  contenance protégés au niveau de la base.
+- Documentation : `docs/19_OBJETS_ET_CONTENANCE.md`; tests : 514 réussis.
+
 ## 0.27 — 6 août 2026
 
 - Première fondation de l'environnement composable : la politique topologique

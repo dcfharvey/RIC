@@ -37,7 +37,7 @@ def test_bench_isole_produit_rapport_auditable_et_json():
 
     assert report.is_healthy
     assert report.final_time == _at(hours=2)
-    assert report.schema_version == 17
+    assert report.schema_version == 18
     assert report.canonical_state["worlds"]["status"] == "active"
     assert report.raw_events
     assert report.semantic_events

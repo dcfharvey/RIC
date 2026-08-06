@@ -36,8 +36,8 @@
 | NF-06 | Attribuer chaque fait important à une cause, un acteur et une provenance. | partiel (causalité des blessures ; provenance générale future) |
 | NF-07 | Mesurer coûts, jetons, latences, erreurs et charge locale. | futur |
 | NF-08 | Appliquer le moindre privilège et des permissions configurables. | futur |
-| NF-09 | Faire évoluer les schémas et règles par versions et migrations. | implémenté (17 migrations) |
-| NF-10 | Couvrir les comportements essentiels par des tests reproductibles. | implémenté (504 tests) |
+| NF-09 | Faire évoluer les schémas et règles par versions et migrations. | implémenté (18 migrations) |
+| NF-10 | Couvrir les comportements essentiels par des tests reproductibles. | implémenté (514 tests) |
 | NF-11 | Rester discret sur l’ordinateur personnel : pas de boucle à haute fréquence ni croissance mémoire non bornée. | implémenté (borne de transitions) |
 | NF-12 | Être compréhensible et maintenable par une autre IA ou un autre développeur. | implémenté (documentation + code) |
 
@@ -48,7 +48,7 @@
 | INV-001 | Un seul monde actif est chargé par instance dans le MVP. | implémenté |
 | INV-002 | Chaque personnage actif est explicitement adulte. | implémenté (personnages techniques adultes) |
 | INV-003 | Un personnage possède une seule position canonique active à un instant donné. | implémenté |
-| INV-004 | Un objet possède un seul emplacement ou détenteur canonique actif. | implémenté |
+| INV-004 | Un objet possède un seul emplacement ou détenteur canonique actif. | implémenté (lieu effectif et parent-objet optionnel cohérents) |
 | INV-005 | Aucun texte généré ne devient directement un événement canonique sans validation. | implémenté (moteur seul autorité) |
 | INV-006 | Toute mémoire non introspective référence au moins une source. | futur |
 | INV-007 | Une perception ne contient aucune information inaccessible au personnage. | futur |

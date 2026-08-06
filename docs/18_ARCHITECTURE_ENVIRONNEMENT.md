@@ -66,12 +66,21 @@ La migration `0017` introduit `world_topology_policy` :
 Les futures politiques supplémentaires ne seront ajoutées qu'avec un cas et un
 scénario de banc reproductible.
 
+## Objets et contenance initiale
+
+Le premier gestionnaire d'objets et le premier gestionnaire de contenance sont
+livrés (`docs/19_OBJETS_ET_CONTENANCE.md`). Ils fixent une base volontairement
+plus petite que le futur système d'environnement : installations fixes,
+objets portables et hiérarchie objet‑dans‑objet. La contenance reste distincte
+de la topologie; aucun objet ne crée implicitement un lieu ni un passage.
+
 ## Ordre de réalisation
 
 1. politique topologique configurable — livré;
-2. contrats/presets de lieu et connecteur;
-3. blueprint et instanciateur de monde propre;
-4. connecteurs à état simple;
-5. validation de traversée dépendante de l'entité;
-6. eau, conteneurs, ventilation et formes de Chuu lorsque leurs règles sont
+2. objets et contenance objet‑dans‑objet — livré;
+3. contrats/presets de lieu et connecteur;
+4. blueprint et instanciateur de monde propre;
+5. connecteurs à état simple;
+6. validation de traversée dépendante de l'entité;
+7. eau, conteneurs, ventilation et formes de Chuu lorsque leurs règles sont
    concrètes et testables.
