@@ -107,6 +107,26 @@ def canonical_state_digest(conn: sqlite3.Connection, world_id: int) -> dict[str,
         }
     d["world_object"] = dict(sorted(objects.items()))
 
+    has_connectors = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'world_connector'"
+    ).fetchone() is not None
+    if has_connectors:
+        connectors: dict[str, dict[str, Any]] = {}
+        for r in conn.execute(
+            "SELECT c.key, c.archetype_version, c.directions, c.state, a.key AS archetype, "
+            "f.key AS from_key, t.key AS to_key FROM world_connector c "
+            "JOIN environment_archetype a ON a.id = c.archetype_id "
+            "JOIN location f ON f.id = c.from_location_id JOIN location t ON t.id = c.to_location_id "
+            "WHERE c.world_id = ?",
+            (world_id,),
+        ).fetchall():
+            connectors[r["key"]] = {
+                "archetype": r["archetype"], "archetype_version": r["archetype_version"],
+                "from": r["from_key"], "to": r["to_key"], "directions": r["directions"],
+                "state": r["state"],
+            }
+        d["world_connector"] = dict(sorted(connectors.items()))
+
     prof: dict[str, dict[str, int]] = {}
     for r in conn.execute(
         "SELECT ch.key, cp.satiete_threshold_mult_milli, cp.repos_threshold_mult_milli, "

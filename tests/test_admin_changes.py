@@ -298,10 +298,10 @@ def test_migration_0016_preserve_les_plans_et_audits_0015(tmp_path):
         wid = WorldEngine(conn, clock=clock).init_world(name="Avant")["id"]
         plan = _service(conn, clock).prepare_rename_world(wid, "Après")
         assert _audit_count(conn) == 1
-        assert ensure_schema(conn) == 20
+        assert ensure_schema(conn) == 21
         restored = _service(conn, clock)._row_to_plan(_service(conn, clock)._plan_row(plan["id"]))
         assert restored["payload"] == {"from": "Avant", "to": "Après"}
         assert _audit_count(conn) == 1
-        assert current_version(conn) == 20
+        assert current_version(conn) == 21
     finally:
         conn.close()

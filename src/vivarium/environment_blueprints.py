@@ -273,10 +273,14 @@ class EnvironmentBlueprintService:
             if topology["policy"] == "strong_anchor":
                 conn.execute("UPDATE world_topology_policy SET policy_key = 'strong_anchor', anchor_location_id = ?, configured_at = ? WHERE world_id = ?", (location_ids[topology["anchor"]], now, world_id))
             for item in resolved["connectors"]:
+                cur = conn.execute(
+                    "INSERT INTO world_connector (public_id, world_id, key, archetype_id, archetype_version, from_location_id, to_location_id, directions, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'available', ?)",
+                    (new_uuid(), world_id, item["key"], item["archetype_id"], item["archetype"]["version"], location_ids[item["from"]], location_ids[item["to"]], item["archetype_contract"]["directions"], now),
+                )
                 for source, target in item["directed_edges"]:
                     conn.execute(
-                        "INSERT INTO location_link (public_id, world_id, from_location_id, to_location_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                        (new_uuid(), world_id, location_ids[source], location_ids[target], item["archetype"]["key"], now),
+                        "INSERT INTO location_link (public_id, world_id, from_location_id, to_location_id, kind, created_at, connector_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (new_uuid(), world_id, location_ids[source], location_ids[target], item["archetype"]["key"], now, cur.lastrowid),
                     )
             for item in resolved["objects"]:
                 conn.execute(

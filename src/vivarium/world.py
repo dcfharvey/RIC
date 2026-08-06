@@ -325,6 +325,8 @@ class WorldEngine:
             c.execute("DELETE FROM character_instance_origin WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM world_object WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM location_link WHERE world_id = ?", (world_id,))
+            if self._has_table(c, "world_connector"):
+                c.execute("DELETE FROM world_connector WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM character WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM location WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM need_definition WHERE world_id = ?", (world_id,))

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.31 — 6 août 2026
+
+- Instances de connecteurs issues des blueprints, liées aux arêtes du graphe
+  par des contraintes SQLite de cohérence.
+- Premier état canonique fini : disponible, fermé ou bloqué; les changements
+  sont atomiques, journalisés et les connecteurs non fermables refusent `closed`.
+- Documentation : `docs/23_CONNECTEURS_ETAT.md`; migration 0021; tests : 528 réussis.
+
 ## 0.30 — 6 août 2026
 
 - Blueprints environnementaux versionnés et publiables : lieux, connecteurs,

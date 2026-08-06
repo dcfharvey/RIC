@@ -25,8 +25,8 @@ validation du moteur qui croît avec lui.
 - objets portables, installations fixes et contenance objet‑dans‑objet :
   livrés; port par personnage, liquides et formes restent futurs ;
 - presets de lieux et connecteurs versionnés : livrés; leur instanciation
-  propre par blueprint est livrée; les connecteurs à état restent le prochain
-  lot d'environnement ;
+  propre par blueprint est livrée; les connecteurs à état simple sont livrés;
+  la traversée validée reste le prochain lot d'environnement ;
 - cognition, perception, mémoire et social : futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
