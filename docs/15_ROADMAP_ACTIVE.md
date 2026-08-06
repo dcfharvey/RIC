@@ -65,6 +65,9 @@ tests et documentation après un lot à conséquences étendues.
 - premier orchestrateur : livré pour les événements directs perceptibles,
   avec snapshot borné, curseur persistant et dégradation LLM; déclencheurs de
   scènes, intentions et réflexion restent futurs ;
+- banc vivant jetable : livré avec fournisseur faux normal et indisponible;
+  le premier essai contrôlé avec Gemma local est maintenant la porte suivante,
+  avant toute activation d’un monde MVP persistant ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
 ## Jalons de version produit

@@ -59,6 +59,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après cadre décisionnel initial : **636 passed** ;
 - test complet après scènes sociales structurées : **638 passed** ;
 - test complet après orchestrateur autonome initial : **640 passed** ;
+- test complet après banc vivant jetable : **642 passed** ;
 - test complet après frontière LLM locale et banc de fumée : **592 passed** ;
 - test complet après politique pure d'admissibilité des appels LLM :
   **599 passed** ;

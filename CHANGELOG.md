@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.55 — 6 août 2026
+
+- Banc vivant jetable : monde d’intégration réel en mémoire, événement
+  perceptible, orchestrateur, fournisseur injectable, digest et audit final.
+  Il prépare l’essai local de Gemma sans toucher aucun monde persistant.
+
 ## 0.54 — 6 août 2026
 
 - Orchestrateur autonome initial : événements directs perceptibles bornés,

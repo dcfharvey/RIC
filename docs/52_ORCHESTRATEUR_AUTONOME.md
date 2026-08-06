@@ -17,6 +17,10 @@ La version actuelle route seulement `direct_event`, seul déclencheur dont la
 source perceptible est déjà prouvable. Les déclencheurs d’intention, de scène,
 de réflexion et d’intervention admin restent fermés jusqu’à leur contrat propre.
 
+Le contexte transmis à ce tour contient le cadre décisionnel déterministe
+(intention active, objectifs, motifs et raison dominante), en plus des états
+subjectifs privés déjà autorisés.
+
 **Preuve de sortie :** source perceptible seulement, snapshot anti-boucle,
 avancement persistant du curseur et dégradation LLM testés; suite complète :
 640 tests réussis.

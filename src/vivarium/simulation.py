@@ -187,6 +187,10 @@ class SimulationEngine:
             recovery_boundary_seconds=recovery_boundary_seconds,
         )
 
+    def policy_context(self, world_id: int, character_key: str, *, at: str | None = None) -> PolicyContext:
+        """Projection publique en lecture seule pour les couches cognitives."""
+        return self._context(world_id, character_key, at or self._world().read_canonical_time(world_id))
+
     # --- Décision + démarrage avec gardes --------------------------------------
 
     def _active_for(self, world_id: int, char: str) -> Any | None:

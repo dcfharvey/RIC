@@ -9,6 +9,7 @@ from typing import Any
 from .goals import GoalService
 from .motivation import MotivationService, MotiveCandidate
 from .policy import PolicyContext
+from .simulation import SimulationEngine
 
 class DecisionError(ValueError):
  def __init__(self,message: str,*,code: str)->None: super().__init__(message); self.code=code
@@ -37,3 +38,5 @@ class DecisionFrameService:
    best=max(candidates,key=lambda goal:(goal['urgency_milli'],goal['importance_milli'],goal['goal_key']))
    return DecisionFrame(character_key,None,goals,motives,'goal',best['goal_key'])
   return DecisionFrame(character_key,None,goals,motives,None,None)
+ def build_current(self,world_id:Any,character_key:Any)->DecisionFrame:
+  return self.build(world_id,character_key,SimulationEngine(self._conn).policy_context(world_id,character_key))

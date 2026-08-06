@@ -110,3 +110,8 @@ Pour l'orchestrateur, l'audit a vérifié le snapshot de séquence (pas de boucl
 sur l'action fraîchement produite), la borne par résidente, le curseur
 persistant et le mode dégradé du fournisseur. La suite complète a validé
 **640 tests**.
+
+Pour le banc vivant, l'audit a vérifié que la base est strictement en mémoire,
+que la chaîne complète est exercée avec un fournisseur injectable, et que le
+mode dégradé garde un audit canonique propre. La suite complète a validé
+**642 tests**.
