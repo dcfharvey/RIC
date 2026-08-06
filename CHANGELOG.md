@@ -2,10 +2,11 @@
 
 ## 0.40 — 6 août 2026
 
-- Première frontière LLM locale : adaptateur LM Studio compatible OpenAI,
-  contexte factuel et subjectif privé borné, sortie JSON Schema et fournisseur
-  interchangeable. Une décision ne peut proposer qu'une attente ou une
-  traversée perceptible; le moteur conserve la validation finale.
+- Première frontière LLM locale : adaptateur LM Studio natif, contexte factuel
+  et subjectif privé borné, sortie JSON strictement vérifiée et fournisseur
+  interchangeable. Gemma 4 est appelée avec raisonnement désactivé; une décision
+  ne peut proposer qu'une attente ou une traversée perceptible, que le moteur
+  valide toujours.
 - Configuration hors Git dans `config/.env`, priorité aux variables du shell,
   diagnostic local `vivarium llm-status` et aucun poids de modèle dans le dépôt.
 - Documentation : `docs/40_ADAPTATEUR_LLM_LOCAL.md`; tests : 590 réussis.

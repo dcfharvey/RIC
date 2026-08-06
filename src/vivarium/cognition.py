@@ -28,7 +28,7 @@ from .util import Clock
 
 
 COGNITION_SCHEMA_VERSION = 1
-DEFAULT_LM_STUDIO_BASE_URL = "http://127.0.0.1:1234/v1"
+DEFAULT_LM_STUDIO_BASE_URL = "http://127.0.0.1:1234"
 DEFAULT_TIMEOUT_SECONDS = 45.0
 DEFAULT_MAX_TOKENS = 128
 MAX_DIRECT_EVENTS, MAX_MEMORIES, MAX_ATTENTION = 10, 10, 8
@@ -134,8 +134,8 @@ class LocalLLMSettings:
         parsed = urlparse(self.base_url)
         if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
             raise CognitionError("le serveur LLM doit être local", code="unsafe_llm_endpoint")
-        if not parsed.path.rstrip("/").endswith("/v1"):
-            raise CognitionError("l'URL LLM doit se terminer par /v1", code="invalid_llm_configuration")
+        if parsed.params or parsed.query or parsed.fragment or parsed.path not in {"", "/", "/v1", "/v1/"}:
+            raise CognitionError("URL LLM locale invalide", code="invalid_llm_configuration")
         if require_model and not self.model_id:
             raise CognitionError("modèle LLM non configuré", code="missing_llm_model")
         if not isinstance(self.timeout_seconds, (int, float)) or not 1 <= self.timeout_seconds <= 300:
@@ -143,6 +143,12 @@ class LocalLLMSettings:
         if not isinstance(self.max_tokens, int) or isinstance(self.max_tokens, bool) or not 16 <= self.max_tokens <= 512:
             raise CognitionError("budget de sortie LLM hors limites", code="invalid_llm_configuration")
         return self
+
+    @property
+    def api_root(self) -> str:
+        """Origine locale; accepte aussi l'ancienne valeur ``.../v1``."""
+        parsed = urlparse(self.base_url)
+        return f"{parsed.scheme}://{parsed.netloc}"
 
 
 @dataclass(frozen=True)
@@ -238,21 +244,12 @@ class CognitionProvider(Protocol):
 
 
 class LMStudioProvider:
-    """Client de ``/v1/chat/completions`` avec JSON Schema de LM Studio."""
+    """Client de l'API native LM Studio, avec raisonnement explicitement coupé.
 
-    _RESPONSE_SCHEMA = {
-        "name": "vivarium_cognition_decision_v1",
-        "schema": {
-            "type": "object", "additionalProperties": False,
-            "properties": {
-                "schema_version": {"type": "integer", "const": COGNITION_SCHEMA_VERSION},
-                "action": {"type": "string", "enum": ["no_action", "traverse"]},
-                "connector_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$"},
-                "target_location_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$"},
-            },
-            "required": ["schema_version", "action"],
-        },
-    }
+    L'API native expose ``reasoning: off`` pour les modèles Gemma. La forme de
+    sortie est renforcée dans le prompt puis refusée par ``CognitionDecision``
+    si elle ne respecte pas exactement le contrat local.
+    """
 
     def __init__(self, settings: LocalLLMSettings) -> None:
         self._settings = settings.validated(require_model=False)
@@ -261,7 +258,9 @@ class LMStudioProvider:
     def _prompt(context: CognitionContext) -> str:
         return (
             "Tu es un composant de décision du Vivarium. Tu ne connais que le JSON fourni. "
-            "N'invente aucun fait ni action hors de allowed_traversals; réponds no_action si nécessaire.\n\n"
+            "N'invente aucun fait ni action hors de allowed_traversals. Réponds UNIQUEMENT par l'un de ces objets JSON, sans texte ni Markdown : "
+            '{"schema_version":1,"action":"no_action"} OU '
+            '{"schema_version":1,"action":"traverse","connector_key":"une clé de allowed_traversals","target_location_key":"sa destination associée"}.\n\n'
             + json.dumps(context.wire(), ensure_ascii=False, separators=(",", ":"))
         )
 
@@ -269,18 +268,18 @@ class LMStudioProvider:
         if not self._settings.model_id:
             raise CognitionError("modèle LLM non configuré", code="missing_llm_model")
         body = {
-            "model": self._settings.model_id, "temperature": 0.2,
-            "max_tokens": self._settings.max_tokens,
-            "messages": [
-                {"role": "system", "content": "Tu proposes une seule action structurée, jamais un fait du monde."},
-                {"role": "user", "content": self._prompt(context)},
-            ],
-            "response_format": {"type": "json_schema", "json_schema": self._RESPONSE_SCHEMA},
+            "model": self._settings.model_id,
+            "system_prompt": "Tu proposes une seule action structurée, jamais un fait du monde.",
+            "input": self._prompt(context),
+            "temperature": 0.2,
+            "max_output_tokens": self._settings.max_tokens,
+            "reasoning": "off",
+            "store": False,
         }
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self._settings.api_token:
             headers["Authorization"] = f"Bearer {self._settings.api_token}"
-        request = Request(self._settings.base_url.rstrip("/") + "/chat/completions", data=json.dumps(body, ensure_ascii=False).encode("utf-8"), headers=headers, method="POST")
+        request = Request(self._settings.api_root + "/api/v1/chat", data=json.dumps(body, ensure_ascii=False).encode("utf-8"), headers=headers, method="POST")
         try:
             with urlopen(request, timeout=self._settings.timeout_seconds) as response:  # endpoint validated loopback
                 raw = response.read().decode("utf-8")
@@ -289,17 +288,18 @@ class LMStudioProvider:
         except (URLError, TimeoutError, OSError) as exc:
             raise CognitionError("LM Studio est inaccessible", code="llm_unavailable") from exc
         try:
-            decoded = json.loads(raw)
-            content = decoded["choices"][0]["message"]["content"]
-            if not isinstance(content, str):
-                raise TypeError("content absent")
+            output = json.loads(raw)["output"]
+            messages = [item["content"] for item in output if item.get("type") == "message"]
+            if len(messages) != 1 or not isinstance(messages[0], str):
+                raise TypeError("message absent ou ambigu")
+            content = messages[0]
             return CognitionDecision.parse(json.loads(content))
         except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
             raise CognitionError("réponse LM Studio illisible", code="invalid_llm_response") from exc
 
     def list_models(self) -> tuple[str, ...]:
         """Diagnostic en lecture seule des identifiants chargés par LM Studio."""
-        request = Request(self._settings.base_url.rstrip("/") + "/models", headers={"Accept": "application/json"})
+        request = Request(self._settings.api_root + "/api/v1/models", headers={"Accept": "application/json"})
         try:
             with urlopen(request, timeout=self._settings.timeout_seconds) as response:  # endpoint validated loopback
                 raw = response.read().decode("utf-8")
@@ -308,8 +308,8 @@ class LMStudioProvider:
         except (URLError, TimeoutError, OSError) as exc:
             raise CognitionError("LM Studio est inaccessible", code="llm_unavailable") from exc
         try:
-            data = json.loads(raw)["data"]
-            model_ids = tuple(item["id"] for item in data if isinstance(item, Mapping) and isinstance(item.get("id"), str))
+            data = json.loads(raw)["models"]
+            model_ids = tuple(item["key"] for item in data if isinstance(item, Mapping) and isinstance(item.get("key"), str))
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
             raise CognitionError("réponse LM Studio illisible", code="invalid_llm_response") from exc
         return model_ids

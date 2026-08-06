@@ -32,7 +32,8 @@ def setup():
     conn.close()
 
 
-def test_local_settings_are_loopback_only_and_require_an_explicit_model(monkeypatch):
+def test_local_settings_are_loopback_only_and_require_an_explicit_model(monkeypatch, tmp_path):
+    monkeypatch.setenv("VIVARIUM_CONFIG_DIR", str(tmp_path / "empty-config"))
     monkeypatch.delenv("VIVARIUM_LLM_MODEL", raising=False)
     with pytest.raises(CognitionError) as raised:
         LocalLLMSettings.from_environment()
@@ -105,14 +106,14 @@ def test_unavailable_model_cannot_leave_a_canonical_side_effect(setup):
     assert canonical_state_digest(conn, wid) == before_state and max_seq(conn, wid) == before_seq
 
 
-def test_lm_studio_request_uses_the_structured_output_endpoint(monkeypatch, setup):
+def test_lm_studio_request_uses_native_reasoning_off_endpoint(monkeypatch, setup):
     conn, wid, clock = setup
     context = CognitionContextService(conn, clock=clock).build(wid, "sophie")
     captured = {}
 
     class Response:
         def read(self):
-            return b'{"choices":[{"message":{"content":"{\\"schema_version\\":1,\\"action\\":\\"no_action\\"}"}}]}'
+            return b'{"output":[{"type":"message","content":"{\\"schema_version\\":1,\\"action\\":\\"no_action\\"}"}]}'
         def __enter__(self): return self
         def __exit__(self, *args): return False
 
@@ -124,15 +125,14 @@ def test_lm_studio_request_uses_the_structured_output_endpoint(monkeypatch, setu
     decision = LMStudioProvider(LocalLLMSettings(DEFAULT_LM_STUDIO_BASE_URL, "gemma-local", None, 12)).decide(context)
     sent = json.loads(captured["body"])
     assert decision.action == "no_action"
-    assert captured["url"].endswith("/v1/chat/completions") and captured["timeout"] == 12
-    assert sent["response_format"]["type"] == "json_schema"
-    assert sent["max_tokens"] == 128
-    assert sent["response_format"]["json_schema"]["schema"]["additionalProperties"] is False
+    assert captured["url"].endswith("/api/v1/chat") and captured["timeout"] == 12
+    assert sent["reasoning"] == "off" and sent["store"] is False
+    assert sent["max_output_tokens"] == 128
 
 
 def test_lm_studio_model_listing_is_read_only(monkeypatch):
     class Response:
-        def read(self): return b'{"data":[{"id":"gemma-local"}]}'
+        def read(self): return b'{"models":[{"key":"gemma-local"}]}'
         def __enter__(self): return self
         def __exit__(self, *args): return False
 

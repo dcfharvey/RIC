@@ -5,10 +5,11 @@ de mémoire par le LLM.
 
 ## Ce qui est branché
 
-`vivarium.cognition` parle à l'API OpenAI-compatible de LM Studio sur
-`http://127.0.0.1:1234/v1/chat/completions`. Il demande une sortie JSON Schema
-stricte. Le modèle peut seulement proposer `no_action` ou une traversée par un
-connecteur actuellement exposé au personnage.
+`vivarium.cognition` parle à l'API native de LM Studio sur
+`http://127.0.0.1:1234/api/v1/chat`. Elle permet de demander explicitement
+`reasoning: off` à Gemma 4, ce qui évite de brûler le budget de sortie dans une
+chaîne de raisonnement avant la décision. Le modèle peut seulement proposer
+`no_action` ou une traversée par un connecteur actuellement exposé au personnage.
 
 Le contexte contient une attention factuelle bornée, les événements directs
 depuis un curseur donné et les traces subjectives privées du personnage. Il ne
@@ -55,14 +56,21 @@ serveur déjà local.
 
 La route et le démarrage du serveur sont documentés par LM Studio :
 [serveur local](https://lmstudio.ai/docs/developer/core/server) et
-[compatibilité OpenAI](https://lmstudio.ai/docs/developer/openai-compat). La
-sortie `json_schema` vient de leur [guide de structured output](https://lmstudio.ai/docs/developer/openai-compat/structured-output).
+[API native de chat](https://lmstudio.ai/docs/developer/rest/chat). L'API native
+documente le réglage `reasoning: off`; le contrat JSON reste vérifié strictement
+par le Vivarium après réception.
 Google indique que Gemma 4 12B peut utiliser LM Studio et vise des machines avec
 16 Go de VRAM ou mémoire unifiée dans son [annonce officielle](https://blog.google/innovation-and-ai/technology/developers-tools/introducing-gemma-4-12b/).
 
 La qualité, vitesse et quantification de Gemma 4 12B sur la machine réelle ne
 sont pas encore mesurées. Elles seront testées avec le serveur local et le banc,
 jamais déduites de la seule fiche du modèle.
+
+**Premier test réel — 6 août 2026 :** serveur local actif, Gemma 4 12B QAT
+Q4_0 chargé avec 32 000 tokens de contexte. Une requête native avec raisonnement
+désactivé a produit une décision JSON en 14 jetons; une seconde a proposé la
+traversée de Sophie vers le salon, acceptée par le moteur dans une base mémoire
+jetable. Aucun monde persistant n'a été modifié.
 
 L'absence du serveur ou une réponse invalide provoque un refus explicite de la
 couche cognitive avant toute action; cela ne laisse aucun effet canonique.
