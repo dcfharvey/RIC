@@ -64,6 +64,8 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - flux d'événements perceptibles directs : curseur canonique en lecture seule,
   faits propres à la résidente réduits avant export; aucune reconstruction
   spéculative des événements passés d'autrui ;
+- première mémoire subjective : plan de contrat prêt, mais migration et service
+  restent à implémenter; voir `docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md` ;
 - objets portables, installations fixes et contenance objet‑dans‑objet,
   avec lieu effectif matérialisé, capacité et refus des cycles ;
 - possession physique générique : un objet portable suit son personnage sans

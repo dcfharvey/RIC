@@ -136,6 +136,11 @@ décision. Voir `docs/37_ATTENTION_DETERMINISTE.md`.
 
 ### Lot H : mémoire et interprétation subjective
 
+La conception de la première trace subjective est prête dans
+`docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md`; elle précède volontairement sa
+migration afin de conserver la séparation entre fait, accès, encodage et
+croyance.
+
 - souvenirs avec sources, portée, confiance et politique de révision;
 - croyances distinctes des faits canoniques;
 - chaque personnage peut retenir ou interpréter différemment un même fait;
