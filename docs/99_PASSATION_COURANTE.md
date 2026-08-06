@@ -27,7 +27,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
   (exposition HTTP locale du même pipeline) ;
-- migration courante : `0025_cognition_call_admission.sql` ;
+- migration courante : `0026_personality_disposition.sql` ;
 - dernier test complet avant 4.2J : **469 passed** ;
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
@@ -62,6 +62,8 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après banc de calibration des appels LLM : **609 passed** ;
 - test complet après première projection de motifs physiologiques :
   **613 passed** ;
+- test complet après première disposition canonique de personnalité :
+  **616 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -104,6 +106,10 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   urgence, importance et actions possibles sont bornées par le contexte
   déterministe, sans inventer plaisir, coût ou personnalité. Voir
   `docs/43_MOTIFS_PHYSIOLOGIQUES.md`.
+- première disposition de personnalité livrée : Big Five, attachement général,
+  distributions et signatures situationnelles issus des gabarits v2 immuables;
+  aucune action n'est imposée par les traits. Voir
+  `docs/44_PERSONNALITE_CANONIQUE.md`.
 - idées retenues de scénarios et de systèmes futurs : jeux à information privée,
   effort physique et affrontements arbitrés; voir
   `docs/39_BACKLOG_SCENARIOS_ET_SYSTEMES.md`.

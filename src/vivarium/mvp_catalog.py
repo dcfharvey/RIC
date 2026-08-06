@@ -86,6 +86,22 @@ MVP_COMPONENT_CATALOG: tuple[tuple[str, str, dict[str, Any]], ...] = (
     ),
     (
         "component",
+        "personality.big_five_attachment",
+        {
+            "title": "Disposition Big Five et attachement général",
+            "engine_status": "implemented_canonical_disposition",
+            "config_schema": {
+                "required": ["traits", "attachment"],
+                "properties": {
+                    "traits": {"type": "object"},
+                    "attachment": {"type": "object"},
+                },
+                "additional_properties": False,
+            },
+        },
+    ),
+    (
+        "component",
         "physiology.resource_dependent_state",
         {
             "title": "État dépendant d'une ressource physiologique",

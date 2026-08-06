@@ -8,6 +8,7 @@ from typing import Any
 
 from .character import CharacterEngine
 from .db import transaction
+from .personality import PersonalityService
 from .registry import _KEY_RE
 from .templates import CharacterTemplateService
 from .util import Clock, new_uuid
@@ -147,6 +148,11 @@ class CharacterInstanceService:
                     _DEFAULT_PROFILE["idle_tolerance_milli"],
                     now,
                 ),
+            )
+            # La disposition est propre à l'instance créée : elle est validée
+            # depuis le gabarit immuable et le rollback englobe le personnage.
+            PersonalityService(conn, clock=self._clock).initialize_from_template(
+                world_id, character_id, bindings, _conn=conn
             )
             _append_event(
                 conn,

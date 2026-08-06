@@ -72,3 +72,10 @@ provenance d'action, la source administrative ou le motif technique d'un
 ajustement. Le cas d'un autre personnage n'est pas inféré depuis sa position
 actuelle : faute de chronologie spatiale historique, il reste volontairement
 hors de ce lot. La suite complète a validé **576 tests**.
+
+Pour la première disposition de personnalité, l'audit a vérifié que la nouvelle
+table est créée dans la même transaction que l'instance et annulée avec elle,
+que son origine reste le gabarit publié v2, et qu'elle apparaît dans le digest
+et le banc. Aucun événement autonome n'a été ajouté : une disposition initiale
+est déjà attribuable à `character_instantiated`, et toute révision future devra
+être un protocole distinct et audité. La suite complète a validé **616 tests**.

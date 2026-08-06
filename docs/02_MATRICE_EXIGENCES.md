@@ -10,7 +10,7 @@
 | ID | Exigence | État |
 | --- | --- | --- |
 | F-01 | Créer, charger, sauvegarder et restaurer un monde persistant. | partiel (création/chargement ; sauvegarde/restauration futures) |
-| F-02 | Créer cinq entités MVP — quatre résidentes sapientes et un chat — avec identité, traits, valeurs, intérêts, besoins, objectifs, relations et mémoire adaptés à leur profil cognitif. | partiel (catalogue et cinq gabarits v1, instanciation générique, identité/besoins techniques; traits/valeurs/relations/mémoire futurs) |
+| F-02 | Créer cinq entités MVP — quatre résidentes sapientes et un chat — avec identité, traits, valeurs, intérêts, besoins, objectifs, relations et mémoire adaptés à leur profil cognitif. | partiel (catalogue, instanciation générique, identité/besoins et disposition Big Five/attachement; valeurs, relations et mémoire futures) |
 | F-03 | Faire avancer le temps réel, gérer pause/reprise et rattrapage condensé. | partiel (1:1 + pause/reprise ; rattrapage futur) |
 | F-04 | Permettre aux personnages de proposer des intentions selon leur état subjectif. | partiel (politique déterministe ; subjectivité future) |
 | F-05 | Valider toute intention par le moteur avant modification du monde. | implémenté (moteur seul autorité) |

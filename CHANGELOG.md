@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.46 — 6 août 2026
+
+- Première disposition de personnalité canonique : Big Five continus,
+  distribution déclarative (moyenne, variabilité, inertie, signatures de
+  situation) et attachement général, depuis des gabarits v2 immuables.
+- Les traits ne décident rien : ils sont stockés et exposés comme modulations
+  déclaratives seulement. Patoune conserve l'absence valide de ce composant.
+- Migration `0026`; conception de soi, réputation, valeurs, relations et
+  plasticité restent explicitement hors de ce lot. Voir
+  `docs/44_PERSONNALITE_CANONIQUE.md`.
+
 ## 0.45 — 6 août 2026
 
 - Première projection de `MotiveCandidate` : les déficits physiologiques connus

@@ -20,7 +20,7 @@ def test_catalog_is_published_complete_and_idempotent(conn):
     assert [item["key"] for item in installed] == [entry[1] for entry in MVP_COMPONENT_CATALOG]
     assert all(item["status"] == "published" and item["version"] == 1 for item in installed)
     assert install_mvp_component_catalog(conn) == installed
-    assert conn.execute("SELECT COUNT(*) FROM registry_definition_version").fetchone()[0] == 6
+    assert conn.execute("SELECT COUNT(*) FROM registry_definition_version").fetchone()[0] == 7
 
 
 def test_catalog_rejects_a_conflicting_existing_definition_atomically(conn):
