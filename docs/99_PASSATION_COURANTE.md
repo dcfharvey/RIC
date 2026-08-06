@@ -104,5 +104,6 @@ financée avec allocation; les relations initiales sont neutres. La résidence
 prévue comporte aussi une buanderie; sa gestion fonctionnelle de vêtements est
 un lot environnemental ultérieur, décrit dans `docs/28_VETEMENTS_ET_BUANDERIE.md`.
 L'inventaire concret de la résidence est dans
-`docs/29_INVENTAIRE_RESIDENCE_INITIALE.md`. Ne pas créer le monde MVP sans le
+`docs/29_INVENTAIRE_RESIDENCE_INITIALE.md`; le plan de ses connexions est suivi
+dans `docs/30_PLAN_SPATIAL_RESIDENCE.md`. Ne pas créer le monde MVP sans le
 protocole renforcé correspondant.
