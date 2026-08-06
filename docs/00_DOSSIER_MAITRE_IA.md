@@ -1,7 +1,7 @@
 # Vivarium social artificiel
 ## Dossier maître d’implémentation destiné à une IA programmeuse
 
-**Version :** 1.4
+**Version :** 1.5
 **Date :** 6 août 2026
 **Statut :** source normative unique du dépôt après fermeture technique de la Phase 3
 **Public cible :** IA programmeuse, agent de développement ou développeur humain
@@ -271,6 +271,7 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v1.2** (6 août 2026) : API HTTP locale du pipeline préparé, protégée par jeton pour les deux mutations et les deux lectures administratives; aucune interface visuelle nouvelle.
 - **v1.3** (6 août 2026) : action topologique `add_link` préparée, avec conservation auditée des plans lors de l'évolution du schéma administratif; aucune suppression de passage ou changement de personnage.
 - **v1.4** (6 août 2026) : monde MVP propre séparé des mondes de test; banc d'essai moteur reproductible placé avant perception, cognition et social.
+- **v1.5** (6 août 2026) : clarification de vocabulaire : résidence initiale = monde d'intégration pré-MVP; MVP = simulateur social présentable après les couches vivantes.
 
 ## 24. Annexes et références
 

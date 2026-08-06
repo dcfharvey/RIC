@@ -1,6 +1,6 @@
 # Registre des décisions autoritatives
 
-**Version :** 0.3
+**Version :** 0.4
 **Date :** 6 août 2026
 **Statut :** actif — registre consolidé après fermeture technique de la Phase 3
 **Source :** dossier maître v0.1, clarifications CLA-001..004, demande de changement post-audit v0.2, index maître des décisions v0.3
@@ -102,3 +102,4 @@ Statuts : `implémenté` (présent dans le code et testé), `normatif futur` (di
 | --- | --- | --- |
 | CLA-005 | Le monde MVP sera une base propre, distincte des mondes temporaires de tests automatisés et du monde technique de développement. Les mondes de test peuvent être clonés ou éphémères; ils ne modifient jamais l'histoire MVP. | **actif** |
 | DEC-061 | Un banc d'essai reproductible devient un outil central de validation du moteur. Il définit des conditions contrôlées, exécute des variantes isolées et compare leurs résultats. La première version, sans LLM, précède les systèmes de perception, cognition et social. | **actif** |
+| DEC-062 | Le MVP désigne le simulateur social dans un état présentable, pas la seule création de la résidence et des cinq entités. Cette première base est un monde d'intégration pré-MVP, réinitialisable; perception, mémoire, relations et décision sociale sont nécessaires pour atteindre le MVP. | **actif** |

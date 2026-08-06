@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23 — 6 août 2026
+
+- Clarification de roadmap : la résidence initialisée est un monde
+  d'intégration pré-MVP; le MVP est le simulateur social présentable, atteint
+  après les couches vivantes.
+
 ## 0.22 — 6 août 2026
 
 - Roadmap active ajoutée : le banc d'essai reproductible devient une étape

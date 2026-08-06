@@ -53,8 +53,9 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - L'interface peut attendre; lorsque touchée, elle doit être inspectée
   visuellement. Style : console sombre, dense et lisible, jamais dashboard SaaS
   ou papier texturé.
-- Le monde MVP doit être une base propre, séparée des mondes techniques et des
-  exécutions de banc d'essai. Voir `docs/15_ROADMAP_ACTIVE.md`.
+- Le monde d'intégration pré-MVP doit être une base propre, séparée des mondes
+  techniques et des exécutions de banc d'essai. Le MVP est le simulateur social
+  présentable atteint après les couches vivantes. Voir `docs/15_ROADMAP_ACTIVE.md`.
 
 ## Prochaine action recommandée
 

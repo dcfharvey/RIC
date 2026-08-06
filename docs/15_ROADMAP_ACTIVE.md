@@ -1,6 +1,6 @@
 # Roadmap active — du moteur au Vivarium MVP
 
-**Version :** 1.0
+**Version :** 1.1
 **Mise à jour :** 6 août 2026
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
@@ -53,18 +53,21 @@ ressource qui bloque une capacité, blessure et trajet, pause/reprise,
 intervention admin et redémarrage. Chaque nouveau système devra fournir ses
 propres scénarios reproductibles avant d'être activé dans le monde MVP.
 
-### 4. Monde MVP propre
+### 4. Monde d'intégration pré-MVP propre
 
 Créer une base séparée de tout monde technique. Construire la résidence et
 instancier Sophie, Erika, Luna, Chuu et Patoune par les gestionnaires réels, avec
-une validation rapide du propriétaire sur leurs fiches détaillées. Le monde MVP
-est le laboratoire vivant; les bancs d'essai restent ses copies isolées.
+une validation rapide du propriétaire sur leurs fiches détaillées. Ce monde
+d'intégration permet de tester les vraies configurations sans transformer des
+bugs précoces en histoire officielle.
 
-### 5. Perception, croyance, mémoire puis dynamique sociale
+### 5. Couches vivantes puis MVP présentable
 
 Ajouter ces couches dans cet ordre, avec le banc d'essai comme critère de sortie
 de chaque lot. Le LLM n'entre qu'après le contrat moteur–LLM, avec sorties
-structurées, validation et coût borné.
+structurées, validation et coût borné. Le **MVP** est atteint seulement lorsque
+le simulateur social est suffisamment cohérent, stable et lisible pour être
+présenté : il ne se confond pas avec le simple monde d'intégration.
 
 ## Frontières explicites
 
