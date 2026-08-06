@@ -458,14 +458,9 @@ class WorldEngine:
 
     # --- Écritures d'état + trace canonique (même transaction) -----------------
 
-    def rename_world(self, world_id: int, new_name: str) -> dict[str, Any]:
-        """Renomme un monde et trace l'événement dans la même transaction.
-
-        Validation autoritative du nom (avant toute mutation) : chaîne, non vide
-        après suppression des espaces périphériques, longueur ≤ WORLD_NAME_MAX_LEN.
-        La valeur enregistrée est la valeur normalisée. L'événement est situé dans
-        le temps canonique du monde (`read_canonical_time`), jamais à l'heure murale.
-        """
+    @staticmethod
+    def normalize_world_name(new_name: Any) -> str:
+        """Valide et normalise le nom d'un monde sans effectuer d'écriture."""
         if not isinstance(new_name, str):
             raise WorldError(
                 "le nom du monde doit être une chaîne", code="invalid_name"
@@ -480,21 +475,59 @@ class WorldEngine:
                 f"le nom du monde ne peut pas dépasser {WORLD_NAME_MAX_LEN} caractères",
                 code="invalid_name",
             )
+        return normalized
+
+    def _rename_world_in_transaction(
+        self,
+        conn: sqlite3.Connection,
+        world_id: int,
+        normalized_name: str,
+        *,
+        admin_change_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Applique un renommage dans une transaction déjà ouverte.
+
+        Réservé aux commandes canoniques composées. La validation du nom doit
+        avoir eu lieu avant l'appel. Un identifiant de plan, lorsqu'il existe,
+        rattache le fait canonique à l'audit administratif sans transformer cet
+        audit en source de vérité du monde.
+        """
+        now = self._now_iso()
+        canonical = self.read_canonical_time(world_id)
+        old = conn.execute(
+            "SELECT name FROM worlds WHERE id = ?", (world_id,)
+        ).fetchone()
+        if old is None:
+            raise KeyError(f"monde introuvable : {world_id}")
+        conn.execute(
+            "UPDATE worlds SET name = ?, updated_at = ? WHERE id = ?",
+            (normalized_name, now, world_id),
+        )
+        payload: dict[str, Any] = {"from": old["name"], "to": normalized_name}
+        if admin_change_id is not None:
+            payload["admin_change_id"] = admin_change_id
+        _append_event(
+            conn,
+            world_id,
+            SOURCE_OWNER,
+            "world_renamed",
+            payload,
+            occurred_at=canonical,
+            recorded_at=now,
+        )
+        return {"id": world_id, "name": normalized_name, "canonical_at": canonical}
+
+    def rename_world(self, world_id: int, new_name: str) -> dict[str, Any]:
+        """Renomme un monde et trace l'événement dans la même transaction.
+
+        Validation autoritative du nom (avant toute mutation) : chaîne, non vide
+        après suppression des espaces périphériques, longueur ≤ WORLD_NAME_MAX_LEN.
+        La valeur enregistrée est la valeur normalisée. L'événement est situé dans
+        le temps canonique du monde (`read_canonical_time`), jamais à l'heure murale.
+        """
+        normalized = self.normalize_world_name(new_name)
         with transaction(self._conn) as c:
-            now = self._now_iso()
-            canonical = self.read_canonical_time(world_id)
-            old = c.execute(
-                "SELECT name FROM worlds WHERE id = ?", (world_id,)
-            ).fetchone()
-            if old is None:
-                raise KeyError(f"monde introuvable : {world_id}")
-            c.execute(
-                "UPDATE worlds SET name = ?, updated_at = ? WHERE id = ?",
-                (normalized, now, world_id),
-            )
-            _append_event(c, world_id, SOURCE_OWNER, "world_renamed",
-                          {"from": old["name"], "to": normalized},
-                          occurred_at=canonical, recorded_at=now)
+            self._rename_world_in_transaction(c, world_id, normalized)
         return self.get_world(world_id)
 
     # --- Lectures ---------------------------------------------------------------

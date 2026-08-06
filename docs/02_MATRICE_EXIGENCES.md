@@ -1,7 +1,7 @@
 # Matrice des exigences
 
-**Version :** 0.3
-**Date :** 4 août 2026
+**Version :** 0.4
+**Date :** 6 août 2026
 **Statut :** actif — consolidée après fermeture technique de la Phase 3
 **Colonne État :** `implémenté` (dans le code et testé) / `futur` (direction approuvée, non implémentée) / `partiel`.
 
@@ -16,7 +16,7 @@
 | F-05 | Valider toute intention par le moteur avant modification du monde. | implémenté (moteur seul autorité) |
 | F-06 | Distinguer événement canonique, perception, interprétation, croyance et souvenir. | partiel (événement canonique ; perception/croyance/souvenir futurs) |
 | F-07 | Gérer conversations privées, de groupe, avec le propriétaire et avec le technicien. | futur |
-| F-08 | Permettre au propriétaire d’observer, interagir, se manifester, régir et administrer. | futur |
+| F-08 | Permettre au propriétaire d’observer, interagir, se manifester, régir et administrer. | partiel (observation, commandes simples et premier pipeline de changement non sensible; manifestation et administration profonde futures) |
 | F-09 | Condenser les routines banales et développer les scènes significatives. | futur |
 | F-10 | Produire notifications, résumés périodiques, rapports de coût et alertes. | futur |
 | F-11 | Créer des snapshots, restaurer et revenir en arrière. | futur |
@@ -36,8 +36,8 @@
 | NF-06 | Attribuer chaque fait important à une cause, un acteur et une provenance. | partiel (causalité des blessures ; provenance générale future) |
 | NF-07 | Mesurer coûts, jetons, latences, erreurs et charge locale. | futur |
 | NF-08 | Appliquer le moindre privilège et des permissions configurables. | futur |
-| NF-09 | Faire évoluer les schémas et règles par versions et migrations. | implémenté (13 migrations) |
-| NF-10 | Couvrir les comportements essentiels par des tests reproductibles. | implémenté (460 tests) |
+| NF-09 | Faire évoluer les schémas et règles par versions et migrations. | implémenté (14 migrations) |
+| NF-10 | Couvrir les comportements essentiels par des tests reproductibles. | implémenté (469 tests) |
 | NF-11 | Rester discret sur l’ordinateur personnel : pas de boucle à haute fréquence ni croissance mémoire non bornée. | implémenté (borne de transitions) |
 | NF-12 | Être compréhensible et maintenable par une autre IA ou un autre développeur. | implémenté (documentation + code) |
 
@@ -61,7 +61,7 @@
 | INV-014 | Les scènes privées continuent indépendamment de leur affichage sur Discord. | futur |
 | INV-015 | Aucun secret ou jeton n’est stocké dans une mémoire narrative, un prompt journalisé ou un message Discord. | futur |
 | INV-016 | Une transaction échouée ne laisse aucun état partiellement appliqué. | implémenté |
-| INV-017 | Un retry ne duplique pas une action grâce à l’idempotence. | futur |
+| INV-017 | Un retry ne duplique pas une action grâce à l’idempotence. | partiel (confirmation idempotente du premier pipeline administratif) |
 | INV-018 | Toute restauration ou migration s’exécute en mode maintenance. | futur |
 | INV-019 | Les résumés, caches et index dérivés sont reconstructibles depuis leurs sources. | futur |
 | INV-020 | Une notification échouée ne modifie jamais l’histoire canonique. | futur |
