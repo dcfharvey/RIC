@@ -11,7 +11,7 @@ from .initial_context import InitialContextService
 from .initial_residence import install_initial_residence_catalog
 from .instances import CharacterInstanceService
 from .mvp_chuu import install_chuu_hydration
-from .mvp_templates import install_mvp_personality_templates
+from .mvp_templates import install_mvp_living_templates
 from .objects import ObjectService
 from .possession import PossessionService
 from .resources import ResourceEngine
@@ -63,7 +63,7 @@ class IntegrationWorldService:
         """Assemble environnement, règles, résidentes, Chuu et contexte commun."""
         with transaction(self._conn):
             install_initial_residence_catalog(self._conn)
-            install_mvp_personality_templates(self._conn)
+            install_mvp_living_templates(self._conn)
             world = EnvironmentBlueprintService(self._conn, clock=self._clock).instantiate(
                 "residence.initial", 1, world_name=name
             )
@@ -71,7 +71,7 @@ class IntegrationWorldService:
             WorldRuleService(self._conn, clock=self._clock).install_standard_residence_rules(world_id)
             instances = CharacterInstanceService(self._conn, clock=self._clock)
             for template_key, character_key in INITIAL_RESIDENTS:
-                instances.instantiate(world_id, template_key, 2, character_key, "entree_exterieure")
+                instances.instantiate(world_id, template_key, 3, character_key, "entree_exterieure")
             install_chuu_hydration(ResourceEngine(self._conn, clock=self._clock), world_id)
             objects = ObjectService(self._conn, clock=self._clock)
             possession = PossessionService(self._conn, clock=self._clock)

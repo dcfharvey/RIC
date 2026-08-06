@@ -152,6 +152,29 @@ def _mvp_v2_template(
 
 MVP_CHARACTER_TEMPLATES_V2 = tuple(_mvp_v2_template(*entry) for entry in MVP_CHARACTER_TEMPLATES)
 
+_VALUE_RANKINGS = {
+    "resident.sophie": ("autonomy", "honesty", "achievement", "respect_boundaries", "justice", "duty_responsibility", "exploration_freedom", "loyalty", "security_stability", "benevolence", "power_status", "tradition_belonging"),
+    "resident.erika": ("exploration_freedom", "autonomy", "benevolence", "loyalty", "achievement", "honesty", "respect_boundaries", "justice", "security_stability", "power_status", "tradition_belonging", "duty_responsibility"),
+    "resident.luna": ("achievement", "loyalty", "autonomy", "respect_boundaries", "duty_responsibility", "benevolence", "honesty", "security_stability", "justice", "exploration_freedom", "power_status", "tradition_belonging"),
+    "resident.chuu": ("benevolence", "exploration_freedom", "loyalty", "autonomy", "respect_boundaries", "honesty", "achievement", "justice", "security_stability", "tradition_belonging", "duty_responsibility", "power_status"),
+}
+
+_PREFERENCES = {
+    "resident.sophie": ({"target_kind": "activity", "target_key": "photography", "valence_milli": 800}, {"target_kind": "social_format", "target_key": "small_group", "valence_milli": 350}),
+    "resident.erika": ({"target_kind": "activity", "target_key": "gaming", "valence_milli": 900}, {"target_kind": "social_format", "target_key": "casual_group", "valence_milli": 550}),
+    "resident.luna": ({"target_kind": "activity", "target_key": "sport", "valence_milli": 850}, {"target_kind": "activity", "target_key": "girly_care", "valence_milli": 400}),
+    "resident.chuu": ({"target_kind": "social_format", "target_key": "playful_group", "valence_milli": 600},),
+}
+
+
+def _mvp_v3_template(key: str, definition: dict[str, Any], components: tuple[dict[str, Any], ...]) -> tuple[str, dict[str, Any], tuple[dict[str, Any], ...]]:
+    ranking = _VALUE_RANKINGS.get(key)
+    if ranking is None: return key, definition, components
+    return key, definition, (*components, _component("values.hierarchy", {"ranked_value_keys": list(ranking)}), _component("preferences.initial", {"items": list(_PREFERENCES[key])}))
+
+
+MVP_CHARACTER_TEMPLATES_V3 = tuple(_mvp_v3_template(*entry) for entry in MVP_CHARACTER_TEMPLATES_V2)
+
 
 def install_mvp_character_templates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Installe les gabarits du casting après le catalogue de composants."""
@@ -179,5 +202,22 @@ def install_mvp_personality_templates(conn: sqlite3.Connection) -> list[dict[str
         actual = {"definition": existing["definition"], "components": existing["components"]}
         if existing["status"] != "published" or actual != expected:
             raise RuntimeError(f"version 2 de gabarit MVP incompatible : {key}")
+        installed.append(existing)
+    return installed
+
+
+def install_mvp_living_templates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Publie la version 3 valeurs/préférences sans toucher aux versions gelées."""
+    install_mvp_personality_templates(conn); service = CharacterTemplateService(conn); installed = []
+    for key, definition, components in MVP_CHARACTER_TEMPLATES_V3:
+        try: existing = service.get_version(key, 3)
+        except TemplateError as exc:
+            if "modèle introuvable" not in str(exc): raise
+            existing = None
+        expected = {"definition": definition, "components": list(components)}
+        if existing is None:
+            draft = service.create_draft(key, definition, components); installed.append(service.publish(key, draft["version"])); continue
+        if existing["status"] != "published" or {"definition": existing["definition"], "components": existing["components"]} != expected:
+            raise RuntimeError(f"version 3 de gabarit MVP incompatible : {key}")
         installed.append(existing)
     return installed

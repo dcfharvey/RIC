@@ -187,6 +187,13 @@ def canonical_state_digest(conn: sqlite3.Connection, world_id: int) -> dict[str,
             }
         d["character_personality_disposition"] = dispositions
 
+    has_values = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'character_value_profile'").fetchone() is not None
+    if has_values:
+        values: dict[str, dict[str, Any]] = {}
+        for r in conn.execute("SELECT ch.key, v.ranked_value_keys_json, p.items_json FROM character_value_profile v JOIN character_preference_profile p ON p.world_id = v.world_id AND p.character_id = v.character_id JOIN character ch ON ch.id = v.character_id WHERE v.world_id = ? ORDER BY ch.key", (world_id,)).fetchall():
+            values[r["key"]] = {"ranked_value_keys": json.loads(r["ranked_value_keys_json"]), "preferences": json.loads(r["items_json"])}
+        d["character_values_preferences"] = values
+
     needs: dict[str, dict[str, dict[str, Any]]] = {}
     for r in conn.execute(
         "SELECT ch.key, ns.need_key, ns.value_milli, ns.rate_remainder, ns.anchor_at "

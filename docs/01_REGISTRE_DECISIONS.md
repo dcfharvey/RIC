@@ -76,7 +76,7 @@ Statuts : `implémenté` (présent dans le code et testé), `normatif futur` (di
 | DEC-039 | Épistémologie structurée : hypothèses concurrentes, preuves, provenance, modèles de source, contradictions, révisions. | **normatif futur** |
 | DEC-040 | Motivation restructurée : régulation physiologique, besoins psychologiques, motifs, incitations, désirs, objectifs, apprentissage de valeur. | **normatif futur** |
 | DEC-041 | Personnalité mécanistique : traits continus modulant des mécanismes, évolution lente ; attachement contextuel, dimensionnel, propre aux relations. | **partiel** (disposition Big Five et attachement général canoniques; plasticité, conception de soi et relationnel futurs) |
-| DEC-042 | Valeurs, principes et limites : structures distinctes (valeurs, principes, convictions morales, limites, normes, lois, contraintes physiques). | **normatif futur** |
+| DEC-042 | Valeurs, principes et limites : structures distinctes (valeurs, principes, convictions morales, limites, normes, lois, contraintes physiques). | **partiel** (hiérarchies de valeurs et préférences initiales séparées; principes et limites futurs) |
 | DEC-043 | Objectifs et intentions : graphe de fins et de moyens ; intentions persistantes par défaut avec contexte de reprise. | **normatif futur** |
 | DEC-044 | Décision bornée et explicable : peu d’options, impossibilité distincte de transgression, profils multidimensionnels, suffisance. | **normatif futur** |
 | DEC-045 | Mémoire reconstructive : encodage subjectif, récupération faillible, distincte de la vérité canonique. | **normatif futur** |

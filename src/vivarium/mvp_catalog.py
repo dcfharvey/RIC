@@ -102,6 +102,18 @@ MVP_COMPONENT_CATALOG: tuple[tuple[str, str, dict[str, Any]], ...] = (
     ),
     (
         "component",
+        "values.hierarchy",
+        {"title": "Hiérarchie de valeurs", "engine_status": "implemented_canonical_values",
+         "config_schema": {"required": ["ranked_value_keys"], "properties": {"ranked_value_keys": {"type": "array"}}, "additional_properties": False}},
+    ),
+    (
+        "component",
+        "preferences.initial",
+        {"title": "Préférences initiales", "engine_status": "implemented_canonical_preferences",
+         "config_schema": {"required": ["items"], "properties": {"items": {"type": "array"}}, "additional_properties": False}},
+    ),
+    (
+        "component",
         "physiology.resource_dependent_state",
         {
             "title": "État dépendant d'une ressource physiologique",

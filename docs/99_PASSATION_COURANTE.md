@@ -27,7 +27,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
   (exposition HTTP locale du même pipeline) ;
-- migration courante : `0026_personality_disposition.sql` ;
+- migration courante : `0027_values_preferences.sql` ;
 - dernier test complet avant 4.2J : **469 passed** ;
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
@@ -64,6 +64,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   **613 passed** ;
 - test complet après première disposition canonique de personnalité :
   **616 passed** ;
+- test complet après valeurs et préférences initiales : **618 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes

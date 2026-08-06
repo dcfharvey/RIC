@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.47 — 6 août 2026
+
+- Valeurs et préférences initiales séparées, hiérarchisées et immuables depuis
+  les gabarits MVP v3; aucune n'est traitée comme une règle, limite ou action.
+- Migration `0027`; digest et banc incluent ces deux profils. Tests : 618 réussis.
+
 ## 0.46 — 6 août 2026
 
 - Première disposition de personnalité canonique : Big Five continus,

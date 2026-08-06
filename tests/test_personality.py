@@ -22,7 +22,7 @@ def setup():
     conn.close()
 
 
-def test_sapient_mvp_profiles_are_instantiated_from_immutable_template_v2(setup):
+def test_sapient_mvp_profiles_are_instantiated_from_immutable_template_v3(setup):
     conn, world_id, _ = setup
     personalities = PersonalityService(conn)
     sophie = personalities.read(world_id, "sophie")
@@ -35,7 +35,7 @@ def test_sapient_mvp_profiles_are_instantiated_from_immutable_template_v2(setup)
         "SELECT template_version FROM character_instance_origin o JOIN character c ON c.id = o.character_id "
         "WHERE o.world_id = ? AND c.key = 'sophie'", (world_id,)
     ).fetchone()["template_version"]
-    assert version == 2
+    assert version == 3
     with pytest.raises(Exception, match="immutable"):
         conn.execute("UPDATE character_personality_disposition SET traits_json = '{}' WHERE world_id = ?", (world_id,))
 
