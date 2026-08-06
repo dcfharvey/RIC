@@ -45,3 +45,8 @@ ni de test rouge. Il a toutefois trouvé des documents actifs restés à l'étap
 « blueprint/résidentes futurs » malgré leur livraison, et une immutabilité
 superficielle du premier `WorldFact`. Les documents ont été corrigés et le fait
 retourné est désormais gelé récursivement, avec test de non-mutation.
+
+Lors de la perception factuelle, le premier test supposait à tort que l'entrée
+extérieure n'avait qu'une porte visible. L'audit a confronté cette hypothèse au
+blueprint réel et conservé le connecteur vers le stationnement dans la vue; le
+test a été corrigé au lieu de dégrader la topologie canonique.

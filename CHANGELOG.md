@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.39 — 6 août 2026
+
+- Première perception factuelle : chaque observateur reçoit une vue locale,
+  pure et immuable de sa position, co-présences, objets visibles et connecteurs
+  adjacents. Aucun état interne d'autrui, objet transporté ou fait distant ne
+  fuit dans cette vue.
+- Documentation : `docs/36_PERCEPTION_FACTUELLE.md`; tests : 568 réussis.
+
 ## 0.38 — 6 août 2026
 
 - Première frontière moteur–cognition, sans LLM : intention immuable et

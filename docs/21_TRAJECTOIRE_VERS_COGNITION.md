@@ -112,6 +112,10 @@ vient plus tard comme interprète, jamais comme autorité.
 - tests de non-fuite : Patoune ou une résidente ne reçoit pas un fait hors de
   son accès.
 
+**Première tranche livrée :** vue factuelle locale (`self_location`,
+co-présence, objets visibles, connecteurs adjacents) sans écriture, attention,
+interprétation ou mémoire. Voir `docs/36_PERCEPTION_FACTUELLE.md`.
+
 ### Lot G : état interne, attention et priorités
 
 - les besoins, blessures et ressources existants deviennent des signaux pour

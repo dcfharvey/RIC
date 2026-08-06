@@ -41,6 +41,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - test complet après assemblage du monde d'intégration : **551 passed** ;
 - test complet après possession de personnage : **559 passed** ;
 - test complet après contrat d'action moteur–cognition v1 : **564 passed** ;
+- test complet après perception factuelle locale : **568 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -53,6 +54,8 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   émotion ou narration ;
 - contrat fermé moteur–cognition v1 : une intention de traversée peut être
   acceptée ou refusée sans LLM, avec provenance sur le fait canonique ;
+- perception factuelle locale : candidates immuables, limitées à la présence,
+  objets visibles et connecteurs adjacents de l'observateur ;
 - objets portables, installations fixes et contenance objet‑dans‑objet,
   avec lieu effectif matérialisé, capacité et refus des cycles ;
 - possession physique générique : un objet portable suit son personnage sans

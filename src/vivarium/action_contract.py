@@ -118,10 +118,33 @@ class WorldFact:
     """Projection minimale d'un fait canonique produit par une action acceptée."""
 
     world_id: int
-    event_seq: int
+    event_seq: int | None
     event_type: str
     occurred_at: str
     payload: Mapping[str, Any]
+    schema_version: int = CONTRACT_SCHEMA_VERSION
+
+    @classmethod
+    def state(
+        cls, world_id: int, fact_type: str, occurred_at: str, payload: Mapping[str, Any]
+    ) -> "WorldFact":
+        """Construit un fait d'état lu sans inventer d'événement canonique."""
+        return cls(
+            world_id=world_id,
+            event_seq=None,
+            event_type=fact_type,
+            occurred_at=occurred_at,
+            payload=_deep_freeze(payload),
+        )
+
+
+@dataclass(frozen=True)
+class PerceptionCandidate:
+    """Fait objectivement accessible, avant attention, interprétation ou mémoire."""
+
+    observer_key: str
+    access_kind: str
+    fact: WorldFact
     schema_version: int = CONTRACT_SCHEMA_VERSION
 
 

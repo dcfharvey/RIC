@@ -36,8 +36,8 @@ tests et documentation après un lot à conséquences étendues.
 - règles standard de résidence installables hors du seed technique : livrées;
   la calibration déclarative de Chuu et l'arrivée initiale commune à la boîte
   aux lettres sont définies; l'instanciation réelle peut être préparée ;
-- contrat fermé moteur–cognition v1 : livré pour une traversée structurée;
-  perception, mémoire et social restent futurs ;
+- contrat fermé moteur–cognition v1 et première perception factuelle locale :
+  livrés; attention, mémoire et social restent futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
 ## Jalons de version produit
