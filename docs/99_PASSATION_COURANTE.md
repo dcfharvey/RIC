@@ -95,7 +95,8 @@ Les objets, leur contenance, les presets et les blueprints d'environnement sont
 aussi livrés; voir `docs/19_OBJETS_ET_CONTENANCE.md`,
 `docs/20_PRESETS_ENVIRONNEMENT.md`, `docs/22_BLUEPRINTS_ENVIRONNEMENT.md` et
 `docs/23_CONNECTEURS_ETAT.md` et `docs/24_TRAVERSEE_VALIDEE.md`. Le prochain
-lot recommandé est de fixer les placements initiaux, puis d'instancier le monde
-d'intégration et ses scénarios d'acceptation. Voir
-`docs/25_REGLES_MONDE_STANDARD.md` et `docs/26_CALIBRATION_CHUU.md`. Ne pas
-créer le monde MVP sans le protocole renforcé correspondant.
+lot recommandé est d'instancier le monde d'intégration et ses scénarios
+d'acceptation. Les cinq résidentes arrivent ensemble dans la cour, à côté de la
+boîte aux lettres. Voir `docs/25_REGLES_MONDE_STANDARD.md` et
+`docs/26_CALIBRATION_CHUU.md`. Ne pas créer le monde MVP sans le protocole
+renforcé correspondant.

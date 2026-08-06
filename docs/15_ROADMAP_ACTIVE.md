@@ -29,8 +29,8 @@ validation du moteur qui croît avec lui.
   la traversée validée initiale est livrée; le monde d'intégration devient le
   prochain jalon avant la cognition ;
 - règles standard de résidence installables hors du seed technique : livrées;
-  la calibration déclarative de Chuu est livrée; les placements initiaux
-  restent nécessaires avant une instanciation réelle du casting ;
+  la calibration déclarative de Chuu et l'arrivée initiale commune à la boîte
+  aux lettres sont définies; l'instanciation réelle peut être préparée ;
 - cognition, perception, mémoire et social : futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
