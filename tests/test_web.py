@@ -753,6 +753,44 @@ def test_change_pipeline_confirme_retry_sans_double_action(server):
         assert status == 200 and data["data"]["status"] == expected
 
 
+def test_change_pipeline_http_ajoute_un_passage(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/admin-changes/add-passage/prepare",
+        body={
+            "world_id": wid,
+            "from_location": "cour",
+            "to_location": "cuisine",
+            "kind": "arch",
+        },
+        token=srv.token,
+    )
+    assert status == 200 and data["data"]["action"] == "add_link"
+    plan = data["data"]
+    status, data, _ = _request(
+        port,
+        "POST",
+        f"/api/admin-changes/{plan['id']}/confirm",
+        body={"hash": plan["hash"]},
+        token=srv.token,
+    )
+    assert status == 200 and data["data"]["result"]["kind"] == "arch"
+
+
+def test_prepare_passage_http_refuse_lieu_inconnu(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/admin-changes/add-passage/prepare",
+        body={"world_id": wid, "from_location": "ghost", "to_location": "cour"},
+        token=srv.token,
+    )
+    assert status == 404 and data["error"]["code"] == "location_not_found"
+
+
 # --- Erreurs internes et connexions -------------------------------------------
 
 def test_exception_inattendue_masquee(server, monkeypatch):

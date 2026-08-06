@@ -192,7 +192,9 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
                 else:
                     raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
             elif self.command in ("GET", "HEAD"):
-                if kind in ("command", "change_prepare", "change_confirm"):
+                if kind in (
+                    "command", "change_prepare", "change_prepare_passage", "change_confirm"
+                ):
                     raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
                 if kind in ("change_validate", "change_impact"):
                     self._serve_change_read(kind, args[0], send_body=(self.command == "GET"))
@@ -201,7 +203,7 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             elif self.command == "POST":
                 if kind == "command":
                     self._serve_command(args[0])
-                elif kind in ("change_prepare", "change_confirm"):
+                elif kind in ("change_prepare", "change_prepare_passage", "change_confirm"):
                     self._serve_change_command(kind, args)
                 else:
                     raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
@@ -296,6 +298,8 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             return ("command", [parts[2]])
         if parts == ["api", "admin-changes", "rename-world", "prepare"]:
             return ("change_prepare", [])
+        if parts == ["api", "admin-changes", "add-passage", "prepare"]:
+            return ("change_prepare_passage", [])
         if len(parts) == 4 and parts[0] == "api" and parts[1] == "admin-changes":
             plan_id = self._parse_plan_id(parts[2])
             if parts[3] == "validate":
@@ -412,6 +416,10 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             raise HttpError(403, "forbidden", "Accès refusé.")
         if kind == "change_prepare":
             payload = self._read_json_object(frozenset({"world_id", "name", "ttl_seconds"}))
+        elif kind == "change_prepare_passage":
+            payload = self._read_json_object(
+                frozenset({"world_id", "from_location", "to_location", "bidirectional", "kind", "ttl_seconds"})
+            )
         elif kind == "change_confirm":
             payload = self._read_json_object(frozenset({"hash"}))
         else:  # pragma: no cover - routeur fermé
@@ -424,6 +432,15 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
                 data = service.prepare_rename_world(
                     payload.get("world_id"),
                     payload.get("name"),
+                    ttl_seconds=payload.get("ttl_seconds"),
+                )
+            elif kind == "change_prepare_passage":
+                data = service.prepare_add_link(
+                    payload.get("world_id"),
+                    payload.get("from_location"),
+                    payload.get("to_location"),
+                    bidirectional=payload.get("bidirectional", True),
+                    kind=payload.get("kind", "door"),
                     ttl_seconds=payload.get("ttl_seconds"),
                 )
             else:
@@ -439,6 +456,8 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
         mapping = {
             "invalid_parameters": 400,
             "invalid_name": 400,
+            "invalid_link": 400,
+            "location_not_found": 404,
             "world_not_found": 404,
             "plan_not_found": 404,
             "no_effect": 409,

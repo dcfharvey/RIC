@@ -13,6 +13,7 @@ l'interface.
 | Méthode | Route | Jeton local | Rôle |
 | --- | --- | --- | --- |
 | POST | `/api/admin-changes/rename-world/prepare` | requis | Prépare un renommage. |
+| POST | `/api/admin-changes/add-passage/prepare` | requis | Prépare l'ajout d'un passage. |
 | GET | `/api/admin-changes/{plan_id}/validate` | requis | Relit les préconditions. |
 | GET | `/api/admin-changes/{plan_id}/impact` | requis | Lit l'impact figé et la validité. |
 | POST | `/api/admin-changes/{plan_id}/confirm` | requis | Confirme le hash exact. |
@@ -32,7 +33,7 @@ contrat est administratif, pas une vue publique du monde.
 ## Garanties prouvées
 
 - le serveur ne contient ni SQL métier ni voie d'écriture parallèle ;
-- les quatre routes utilisent l'enveloppe JSON et les protections Host/Origin
+- les cinq routes utilisent l'enveloppe JSON et les protections Host/Origin
   existantes ;
 - le jeton est exigé pour préparer, confirmer, valider ou lire l'impact ;
 - UUID invalide, paramètre inconnu et hash erroné sont refusés avec un statut

@@ -1,10 +1,10 @@
 """Pipeline administratif préparé pour les mutations sensibles.
 
-Cette première tranche prend seulement en charge ``rename_world``. Elle pose le
-contrat réutilisable : plan immuable, hash exact, impact sémantique, contrôle
-optimiste de la version du monde, expiration et application idempotente. Les
-plans/audits administratifs restent distincts des faits canoniques ; l'action
-appliquée continue d'écrire son propre événement canonique.
+Les premières actions prises en charge sont ``rename_world`` et ``add_link``.
+Le contrat reste identique : plan immuable, hash exact, impact sémantique,
+contrôle optimiste de la version du monde, expiration et application
+idempotente. Les plans/audits administratifs restent distincts des faits
+canoniques ; l'action appliquée continue d'écrire son propre événement.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from datetime import timedelta
 from typing import Any
 
 from .db import transaction
+from .spatial import GraphEngine, GraphError
 from .util import Clock, new_uuid, parse_iso, to_iso
 from .world import WorldEngine, WorldError
 
@@ -41,6 +42,8 @@ class AdminChangeService:
     ``world_event_seq`` est la version optimiste d'un monde : toute écriture
     canonique concurrente crée une séquence nouvelle et force un nouveau plan.
     """
+
+    ACTIONS = frozenset({"rename_world", "add_link"})
 
     def __init__(self, conn: sqlite3.Connection, clock: Clock | None = None) -> None:
         self._conn = conn
@@ -140,6 +143,53 @@ class AdminChangeService:
             raise AdminChangeError("plan introuvable", code="plan_not_found")
         return row
 
+    def _store_prepared_plan(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        world_id: int,
+        action: str,
+        payload: dict[str, Any],
+        impact: dict[str, Any],
+        ttl_seconds: int,
+    ) -> dict[str, Any]:
+        """Fige un plan et son audit dans la transaction de préparation."""
+        if action not in self.ACTIONS:  # garde interne contre un SQL administratif libre
+            raise RuntimeError(f"action administrative non supportée : {action}")
+        now = self._clock.now_iso()
+        expires_at = to_iso(self._clock.now() + timedelta(seconds=ttl_seconds))
+        canonical_at = self._world().read_canonical_time(world_id)
+        world_event_seq = conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) FROM canonical_event WHERE world_id = ?",
+            (world_id,),
+        ).fetchone()[0]
+        plan_hash = self._hash(
+            action, world_id, world_event_seq, payload, impact, expires_at
+        )
+        cur = conn.execute(
+            "INSERT INTO admin_change_plan "
+            "(public_id, world_id, action_key, status, payload_json, impact_json, "
+            "world_event_seq, plan_hash, expires_at, prepared_at) "
+            "VALUES (?, ?, ?, 'prepared', ?, ?, ?, ?, ?, ?)",
+            (
+                new_uuid(), world_id, action, _canonical_json(payload),
+                _canonical_json(impact), world_event_seq, plan_hash, expires_at, now,
+            ),
+        )
+        plan_id = cur.lastrowid
+        self._audit(
+            conn,
+            plan_id,
+            "change_prepared",
+            canonical_at,
+            now,
+            {"action": action, "world_event_seq": world_event_seq, "hash": plan_hash},
+        )
+        row = conn.execute(
+            "SELECT * FROM admin_change_plan WHERE id = ?", (plan_id,)
+        ).fetchone()
+        return self._row_to_plan(row)
+
     def prepare_rename_world(
         self, world_id: Any, name: Any, *, ttl_seconds: Any = None
     ) -> dict[str, Any]:
@@ -164,13 +214,6 @@ class AdminChangeService:
                 raise AdminChangeError("monde introuvable", code="world_not_found")
             if world["name"] == normalized:
                 raise AdminChangeError("ce nom est déjà appliqué", code="no_effect")
-            now = self._clock.now_iso()
-            expires_at = to_iso(self._clock.now() + timedelta(seconds=ttl_seconds))
-            canonical_at = self._world().read_canonical_time(world_id)
-            world_event_seq = conn.execute(
-                "SELECT COALESCE(MAX(seq), 0) FROM canonical_event WHERE world_id = ?",
-                (world_id,),
-            ).fetchone()[0]
             payload = {"from": world["name"], "to": normalized}
             impact = {
                 "classification": "non_sensitive",
@@ -179,32 +222,74 @@ class AdminChangeService:
                 "requires_snapshot": False,
                 "requires_confirmation": True,
             }
-            plan_hash = self._hash(
-                "rename_world", world_id, world_event_seq, payload, impact, expires_at
-            )
-            cur = conn.execute(
-                "INSERT INTO admin_change_plan "
-                "(public_id, world_id, action_key, status, payload_json, impact_json, "
-                "world_event_seq, plan_hash, expires_at, prepared_at) "
-                "VALUES (?, ?, 'rename_world', 'prepared', ?, ?, ?, ?, ?, ?)",
-                (
-                    new_uuid(), world_id, _canonical_json(payload), _canonical_json(impact),
-                    world_event_seq, plan_hash, expires_at, now,
-                ),
-            )
-            plan_id = cur.lastrowid
-            self._audit(
+            return self._store_prepared_plan(
                 conn,
-                plan_id,
-                "change_prepared",
-                canonical_at,
-                now,
-                {"action": "rename_world", "world_event_seq": world_event_seq, "hash": plan_hash},
+                world_id=world_id,
+                action="rename_world",
+                payload=payload,
+                impact=impact,
+                ttl_seconds=ttl_seconds,
             )
-            row = conn.execute(
-                "SELECT * FROM admin_change_plan WHERE id = ?", (plan_id,)
-            ).fetchone()
-        return self._row_to_plan(row)
+
+    def prepare_add_link(
+        self,
+        world_id: Any,
+        from_location: Any,
+        to_location: Any,
+        *,
+        bidirectional: Any = True,
+        kind: Any = "door",
+        ttl_seconds: Any = None,
+    ) -> dict[str, Any]:
+        """Fige l'ajout d'un passage entre deux lieux déjà existants."""
+        world_id = self._world_id(world_id)
+        ttl_seconds = self._ttl(ttl_seconds)
+        try:
+            from_location, to_location, bidirectional, kind = GraphEngine.normalize_link_request(
+                from_location, to_location, bidirectional, kind
+            )
+        except GraphError as exc:
+            raise AdminChangeError(str(exc), code=exc.code) from None
+        with transaction(self._conn) as conn:
+            if conn.execute("SELECT 1 FROM worlds WHERE id = ?", (world_id,)).fetchone() is None:
+                raise AdminChangeError("monde introuvable", code="world_not_found")
+            graph = GraphEngine(conn, clock=self._clock)
+            try:
+                graph._location_id(world_id, from_location)
+                graph._location_id(world_id, to_location)
+            except GraphError as exc:
+                raise AdminChangeError(str(exc), code=exc.code) from None
+            directions = [(from_location, to_location)]
+            if bidirectional:
+                directions.append((to_location, from_location))
+            if any(graph.can_traverse(world_id, origin, destination) for origin, destination in directions):
+                raise AdminChangeError("au moins une arête du passage existe déjà", code="no_effect")
+            payload = {
+                "from": from_location,
+                "to": to_location,
+                "bidirectional": bidirectional,
+                "kind": kind,
+            }
+            impact = {
+                "classification": "world_topology",
+                "summary": "Ajoute un passage et modifie les trajets possibles entre deux lieux.",
+                "affected": {
+                    "world": 1,
+                    "locations": 2,
+                    "directed_links_created": len(directions),
+                    "characters": 0,
+                },
+                "requires_snapshot": False,
+                "requires_confirmation": True,
+            }
+            return self._store_prepared_plan(
+                conn,
+                world_id=world_id,
+                action="add_link",
+                payload=payload,
+                impact=impact,
+                ttl_seconds=ttl_seconds,
+            )
 
     def validate(self, plan_id: Any) -> dict[str, Any]:
         """Réévalue les préconditions sans écriture ni événement."""
@@ -258,7 +343,7 @@ class AdminChangeService:
         return {"plan_id": plan["id"], "impact": plan["impact"], "validation": validation}
 
     def confirm(self, plan_id: Any, plan_hash: Any) -> dict[str, Any]:
-        """Confirme le plan exact et applique le renommage une seule fois."""
+        """Confirme le plan exact et applique son action une seule fois."""
         if not isinstance(plan_hash, str) or len(plan_hash) != 64:
             raise AdminChangeError("hash de plan invalide", code="invalid_parameters")
         if not isinstance(plan_id, str) or not plan_id:
@@ -288,14 +373,31 @@ class AdminChangeService:
             if current_seq != plan["world_event_seq"]:
                 raise AdminChangeError("le monde a changé depuis la préparation", code="world_changed")
 
-            applied = self._world()._rename_world_in_transaction(
-                conn,
-                plan["world_id"],
-                plan["payload"]["to"],
-                admin_change_id=plan["id"],
-            )
+            if plan["action"] == "rename_world":
+                applied = self._world()._rename_world_in_transaction(
+                    conn,
+                    plan["world_id"],
+                    plan["payload"]["to"],
+                    admin_change_id=plan["id"],
+                )
+                result = {"world_id": applied["id"], "name": applied["name"]}
+            elif plan["action"] == "add_link":
+                applied = GraphEngine(conn, clock=self._clock)._add_link_in_transaction(
+                    conn,
+                    plan["world_id"],
+                    plan["payload"]["from"],
+                    plan["payload"]["to"],
+                    bidirectional=plan["payload"]["bidirectional"],
+                    kind=plan["payload"]["kind"],
+                    admin_change_id=plan["id"],
+                )
+                result = {
+                    field: applied[field]
+                    for field in ("from", "to", "bidirectional", "kind")
+                }
+            else:  # plan impossible hors corruption manuelle de la base
+                raise RuntimeError(f"action de plan inconnue : {plan['action']}")
             applied_at = self._clock.now_iso()
-            result = {"world_id": applied["id"], "name": applied["name"]}
             conn.execute(
                 "UPDATE admin_change_plan SET status = 'applied', applied_at = ?, "
                 "applied_result_json = ? WHERE id = ?",

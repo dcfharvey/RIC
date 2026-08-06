@@ -1,7 +1,7 @@
 # Vivarium social artificiel
 ## Dossier maître d’implémentation destiné à une IA programmeuse
 
-**Version :** 1.2
+**Version :** 1.3
 **Date :** 6 août 2026
 **Statut :** source normative unique du dépôt après fermeture technique de la Phase 3
 **Public cible :** IA programmeuse, agent de développement ou développeur humain
@@ -222,7 +222,7 @@ Capacités prouvées : horloge canonique, monde actif/paused, redémarrage, beso
 - Personnages encore techniques (placeholders).
 - Aucune interface administrative complète.
 - Aucun LLM intégré au moteur canonique.
-- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée, le catalogue minimal de composants MVP, les cinq gabarits v1, le noyau générique de ressources et leurs effets déclaratifs, puis un premier pipeline administratif immuable pour le renommage d'un monde. Les changements profonds, les gestionnaires administratifs complets et les résidentes MVP dans un monde restent futurs.
+- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée, le catalogue minimal de composants MVP, les cinq gabarits v1, le noyau générique de ressources et leurs effets déclaratifs, un pipeline administratif immuable, son API locale et le premier changement topologique préparé (ajout de passage). Les changements profonds, les gestionnaires administratifs complets et les résidentes MVP dans un monde restent futurs.
 
 ## 19. Dettes techniques (documentées, non bloquantes)
 
@@ -268,6 +268,7 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v1.0** (6 août 2026) : effets de ressource déclaratifs pour disponibilité de capacité ou signal contextuel, lus sans imposer d'émotion, de narration ou de décision.
 - **v1.1** (6 août 2026) : premier plan administratif immuable (`prepare -> validate -> impact -> confirm`) pour un renommage de monde; hash exact, expiration, concurrence optimiste, audit séparé et retry idempotent.
 - **v1.2** (6 août 2026) : API HTTP locale du pipeline préparé, protégée par jeton pour les deux mutations et les deux lectures administratives; aucune interface visuelle nouvelle.
+- **v1.3** (6 août 2026) : action topologique `add_link` préparée, avec conservation auditée des plans lors de l'évolution du schéma administratif; aucune suppression de passage ou changement de personnage.
 
 ## 24. Annexes et références
 

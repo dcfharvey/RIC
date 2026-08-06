@@ -34,6 +34,10 @@ DEFAULT_KIND = "door"
 class GraphError(RuntimeError):
     """Erreur de graphe (opération invalide, lieu inexistant, trajet impossible)."""
 
+    def __init__(self, message: str, *, code: str = "graph_error") -> None:
+        super().__init__(message)
+        self.code = code
+
 
 def _now_iso(clock: Clock) -> str:
     return clock.now_iso()
@@ -53,8 +57,28 @@ class GraphEngine:
             "SELECT id FROM location WHERE world_id = ? AND key = ?", (world_id, key)
         ).fetchone()
         if row is None:
-            raise GraphError(f"lieu introuvable : {key!r} (monde {world_id})")
+            raise GraphError(
+                f"lieu introuvable : {key!r} (monde {world_id})",
+                code="location_not_found",
+            )
         return row["id"]
+
+    @staticmethod
+    def normalize_link_request(
+        a_key: Any, b_key: Any, bidirectional: Any, kind: Any
+    ) -> tuple[str, str, bool, str]:
+        """Valide la forme d'un ajout de passage sans écriture."""
+        if not isinstance(a_key, str) or not a_key:
+            raise GraphError("origine de passage invalide", code="invalid_parameters")
+        if not isinstance(b_key, str) or not b_key:
+            raise GraphError("destination de passage invalide", code="invalid_parameters")
+        if a_key == b_key:
+            raise GraphError("boucle sur soi : passage invalide", code="invalid_link")
+        if not isinstance(bidirectional, bool):
+            raise GraphError("bidirectional invalide", code="invalid_parameters")
+        if not isinstance(kind, str) or not kind.strip():
+            raise GraphError("type de passage invalide", code="invalid_parameters")
+        return a_key, b_key, bidirectional, kind.strip()
 
     def _directed_ids(self, world_id: int, from_id: int) -> list[int]:
         rows = self._conn.execute(
@@ -202,7 +226,10 @@ class GraphEngine:
 
     def _insert_edge(self, c: sqlite3.Connection, world_id: int, from_id: int, to_id: int, kind: str) -> None:
         if from_id == to_id:
-            raise GraphError("boucle sur soi : impossible de relier un lieu à lui-même")
+            raise GraphError(
+                "boucle sur soi : impossible de relier un lieu à lui-même",
+                code="invalid_link",
+            )
         created = _now_iso(self._clock)
         c.execute(
             "INSERT INTO location_link "
@@ -210,6 +237,43 @@ class GraphEngine:
             "VALUES (?, ?, ?, ?, ?, ?)",
             (new_uuid(), world_id, from_id, to_id, kind, created),
         )
+
+    def _add_link_in_transaction(
+        self,
+        conn: sqlite3.Connection,
+        world_id: int,
+        a_key: str,
+        b_key: str,
+        *,
+        bidirectional: bool,
+        kind: str,
+        admin_change_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Ajoute un passage dans une transaction déjà ouverte."""
+        a = self._location_id(world_id, a_key)
+        b = self._location_id(world_id, b_key)
+        canonical_at = self._canonical_time(world_id)
+        self._insert_edge(conn, world_id, a, b, kind)
+        if bidirectional:
+            self._insert_edge(conn, world_id, b, a, kind)
+        payload: dict[str, Any] = {
+            "from": a_key,
+            "to": b_key,
+            "bidirectional": bidirectional,
+            "kind": kind,
+        }
+        if admin_change_id is not None:
+            payload["admin_change_id"] = admin_change_id
+        _append_event(
+            conn,
+            world_id,
+            SOURCE_OWNER,
+            "link_added",
+            payload,
+            occurred_at=canonical_at,
+            recorded_at=_now_iso(self._clock),
+        )
+        return {**payload, "canonical_at": canonical_at}
 
     def add_link(
         self,
@@ -226,17 +290,12 @@ class GraphEngine:
         Produit un **unique** événement canonique et échoue entièrement (rollback)
         si une partie de l'opération échoue.
         """
-        a = self._location_id(world_id, a_key)
-        b = self._location_id(world_id, b_key)
+        a_key, b_key, bidirectional, kind = self.normalize_link_request(
+            a_key, b_key, bidirectional, kind
+        )
         with transaction(self._conn) as c:
-            self._insert_edge(c, world_id, a, b, kind)
-            if bidirectional:
-                self._insert_edge(c, world_id, b, a, kind)
-            _append_event(
-                c, world_id, SOURCE_OWNER, "link_added",
-                {"from": a_key, "to": b_key, "bidirectional": bidirectional, "kind": kind},
-                occurred_at=self._canonical_time(world_id),
-                recorded_at=_now_iso(self._clock),
+            self._add_link_in_transaction(
+                c, world_id, a_key, b_key, bidirectional=bidirectional, kind=kind
             )
         return {"from": a_key, "to": b_key, "bidirectional": bidirectional, "kind": kind}
 

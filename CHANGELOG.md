@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.21 — 6 août 2026
+
+- **Phase 4.2K — ajout de passage préparé** : nouveau plan `add_link` pour
+  ajouter un passage entre deux lieux existants; impact topologique explicite,
+  confirmation/hash/expiration/concurrence/retry du pipeline existant.
+- Migration 0015 : évolution atomique de l'audit administratif conservant les
+  plans et événements 0014; test de migration réelle depuis une base 0014.
+- Route locale : `POST /api/admin-changes/add-passage/prepare`.
+- Aucune suppression de passage, aucun lieu nouveau, aucun changement de
+  personnage, de casting, de cognition, de Discord, LLM ou interface visuelle.
+- Tests : 486 réussis.
+
 ## 0.20 — 6 août 2026
 
 - **Phase 4.2I — premier pipeline de changement administratif préparé** :

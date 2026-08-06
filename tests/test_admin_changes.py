@@ -1,13 +1,16 @@
 """Tests du pipeline admin immuable : prepare -> validate -> impact -> confirm."""
 
 import json
+import shutil
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
 from vivarium.admin_changes import AdminChangeError, AdminChangeService
 from vivarium.db import connect_database
 from vivarium.migrations import ensure_schema
+from vivarium.migrations import MIGRATIONS_DIR, current_version
 from vivarium.repro import max_seq
 from vivarium.util import to_iso
 from vivarium.world import WorldEngine
@@ -169,3 +172,96 @@ def test_plan_et_audit_sont_immutables(setup):
         )
     with pytest.raises(Exception, match="append-only"):
         conn.execute("DELETE FROM admin_audit_event")
+
+
+def test_prepare_ajout_de_passage_fige_l_impact_sans_muter_le_graphe(setup):
+    conn, clock, wid = setup
+    service = _service(conn, clock)
+    before = (max_seq(conn, wid), _audit_count(conn))
+    plan = service.prepare_add_link(wid, "cour", "cuisine", kind="arch")
+    assert plan["action"] == "add_link"
+    assert plan["payload"] == {
+        "from": "cour", "to": "cuisine", "bidirectional": True, "kind": "arch"
+    }
+    assert plan["impact"]["classification"] == "world_topology"
+    assert plan["impact"]["affected"]["directed_links_created"] == 2
+    from vivarium.spatial import GraphEngine
+    assert GraphEngine(conn, clock=clock).can_traverse(wid, "cour", "cuisine") is False
+    assert (max_seq(conn, wid), _audit_count(conn)) == (before[0], before[1] + 1)
+
+
+def test_confirmer_passage_lie_le_plan_au_fait_canonique(setup):
+    conn, clock, wid = setup
+    service = _service(conn, clock)
+    plan = service.prepare_add_link(wid, "cour", "cuisine", kind="arch")
+    result = service.confirm(plan["id"], plan["hash"])
+    assert result == {
+        "plan_id": plan["id"], "status": "applied",
+        "result": {"from": "cour", "to": "cuisine", "bidirectional": True, "kind": "arch"},
+    }
+    from vivarium.spatial import GraphEngine
+    graph = GraphEngine(conn, clock=clock)
+    assert graph.can_traverse(wid, "cour", "cuisine") is True
+    assert graph.can_traverse(wid, "cuisine", "cour") is True
+    event = conn.execute(
+        "SELECT payload FROM canonical_event WHERE world_id = ? AND event_type = 'link_added' "
+        "ORDER BY seq DESC LIMIT 1",
+        (wid,),
+    ).fetchone()
+    assert json.loads(event["payload"])["admin_change_id"] == plan["id"]
+
+
+def test_confirmer_passage_sens_unique_ne_cree_pas_le_retour(setup):
+    conn, clock, wid = setup
+    service = _service(conn, clock)
+    plan = service.prepare_add_link(
+        wid, "cour", "cuisine", bidirectional=False, kind="service"
+    )
+    service.confirm(plan["id"], plan["hash"])
+    from vivarium.spatial import GraphEngine
+    graph = GraphEngine(conn, clock=clock)
+    assert graph.can_traverse(wid, "cour", "cuisine") is True
+    assert graph.can_traverse(wid, "cuisine", "cour") is False
+
+
+@pytest.mark.parametrize(
+    "from_location,to_location,bidirectional,kind,code",
+    [
+        ("cour", "cour", True, "door", "invalid_link"),
+        ("ghost", "cour", True, "door", "location_not_found"),
+        ("salon", "cuisine", True, "door", "no_effect"),
+    ],
+)
+def test_preparation_passage_invalide_refusee_sans_plan(
+    setup, from_location, to_location, bidirectional, kind, code
+):
+    conn, clock, wid = setup
+    before = (max_seq(conn, wid), _audit_count(conn))
+    with pytest.raises(AdminChangeError) as exc:
+        _service(conn, clock).prepare_add_link(
+            wid, from_location, to_location, bidirectional=bidirectional, kind=kind
+        )
+    assert exc.value.code == code
+    assert (max_seq(conn, wid), _audit_count(conn)) == before
+
+
+def test_migration_0015_preserve_les_plans_et_audits_0014(tmp_path):
+    partial = tmp_path / "migrations_0014"
+    partial.mkdir()
+    for source in MIGRATIONS_DIR.glob("*.sql"):
+        if source.name <= "0014_admin_change.sql":
+            shutil.copy2(source, partial / source.name)
+    conn = connect_database(":memory:")
+    try:
+        assert ensure_schema(conn, directory=partial) == 14
+        clock = FakeClock()
+        wid = WorldEngine(conn, clock=clock).init_world(name="Avant")["id"]
+        plan = _service(conn, clock).prepare_rename_world(wid, "Après")
+        assert _audit_count(conn) == 1
+        assert ensure_schema(conn) == 15
+        restored = _service(conn, clock)._row_to_plan(_service(conn, clock)._plan_row(plan["id"]))
+        assert restored["payload"] == {"from": "Avant", "to": "Après"}
+        assert _audit_count(conn) == 1
+        assert current_version(conn) == 15
+    finally:
+        conn.close()

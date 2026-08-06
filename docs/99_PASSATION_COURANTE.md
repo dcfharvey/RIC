@@ -19,10 +19,11 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
   (exposition HTTP locale du même pipeline) ;
-- migration précédente : `0014_admin_change.sql` ;
+- migration courante : `0015_admin_change_actions.sql` ;
 - dernier test complet avant 4.2J : **469 passed** ;
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
+- test complet après 4.2K : **486 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -35,6 +36,8 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   émotion ou narration ;
 - plan admin pour `rename_world` : hash, expiration, version optimiste par
   séquence canonique, audit séparé, application atomique et retry idempotent ;
+- plan admin pour `add_link` : passage entre deux lieux existants, une ou deux
+  arêtes, impact topologique explicite et même protocole de confirmation ;
 - routes HTTP locales livrées par 4.2J : prepare, validate,
   impact, confirm; jeton local obligatoire y compris pour les deux lectures.
 
@@ -53,7 +56,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 
 ## Prochaine action recommandée
 
-Finir l'audit et le commit de 4.2J, puis choisir un premier gestionnaire
-d'univers (lieu, passage ou objet) comme prochain cas de changement préparé.
-Ne pas commencer par modifier une habitante ou créer le monde MVP sans le
-protocole renforcé correspondant.
+Le prochain changement utile est la **fermeture** d'un passage : il doit analyser
+si des lieux deviennent inaccessibles avant confirmation. Ne pas commencer par
+modifier une habitante ou créer le monde MVP sans le protocole renforcé
+correspondant.
