@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.44 — 6 août 2026
+
+- Banc de calibration des appels cognitifs : une chronologie de signaux peut
+  être rejouée avec des limites candidates, séparément pour chaque résidente,
+  avec rapports JSON de raisons (`eligible`, `debounced`, budget, doublon).
+- Le banc n'appelle aucun LLM et n'écrit aucune base; il prépare la mesure
+  réelle de cadence et de qualité avant toute boucle autonome. Tests : 609
+  réussis.
+
 ## 0.43 — 6 août 2026
 
 - Routeur cognitif explicite : le seul déclencheur actuellement raccordé,

@@ -82,6 +82,9 @@ format `event_<seq>` qui doit être réellement perceptible par la résidente.
 Les autres motifs restent fermés mais sont refusés par le routeur tant que leur
 contrat source n'existe pas; ils ne reçoivent donc aucune interprétation libre.
 
+Le banc préalable de chronologies et de budgets est livré dans
+`vivarium.cognition_call_bench`; voir `docs/42_BANC_CALIBRATION_APPELS_LLM.md`.
+
 ## Critères de sortie du lot futur
 
 - même motif rejoué : verdict identique sans nouvel appel;

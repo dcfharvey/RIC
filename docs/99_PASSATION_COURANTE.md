@@ -59,6 +59,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après journal append-only d'admission LLM : **602 passed** ;
 - test complet après routeur LLM événementiel et fumée intégrée :
   **606 passed** ;
+- test complet après banc de calibration des appels LLM : **609 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -94,6 +95,9 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   actuellement passer qu'un événement direct réellement perceptible; les autres
   motifs restent fermés jusqu'à leur contrat source. Voir
   `docs/41_PLAN_PORTE_APPEL_LLM.md`.
+- banc de calibration des chronologies d'appels livré, sans réseau ni SQLite;
+  il compare des limites candidates avant toute décision de cadence produit.
+  Voir `docs/42_BANC_CALIBRATION_APPELS_LLM.md`.
 - idées retenues de scénarios et de systèmes futurs : jeux à information privée,
   effort physique et affrontements arbitrés; voir
   `docs/39_BACKLOG_SCENARIOS_ET_SYSTEMES.md`.
