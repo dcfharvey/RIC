@@ -96,6 +96,13 @@ def relocate_subtree(
     return len(rows)
 
 
+def object_carrier_key(conn: sqlite3.Connection, world_id: int, object_id: int) -> str | None:
+    """Lit le porteur d'un objet sans imposer la couche de possession aux vieilles bases."""
+    from .possession import carrier_key  # import tardif : pas de cycle au chargement
+
+    return carrier_key(conn, world_id, object_id)
+
+
 class ObjectService:
     """Cree, inspecte et deplace les installations et objets portables."""
 
@@ -148,6 +155,7 @@ class ObjectService:
             "contained_count": contained_count,
             "location": row["location_key"],
             "parent": row["parent_key"],
+            "carrier": object_carrier_key(self._conn, world_id, row["id"]),
         }
 
     def list_objects(self, world_id: Any, *, location_key: Any | None = None) -> list[dict[str, Any]]:
@@ -174,6 +182,7 @@ class ObjectService:
         portable: Any = False,
         container_capacity: Any = None,
         state: Any = "present",
+        source: str = SOURCE_OWNER,
     ) -> dict[str, Any]:
         """Cree un objet top-level et trace ce nouveau fait dans le journal."""
         world_id = require_world_id(world_id)
@@ -205,7 +214,7 @@ class ObjectService:
             _append_event(
                 conn,
                 world_id,
-                SOURCE_OWNER,
+                source,
                 "world_object_created",
                 {
                     "object": object_key,
@@ -232,6 +241,8 @@ class ObjectService:
                 raise ObjectError("une installation fixe ne peut pas etre deplacee", code="object_fixed")
             if obj["parent_object_id"] is not None:
                 raise ObjectError("retirer l'objet de son conteneur avant de le deplacer", code="object_contained")
+            if object_carrier_key(conn, world_id, obj["id"]) is not None:
+                raise ObjectError("un objet porte doit etre pose avant de le deplacer", code="object_carried")
             location = location_row(conn, world_id, location_key)
             if obj["location_id"] == location["id"]:
                 raise ObjectError("objet deja dans ce lieu", code="object_already_there")

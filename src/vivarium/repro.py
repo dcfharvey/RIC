@@ -105,6 +105,23 @@ def canonical_state_digest(conn: sqlite3.Connection, world_id: int) -> dict[str,
         "WHERE o.world_id = ?",
         (world_id,),
     ).fetchall():
+        carrier_row = None
+        if conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'character_carried_object'"
+        ).fetchone() is not None:
+            carrier_row = conn.execute(
+                "WITH RECURSIVE ancestors(id, parent_object_id, depth, path) AS ("
+                " SELECT id, parent_object_id, 0, ',' || id || ',' FROM world_object WHERE id = "
+                "(SELECT id FROM world_object WHERE world_id = ? AND key = ?) "
+                " UNION ALL "
+                " SELECT o.id, o.parent_object_id, a.depth + 1, a.path || o.id || ',' "
+                " FROM world_object o JOIN ancestors a ON a.parent_object_id = o.id "
+                " WHERE o.world_id = ? AND instr(a.path, ',' || o.id || ',') = 0"
+                ") SELECT ch.key FROM ancestors a JOIN character_carried_object co ON co.object_id = a.id "
+                "JOIN character ch ON ch.id = co.character_id WHERE co.world_id = ? "
+                "ORDER BY a.depth DESC LIMIT 1",
+                (world_id, r["key"], world_id, world_id),
+            ).fetchone()
         objects[r["key"]] = {
             "name": r["name"],
             "kind": r["kind"],
@@ -113,6 +130,7 @@ def canonical_state_digest(conn: sqlite3.Connection, world_id: int) -> dict[str,
             "container_capacity": r["container_capacity"],
             "location": r["location_key"],
             "parent": r["parent_key"],
+            "carrier": None if carrier_row is None else carrier_row["key"],
         }
     d["world_object"] = dict(sorted(objects.items()))
 

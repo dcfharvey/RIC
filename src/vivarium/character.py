@@ -22,6 +22,7 @@ from typing import Any
 from .db import transaction
 from .injury import InjuryEngine, MOVEMENT_SURCHARGE_MILLI, level
 from .needs import NeedsEngine
+from .objects import relocate_subtree
 from .seed import SEED_CHARACTERS
 from .util import Clock, new_uuid
 from .world import SOURCE_ENGINE, SOURCE_SYSTEM, WorldEngine, _append_event
@@ -258,6 +259,18 @@ class CharacterEngine:
                      world_id, world_id, key),
                 )
                 surcharge = MOVEMENT_SURCHARGE_MILLI
+
+        # Les objets directement portes restent materialises au lieu effectif du
+        # porteur. Ce sont des consequences du meme deplacement, pas des
+        # deplacements autonomes et donc pas des evenements supplementaires.
+        if WorldEngine._has_table(c, "character_carried_object"):
+            carried = c.execute(
+                "SELECT object_id FROM character_carried_object WHERE world_id = ? AND character_id = "
+                "(SELECT id FROM character WHERE world_id = ? AND key = ?)",
+                (world_id, world_id, key),
+            ).fetchall()
+            for carried_row in carried:
+                relocate_subtree(c, world_id, carried_row["object_id"], target_id)
 
         now = self._now_iso()
         c.execute(

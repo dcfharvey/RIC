@@ -15,6 +15,7 @@ from .objects import (
     ObjectError,
     location_row,
     object_row,
+    object_carrier_key,
     relocate_subtree,
     require_key,
     require_world_id,
@@ -59,6 +60,8 @@ class ContainmentService:
             capacity = self._require_container(container)
             if obj["parent_object_id"] == container["id"]:
                 raise ObjectError("objet deja dans ce conteneur", code="already_contained")
+            if object_carrier_key(conn, world_id, obj["id"]) is not None:
+                raise ObjectError("un objet porte doit etre pose avant d'etre range", code="object_carried")
             descendant_ids = {row["id"] for row in subtree_rows(conn, world_id, obj["id"])}
             if container["id"] in descendant_ids:
                 raise ObjectError("cette operation creerait un cycle de contenance", code="containment_cycle")
@@ -149,6 +152,7 @@ class ContainmentService:
             "state": row["state"], "portable": bool(row["portable"]),
             "container_capacity": row["container_capacity"], "contained_count": contained_count,
             "location": row["location_key"], "parent": row["parent_key"],
+            "carrier": object_carrier_key(self._conn, world_id, row["id"]),
         }
 
     def contents(

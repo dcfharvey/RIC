@@ -47,7 +47,8 @@ avant/après explicites et journalisés.
 ## Ordre prudent
 
 1. Ajouter la buanderie au blueprint de résidence, avec ses connecteurs.
-2. Étendre la contenance existante au port par personnage et aux équipements.
+2. La possession par personnage est livrée (`docs/33_POSSESSION_PERSONNAGE.md`).
+   Ajouter au-dessus une couche d'équipement explicite.
 3. Ajouter les états d'objet et les opérations lavage/séchage testées.
 4. Seulement ensuite, permettre à la cognition de choisir une tenue ou de
    déclencher une lessive selon les faits réels.

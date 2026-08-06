@@ -275,6 +275,8 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v1.5** (6 août 2026) : clarification de vocabulaire : résidence initiale = monde d'intégration pré-MVP; MVP = simulateur social présentable après les couches vivantes.
 - **v1.6** (6 août 2026) : chronologie logicielle explicite : état initial `0.0.0.dev0` pré-alpha; premier MVP alpha au jalon `0.1.0a1`.
 - **v1.7** (6 août 2026) : banc d'essai minimal livré; version logicielle `0.0.1.dev0`.
+- **v1.8** (6 août 2026) : monde d'intégration atomique et possession générique;
+  version logicielle `0.0.2.dev0`.
 - **v1.8** (6 août 2026) : fermeture de passage préparée et protégée contre l'isolement spatial.
 
 ## 24. Annexes et références

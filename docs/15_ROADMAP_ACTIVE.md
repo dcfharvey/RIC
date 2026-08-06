@@ -14,16 +14,17 @@ validation du moteur qui croît avec lui.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.0.1.dev0` — pré-alpha.
+**Version logicielle actuelle :** `0.0.2.dev0` — pré-alpha.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
 - premiers changements administratifs préparés (renommage, ajout de passage) :
   livrés ;
-- cinq gabarits MVP : livrés, mais aucune résidente n'est encore créée dans un
-  monde réel ;
-- objets portables, installations fixes et contenance objet‑dans‑objet :
-  livrés; port par personnage, liquides et formes restent futurs ;
+- cinq résidentes MVP et leur contexte d'arrivée : assemblables atomiquement
+  dans le monde d'intégration ;
+- objets portables, installations fixes, contenance objet‑dans‑objet et
+  possession par personnage : livrés; équipement, liquides et formes restent
+  futurs ;
 - presets de lieux et connecteurs versionnés : livrés; leur instanciation
   propre par blueprint est livrée; les connecteurs à état simple sont livrés;
   la traversée validée initiale est livrée; le monde d'intégration devient le
@@ -39,8 +40,8 @@ validation du moteur qui croît avec lui.
 | Version | Place dans la roadmap | Signification |
 | --- | --- | --- |
 | `0.0.0.dev0` | État actuel | Pré-alpha : fondations rigoureuses, mais pas encore de boucle sociale complète. |
-| `0.0.1.dev0` | État actuel, après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
-| `0.0.2.dev0` | Après le monde d'intégration | Les cinq vraies configurations peuvent être assemblées et réinitialisées sans histoire officielle. |
+| `0.0.1.dev0` | Jalon atteint après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
+| `0.0.2.dev0` | État actuel, après le monde d'intégration | Les cinq vraies configurations peuvent être assemblées et réinitialisées sans histoire officielle. |
 | `0.1.0a1` | Fin de l'étape 5 | **Premier MVP alpha** : boucle sociale minimale complète et présentable, encore réinitialisable. |
 | `0.1.0b1` | Après essais prolongés | Bêta : le MVP tourne durablement; les défauts restants sont recherchés par observation réelle. |
 | `1.0.0` | Lancement | Usage normal et persistance suffisamment fiables pour que l'histoire compte durablement. |
@@ -85,13 +86,15 @@ ressource qui bloque une capacité, blessure et trajet, pause/reprise,
 intervention admin et redémarrage. Chaque nouveau système devra fournir ses
 propres scénarios reproductibles avant d'être activé dans le monde MVP.
 
-### 4. Monde d'intégration pré-MVP propre
+### 4. Monde d'intégration pré-MVP propre — livré
 
-Créer une base séparée de tout monde technique. Construire la résidence et
+Une base séparée de tout monde technique construit la résidence et
 instancier Sophie, Erika, Luna, Chuu et Patoune par les gestionnaires réels, avec
 une validation rapide du propriétaire sur leurs fiches détaillées. Ce monde
 d'intégration permet de tester les vraies configurations sans transformer des
-bugs précoces en histoire officielle.
+bugs précoces en histoire officielle. Les téléphones initiaux sont maintenant
+portés par leurs propriétaires; l'équipement et la buanderie restent des lots
+ultérieurs.
 
 ### 5. Couches vivantes puis MVP présentable
 

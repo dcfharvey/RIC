@@ -15,13 +15,13 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 
 ## État vérifié
 
-- version logicielle : `0.0.1.dev0` (**pré-alpha**). Les numéros de documents
+- version logicielle : `0.0.2.dev0` (**pré-alpha**). Les numéros de documents
   et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
 - commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
   (exposition HTTP locale du même pipeline) ;
-- migration courante : `0021_world_connector_state.sql` ;
+- migration courante : `0023_character_possession.sql` ;
 - dernier test complet avant 4.2J : **469 passed** ;
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
@@ -39,18 +39,22 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   **541 passed** ;
 - test complet après catalogue et blueprint de résidence : **547 passed** ;
 - test complet après assemblage du monde d'intégration : **551 passed** ;
+- test complet après possession de personnage : **559 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
 
 - registre de composants versionnés, gabarits publiés et instances avec
   provenance figée ;
-- cinq gabarits MVP : Sophie, Erika, Luna, Chuu et Patoune; pas encore
-  instanciés comme résidentes réelles ;
+- cinq résidentes MVP : Sophie, Erika, Luna, Chuu et Patoune, instanciées
+  ensemble par le monde d'intégration atomique ;
 - ressources génériques à bandes et effets déclaratifs, sans imposer une
   émotion ou narration ;
 - objets portables, installations fixes et contenance objet‑dans‑objet,
   avec lieu effectif matérialisé, capacité et refus des cycles ;
+- possession physique générique : un objet portable suit son personnage sans
+  être confondu avec un vêtement équipé; les quatre résidentes sapientes ont
+  chacune un téléphone initial ;
 - presets de lieux et connecteurs validés, publiés et immuables, prêts pour
   le futur instanciateur de blueprint ;
 - blueprints versionnés et instanciation atomique d'un monde neuf, avec

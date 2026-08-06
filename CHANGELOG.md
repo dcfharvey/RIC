@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.37 — 6 août 2026
+
+- Possession physique générique : un objet portable peut être pris, posé et
+  suivre son personnage sans être confondu avec un équipement ou un vêtement.
+  Les conteneurs portés entraînent leur contenu dans la même transaction.
+- Migration `0023` : unicité du porteur, cohérence inter-mondes, objet portable
+  top-level et prise au même lieu; les mutations refusées restent atomiques.
+- Le monde d'intégration donne un téléphone canonique à Sophie, Erika, Luna et
+  Chuu. La version logicielle atteint `0.0.2.dev0`.
+- Documentation : `docs/33_POSSESSION_PERSONNAGE.md`; tests : 559 réussis.
+
 ## 0.36 — 6 août 2026
 
 - Assemblage atomique du monde d'intégration et contexte initial partagé,

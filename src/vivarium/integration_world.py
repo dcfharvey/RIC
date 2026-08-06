@@ -12,8 +12,11 @@ from .initial_residence import install_initial_residence_catalog
 from .instances import CharacterInstanceService
 from .mvp_chuu import install_chuu_hydration
 from .mvp_templates import install_mvp_character_templates
+from .objects import ObjectService
+from .possession import PossessionService
 from .resources import ResourceEngine
 from .util import Clock
+from .world import SOURCE_SYSTEM
 from .world_rules import WorldRuleService
 
 
@@ -35,6 +38,15 @@ INITIAL_RESIDENTS = (
     ("resident.luna", "luna"),
     ("resident.chuu", "chuu"),
     ("resident.patoune", "patoune"),
+)
+
+# Les telephones sont des objets canoniques ordinaires. Patoune, chatte non
+# sapiente, n'en recoit pas; aucun regime special n'est encode dans le moteur.
+INITIAL_PERSONAL_OBJECTS = (
+    ("sophie", "telephone_sophie", "Telephone de Sophie"),
+    ("erika", "telephone_erika", "Telephone d'Erika"),
+    ("luna", "telephone_luna", "Telephone de Luna"),
+    ("chuu", "telephone_chuu", "Telephone de Chuu"),
 )
 
 
@@ -61,5 +73,13 @@ class IntegrationWorldService:
             for template_key, character_key in INITIAL_RESIDENTS:
                 instances.instantiate(world_id, template_key, 1, character_key, "entree_exterieure")
             install_chuu_hydration(ResourceEngine(self._conn, clock=self._clock), world_id)
+            objects = ObjectService(self._conn, clock=self._clock)
+            possession = PossessionService(self._conn, clock=self._clock)
+            for character_key, object_key, object_name in INITIAL_PERSONAL_OBJECTS:
+                objects.create_object(
+                    world_id, object_key, object_name, "phone", "entree_exterieure",
+                    portable=True, source=SOURCE_SYSTEM,
+                )
+                possession.pick_up(world_id, character_key, object_key, source=SOURCE_SYSTEM)
             InitialContextService(self._conn, clock=self._clock).set_shared_facts(world_id, shared_facts)
         return world

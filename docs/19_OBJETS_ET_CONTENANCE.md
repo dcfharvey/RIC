@@ -1,6 +1,7 @@
 # Objets et contenance canonique
 
-**Statut :** lot initial implémenté (migration `0018`).
+**Statut :** lot initial implémenté (migration `0018`), complété par la
+possession physique de personnage (`0023`; voir `docs/33_POSSESSION_PERSONNAGE.md`).
 
 ## But
 

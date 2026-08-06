@@ -231,6 +231,8 @@ class AdminReadService:
             "world_object_moved": "Objet déplacé",
             "object_contained": "Objet placé dans un conteneur",
             "object_removed_from_container": "Objet retiré d'un conteneur",
+            "object_picked_up": "Objet pris",
+            "object_put_down": "Objet posé",
             "environment_blueprint_instantiated": "Environnement instancié",
             "connector_state_changed": "État de connecteur modifié",
             "world_rules_installed": "Règles du monde installées",

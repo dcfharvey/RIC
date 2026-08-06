@@ -4,6 +4,7 @@ from vivarium.db import connect_database
 from vivarium.initial_context import InitialContextError, InitialContextService
 from vivarium.integration_world import INITIAL_SHARED_FACTS, IntegrationWorldService
 from vivarium.migrations import ensure_schema
+from vivarium.possession import PossessionService
 from vivarium.resources import ResourceEngine
 
 
@@ -27,6 +28,12 @@ def test_initial_integration_world_is_assembled_atomically_from_real_services():
             ).fetchone()[0],
         )["state_key"] == "brilliant"
         assert InitialContextService(conn).shared_facts(world["id"]) == INITIAL_SHARED_FACTS
+        assert [item["key"] for item in PossessionService(conn).carried_objects(world["id"], "sophie")] == [
+            "telephone_sophie"
+        ]
+        assert conn.execute(
+            "SELECT COUNT(*) FROM character_carried_object WHERE world_id = ?", (world["id"],)
+        ).fetchone()[0] == 4
     finally:
         conn.close()
 

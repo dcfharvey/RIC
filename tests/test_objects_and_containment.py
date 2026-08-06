@@ -43,7 +43,7 @@ def test_object_service_creates_portable_container_with_event(setup):
     assert sheet == {
         "key": "sac", "name": "Sac", "kind": "container", "state": "present",
         "portable": True, "container_capacity": 3, "contained_count": 0,
-        "location": "salon", "parent": None,
+        "location": "salon", "parent": None, "carrier": None,
     }
     assert max_seq(conn, world_id) == before + 1
     event = conn.execute(
