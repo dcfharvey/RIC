@@ -13,6 +13,12 @@ Le moteur canonique est l'autorité unique sur les faits et leurs conséquences.
 Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 écrira jamais directement dans SQLite et ne créera pas de fait non validé.
 
+**Méthode obligatoire :** avant tout nouveau système vivant, cognitif, social
+ou physique, consulter la littérature scientifique ou technique pertinente,
+séparer résultats robustes, débats ouverts et choix d'ingénierie, puis conserver
+sources et limites dans la documentation du lot. Voir DEC-036 dans
+`docs/01_REGISTRE_DECISIONS.md`.
+
 ## État vérifié
 
 - version logicielle : `0.0.2.dev0` (**pré-alpha**). Les numéros de documents

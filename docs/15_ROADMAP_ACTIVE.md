@@ -12,6 +12,13 @@ situation, observée et comparée **avant** de contaminer le monde MVP. Le banc
 d'essai n'est donc pas une interface de fin de projet : c'est une couche de
 validation du moteur qui croît avec lui.
 
+Avant de concevoir un nouveau système vivant, cognitif, social ou physique,
+une revue de la littérature scientifique ou technique appropriée est requise.
+Elle doit distinguer ce qui est robuste, ce qui demeure débattu et ce qui est
+un choix d'ingénierie du Vivarium; les sources et limites doivent être consignées
+dans le document de lot. Une intuition utile peut ouvrir une piste, jamais
+tenir lieu de fondation. Cette règle applique DEC-036.
+
 La routine `docs/35_ROUTINE_AUDIT_SILENCIEUX.md` est une porte de qualité
 complémentaire : elle recherche les écarts entre état, journal, audits, banc,
 tests et documentation après un lot à conséquences étendues.
