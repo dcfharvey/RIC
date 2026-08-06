@@ -25,6 +25,7 @@ from .activities import ActivityEngine
 from .character import CharacterEngine
 from .db import connect_database
 from .injury import InjuryEngine
+from .integration_world import IntegrationWorldService
 from .migrations import ensure_schema
 from .repro import (
     canonical_state_digest,
@@ -35,6 +36,7 @@ from .repro import (
 )
 from .simulation import DEFAULT_MAX_TRANSITIONS, SimulationEngine, SimulationReport
 from .spatial import GraphEngine
+from .connectors import WorldConnectorService
 from .util import Clock, parse_iso, to_iso
 from .world import WorldEngine
 
@@ -87,6 +89,7 @@ class BenchScenario:
     actions: tuple[BenchAction, ...] = ()
     world_name: str = "Banc d'essai temporaire"
     seed: bool = True
+    initial_world: Literal["seed", "integration"] = "seed"
     max_transitions: int = DEFAULT_MAX_TRANSITIONS
 
 
@@ -207,6 +210,8 @@ def _validate_scenario(scenario: BenchScenario) -> None:
         raise BenchScenarioError("le nom du monde temporaire est obligatoire")
     if not isinstance(scenario.seed, bool):
         raise BenchScenarioError("seed doit etre un booleen")
+    if scenario.initial_world not in {"seed", "integration"}:
+        raise BenchScenarioError("initial_world doit valoir 'seed' ou 'integration'")
     if not isinstance(scenario.max_transitions, int) or isinstance(scenario.max_transitions, bool):
         raise BenchScenarioError("max_transitions doit etre un entier")
     if scenario.max_transitions <= 0:
@@ -306,6 +311,11 @@ def _apply_action(conn: sqlite3.Connection, clock: BenchClock, world_id: int, ac
             params["to_location_key"],
             bidirectional=params.get("bidirectional", True),
         )
+    elif action.kind == "set_connector_state":
+        params = _require_params(action, {"connector_key", "state"})
+        WorldConnectorService(conn, clock=clock).set_state(
+            world_id, params["connector_key"], params["state"]
+        )
     else:
         raise BenchScenarioError(f"action de banc inconnue : {action.kind!r}")
 
@@ -354,9 +364,14 @@ def run_bench(scenario: BenchScenario) -> BenchRunReport:
         conn = connect_database(db_path)
         try:
             schema_version = ensure_schema(conn)
-            world = WorldEngine(conn, clock=clock).init_world(
-                name=scenario.world_name, seed=scenario.seed
-            )
+            if scenario.initial_world == "integration":
+                world = IntegrationWorldService(conn, clock=clock).create_initial_world(
+                    scenario.world_name
+                )
+            else:
+                world = WorldEngine(conn, clock=clock).init_world(
+                    name=scenario.world_name, seed=scenario.seed
+                )
             world_id = world["id"]
             segments: list[SimulationReport] = []
             results: list[BenchActionResult] = []

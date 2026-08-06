@@ -171,3 +171,22 @@ def test_bench_expose_un_refus_de_fermeture_isolante():
     assert report.is_healthy
     assert report.refusals[0].error_type == "GraphError"
     assert report.refusals[0].error_code == "would_isolate_location"
+
+
+def test_bench_can_audit_the_real_integration_world_without_persistence():
+    scenario = BenchScenario(
+        name="arrivée de référence",
+        start_at=_at(),
+        target_at=_at(),
+        initial_world="integration",
+    )
+
+    report = run_bench(scenario)
+
+    assert report.is_healthy
+    assert sorted(report.canonical_state["character"]) == ["chuu", "erika", "luna", "patoune", "sophie"]
+    assert all(
+        item["location"] == "entree_exterieure"
+        for item in report.canonical_state["character"].values()
+    )
+    assert report.canonical_state["world_initial_context"]["residency"]["voluntary"] is True
