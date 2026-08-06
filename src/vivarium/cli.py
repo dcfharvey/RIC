@@ -155,6 +155,30 @@ def _run_llm_status() -> int:
     return 0
 
 
+def _run_llm_smoke(character_key: str) -> int:
+    """Exécute un tour local dans une base mémoire, jamais dans un monde réel."""
+    from .cognition import CognitionError, LocalLLMSettings
+    from .cognition_smoke import run_local_cognition_smoke
+
+    try:
+        report = run_local_cognition_smoke(
+            LocalLLMSettings.from_environment(), character_key=character_key
+        )
+    except CognitionError as exc:
+        print(f"Essai LLM local : {exc.code} — {exc}", file=__import__("sys").stderr)
+        return 2
+    print(f"Essai LLM local : modèle={report.model_id} personnage={report.character_key}")
+    print(f"  décision     : {report.decision}")
+    if report.connector_key:
+        print(f"  passage      : {report.connector_key} -> {report.target_location_key}")
+    print(f"  validation   : {report.validation_status or 'aucune'}")
+    if report.validation_reason:
+        print(f"  raison       : {report.validation_reason}")
+    print(f"  événement    : {report.event_type or 'aucun'}")
+    print(f"  sain         : {'oui' if report.healthy else 'non'} (base mémoire jetable)")
+    return 0 if report.healthy else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vivarium", description="Vivarium social artificiel")
     sub = parser.add_subparsers(dest="command")
@@ -176,6 +200,10 @@ def main(argv: list[str] | None = None) -> int:
     p_upgrade.add_argument("--db", default=None, help="Chemin de la base.")
 
     sub.add_parser("llm-status", help="Vérifie LM Studio local et le modèle chargé (lecture seule).")
+    p_smoke = sub.add_parser(
+        "llm-smoke", help="Teste un tour LLM réel dans une base mémoire jetable."
+    )
+    p_smoke.add_argument("--character", default="sophie", help="Résidente à utiliser pour l'essai (défaut : sophie).")
 
     args = parser.parse_args(argv)
 
@@ -189,6 +217,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "llm-status":
         return _run_llm_status()
+    if args.command == "llm-smoke":
+        return _run_llm_smoke(args.character)
 
     db_path = _resolve_db_path(getattr(args, "db", None))
     conn = connect_database(db_path)

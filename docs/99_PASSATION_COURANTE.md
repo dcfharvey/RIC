@@ -53,7 +53,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après première trace subjective : **578 passed** ;
 - test complet après rappel subjectif minimal : **579 passed** ;
 - test complet après audit subjectif séparé : **580 passed** ;
-- test complet après frontière LLM locale : **590 passed** ;
+- test complet après frontière LLM locale et banc de fumée : **592 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -77,9 +77,11 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - première mémoire subjective : migration et service de trace encodée, rappel
   privé borné et audit séparé sont livrés; consolidation, oubli, croyances et
   mémoire narrative restent futurs. Voir `docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md` ;
-- frontière LLM locale livrée : contexte borné, sortie JSON Schema de LM Studio,
+- frontière LLM locale livrée : contexte borné, sortie JSON strictement vérifiée,
   refus des actions non perceptibles et passage obligé par le contrat canonique;
-  aucune boucle autonome ni écriture LLM. Voir `docs/40_ADAPTATEUR_LLM_LOCAL.md`.
+  aucune boucle autonome ni écriture LLM. Le diagnostic `llm-status` et l'essai
+  jetable `llm-smoke` utilisent désormais l'API native LM Studio avec raisonnement
+  désactivé pour Gemma. Voir `docs/40_ADAPTATEUR_LLM_LOCAL.md`.
 - idées retenues de scénarios et de systèmes futurs : jeux à information privée,
   effort physique et affrontements arbitrés; voir
   `docs/39_BACKLOG_SCENARIOS_ET_SYSTEMES.md`.

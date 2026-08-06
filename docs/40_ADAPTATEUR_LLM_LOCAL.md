@@ -48,6 +48,18 @@ chargés, même si aucun n'est encore configuré. Copie ensuite l'identifiant
 choisi dans `VIVARIUM_LLM_MODEL`, puis relance-la pour confirmation. Elle ne
 modifie aucun monde.
 
+Quand le statut est vert, le test réel suivant est :
+
+```powershell
+./.venv/Scripts/python.exe -m vivarium llm-smoke
+```
+
+Il construit un monde d'intégration dans SQLite **en mémoire**, demande un seul
+tour à Gemma pour Sophie, passe la proposition par le moteur canonique et affiche
+la décision, le résultat de validation et l'éventuel événement. Il n'utilise ni
+la base de développement ni une histoire MVP. Un refus moteur reste un résultat
+sain : il prouve que Gemma n'a pas pu contourner les règles.
+
 Le programme n'essaie pas de lancer LM Studio, télécharger un poids ou choisir
 une quantification en silence. Tu charges le modèle; le code se connecte au
 serveur déjà local.

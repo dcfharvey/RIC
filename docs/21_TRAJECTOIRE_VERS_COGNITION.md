@@ -185,7 +185,8 @@ décision sociale, l'interprétation narrative, la personnalité mécanistique e
 le dialogue restent futurs.
 
 Le prochain essai après chargement de Gemma sera un test local contrôlé avec
-`llm-status`, puis des réponses sur les scénarios de banc existants. Il ne faut
+`llm-status`, puis `llm-smoke` dans une base mémoire jetable avant des réponses
+sur les scénarios de banc existants. Il ne faut
 pas activer une boucle de résidentes ni inventer des personnalités dans le
 prompt avant la livraison des systèmes de personnalité, motivations et de leur
 contrat de persistance.

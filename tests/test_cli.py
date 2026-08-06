@@ -65,3 +65,16 @@ def test_cli_llm_status_lists_models_before_a_model_is_configured(monkeypatch, c
     assert main(["llm-status"]) == 1
     captured = capsys.readouterr()
     assert "gemma-local" in captured.out and "VIVARIUM_LLM_MODEL" in captured.err
+
+
+def test_cli_llm_smoke_reports_a_healthy_ephemeral_run(monkeypatch, capsys):
+    class Report:
+        model_id = "gemma-local"; character_key = "sophie"; decision = "traverse"
+        connector_key = "porte_entree"; target_location_key = "salon"
+        validation_status = "accepted"; validation_reason = None; event_type = "character_moved"
+        healthy = True
+
+    monkeypatch.setattr("vivarium.cognition_smoke.run_local_cognition_smoke", lambda settings, character_key: Report())
+    assert main(["llm-smoke"]) == 0
+    output = capsys.readouterr().out
+    assert "porte_entree -> salon" in output and "base mémoire jetable" in output

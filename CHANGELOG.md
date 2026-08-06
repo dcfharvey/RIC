@@ -9,7 +9,10 @@
   valide toujours.
 - Configuration hors Git dans `config/.env`, priorité aux variables du shell,
   diagnostic local `vivarium llm-status` et aucun poids de modèle dans le dépôt.
-- Documentation : `docs/40_ADAPTATEUR_LLM_LOCAL.md`; tests : 590 réussis.
+- Un essai réel `vivarium llm-smoke` construit un monde d'intégration en mémoire,
+  demande un seul tour au modèle et imprime le verdict du moteur sans toucher une
+  base persistante. Documentation : `docs/40_ADAPTATEUR_LLM_LOCAL.md`; tests :
+  592 réussis.
 
 ## 0.39 — 6 août 2026
 
