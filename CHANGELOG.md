@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.48 — 6 août 2026
+
+- Objectifs subjectifs structurés et intentions persistantes : origine, cible,
+  succès, faisabilité perçue, importance, urgence, plan et contexte de reprise.
+- Une nouvelle intention interrompt explicitement l'ancienne; rien ne devient
+  une action ou un résultat canonique sans le moteur. Migration `0028`.
+
 ## 0.47 — 6 août 2026
 
 - Valeurs et préférences initiales séparées, hiérarchisées et immuables depuis
