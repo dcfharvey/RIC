@@ -1,7 +1,8 @@
 # Plan — première mémoire subjective
 
-**Statut :** conception prête à implémenter; aucun schéma ni état de mémoire
-n'est encore créé par ce document.
+**Statut :** première tranche implémentée. Le schéma de traces, son journal,
+son audit et le rappel privé borné sont livrés; les couches narratives et LLM
+restent futures.
 
 ## Problème exact
 

@@ -27,7 +27,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
   (exposition HTTP locale du même pipeline) ;
-- migration courante : `0023_character_possession.sql` ;
+- migration courante : `0024_subjective_trace.sql` ;
 - dernier test complet avant 4.2J : **469 passed** ;
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
@@ -53,6 +53,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après première trace subjective : **578 passed** ;
 - test complet après rappel subjectif minimal : **579 passed** ;
 - test complet après audit subjectif séparé : **580 passed** ;
+- test complet après frontière LLM locale : **589 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -73,9 +74,12 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - flux d'événements perceptibles directs : curseur canonique en lecture seule,
   faits propres à la résidente réduits avant export; aucune reconstruction
   spéculative des événements passés d'autrui ;
-- première mémoire subjective : plan de contrat prêt, mais migration et service
-  de trace encodée et rappel privé borné sont livrés; consolidation, oubli,
-  croyances et LLM restent futurs. Voir `docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md` ;
+- première mémoire subjective : migration et service de trace encodée, rappel
+  privé borné et audit séparé sont livrés; consolidation, oubli, croyances et
+  mémoire narrative restent futurs. Voir `docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md` ;
+- frontière LLM locale livrée : contexte borné, sortie JSON Schema de LM Studio,
+  refus des actions non perceptibles et passage obligé par le contrat canonique;
+  aucune boucle autonome ni écriture LLM. Voir `docs/40_ADAPTATEUR_LLM_LOCAL.md`.
 - idées retenues de scénarios et de systèmes futurs : jeux à information privée,
   effort physique et affrontements arbitrés; voir
   `docs/39_BACKLOG_SCENARIOS_ET_SYSTEMES.md`.

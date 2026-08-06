@@ -52,3 +52,9 @@ def test_cli_upgrade_dev_idempotent(tmp_path, capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "existent déjà" in out
+
+
+def test_cli_llm_status_reports_a_missing_local_configuration(monkeypatch, capsys):
+    monkeypatch.delenv("VIVARIUM_LLM_MODEL", raising=False)
+    assert main(["llm-status"]) == 2
+    assert "missing_llm_model" in capsys.readouterr().err

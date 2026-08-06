@@ -1,0 +1,62 @@
+# Adaptateur LLM local — LM Studio / Gemma 4 12B
+
+**Statut :** première frontière locale livrée, sans boucle autonome ni écriture
+de mémoire par le LLM.
+
+## Ce qui est branché
+
+`vivarium.cognition` parle à l'API OpenAI-compatible de LM Studio sur
+`http://127.0.0.1:1234/v1/chat/completions`. Il demande une sortie JSON Schema
+stricte. Le modèle peut seulement proposer `no_action` ou une traversée par un
+connecteur actuellement exposé au personnage.
+
+Le contexte contient une attention factuelle bornée, les événements directs
+depuis un curseur donné et les traces subjectives privées du personnage. Il ne
+contient ni SQLite, ni journal canonique brut, ni informations cachées d'autrui.
+Toute traversée repasse dans `ActionOrchestrator` : les préconditions réelles
+restent donc jugées par le moteur. Une réponse malformée, une action inventée
+ou un serveur non local est refusé explicitement.
+
+Ce lot ne prétend pas encore donner personnalité, mémoire narrative ou boucle
+de simulation au modèle. Il rend d'abord la connexion et sa frontière testables.
+
+## Installation lorsque le poste sera disponible
+
+Ne place pas le fichier Gemma dans ce dépôt. Les poids restent gérés par LM
+Studio, dans son dossier de modèles ou dans tout dossier hors projet que LM
+Studio importe/référence. Si tu dois choisir un emplacement, `D:\LLM\Models\Gemma-4-12B\`
+est clair; ne copie pas des dizaines de Go dans `C:\AI\Vivarium social`.
+
+1. Dans LM Studio, télécharge ou importe Gemma 4 12B, puis charge-le.
+2. Ouvre **Developer** et démarre le serveur local (port par défaut `1234`),
+   sans activer le réseau local pour le moment.
+3. Note l'identifiant exact du modèle chargé.
+4. Copie `config/.env.example` vers `config/.env` (hors Git), puis remplis
+   `VIVARIUM_LLM_MODEL` avec cet identifiant. Une variable exportée dans le
+   shell garde priorité sur ce fichier.
+
+Ensuite, dans un terminal ouvert à la racine du projet, lance :
+
+```powershell
+./.venv/Scripts/python.exe -m vivarium llm-status
+```
+
+La commande ne lit que LM Studio : elle confirme l'URL, l'identifiant configuré
+et la liste des modèles actuellement chargés; elle ne modifie aucun monde.
+
+Le programme n'essaie pas de lancer LM Studio, télécharger un poids ou choisir
+une quantification en silence. Tu charges le modèle; le code se connecte au
+serveur déjà local.
+
+## Sources et limites
+
+La route et le démarrage du serveur sont documentés par LM Studio :
+[serveur local](https://lmstudio.ai/docs/developer/core/server) et
+[compatibilité OpenAI](https://lmstudio.ai/docs/developer/openai-compat). La
+sortie `json_schema` vient de leur [guide de structured output](https://lmstudio.ai/docs/developer/openai-compat/structured-output).
+Google indique que Gemma 4 12B peut utiliser LM Studio et vise des machines avec
+16 Go de VRAM ou mémoire unifiée dans son [annonce officielle](https://blog.google/innovation-and-ai/technology/developers-tools/introducing-gemma-4-12b/).
+
+La qualité, vitesse et quantification de Gemma 4 12B sur la machine réelle ne
+sont pas encore mesurées. Elles seront testées avec le serveur local et le banc,
+jamais déduites de la seule fiche du modèle.

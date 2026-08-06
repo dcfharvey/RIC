@@ -136,10 +136,9 @@ décision. Voir `docs/37_ATTENTION_DETERMINISTE.md`.
 
 ### Lot H : mémoire et interprétation subjective
 
-La conception de la première trace subjective est prête dans
-`docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md`; elle précède volontairement sa
-migration afin de conserver la séparation entre fait, accès, encodage et
-croyance.
+La première trace subjective, son journal append-only, son audit et son rappel
+privé borné sont livrés (`docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md`). Ils
+conservent la séparation entre fait, accès, encodage et croyance.
 
 - souvenirs avec sources, portée, confiance et politique de révision;
 - croyances distinctes des faits canoniques;
@@ -155,8 +154,10 @@ croyance.
 
 ### Lot J : adaptateur LLM et dialogue
 
-- entrée structurée, sortie structurée, schéma validé et fournisseur
-  interchangeable;
+- première frontière locale livrée : entrée structurée bornée, sortie JSON
+  validée, fournisseur interchangeable et LM Studio sur boucle locale;
+- une décision proposée ne peut encore être qu'une attente ou une traversée
+  perçue, qui repasse obligatoirement dans `ActionOrchestrator`;
 - budgets, temporisations, reprise après erreur et absence de réseau;
 - le modèle propose intention, interprétation ou dialogue; le moteur reste le
   seul à appliquer un fait;

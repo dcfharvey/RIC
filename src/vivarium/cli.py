@@ -133,6 +133,25 @@ def _run_status(conn) -> int:
     return 0
 
 
+def _run_llm_status() -> int:
+    """Teste la connexion locale sans ouvrir ni modifier une base de monde."""
+    from .cognition import CognitionError, LMStudioProvider, LocalLLMSettings
+
+    try:
+        settings = LocalLLMSettings.from_environment()
+        models = LMStudioProvider(settings).list_models()
+    except CognitionError as exc:
+        print(f"LLM local : {exc.code} — {exc}", file=__import__("sys").stderr)
+        return 2
+    print(f"LLM local : connecté à {settings.base_url}")
+    print(f"Modèle configuré : {settings.model_id}")
+    print("Modèles chargés : " + (", ".join(models) if models else "aucun"))
+    if settings.model_id not in models:
+        print("Attention : le modèle configuré n'est pas chargé dans LM Studio.", file=__import__("sys").stderr)
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vivarium", description="Vivarium social artificiel")
     sub = parser.add_subparsers(dest="command")
@@ -153,6 +172,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_upgrade.add_argument("--db", default=None, help="Chemin de la base.")
 
+    sub.add_parser("llm-status", help="Vérifie LM Studio local et le modèle chargé (lecture seule).")
+
     args = parser.parse_args(argv)
 
     from .logging_setup import configure_logging
@@ -162,6 +183,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.command:
         print(f"vivarium-social {__version__}")
         return 0
+
+    if args.command == "llm-status":
+        return _run_llm_status()
 
     db_path = _resolve_db_path(getattr(args, "db", None))
     conn = connect_database(db_path)

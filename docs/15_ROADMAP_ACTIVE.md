@@ -43,8 +43,12 @@ tests et documentation après un lot à conséquences étendues.
 - règles standard de résidence installables hors du seed technique : livrées;
   la calibration déclarative de Chuu et l'arrivée initiale commune à la boîte
   aux lettres sont définies; l'instanciation réelle peut être préparée ;
-- contrat fermé moteur–cognition v1, perception factuelle locale et première
-  attention déterministe : livrés; mémoire et social restent futurs ;
+- contrat fermé moteur–cognition v1, perception factuelle locale, attention
+  déterministe et première trace subjective : livrés; relations et décision
+  sociale restent futures ;
+- première frontière LLM locale LM Studio : livrée, avec contexte borné,
+  réponse JSON validée et action encore soumise au moteur; boucle autonome,
+  personnalités et dialogue restent futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
 ## Jalons de version produit
