@@ -47,7 +47,8 @@ tests et documentation après un lot à conséquences étendues.
   déterministe et première trace subjective : livrés; relations et décision
   sociale restent futures ;
 - première frontière LLM locale LM Studio : livrée, avec contexte borné,
-  réponse JSON validée et action encore soumise au moteur; boucle autonome,
+  réponse JSON validée, admission événementielle append-only et routeur de
+  source perceptible; l'action reste soumise au moteur. Boucle autonome,
   personnalités et dialogue restent futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 

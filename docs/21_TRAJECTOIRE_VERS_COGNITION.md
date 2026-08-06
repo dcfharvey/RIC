@@ -163,8 +163,9 @@ conservent la séparation entre fait, accès, encodage et croyance.
   seul à appliquer un fait;
 - tests avec faux modèle avant tout appel API ou modèle local.
 
-La porte événementielle qui décidera quand un appel est admissible est planifiée
-dans `docs/41_PLAN_PORTE_APPEL_LLM.md`; elle précède toute boucle autonome.
+La porte événementielle est livrée avant toute boucle autonome : politique
+pure, admissions techniques append-only et routeur de `direct_event` seulement.
+Voir `docs/41_PLAN_PORTE_APPEL_LLM.md`.
 
 ## Ce qui n'est pas un prérequis à la cognition
 
@@ -187,12 +188,12 @@ borné, sortie JSON validée, timeout et plafond de sortie. Les relations, la
 décision sociale, l'interprétation narrative, la personnalité mécanistique et
 le dialogue restent futurs.
 
-Le prochain essai après chargement de Gemma sera un test local contrôlé avec
-`llm-status`, puis `llm-smoke` dans une base mémoire jetable avant des réponses
-sur les scénarios de banc existants. Il ne faut
-pas activer une boucle de résidentes ni inventer des personnalités dans le
-prompt avant la livraison des systèmes de personnalité, motivations et de leur
-contrat de persistance.
+Le premier essai réel est validé : `llm-status` a confirmé Gemma local et
+`llm-smoke` a exécuté un appel routé dans une base mémoire jetable, sans effet
+sur un monde persistant. La prochaine étape LLM est de calibrer les valeurs de
+cadence au banc; il ne faut pas activer une boucle de résidentes ni inventer
+des personnalités dans le prompt avant la livraison des systèmes de
+personnalité, motivations et de leur contrat de persistance.
 
 Les portes 1 et 2 sont livrées : blueprint, connecteurs à état, traversée,
 règles de résidence et monde d'intégration atomique. Le contrat fermé du lot E,

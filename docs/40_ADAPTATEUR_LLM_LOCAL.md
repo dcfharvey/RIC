@@ -90,5 +90,10 @@ désactivé a produit une décision JSON en 14 jetons; une seconde a proposé la
 traversée de Sophie vers le salon, acceptée par le moteur dans une base mémoire
 jetable. Aucun monde persistant n'a été modifié.
 
+**Vérification après routeur — 6 août 2026 :** `llm-status` a confirmé le
+serveur et le modèle chargés; `llm-smoke` a passé un événement direct
+perceptible, une admission technique et un seul appel réel. Gemma a répondu
+`no_action`, verdict sain, dans une base mémoire jetable.
+
 L'absence du serveur ou une réponse invalide provoque un refus explicite de la
 couche cognitive avant toute action; cela ne laisse aucun effet canonique.
