@@ -8,6 +8,7 @@ from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
 from vivarium.perception import PerceptionError, PerceptionService
 from vivarium.repro import canonical_state_digest, max_seq
+from vivarium.resources import ResourceEngine
 from vivarium.traversal import TraversalEngine
 from vivarium.util import to_iso
 
@@ -99,3 +100,53 @@ def test_snapshot_rejects_unknown_observer_without_writing(setup):
     assert raised.value.code == "observer_not_found"
     assert canonical_state_digest(conn, world_id) == before_state
     assert max_seq(conn, world_id) == before_seq
+
+
+def test_direct_event_feed_is_cursor_based_curated_and_read_only(setup):
+    conn, world_id, clock = setup
+    cursor = max_seq(conn, world_id)
+    TraversalEngine(conn, clock=clock).traverse_character(world_id, "sophie", "porte_entree", "salon")
+    TraversalEngine(conn, clock=clock).traverse_character(world_id, "erika", "porte_entree", "salon")
+    before_state = canonical_state_digest(conn, world_id)
+    before_seq = max_seq(conn, world_id)
+
+    feed = PerceptionService(conn, clock=clock).events_since(world_id, "sophie", cursor)
+
+    assert feed.after_seq == cursor
+    assert feed.latest_seq == before_seq
+    assert [(candidate.access_kind, candidate.fact.event_type, candidate.fact.event_seq, dict(candidate.fact.payload))
+            for candidate in feed.candidates] == [
+        ("self_event", "character_moved", cursor + 1,
+         {"character": "sophie", "from": "entree_exterieure", "to": "salon", "connector": "porte_entree"}),
+    ]
+    assert canonical_state_digest(conn, world_id) == before_state
+    assert max_seq(conn, world_id) == before_seq
+
+
+def test_event_feed_refuses_impossible_cursor_without_writing(setup):
+    conn, world_id, clock = setup
+    before_state = canonical_state_digest(conn, world_id)
+    before_seq = max_seq(conn, world_id)
+
+    with pytest.raises(PerceptionError) as raised:
+        PerceptionService(conn, clock=clock).events_since(world_id, "sophie", before_seq + 1)
+
+    assert raised.value.code == "invalid_cursor"
+    assert canonical_state_digest(conn, world_id) == before_state
+    assert max_seq(conn, world_id) == before_seq
+
+
+def test_direct_event_feed_curates_own_resource_adjustment(setup):
+    conn, world_id, clock = setup
+    cursor = max_seq(conn, world_id)
+    ResourceEngine(conn, clock=clock).adjust_resource(
+        world_id, "chuu", "hydration", -100, clock.now_iso(), "test_adjustment"
+    )
+
+    feed = PerceptionService(conn, clock=clock).events_since(world_id, "chuu", cursor)
+
+    assert [dict(candidate.fact.payload) for candidate in feed.candidates] == [{
+        "character": "chuu", "resource": "hydration", "delta_milli": -100,
+        "new_value_milli": 94900, "new_state": "brilliant",
+    }]
+    assert "reason" not in feed.candidates[0].fact.payload

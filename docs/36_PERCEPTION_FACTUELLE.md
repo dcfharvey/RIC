@@ -23,6 +23,22 @@ Un personnage, objet ou connecteur d'un autre lieu n'est jamais exporté. Les
 ressources, besoins, blessures, provenance administrative et états internes
 d'autrui ne font pas partie de cette vue.
 
+## Flux d'événements directs v1
+
+`events_since` reçoit un curseur de séquence canonique exclusif et retourne les
+seuls événements factuels qui concernent directement l'observateur : mouvement,
+début/fin/abandon d'activité, blessure et ajustement de ressource. Chaque fait
+conserve sa séquence et son instant, mais son payload est réduit : provenance
+d'action, source admin et détails techniques n'en font pas partie. Le client
+peut ensuite avancer son curseur jusqu'à `latest_seq`, même lorsqu'aucun fait ne
+lui a été exporté.
+
+Cette première tranche ne reconstruit volontairement pas les événements passés
+d'autrui. Savoir si Sophie a vu Erika traverser une porte à l'instant exact
+demande une chronologie spatiale historique; la position actuelle d'Erika ne
+constitue pas cette preuve. Cette règle viendra avec les sources nécessaires,
+ou ne viendra pas.
+
 ## Garanties et limites
 
 - lecture pure : ni état, ni journal, ni horloge n'est matérialisé;
@@ -40,4 +56,5 @@ en connaissance du personnage.
 
 `tests/test_perception.py` vérifie la lecture sans écriture, le filtre de lieu,
 la non-visibilité des téléphones portés, l'état actuel d'une porte, le retrait
-d'un personnage qui quitte la pièce et les refus sans effet.
+d'un personnage qui quitte la pièce, le flux direct cursé et les refus sans
+effet.

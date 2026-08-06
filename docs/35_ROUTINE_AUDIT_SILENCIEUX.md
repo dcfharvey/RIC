@@ -59,3 +59,11 @@ technique (70 000) dans le monde d'intégration; les fiches réelles commencent 
 100 000. Le scénario a été recalibré à l'heure canonique où les seuils sont
 effectivement franchis, au lieu de modifier les données du monde pour faire
 passer le test. La suite complète a validé **573 tests**.
+
+Pour le flux d'événements perceptibles, l'audit a vérifié que le curseur reste
+une entrée de lecture, jamais un accusé de réception persisté dans le canon.
+Les payloads ont été réduits avant export afin de ne pas transmettre la
+provenance d'action, la source administrative ou le motif technique d'un
+ajustement. Le cas d'un autre personnage n'est pas inféré depuis sa position
+actuelle : faute de chronologie spatiale historique, il reste volontairement
+hors de ce lot. La suite complète a validé **576 tests**.

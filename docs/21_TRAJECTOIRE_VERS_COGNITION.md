@@ -116,6 +116,11 @@ vient plus tard comme interprète, jamais comme autorité.
 co-présence, objets visibles, connecteurs adjacents) sans écriture, attention,
 interprétation ou mémoire. Voir `docs/36_PERCEPTION_FACTUELLE.md`.
 
+**Deuxième tranche livrée :** flux d'événements directs cursé et réduit. Une
+résidente peut recevoir ses propres changements confirmés depuis une séquence,
+mais aucun événement passé d'autrui n'est reconstruit sans preuve historique de
+visibilité. Voir `docs/36_PERCEPTION_FACTUELLE.md`.
+
 ### Lot G : état interne, attention et priorités
 
 - les besoins, blessures et ressources existants deviennent des signaux pour

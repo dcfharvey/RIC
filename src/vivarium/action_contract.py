@@ -137,6 +137,26 @@ class WorldFact:
             payload=_deep_freeze(payload),
         )
 
+    @classmethod
+    def event(
+        cls,
+        world_id: int,
+        event_seq: int,
+        event_type: str,
+        occurred_at: str,
+        payload: Mapping[str, Any],
+    ) -> "WorldFact":
+        """Construit un fait exporté à partir d'un événement canonique précis."""
+        if not isinstance(event_seq, int) or isinstance(event_seq, bool) or event_seq < 1:
+            raise ActionContractError("séquence d'événement invalide", code="invalid_world_fact")
+        return cls(
+            world_id=world_id,
+            event_seq=event_seq,
+            event_type=event_type,
+            occurred_at=occurred_at,
+            payload=_deep_freeze(payload),
+        )
+
 
 @dataclass(frozen=True)
 class PerceptionCandidate:
@@ -185,12 +205,12 @@ class ActionOrchestrator:
 
     @staticmethod
     def _fact_from_event(world_id: int, event: sqlite3.Row) -> WorldFact:
-        return WorldFact(
-            world_id=world_id,
-            event_seq=event["seq"],
-            event_type=event["event_type"],
-            occurred_at=event["occurred_at"],
-            payload=_deep_freeze(json.loads(event["payload"])),
+        return WorldFact.event(
+            world_id,
+            event["seq"],
+            event["event_type"],
+            event["occurred_at"],
+            json.loads(event["payload"]),
         )
 
     def _existing_fact(self, world_id: int, proposal: IntentProposal) -> WorldFact | None:

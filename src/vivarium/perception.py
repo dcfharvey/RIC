@@ -7,6 +7,7 @@ co-présence et de proximité. Tout ce qui n'est pas projeté reste inconnu.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from typing import Any
@@ -34,6 +35,17 @@ class PerceptionSnapshot:
     candidates: tuple[PerceptionCandidate, ...]
 
 
+@dataclass(frozen=True)
+class PerceptionEventFeed:
+    """Événements propres exportables après un curseur canonique exclusif."""
+
+    observer_key: str
+    after_seq: int
+    latest_seq: int
+    observed_at: str
+    candidates: tuple[PerceptionCandidate, ...]
+
+
 class PerceptionService:
     """Expose une vue locale minimale; aucune donnée interne d'autrui ne fuit."""
 
@@ -52,6 +64,35 @@ class PerceptionService:
         if not isinstance(value, str) or not _KEY_RE.fullmatch(value):
             raise PerceptionError("observateur invalide", code="invalid_observer")
         return value
+
+    @staticmethod
+    def _after_seq(value: Any) -> int:
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise PerceptionError("curseur d'événement invalide", code="invalid_cursor")
+        return value
+
+    @staticmethod
+    def _self_event_payload(event_type: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+        """Réduit un événement propre au fait pertinent pour son personnage.
+
+        Une projection ne propage ni provenance d'action, ni source admin, ni
+        détails techniques de matérialisation. Les événements d'autrui ne sont
+        pas encore reconstruits a posteriori : cette règle demandera une
+        chronologie spatiale explicite plutôt qu'une supposition sur leur lieu
+        actuel.
+        """
+        fields = {
+            "character_moved": ("character", "from", "to", "connector"),
+            "activity_started": ("character", "activity", "location", "planned_end_at"),
+            "activity_completed": ("character", "activity", "ended_at"),
+            "activity_aborted": ("character", "activity"),
+            "injury_occurred": ("character", "kind", "severity", "location"),
+            "injury_healed": ("character", "kind", "healed_at"),
+            "resource_adjusted": ("character", "resource", "delta_milli", "new_value_milli", "new_state"),
+        }.get(event_type)
+        if fields is None or any(field not in payload for field in fields):
+            return None
+        return {field: payload[field] for field in fields}
 
     def snapshot(self, world_id: Any, observer_key: Any) -> PerceptionSnapshot:
         """Retourne les seuls candidats actuellement accessibles à l'observateur."""
@@ -132,3 +173,55 @@ class PerceptionService:
             ))
 
         return PerceptionSnapshot(observer_key, observed_at, tuple(candidates))
+
+    def events_since(
+        self, world_id: Any, observer_key: Any, after_seq: Any = 0
+    ) -> PerceptionEventFeed:
+        """Retourne les changements directs d'une résidente depuis un curseur.
+
+        Le curseur peut avancer jusqu'à `latest_seq` même quand aucun fait n'a
+        été exporté; les événements futurs auront nécessairement une séquence
+        plus grande. La lecture reste sans écriture ni accusé de réception
+        persistant : la future cognition gardera son propre curseur révisable.
+        """
+        world_id = self._world_id(world_id)
+        observer_key = self._key(observer_key)
+        after_seq = self._after_seq(after_seq)
+        # Valide l'existence de l'observateur et fixe l'instant sans fabriquer
+        # d'état perceptif ou de mémoire.
+        snapshot = self.snapshot(world_id, observer_key)
+        latest_row = self._conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) AS latest_seq FROM canonical_event WHERE world_id = ?",
+            (world_id,),
+        ).fetchone()
+        latest_seq = latest_row["latest_seq"]
+        if after_seq > latest_seq:
+            raise PerceptionError("curseur d'événement au-delà du journal", code="invalid_cursor")
+
+        candidates: list[PerceptionCandidate] = []
+        rows = self._conn.execute(
+            "SELECT seq, event_type, occurred_at, payload FROM canonical_event "
+            "WHERE world_id = ? AND seq > ? ORDER BY seq",
+            (world_id, after_seq),
+        )
+        for row in rows:
+            payload = json.loads(row["payload"])
+            if payload.get("character") != observer_key:
+                continue
+            public_payload = self._self_event_payload(row["event_type"], payload)
+            if public_payload is None:
+                continue
+            candidates.append(PerceptionCandidate(
+                observer_key,
+                "self_event",
+                WorldFact.event(
+                    world_id,
+                    row["seq"],
+                    row["event_type"],
+                    row["occurred_at"],
+                    public_payload,
+                ),
+            ))
+        return PerceptionEventFeed(
+            observer_key, after_seq, latest_seq, snapshot.observed_at, tuple(candidates)
+        )

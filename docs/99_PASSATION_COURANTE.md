@@ -43,6 +43,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - test complet après contrat d'action moteur–cognition v1 : **564 passed** ;
 - test complet après perception factuelle locale : **568 passed** ;
 - test complet après attention déterministe : **573 passed** ;
+- test complet après flux d'événements perceptibles : **576 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -60,6 +61,9 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - attention déterministe minimale : besoins sous seuil, blessure et effets de
   ressources propres à l'observateur, plus indices perceptibles, classés dans
   une liste bornée sans mémoire ni émotion ;
+- flux d'événements perceptibles directs : curseur canonique en lecture seule,
+  faits propres à la résidente réduits avant export; aucune reconstruction
+  spéculative des événements passés d'autrui ;
 - objets portables, installations fixes et contenance objet‑dans‑objet,
   avec lieu effectif matérialisé, capacité et refus des cycles ;
 - possession physique générique : un objet portable suit son personnage sans
