@@ -277,6 +277,12 @@ class WorldEngine:
             c.execute("DELETE FROM need_state WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM character_profile WHERE world_id = ?", (world_id,))
             c.execute(
+                "DELETE FROM resource_state_effect WHERE resource_state_band_id IN "
+                "(SELECT b.id FROM resource_state_band b JOIN resource_state s "
+                "ON s.id = b.resource_state_id WHERE s.world_id = ?)",
+                (world_id,),
+            )
+            c.execute(
                 "DELETE FROM resource_state_band WHERE resource_state_id IN "
                 "(SELECT id FROM resource_state WHERE world_id = ?)",
                 (world_id,),

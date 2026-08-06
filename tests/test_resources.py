@@ -84,3 +84,70 @@ def test_resource_is_included_in_reproducibility_digest(setup):
     after = canonical_state_digest(conn, world_id)
     assert before != after
     assert after["resource_state"]["character_1"]["ammo"]["value_milli"] == 100000
+
+
+def test_band_effects_are_read_from_the_active_band_without_writing(setup):
+    conn, world_id, resources, _clock = setup
+    resources.register_resource(
+        world_id, "character_1", "ammo", "Munitions", 100000, -1, 1, BANDS
+    )
+    resources.declare_band_effects(
+        world_id,
+        "character_1",
+        "ammo",
+        "high",
+        [{"effect_type": "capability_availability", "effect_key": "action.fire", "availability": "available"}],
+    )
+    resources.declare_band_effects(
+        world_id,
+        "character_1",
+        "ammo",
+        "low",
+        [
+            {"effect_type": "capability_availability", "effect_key": "action.fire", "availability": "unavailable"},
+            {"effect_type": "context_signal", "effect_key": "ammo_urgency", "value_milli": 80000},
+        ],
+    )
+    before = conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (world_id,)).fetchone()[0]
+    target = to_iso(T0 + timedelta(seconds=90000))
+    active = resources.active_effects(world_id, "character_1", "ammo", target)
+    assert active == {
+        "resource_key": "ammo",
+        "value_milli": 10000,
+        "state_key": "low",
+        "effects": [
+            {"effect_type": "capability_availability", "effect_key": "action.fire", "availability": "unavailable", "value_milli": None},
+            {"effect_type": "context_signal", "effect_key": "ammo_urgency", "availability": None, "value_milli": 80000},
+        ],
+    }
+    assert conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (world_id,)).fetchone()[0] == before
+
+
+def test_effect_declaration_is_immutable_and_rejects_partial_conflicts(setup):
+    conn, world_id, resources, _clock = setup
+    resources.register_resource(
+        world_id, "character_1", "mana", "Mana", 100000, 0, 1, BANDS
+    )
+    with pytest.raises(ResourceError, match="effet dupliqué"):
+        resources.declare_band_effects(
+            world_id,
+            "character_1",
+            "mana",
+            "high",
+            [
+                {"effect_type": "context_signal", "effect_key": "focus", "value_milli": 1},
+                {"effect_type": "context_signal", "effect_key": "focus", "value_milli": 2},
+            ],
+    )
+    assert conn.execute("SELECT COUNT(*) FROM resource_state_effect").fetchone()[0] == 0
+    resources.declare_band_effects(
+        world_id,
+        "character_1",
+        "mana",
+        "high",
+        [{"effect_type": "context_signal", "effect_key": "focus", "value_milli": 1000}],
+    )
+    with pytest.raises(Exception, match="immutable"):
+        conn.execute("UPDATE resource_state_effect SET value_milli = 1")
+    digest = canonical_state_digest(conn, world_id)
+    assert digest["resource_rules"]["character_1"]["mana"][2]["effects"][0]["effect_key"] == "focus"

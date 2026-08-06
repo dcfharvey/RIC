@@ -1,7 +1,7 @@
 # Vivarium social artificiel
 ## Dossier maître d’implémentation destiné à une IA programmeuse
 
-**Version :** 0.9
+**Version :** 1.0
 **Date :** 5 août 2026
 **Statut :** source normative unique du dépôt après fermeture technique de la Phase 3
 **Public cible :** IA programmeuse, agent de développement ou développeur humain
@@ -222,7 +222,7 @@ Capacités prouvées : horloge canonique, monde actif/paused, redémarrage, beso
 - Personnages encore techniques (placeholders).
 - Aucune interface administrative complète.
 - Aucun LLM intégré au moteur canonique.
-- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée, le catalogue minimal de composants MVP, les cinq gabarits v1 et le noyau générique de ressources; le pipeline de changement profond, les gestionnaires administratifs complets et les résidentes MVP dans un monde restent futurs.
+- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée, le catalogue minimal de composants MVP, les cinq gabarits v1, le noyau générique de ressources et leurs effets déclaratifs; le pipeline de changement profond, les gestionnaires administratifs complets et les résidentes MVP dans un monde restent futurs.
 
 ## 19. Dettes techniques (documentées, non bloquantes)
 
@@ -265,6 +265,7 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v0.7** (5 août 2026) : catalogue MVP publié (morphologie, profil cognitif, besoins standards), sans confondre contrats descriptifs et mécanismes réellement exécutés.
 - **v0.8** (5 août 2026) : gabarits v1 de Sophie, Erika, Luna, Chuu et Patoune; le contrat d'hydratation de Chuu est explicite mais pas encore simulé.
 - **v0.9** (5 août 2026) : quantité de ressource, taux rationnel, bandes d'état et journal canonique génériques; les conséquences concrètes d'un état restent séparées et déclaratives.
+- **v1.0** (6 août 2026) : effets de ressource déclaratifs pour disponibilité de capacité ou signal contextuel, lus sans imposer d'émotion, de narration ou de décision.
 
 ## 24. Annexes et références
 

@@ -36,11 +36,12 @@ comme tendances contextualisées, jamais comme scripts.
 - lorsqu'elle est une flaque pouvant tenir dans un seau : cognition très
   simplifiée.
 
-**Verrou technique :** le moteur possède maintenant la famille générique de
-ressources et de bandes d'état. Avant l'instanciation de Chuu, il reste à fixer
-ses seuils et taux d'hydratation, puis à déclarer les effets sur sa forme, ses
-capacités accessibles et son profil cognitif. Aucun texte de personnage ne doit
-remplacer ou ignorer ces conséquences.
+**Verrou technique :** le moteur possède maintenant les ressources, leurs
+bandes d'état et des effets déclaratifs de disponibilité/signal. Avant
+l'instanciation de Chuu, il reste à fixer ses seuils et taux d'hydratation,
+puis à déclarer les effets sur sa forme, ses capacités accessibles et son profil
+cognitif. Aucun texte de personnage ne doit remplacer ou ignorer ces
+conséquences.
 
 ## Patoune
 

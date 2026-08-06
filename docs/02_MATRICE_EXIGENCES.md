@@ -36,8 +36,8 @@
 | NF-06 | Attribuer chaque fait important à une cause, un acteur et une provenance. | partiel (causalité des blessures ; provenance générale future) |
 | NF-07 | Mesurer coûts, jetons, latences, erreurs et charge locale. | futur |
 | NF-08 | Appliquer le moindre privilège et des permissions configurables. | futur |
-| NF-09 | Faire évoluer les schémas et règles par versions et migrations. | implémenté (12 migrations) |
-| NF-10 | Couvrir les comportements essentiels par des tests reproductibles. | implémenté (458 tests) |
+| NF-09 | Faire évoluer les schémas et règles par versions et migrations. | implémenté (13 migrations) |
+| NF-10 | Couvrir les comportements essentiels par des tests reproductibles. | implémenté (460 tests) |
 | NF-11 | Rester discret sur l’ordinateur personnel : pas de boucle à haute fréquence ni croissance mémoire non bornée. | implémenté (borne de transitions) |
 | NF-12 | Être compréhensible et maintenable par une autre IA ou un autre développeur. | implémenté (documentation + code) |
 

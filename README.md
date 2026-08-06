@@ -228,13 +228,13 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 
 Phase 3 techniquement fermée au commit `7e5459e` : **228 tests réussis**, verdict
 `FERMETURE APPROUVABLE`. Le dossier maître est désormais `docs/00_DOSSIER_MAITRE_IA.md`
-v0.9. La Phase 4.1 a livré les lectures administratives, les commandes sûres, l’API
+v1.0. La Phase 4.1 a livré les lectures administratives, les commandes sûres, l’API
 HTTP locale et le premier tableau de bord. La Phase 4.2 a désormais posé le
 registre versionné, les gabarits génériques de personnage et leur validation
 structurelle, puis l'instanciation canonique avec provenance figée; leur
-catalogue minimal, les cinq gabarits MVP et le noyau générique de ressources
-sont publiés. L'interface et la création des résidentes dans un monde restent à
-faire.
+catalogue minimal, les cinq gabarits MVP et le noyau générique de ressources et
+leurs effets déclaratifs sont publiés. L'interface et la création des résidentes
+dans un monde restent à faire.
 
 ### Structure
 

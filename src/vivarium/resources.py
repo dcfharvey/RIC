@@ -184,14 +184,75 @@ class ResourceEngine:
 
     @staticmethod
     def _state_key(conn: sqlite3.Connection, resource_id: int, value_milli: int) -> str:
+        return ResourceEngine._band(conn, resource_id, value_milli)["state_key"]
+
+    @staticmethod
+    def _band(
+        conn: sqlite3.Connection, resource_id: int, value_milli: int
+    ) -> sqlite3.Row:
         row = conn.execute(
-            "SELECT state_key FROM resource_state_band WHERE resource_state_id = ? "
+            "SELECT id, state_key FROM resource_state_band WHERE resource_state_id = ? "
             "AND min_milli <= ? AND max_milli >= ?",
             (resource_id, value_milli, value_milli),
         ).fetchone()
         if row is None:
             raise ResourceError("aucune bande ne couvre la valeur de ressource")
-        return row["state_key"]
+        return row
+
+    @classmethod
+    def _effects(cls, values: Iterable[Any]) -> tuple[dict[str, Any], ...]:
+        if isinstance(values, (str, bytes)):
+            raise ResourceError("effets invalides")
+        try:
+            raw = tuple(values)
+        except TypeError as exc:
+            raise ResourceError("effets invalides") from exc
+        if not raw:
+            raise ResourceError("effets invalides")
+        effects: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        for item in raw:
+            if not isinstance(item, dict) or not isinstance(item.get("effect_type"), str):
+                raise ResourceError("effet invalide")
+            effect_type = item["effect_type"]
+            effect_key = cls._key(item.get("effect_key"), "clé d'effet")
+            identity = (effect_type, effect_key)
+            if identity in seen:
+                raise ResourceError("effet dupliqué")
+            seen.add(identity)
+            if effect_type == "capability_availability":
+                if set(item) != {"effect_type", "effect_key", "availability"} or item["availability"] not in {
+                    "available", "limited", "unavailable"
+                }:
+                    raise ResourceError("effet de capacité invalide")
+                effects.append(
+                    {
+                        "effect_type": effect_type,
+                        "effect_key": effect_key,
+                        "availability": item["availability"],
+                        "value_milli": None,
+                    }
+                )
+            elif effect_type == "context_signal":
+                value = item.get("value_milli")
+                if (
+                    set(item) != {"effect_type", "effect_key", "value_milli"}
+                    or not isinstance(value, int)
+                    or isinstance(value, bool)
+                    or not -100000 <= value <= 100000
+                ):
+                    raise ResourceError("signal de contexte invalide")
+                effects.append(
+                    {
+                        "effect_type": effect_type,
+                        "effect_key": effect_key,
+                        "availability": None,
+                        "value_milli": value,
+                    }
+                )
+            else:
+                raise ResourceError("type d'effet invalide")
+        return tuple(effects)
 
     def _row(self, world_id: int, character_key: str, resource_key: str) -> sqlite3.Row:
         row = self._conn.execute(
@@ -271,3 +332,91 @@ class ResourceEngine:
                 recorded_at=now,
             )
         return self.read_resource(world_id, character_key, resource_key, target_at)
+
+    def declare_band_effects(
+        self,
+        world_id: Any,
+        character_key: Any,
+        resource_key: Any,
+        state_key: Any,
+        effects: Iterable[Any],
+    ) -> list[dict[str, Any]]:
+        """Fige les effets d'une bande, avec une trace canonique unique."""
+        world_id = self._integer(world_id, "monde", 1)
+        character_key = self._key(character_key, "clé de personnage")
+        resource_key = self._key(resource_key, "clé de ressource")
+        state_key = self._key(state_key, "state_key")
+        effects = self._effects(effects)
+        with transaction(self._conn) as conn:
+            row = self._row(world_id, character_key, resource_key)
+            band = conn.execute(
+                "SELECT id FROM resource_state_band WHERE resource_state_id = ? AND state_key = ?",
+                (row["id"], state_key),
+            ).fetchone()
+            if band is None:
+                raise ResourceError("bande de ressource introuvable")
+            if conn.execute(
+                "SELECT 1 FROM resource_state_effect WHERE resource_state_band_id = ?",
+                (band["id"],),
+            ).fetchone() is not None:
+                raise ResourceError("les effets de cette bande sont déjà déclarés")
+            for effect in effects:
+                conn.execute(
+                    "INSERT INTO resource_state_effect "
+                    "(resource_state_band_id, effect_type, effect_key, availability, value_milli) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (
+                        band["id"],
+                        effect["effect_type"],
+                        effect["effect_key"],
+                        effect["availability"],
+                        effect["value_milli"],
+                    ),
+                )
+            from .world import WorldEngine, SOURCE_SYSTEM, _append_event
+
+            now = self._clock.now_iso()
+            canonical_now = WorldEngine(conn, clock=self._clock).read_canonical_time(world_id)
+            _append_event(
+                conn,
+                world_id,
+                SOURCE_SYSTEM,
+                "resource_effects_declared",
+                {
+                    "character": character_key,
+                    "resource": resource_key,
+                    "state": state_key,
+                    "effects": effects,
+                },
+                occurred_at=canonical_now,
+                recorded_at=now,
+            )
+        return self.active_effects(world_id, character_key, resource_key, canonical_now)["effects"]
+
+    def active_effects(
+        self, world_id: Any, character_key: Any, resource_key: Any, target_at: str
+    ) -> dict[str, Any]:
+        """Retourne les effets actifs de la bande dérivée, sans écriture."""
+        world_id = self._integer(world_id, "monde", 1)
+        character_key = self._key(character_key, "clé de personnage")
+        resource_key = self._key(resource_key, "clé de ressource")
+        if not isinstance(target_at, str):
+            raise ResourceError("heure cible invalide")
+        row = self._row(world_id, character_key, resource_key)
+        value, _remainder = derive(
+            row["value_milli"], row["rate_remainder"], row["anchor_at"], target_at,
+            row["rate_num"], row["rate_den"],
+        )
+        band = self._band(self._conn, row["id"], value)
+        rows = self._conn.execute(
+            "SELECT effect_type, effect_key, availability, value_milli "
+            "FROM resource_state_effect WHERE resource_state_band_id = ? "
+            "ORDER BY effect_type, effect_key",
+            (band["id"],),
+        ).fetchall()
+        return {
+            "resource_key": resource_key,
+            "value_milli": value,
+            "state_key": band["state_key"],
+            "effects": [dict(item) for item in rows],
+        }

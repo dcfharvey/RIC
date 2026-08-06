@@ -118,6 +118,42 @@ def canonical_state_digest(conn: sqlite3.Connection, world_id: int) -> dict[str,
         key: dict(sorted(value.items())) for key, value in sorted(resources.items())
     }
 
+    resource_rules: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for r in conn.execute(
+        "SELECT ch.key AS character_key, rs.resource_key, b.state_key, b.min_milli, b.max_milli, "
+        "e.effect_type, e.effect_key, e.availability, e.value_milli "
+        "FROM resource_state rs JOIN character ch ON ch.id = rs.character_id "
+        "JOIN resource_state_band b ON b.resource_state_id = rs.id "
+        "LEFT JOIN resource_state_effect e ON e.resource_state_band_id = b.id "
+        "WHERE rs.world_id = ? ORDER BY ch.key, rs.resource_key, b.min_milli, "
+        "e.effect_type, e.effect_key",
+        (world_id,),
+    ).fetchall():
+        item = {
+            "state_key": r["state_key"],
+            "min_milli": r["min_milli"],
+            "max_milli": r["max_milli"],
+            "effects": [],
+        }
+        bands = resource_rules.setdefault(r["character_key"], {}).setdefault(
+            r["resource_key"], []
+        )
+        if not bands or bands[-1]["state_key"] != item["state_key"]:
+            bands.append(item)
+        if r["effect_type"] is not None:
+            bands[-1]["effects"].append(
+                {
+                    "effect_type": r["effect_type"],
+                    "effect_key": r["effect_key"],
+                    "availability": r["availability"],
+                    "value_milli": r["value_milli"],
+                }
+            )
+    d["resource_rules"] = {
+        character: dict(sorted(resources.items()))
+        for character, resources in sorted(resource_rules.items())
+    }
+
     acts: dict[str, list[dict[str, Any]]] = {}
     for r in conn.execute(
         "SELECT ch.key, a.type, a.status, a.started_at, a.planned_end_at, l.key AS loc "
