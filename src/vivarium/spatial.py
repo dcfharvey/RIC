@@ -96,10 +96,75 @@ class GraphEngine:
             )
         }
 
+    def _connectivity_report(
+        self,
+        world_id: int,
+        *,
+        excluded_edges: frozenset[tuple[int, int]] = frozenset(),
+    ) -> dict[str, Any]:
+        """Vérifie les deux sens de connectivité entre chaque lieu et le salon.
+
+        Le graphe est orienté : être atteignable depuis le salon ne suffit pas
+        si une résidente ne peut plus y revenir. Cette lecture est aussi sûre
+        dans la transaction qui vient de retirer un passage.
+        """
+        id_to_key = self._id_to_key(world_id)
+        root = next((location_id for location_id, key in id_to_key.items() if key == "salon"), None)
+        if root is None:
+            return {
+                "ok": False,
+                "root_missing": True,
+                "unreachable_from_salon": sorted(id_to_key.values()),
+                "unreachable_to_salon": sorted(id_to_key.values()),
+            }
+        outgoing: dict[int, list[int]] = {location_id: [] for location_id in id_to_key}
+        incoming: dict[int, list[int]] = {location_id: [] for location_id in id_to_key}
+        for row in self._conn.execute(
+            "SELECT from_location_id, to_location_id FROM location_link WHERE world_id = ? "
+            "ORDER BY from_location_id, to_location_id",
+            (world_id,),
+        ):
+            if (row["from_location_id"], row["to_location_id"]) in excluded_edges:
+                continue
+            outgoing[row["from_location_id"]].append(row["to_location_id"])
+            incoming[row["to_location_id"]].append(row["from_location_id"])
+
+        def reached(adjacency: dict[int, list[int]]) -> set[int]:
+            seen = {root}
+            queue: deque[int] = deque([root])
+            while queue:
+                current = queue.popleft()
+                for neighbor in adjacency[current]:
+                    if neighbor not in seen:
+                        seen.add(neighbor)
+                        queue.append(neighbor)
+            return seen
+
+        from_salon = reached(outgoing)
+        to_salon = reached(incoming)  # graphe inversé : lieu → salon dans le vrai graphe
+        unreachable_from = sorted(id_to_key[location_id] for location_id in id_to_key.keys() - from_salon)
+        unreachable_to = sorted(id_to_key[location_id] for location_id in id_to_key.keys() - to_salon)
+        return {
+            "ok": not unreachable_from and not unreachable_to,
+            "root_missing": False,
+            "unreachable_from_salon": unreachable_from,
+            "unreachable_to_salon": unreachable_to,
+        }
+
     def _canonical_time(self, world_id: int) -> str:
         from .world import WorldEngine  # évite un cycle d'import
 
         return WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
+
+    @staticmethod
+    def normalize_remove_link_request(
+        a_key: Any, b_key: Any, bidirectional: Any
+    ) -> tuple[str, str, bool]:
+        """Valide la forme d'une fermeture sans écrire."""
+        a_key, b_key, bidirectional, _kind = GraphEngine.normalize_link_request(
+            a_key, b_key, bidirectional, DEFAULT_KIND
+        )
+        return a_key, b_key, bidirectional
 
     # --- Lectures pures (aucune écriture) ---------------------------------------
 
@@ -190,16 +255,7 @@ class GraphEngine:
             if r["table"] == "location_link"
         ]
 
-        location_keys = [
-            r["key"]
-            for r in self._conn.execute(
-                "SELECT key FROM location WHERE world_id = ? ORDER BY key", (world_id,)
-            )
-        ]
-        unreachable: list[str] = []
-        for key in location_keys:
-            if key != "salon" and self.find_path(world_id, "salon", key) is None:
-                unreachable.append(key)
+        connectivity = self._connectivity_report(world_id)
 
         missing_reciprocal: list[tuple[str, str]] = []
         for a, b in SEED_LINKS:
@@ -210,7 +266,7 @@ class GraphEngine:
             self_loops == 0
             and duplicates == 0
             and not fk
-            and not unreachable
+            and connectivity["ok"]
             and not missing_reciprocal
         )
         return {
@@ -218,8 +274,46 @@ class GraphEngine:
             "self_loops": self_loops,
             "duplicate_edges": duplicates,
             "fk_violations": fk,
-            "unreachable_from_salon": unreachable,
+            "unreachable_from_salon": connectivity["unreachable_from_salon"],
+            "unreachable_to_salon": connectivity["unreachable_to_salon"],
+            "root_missing": connectivity["root_missing"],
             "missing_reciprocal": missing_reciprocal,
+        }
+
+    def preview_remove_link(
+        self, world_id: int, a_key: Any, b_key: Any, *, bidirectional: Any = True
+    ) -> dict[str, Any]:
+        """Calcule en lecture pure l'impact topologique d'une fermeture.
+
+        Cette prévisualisation n'autorise pas la fermeture : l'application
+        répète le même contrôle dans sa transaction pour éliminer toute fenêtre
+        entre impact et mutation.
+        """
+        a_key, b_key, bidirectional = self.normalize_remove_link_request(
+            a_key, b_key, bidirectional
+        )
+        a = self._location_id(world_id, a_key)
+        b = self._location_id(world_id, b_key)
+        requested = [(a, b)] + ([(b, a)] if bidirectional else [])
+        existing = frozenset(
+            (from_id, to_id)
+            for from_id, to_id in requested
+            if self._conn.execute(
+                "SELECT 1 FROM location_link WHERE world_id = ? "
+                "AND from_location_id = ? AND to_location_id = ?",
+                (world_id, from_id, to_id),
+            ).fetchone()
+            is not None
+        )
+        if not existing:
+            raise GraphError("passage inexistant", code="link_not_found")
+        connectivity = self._connectivity_report(world_id, excluded_edges=existing)
+        return {
+            "from": a_key,
+            "to": b_key,
+            "bidirectional": bidirectional,
+            "directed_links_removed": len(existing),
+            "connectivity": connectivity,
         }
 
     # --- Modifications administratives (une transaction, un événement) ---------
@@ -299,6 +393,56 @@ class GraphEngine:
             )
         return {"from": a_key, "to": b_key, "bidirectional": bidirectional, "kind": kind}
 
+    def _remove_link_in_transaction(
+        self,
+        conn: sqlite3.Connection,
+        world_id: int,
+        a_key: str,
+        b_key: str,
+        *,
+        bidirectional: bool,
+        admin_change_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Retire un passage et vérifie sa sûreté dans la transaction active."""
+        a = self._location_id(world_id, a_key)
+        b = self._location_id(world_id, b_key)
+        removed = 0
+        removed += conn.execute(
+            "DELETE FROM location_link WHERE world_id = ? "
+            "AND from_location_id = ? AND to_location_id = ?",
+            (world_id, a, b),
+        ).rowcount
+        if bidirectional:
+            removed += conn.execute(
+                "DELETE FROM location_link WHERE world_id = ? "
+                "AND from_location_id = ? AND to_location_id = ?",
+                (world_id, b, a),
+            ).rowcount
+        if removed == 0:
+            raise GraphError("passage inexistant", code="link_not_found")
+        connectivity = self._connectivity_report(world_id)
+        if not connectivity["ok"]:
+            raise GraphError(
+                "fermeture refusée : elle isolerait un ou plusieurs lieux "
+                f"(depuis salon={connectivity['unreachable_from_salon']}, "
+                f"vers salon={connectivity['unreachable_to_salon']})",
+                code="would_isolate_location",
+            )
+        canonical_at = self._canonical_time(world_id)
+        payload: dict[str, Any] = {
+            "from": a_key,
+            "to": b_key,
+            "bidirectional": bidirectional,
+            "directed_links_removed": removed,
+        }
+        if admin_change_id is not None:
+            payload["admin_change_id"] = admin_change_id
+        _append_event(
+            conn, world_id, SOURCE_OWNER, "link_removed", payload,
+            occurred_at=canonical_at, recorded_at=_now_iso(self._clock),
+        )
+        return {**payload, "canonical_at": canonical_at}
+
     def remove_link(
         self,
         world_id: int,
@@ -307,32 +451,23 @@ class GraphEngine:
         *,
         bidirectional: bool = True,
     ) -> dict[str, Any]:
-        """Supprime un passage physique. `bidirectional=True` retire les deux
-        arêtes réciproques ; sinon une seule (A→B). Une transaction, un événement.
-        """
-        a = self._location_id(world_id, a_key)
-        b = self._location_id(world_id, b_key)
-        with transaction(self._conn) as c:
-            removed = 0
-            removed += c.execute(
-                "DELETE FROM location_link WHERE world_id = ? "
-                "AND from_location_id = ? AND to_location_id = ?",
-                (world_id, a, b),
-            ).rowcount
-            if bidirectional:
-                removed += c.execute(
-                    "DELETE FROM location_link WHERE world_id = ? "
-                    "AND from_location_id = ? AND to_location_id = ?",
-                    (world_id, b, a),
-                ).rowcount
-            if removed == 0:
-                raise GraphError(
-                    f"passage inexistant entre {a_key!r} et {b_key!r}"
-                )
-            _append_event(
-                c, world_id, SOURCE_OWNER, "link_removed",
-                {"from": a_key, "to": b_key, "bidirectional": bidirectional},
-                occurred_at=self._canonical_time(world_id),
-                recorded_at=_now_iso(self._clock),
+        """Supprime un passage sans pouvoir isoler un lieu."""
+        a_key, b_key, bidirectional = self.normalize_remove_link_request(
+            a_key, b_key, bidirectional
+        )
+        preview = self.preview_remove_link(world_id, a_key, b_key, bidirectional=bidirectional)
+        if not preview["connectivity"]["ok"]:
+            raise GraphError(
+                "fermeture refusée : elle isolerait un ou plusieurs lieux "
+                f"(depuis salon={preview['connectivity']['unreachable_from_salon']}, "
+                f"vers salon={preview['connectivity']['unreachable_to_salon']})",
+                code="would_isolate_location",
             )
-        return {"from": a_key, "to": b_key, "bidirectional": bidirectional}
+        with transaction(self._conn) as conn:
+            applied = self._remove_link_in_transaction(
+                conn, world_id, a_key, b_key, bidirectional=bidirectional
+            )
+        return {
+            field: applied[field]
+            for field in ("from", "to", "bidirectional", "directed_links_removed")
+        }

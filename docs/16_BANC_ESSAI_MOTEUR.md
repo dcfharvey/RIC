@@ -25,7 +25,7 @@ Un `BenchScenario` fixe :
 
 Les actions supportées sont fermées et explicitement validées : pause/reprise,
 renommage, déplacement, démarrage/abandon d'activité, blessure injectée et
-ajout de passage. Il n'existe aucune action générique SQL ou Python.
+ajout/retrait sûr de passage. Il n'existe aucune action générique SQL ou Python.
 
 Chaque action déclare `expected="applied"` ou `expected="refused"`. Un refus
 attendu est conservé dans le rapport; un résultat contraire est une erreur de

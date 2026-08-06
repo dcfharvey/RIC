@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.26 — 6 août 2026
+
+- **Phase 4.2L — fermeture sûre de passage préparée** : `remove_link` vérifie
+  qu'après l'opération tout lieu reste atteignable depuis le salon et peut y
+  revenir. Une fermeture isolante est annulée entièrement, sans événement.
+- `preview_remove_link` expose l'impact topologique en lecture pure;
+  `AdminChangeService` et `POST /api/admin-changes/remove-passage/prepare`
+  ajoutent le protocole plan/hash/confirmation à cette mutation sensible.
+- Migration 0016 : extension atomique du registre de plans, avec conservation
+  prouvée des plans/audits 0015.
+- Tests : 502 réussis.
+
 ## 0.25 — 6 août 2026
 
 - **Banc d'essai minimal du moteur** : `vivarium.bench` exécute un scénario

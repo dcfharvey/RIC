@@ -791,6 +791,51 @@ def test_prepare_passage_http_refuse_lieu_inconnu(server):
     assert status == 404 and data["error"]["code"] == "location_not_found"
 
 
+def test_change_pipeline_http_retire_un_passage_sans_isoler(server):
+    srv, port, wid = server
+    # La résidence seedée est un arbre : on crée une voie de remplacement.
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/admin-changes/add-passage/prepare",
+        body={"world_id": wid, "from_location": "cour", "to_location": "cuisine"},
+        token=srv.token,
+    )
+    assert status == 200
+    added = data["data"]
+    status, data, _ = _request(
+        port, "POST", f"/api/admin-changes/{added['id']}/confirm",
+        body={"hash": added["hash"]}, token=srv.token,
+    )
+    assert status == 200
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/admin-changes/remove-passage/prepare",
+        body={"world_id": wid, "from_location": "salon", "to_location": "cuisine"},
+        token=srv.token,
+    )
+    assert status == 200 and data["data"]["action"] == "remove_link"
+    plan = data["data"]
+    status, data, _ = _request(
+        port, "POST", f"/api/admin-changes/{plan['id']}/confirm",
+        body={"hash": plan["hash"]}, token=srv.token,
+    )
+    assert status == 200 and data["data"]["result"]["directed_links_removed"] == 2
+
+
+def test_prepare_fermeture_isolante_http_est_refusee(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/admin-changes/remove-passage/prepare",
+        body={"world_id": wid, "from_location": "couloir", "to_location": "chambre_1"},
+        token=srv.token,
+    )
+    assert status == 409 and data["error"]["code"] == "would_isolate_location"
+
+
 # --- Erreurs internes et connexions -------------------------------------------
 
 def test_exception_inattendue_masquee(server, monkeypatch):

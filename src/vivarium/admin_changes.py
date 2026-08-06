@@ -1,6 +1,7 @@
 """Pipeline administratif préparé pour les mutations sensibles.
 
-Les premières actions prises en charge sont ``rename_world`` et ``add_link``.
+Les actions prises en charge sont ``rename_world``, ``add_link`` et
+``remove_link``.
 Le contrat reste identique : plan immuable, hash exact, impact sémantique,
 contrôle optimiste de la version du monde, expiration et application
 idempotente. Les plans/audits administratifs restent distincts des faits
@@ -43,7 +44,7 @@ class AdminChangeService:
     canonique concurrente crée une séquence nouvelle et force un nouveau plan.
     """
 
-    ACTIONS = frozenset({"rename_world", "add_link"})
+    ACTIONS = frozenset({"rename_world", "add_link", "remove_link"})
 
     def __init__(self, conn: sqlite3.Connection, clock: Clock | None = None) -> None:
         self._conn = conn
@@ -291,6 +292,68 @@ class AdminChangeService:
                 ttl_seconds=ttl_seconds,
             )
 
+    def prepare_remove_link(
+        self,
+        world_id: Any,
+        from_location: Any,
+        to_location: Any,
+        *,
+        bidirectional: Any = True,
+        ttl_seconds: Any = None,
+    ) -> dict[str, Any]:
+        """Fige une fermeture sûre; toute isolation est refusée avant plan."""
+        world_id = self._world_id(world_id)
+        ttl_seconds = self._ttl(ttl_seconds)
+        try:
+            from_location, to_location, bidirectional = GraphEngine.normalize_remove_link_request(
+                from_location, to_location, bidirectional
+            )
+        except GraphError as exc:
+            raise AdminChangeError(str(exc), code=exc.code) from None
+        with transaction(self._conn) as conn:
+            if conn.execute("SELECT 1 FROM worlds WHERE id = ?", (world_id,)).fetchone() is None:
+                raise AdminChangeError("monde introuvable", code="world_not_found")
+            try:
+                preview = GraphEngine(conn, clock=self._clock).preview_remove_link(
+                    world_id, from_location, to_location, bidirectional=bidirectional
+                )
+            except GraphError as exc:
+                raise AdminChangeError(str(exc), code=exc.code) from None
+            connectivity = preview["connectivity"]
+            if not connectivity["ok"]:
+                raise AdminChangeError(
+                    "fermeture refusée : elle isolerait un ou plusieurs lieux "
+                    f"(depuis salon={connectivity['unreachable_from_salon']}, "
+                    f"vers salon={connectivity['unreachable_to_salon']})",
+                    code="would_isolate_location",
+                )
+            payload = {
+                "from": from_location,
+                "to": to_location,
+                "bidirectional": bidirectional,
+            }
+            impact = {
+                "classification": "world_topology",
+                "summary": "Retire un passage sans isoler aucun lieu du salon.",
+                "affected": {
+                    "world": 1,
+                    "locations": 2,
+                    "directed_links_removed": preview["directed_links_removed"],
+                    "characters": 0,
+                },
+                "connectivity_after": connectivity,
+                "requires_snapshot": False,
+                "requires_confirmation": True,
+            }
+            return self._store_prepared_plan(
+                conn,
+                world_id=world_id,
+                action="remove_link",
+                payload=payload,
+                impact=impact,
+                ttl_seconds=ttl_seconds,
+            )
+
     def validate(self, plan_id: Any) -> dict[str, Any]:
         """Réévalue les préconditions sans écriture ni événement."""
         row = self._plan_row(plan_id)
@@ -394,6 +457,22 @@ class AdminChangeService:
                 result = {
                     field: applied[field]
                     for field in ("from", "to", "bidirectional", "kind")
+                }
+            elif plan["action"] == "remove_link":
+                try:
+                    applied = GraphEngine(conn, clock=self._clock)._remove_link_in_transaction(
+                        conn,
+                        plan["world_id"],
+                        plan["payload"]["from"],
+                        plan["payload"]["to"],
+                        bidirectional=plan["payload"]["bidirectional"],
+                        admin_change_id=plan["id"],
+                    )
+                except GraphError as exc:
+                    raise AdminChangeError(str(exc), code=exc.code) from None
+                result = {
+                    field: applied[field]
+                    for field in ("from", "to", "bidirectional", "directed_links_removed")
                 }
             else:  # plan impossible hors corruption manuelle de la base
                 raise RuntimeError(f"action de plan inconnue : {plan['action']}")

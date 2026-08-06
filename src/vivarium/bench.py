@@ -296,6 +296,16 @@ def _apply_action(conn: sqlite3.Connection, clock: BenchClock, world_id: int, ac
             bidirectional=params.get("bidirectional", True),
             kind=params.get("kind", "door"),
         )
+    elif action.kind == "remove_link":
+        params = _require_params(
+            action, {"from_location_key", "to_location_key"}, {"bidirectional"}
+        )
+        GraphEngine(conn, clock=clock).remove_link(
+            world_id,
+            params["from_location_key"],
+            params["to_location_key"],
+            bidirectional=params.get("bidirectional", True),
+        )
     else:
         raise BenchScenarioError(f"action de banc inconnue : {action.kind!r}")
 

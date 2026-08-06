@@ -80,6 +80,8 @@ def test_integrite_du_seed(graph):
     assert rep["duplicate_edges"] == 0
     assert rep["fk_violations"] == []
     assert rep["unreachable_from_salon"] == []
+    assert rep["unreachable_to_salon"] == []
+    assert rep["root_missing"] is False
     assert rep["missing_reciprocal"] == []
 
 
@@ -107,10 +109,13 @@ def test_can_traverse_vs_has_physical_connection_a_sens_unique(graph):
 
 def test_find_path_respecte_les_directions(graph):
     _conn, g, wid = graph
+    # Une voie de remplacement orientée maintient la connectivité forte après
+    # le retrait de salon→cuisine; la fermeture ne peut plus isoler un lieu.
+    g.add_link(wid, "cour", "cuisine", bidirectional=False)
     g.remove_link(wid, "salon", "cuisine", bidirectional=False)  # retire salon→cuisine
     assert g.can_traverse(wid, "salon", "cuisine") is False
     assert g.can_traverse(wid, "cuisine", "salon") is True
-    assert g.find_path(wid, "salon", "cuisine") is None
+    assert g.find_path(wid, "salon", "cuisine") == ["salon", "cour", "cuisine"]
     assert isinstance(g.find_path(wid, "cuisine", "salon"), list)
 
 
@@ -141,6 +146,8 @@ def test_creation_sens_unique_une_seule_arete(graph):
 
 def test_echec_seconde_insertion_annule_la_premiere(graph):
     conn, g, wid = graph
+    # Une alternative préserve le graphe lors de la fermeture de seed.
+    g.add_link(wid, "cour", "cuisine", bidirectional=True)
     # retire le passage bidirectionnel salon↔cuisine
     g.remove_link(wid, "salon", "cuisine")
     assert not g.can_traverse(wid, "salon", "cuisine")
@@ -173,6 +180,29 @@ def test_suppression_inexistante_echoue(graph):
     with pytest.raises(GraphError):
         g.remove_link(wid, "chambre_1", "chambre_2")  # aucun passage direct
     assert g.can_traverse(wid, "couloir", "chambre_1")  # graphe seed intact
+
+
+def test_suppression_qui_isole_refusee_et_rollback_complet(graph):
+    conn, g, wid = graph
+    before_edges = conn.execute(
+        "SELECT COUNT(*) FROM location_link WHERE world_id = ?", (wid,)
+    ).fetchone()[0]
+    before_events = conn.execute(
+        "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (wid,)
+    ).fetchone()[0]
+
+    with pytest.raises(GraphError) as exc:
+        g.remove_link(wid, "couloir", "chambre_1")
+
+    assert exc.value.code == "would_isolate_location"
+    assert g.can_traverse(wid, "couloir", "chambre_1")
+    assert g.can_traverse(wid, "chambre_1", "couloir")
+    assert conn.execute(
+        "SELECT COUNT(*) FROM location_link WHERE world_id = ?", (wid,)
+    ).fetchone()[0] == before_edges
+    assert conn.execute(
+        "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (wid,)
+    ).fetchone()[0] == before_events
 
 
 # --- Intégrité / lectures pures -------------------------------------------------
@@ -212,6 +242,7 @@ def test_aucun_trajet_si_lieu_isole(graph):
     assert g.find_path(wid, "salon", "cave") is None
     rep = g.check_graph_integrity(wid)
     assert "cave" in rep["unreachable_from_salon"]
+    assert "cave" in rep["unreachable_to_salon"]
 
 
 def test_boucle_sur_soi_refusee(graph):

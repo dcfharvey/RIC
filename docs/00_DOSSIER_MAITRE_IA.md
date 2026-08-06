@@ -1,7 +1,7 @@
 # Vivarium social artificiel
 ## Dossier maître d’implémentation destiné à une IA programmeuse
 
-**Version :** 1.7
+**Version :** 1.8
 **Date :** 6 août 2026
 **Statut :** source normative unique du dépôt après fermeture technique de la Phase 3
 **Public cible :** IA programmeuse, agent de développement ou développeur humain
@@ -223,7 +223,7 @@ Capacités prouvées : horloge canonique, monde actif/paused, redémarrage, beso
 - Personnages encore techniques (placeholders).
 - Aucune interface administrative complète.
 - Aucun LLM intégré au moteur canonique.
-- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée, le catalogue minimal de composants MVP, les cinq gabarits v1, le noyau générique de ressources et leurs effets déclaratifs, un pipeline administratif immuable, son API locale et le premier changement topologique préparé (ajout de passage). Les changements profonds, les gestionnaires administratifs complets et les résidentes MVP dans un monde restent futurs.
+- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée, le catalogue minimal de composants MVP, les cinq gabarits v1, le noyau générique de ressources et leurs effets déclaratifs, un pipeline administratif immuable, son API locale et les premiers changements topologiques préparés (ajout et fermeture sûre de passage). Les changements profonds, les gestionnaires administratifs complets et les résidentes MVP dans un monde restent futurs.
 
 ## 19. Dettes techniques (documentées, non bloquantes)
 
@@ -275,6 +275,7 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v1.5** (6 août 2026) : clarification de vocabulaire : résidence initiale = monde d'intégration pré-MVP; MVP = simulateur social présentable après les couches vivantes.
 - **v1.6** (6 août 2026) : chronologie logicielle explicite : état initial `0.0.0.dev0` pré-alpha; premier MVP alpha au jalon `0.1.0a1`.
 - **v1.7** (6 août 2026) : banc d'essai minimal livré; version logicielle `0.0.1.dev0`.
+- **v1.8** (6 août 2026) : fermeture de passage préparée et protégée contre l'isolement spatial.
 
 ## 24. Annexes et références
 

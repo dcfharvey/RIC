@@ -42,11 +42,12 @@ critères sont réellement atteints, jamais parce qu'un calendrier l'exige.
 
 ## Ordre de travail
 
-### 1. Sûreté de l'univers administratif
+### 1. Sûreté de l'univers administratif — fermeture de passage livrée
 
-Finir les mutations spatiales dont l'impact peut être structurel : fermeture de
-passage avec détection d'isolement, puis seulement les premiers lieux/objets si
-un cas concret l'exige. Aucune suppression ne doit devenir une voie rapide.
+La fermeture de passage détecte maintenant l'isolement dans les deux sens du
+graphe et suit le protocole préparé. Les premiers lieux/objets attendent encore
+un cas concret; aucune suppression ne doit devenir une voie rapide. Voir
+`docs/17_PLAN_LOT_4_2L_FERMETURE_PASSAGE.md`.
 
 ### 2. Banc d'essai minimal du moteur — livré
 

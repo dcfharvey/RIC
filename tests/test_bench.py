@@ -37,7 +37,7 @@ def test_bench_isole_produit_rapport_auditable_et_json():
 
     assert report.is_healthy
     assert report.final_time == _at(hours=2)
-    assert report.schema_version == 15
+    assert report.schema_version == 16
     assert report.canonical_state["worlds"]["status"] == "active"
     assert report.raw_events
     assert report.semantic_events
@@ -140,3 +140,34 @@ def test_bench_compare_voit_une_variante_reelle():
     assert not comparison.identical
     assert not comparison.same_canonical_state
     assert not comparison.same_semantic_events
+
+
+def test_bench_exerce_une_fermeture_spatiale_sure():
+    report = run_bench(_base((
+        BenchAction(
+            at=_at(minutes=30), kind="add_link",
+            params={"from_location_key": "cour", "to_location_key": "cuisine"},
+        ),
+        BenchAction(
+            at=_at(minutes=30), kind="remove_link",
+            params={"from_location_key": "salon", "to_location_key": "cuisine"},
+        ),
+    )))
+
+    assert report.is_healthy
+    assert [result.outcome for result in report.action_results] == ["applied", "applied"]
+    assert report.canonical_state["worlds"]["name"] == "Banc d'essai temporaire"
+
+
+def test_bench_expose_un_refus_de_fermeture_isolante():
+    report = run_bench(_base((
+        BenchAction(
+            at=_at(minutes=30), kind="remove_link",
+            params={"from_location_key": "couloir", "to_location_key": "chambre_1"},
+            expected="refused",
+        ),
+    )))
+
+    assert report.is_healthy
+    assert report.refusals[0].error_type == "GraphError"
+    assert report.refusals[0].error_code == "would_isolate_location"

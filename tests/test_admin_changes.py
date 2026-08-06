@@ -12,6 +12,7 @@ from vivarium.db import connect_database
 from vivarium.migrations import ensure_schema
 from vivarium.migrations import MIGRATIONS_DIR, current_version
 from vivarium.repro import max_seq
+from vivarium.spatial import GraphEngine
 from vivarium.util import to_iso
 from vivarium.world import WorldEngine
 
@@ -224,6 +225,45 @@ def test_confirmer_passage_sens_unique_ne_cree_pas_le_retour(setup):
     assert graph.can_traverse(wid, "cuisine", "cour") is False
 
 
+def test_prepare_et_confirmer_fermeture_sure_lie_le_plan_au_fait(setup):
+    conn, clock, wid = setup
+    service = _service(conn, clock)
+    # Le seed est un arbre : on crée une voie de remplacement avant fermeture.
+    GraphEngine(conn, clock=clock).add_link(wid, "cour", "cuisine", bidirectional=True)
+    before = max_seq(conn, wid)
+
+    plan = service.prepare_remove_link(wid, "salon", "cuisine")
+
+    assert plan["action"] == "remove_link"
+    assert plan["impact"]["affected"]["directed_links_removed"] == 2
+    assert plan["impact"]["connectivity_after"]["ok"] is True
+    assert max_seq(conn, wid) == before  # préparation sans fait canonique
+    result = service.confirm(plan["id"], plan["hash"])
+    assert result["result"] == {
+        "from": "salon", "to": "cuisine", "bidirectional": True,
+        "directed_links_removed": 2,
+    }
+    graph = GraphEngine(conn, clock=clock)
+    assert graph.can_traverse(wid, "salon", "cuisine") is False
+    assert graph.find_path(wid, "salon", "cuisine") == ["salon", "cour", "cuisine"]
+    event = conn.execute(
+        "SELECT payload FROM canonical_event WHERE world_id = ? AND event_type = 'link_removed' "
+        "ORDER BY seq DESC LIMIT 1", (wid,),
+    ).fetchone()
+    assert json.loads(event["payload"])["admin_change_id"] == plan["id"]
+
+
+def test_preparation_fermeture_isolante_refusee_sans_plan_ni_audit(setup):
+    conn, clock, wid = setup
+    before = (max_seq(conn, wid), _audit_count(conn))
+
+    with pytest.raises(AdminChangeError) as exc:
+        _service(conn, clock).prepare_remove_link(wid, "couloir", "chambre_1")
+
+    assert exc.value.code == "would_isolate_location"
+    assert (max_seq(conn, wid), _audit_count(conn)) == before
+
+
 @pytest.mark.parametrize(
     "from_location,to_location,bidirectional,kind,code",
     [
@@ -245,23 +285,23 @@ def test_preparation_passage_invalide_refusee_sans_plan(
     assert (max_seq(conn, wid), _audit_count(conn)) == before
 
 
-def test_migration_0015_preserve_les_plans_et_audits_0014(tmp_path):
-    partial = tmp_path / "migrations_0014"
+def test_migration_0016_preserve_les_plans_et_audits_0015(tmp_path):
+    partial = tmp_path / "migrations_0015"
     partial.mkdir()
     for source in MIGRATIONS_DIR.glob("*.sql"):
-        if source.name <= "0014_admin_change.sql":
+        if source.name <= "0015_admin_change_actions.sql":
             shutil.copy2(source, partial / source.name)
     conn = connect_database(":memory:")
     try:
-        assert ensure_schema(conn, directory=partial) == 14
+        assert ensure_schema(conn, directory=partial) == 15
         clock = FakeClock()
         wid = WorldEngine(conn, clock=clock).init_world(name="Avant")["id"]
         plan = _service(conn, clock).prepare_rename_world(wid, "Après")
         assert _audit_count(conn) == 1
-        assert ensure_schema(conn) == 15
+        assert ensure_schema(conn) == 16
         restored = _service(conn, clock)._row_to_plan(_service(conn, clock)._plan_row(plan["id"]))
         assert restored["payload"] == {"from": "Avant", "to": "Après"}
         assert _audit_count(conn) == 1
-        assert current_version(conn) == 15
+        assert current_version(conn) == 16
     finally:
         conn.close()

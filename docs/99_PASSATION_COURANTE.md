@@ -21,12 +21,13 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
   (exposition HTTP locale du même pipeline) ;
-- migration courante : `0015_admin_change_actions.sql` ;
+- migration courante : `0016_admin_change_remove_link.sql` ;
 - dernier test complet avant 4.2J : **469 passed** ;
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
 - test complet après 4.2K : **486 passed** ;
 - test complet après le banc minimal : **495 passed** ;
+- test complet après fermeture sûre de passage : **502 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -64,7 +65,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 
 Le banc d'essai minimal est maintenant livré (`vivarium.bench`) : scénarios
 isolés, actions déclaratives fermées, rapports/audits et comparaison de runs.
-Le prochain lot est l'ajout de scénarios d'acceptation inter-systèmes, à
-commencer par un cas spatial ou ressource réellement utile. Ne pas commencer
-par modifier une habitante ou créer le monde MVP sans le protocole renforcé
-correspondant.
+La fermeture sûre de passage est également livrée : connectivité
+salon↔lieux, impact figé et route HTTP locale. Le prochain lot est l'ajout de
+scénarios d'acceptation inter-systèmes. Ne pas commencer par modifier une
+habitante ou créer le monde MVP sans le protocole renforcé correspondant.
