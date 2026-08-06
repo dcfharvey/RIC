@@ -50,3 +50,12 @@ Lors de la perception factuelle, le premier test supposait à tort que l'entrée
 extérieure n'avait qu'une porte visible. L'audit a confronté cette hypothèse au
 blueprint réel et conservé le connecteur vers le stationnement dans la vue; le
 test a été corrigé au lieu de dégrader la topologie canonique.
+
+Lors de l'attention déterministe, l'audit a d'abord vérifié que le lot ajoutait
+une projection pure plutôt qu'un nouvel état canonique : aucune migration,
+aucune écriture, aucun événement et aucune extension de digest n'étaient donc
+requis. Une première hypothèse de test supposait les valeurs de besoins du seed
+technique (70 000) dans le monde d'intégration; les fiches réelles commencent à
+100 000. Le scénario a été recalibré à l'heure canonique où les seuils sont
+effectivement franchis, au lieu de modifier les données du monde pour faire
+passer le test. La suite complète a validé **573 tests**.

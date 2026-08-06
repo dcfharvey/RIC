@@ -124,6 +124,11 @@ interprétation ou mémoire. Voir `docs/36_PERCEPTION_FACTUELLE.md`.
 - règles déterministes de priorité de secours et d'inactivité;
 - le LLM futur ne sera appelé qu'à un vrai point de choix.
 
+**Première tranche livrée :** les besoins sous seuil, blessures et effets de
+ressources propres à l'observateur alimentent une liste d'attention pure,
+ordonnée et bornée. Elle ne contient encore ni émotion, ni mémoire, ni
+décision. Voir `docs/37_ATTENTION_DETERMINISTE.md`.
+
 ### Lot H : mémoire et interprétation subjective
 
 - souvenirs avec sources, portée, confiance et politique de révision;
@@ -161,7 +166,11 @@ validateurs) permettent de les brancher sans les inventer prématurément.
 
 ## Point de départ actuel
 
+Les lots E et F sont livrés; le lot G est amorcé avec une attention pure et
+bornée. Mémoire, social et LLM restent futurs.
+
 Les portes 1 et 2 sont livrées : blueprint, connecteurs à état, traversée,
-règles de résidence et monde d'intégration atomique. Le lot E commence par le
-contrat d'action fermé v1, avec une traversée structurée sans LLM; voir
-`docs/34_CONTRAT_ACTION_COGNITION.md`. Les lots F à J restent futurs.
+règles de résidence et monde d'intégration atomique. Le contrat fermé du lot E,
+la perception factuelle du lot F et la première tranche du lot G sont livrés;
+voir `docs/34_CONTRAT_ACTION_COGNITION.md`, `docs/36_PERCEPTION_FACTUELLE.md`
+et `docs/37_ATTENTION_DETERMINISTE.md`.
