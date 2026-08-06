@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.54 — 6 août 2026
+
+- Orchestrateur autonome initial : événements directs perceptibles bornés,
+  curseur technique persistant, journal de résultat et mode dégradé explicite
+  lorsque le LLM local est indisponible. Migration `0033`.
+
 ## 0.53 — 6 août 2026
 
 - Première scène sociale persistante : participantes co-localisées, actes de

@@ -62,6 +62,9 @@ tests et documentation après un lot à conséquences étendues.
 - social initial : livré partiellement (relations directionnelles sourcées,
   limites et permissions explicites, contexte LLM v4); réparation, réseau,
   consentement opérationnel et actes sociaux restent futurs ;
+- premier orchestrateur : livré pour les événements directs perceptibles,
+  avec snapshot borné, curseur persistant et dégradation LLM; déclencheurs de
+  scènes, intentions et réflexion restent futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
 ## Jalons de version produit

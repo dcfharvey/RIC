@@ -105,3 +105,8 @@ Pour les scènes sociales, l'audit a vérifié que la parole n'est pas promue en
 vérité, que seules les participantes co-localisées peuvent ouvrir une scène et
 qu'une interruption se ferme sans nouvelle parole inventée. La suite complète
 a validé **638 tests**.
+
+Pour l'orchestrateur, l'audit a vérifié le snapshot de séquence (pas de boucle
+sur l'action fraîchement produite), la borne par résidente, le curseur
+persistant et le mode dégradé du fournisseur. La suite complète a validé
+**640 tests**.
