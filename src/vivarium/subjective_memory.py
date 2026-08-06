@@ -15,6 +15,7 @@ from .util import Clock, new_uuid
 
 
 _FIDELITIES = frozenset({"complete", "partial", "ambiguous", "signal_only"})
+MAX_RECALL_LIMIT = 50
 
 
 class SubjectiveMemoryError(ValueError):
@@ -58,6 +59,12 @@ class SubjectiveMemoryService:
     def _fidelity(value: Any) -> str:
         if value not in _FIDELITIES:
             raise SubjectiveMemoryError("fidélité invalide", code="invalid_fidelity")
+        return value
+
+    @staticmethod
+    def _limit(value: Any) -> int:
+        if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= MAX_RECALL_LIMIT:
+            raise SubjectiveMemoryError("limite de rappel invalide", code="invalid_limit")
         return value
 
     def _character_id(self, world_id: int, character_key: str) -> int:
@@ -138,3 +145,16 @@ class SubjectiveMemoryService:
         if candidate is None:
             raise SubjectiveMemoryError("événement non admissible", code="source_not_accessible")
         return self._record(world_id, character_key, request_key, "event", candidate.access_kind, candidate.fact, fidelity)
+
+    def recall_recent(self, world_id: Any, character_key: Any, *, limit: Any = 5) -> tuple[dict[str, Any], ...]:
+        """Rappel minimal : propriétaire seul, ordre stable, sans reconsolidation."""
+        world_id = self._world_id(world_id)
+        character_key = self._key(character_key, "personnage")
+        limit = self._limit(limit)
+        character_id = self._character_id(world_id, character_key)
+        rows = self._conn.execute(
+            "SELECT * FROM subjective_trace WHERE world_id = ? AND character_id = ? "
+            "ORDER BY encoded_at DESC, id DESC LIMIT ?",
+            (world_id, character_id, limit),
+        ).fetchall()
+        return tuple(self._sheet(row) for row in rows)

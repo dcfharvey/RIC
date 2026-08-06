@@ -70,8 +70,8 @@ reprise et au banc d'essai.
 
 ## Lecture initiale
 
-La première lecture sera déterministe : propriétaire seul, filtres explicites,
-ordre par importance déclarée puis récence, limite obligatoire. Elle ne fera
+La première lecture sera déterministe : propriétaire seul, ordre par récence et
+limite obligatoire. Elle ne fera
 ni embedding, ni rappel créatif, ni reconsolidation. L'oubli initial réduira
 plus tard l'accessibilité; il ne supprimera jamais la source.
 

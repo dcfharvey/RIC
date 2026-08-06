@@ -49,3 +49,20 @@ def test_direct_event_cannot_be_encoded_by_another_character(setup):
     with pytest.raises(SubjectiveMemoryError) as raised:
         memory.encode_direct_event(wid, "erika", "steal_move", seq)
     assert raised.value.code == "source_not_accessible"
+
+
+def test_recall_is_private_bounded_and_does_not_write(setup):
+    conn, wid, clock = setup
+    memory = SubjectiveMemoryService(conn, clock=clock)
+    item = AttentionService(conn, clock=clock).snapshot(wid, "sophie").selected[0]
+    memory.encode_attention(wid, "sophie", "notice_entry", item)
+    before_state, before_seq = canonical_state_digest(conn, wid), max_seq(conn, wid)
+
+    recalled = memory.recall_recent(wid, "sophie", limit=1)
+
+    assert len(recalled) == 1 and recalled[0]["request_key"] == "notice_entry"
+    assert memory.recall_recent(wid, "erika") == ()
+    with pytest.raises(SubjectiveMemoryError) as raised:
+        memory.recall_recent(wid, "sophie", limit=0)
+    assert raised.value.code == "invalid_limit"
+    assert canonical_state_digest(conn, wid) == before_state and max_seq(conn, wid) == before_seq
