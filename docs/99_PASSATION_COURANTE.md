@@ -96,8 +96,8 @@ aussi livrés; voir `docs/19_OBJETS_ET_CONTENANCE.md`,
 `docs/20_PRESETS_ENVIRONNEMENT.md`, `docs/22_BLUEPRINTS_ENVIRONNEMENT.md` et
 `docs/23_CONNECTEURS_ETAT.md` et `docs/24_TRAVERSEE_VALIDEE.md`. Le prochain
 lot recommandé est d'instancier le monde d'intégration et ses scénarios
-d'acceptation. Les cinq résidentes arrivent ensemble dans la cour, à côté de la
-boîte aux lettres. Voir `docs/25_REGLES_MONDE_STANDARD.md` et
+d'acceptation. Les cinq résidentes arrivent ensemble à l'entrée extérieure, à
+côté de la boîte aux lettres. Voir `docs/25_REGLES_MONDE_STANDARD.md` et
 `docs/26_CALIBRATION_CHUU.md` et `docs/27_CONTEXTE_INITIAL_RESIDENTES.md`.
 Elles savent uniquement qu'elles ont volontairement accepté cette colocation
 financée avec allocation; les relations initiales sont neutres. La résidence

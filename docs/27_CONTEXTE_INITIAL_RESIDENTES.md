@@ -20,8 +20,8 @@ C'est tout le contexte garanti à l'ouverture du monde.
 - aucune émotion, loyauté, méfiance ou attraction imposée par un texte de
   démarrage.
 
-Elles se rencontrent lors de leur arrivée commune dans la cour, près de la
-boîte aux lettres. Le moteur peut donc leur présenter les mêmes faits initiaux;
+Elles se rencontrent lors de leur arrivée commune à l'entrée extérieure, près
+de la boîte aux lettres. Le moteur peut donc leur présenter les mêmes faits initiaux;
 leurs interprétations, échanges et liens ultérieurs resteront libres.
 
 ## Conséquence de conception

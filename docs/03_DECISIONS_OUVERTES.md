@@ -26,7 +26,7 @@
 | --- | --- | --- | --- |
 | OD-001 | Langage, version exacte et bibliothèques | Python 3.12 de référence ; bibliothèque standard ; `pytest` en dev. | 2026-08-03 |
 | OD-009 (partiel) | Casting de référence | Sophie et Erika, humaines sapientes adultes; Luna, louve anthro sapiente adulte; Chuu, slime sapiente adulte à apparence féminine; Patoune, chatte domestique non sapiente. | 2026-08-05 |
-| OD-009 (complément) | Arrivée du monde d'intégration | Les cinq résidentes apparaissent ensemble dans la cour, à côté de la boîte aux lettres : clin d'œil aux Sims et situation d'ouverture commune. | 2026-08-06 |
+| OD-009 (complément) | Arrivée du monde d'intégration | Les cinq résidentes apparaissent ensemble à l'entrée extérieure, à côté de la boîte aux lettres : clin d'œil aux Sims et situation d'ouverture commune. | 2026-08-06 |
 | OD-009 (complément) | Contexte partagé à l'arrivée | Chaque résidente a accepté volontairement une colocation aux dépenses couvertes, avec allocation personnelle. Aucun autre savoir, passé commun ou lien initial n'est présupposé. | 2026-08-06 |
 
 ## Évolutions futures (consignées, non implémentées)

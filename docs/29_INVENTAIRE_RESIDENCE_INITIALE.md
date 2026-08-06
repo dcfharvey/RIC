@@ -16,6 +16,9 @@ spécial lié au casting.
 Les quatre chaises correspondent aux quatre résidentes sapientes. Patoune est
 une présence autonome, non une cinquième convive humaine.
 
+Il n'existe pas de salle à manger séparée : les repas partagés se déroulent
+dans la cuisine.
+
 ## Salle de bain
 
 - bain;
@@ -75,7 +78,9 @@ leur simple existence ne simule encore aucun réseau social ou message.
 - clôture;
 - piscine creusée;
 - remise;
-- boîte aux lettres, point d'arrivée commun des cinq résidentes.
+
+La boîte aux lettres appartient plutôt à la zone d'entrée extérieure, distincte
+de cette cour arrière clôturée.
 
 La piscine et les futurs contenants d'eau seront importants pour Chuu, mais ne
 reçoivent pas encore de règle spéciale : l'eau, les liquides et l'absorption
