@@ -60,6 +60,11 @@ technique (70 000) dans le monde d'intégration; les fiches réelles commencent 
 effectivement franchis, au lieu de modifier les données du monde pour faire
 passer le test. La suite complète a validé **573 tests**.
 
+La première trace subjective a révélé deux attentes de tests restées figées au
+schéma 23; elles ont été mises à jour vers la migration 24. La trace et son
+journal restent hors du digest canonique, mais sont immuables et contrôlés par
+leur service. La suite complète a validé **578 tests**.
+
 Pour le flux d'événements perceptibles, l'audit a vérifié que le curseur reste
 une entrée de lecture, jamais un accusé de réception persisté dans le canon.
 Les payloads ont été réduits avant export afin de ne pas transmettre la

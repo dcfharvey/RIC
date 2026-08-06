@@ -44,6 +44,7 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - test complet après perception factuelle locale : **568 passed** ;
 - test complet après attention déterministe : **573 passed** ;
 - test complet après flux d'événements perceptibles : **576 passed** ;
+- test complet après première trace subjective : **578 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -65,7 +66,8 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
   faits propres à la résidente réduits avant export; aucune reconstruction
   spéculative des événements passés d'autrui ;
 - première mémoire subjective : plan de contrat prêt, mais migration et service
-  restent à implémenter; voir `docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md` ;
+  de trace encodée sont livrés; consolidation, oubli, croyances et LLM restent
+  futurs. Voir `docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md` ;
 - objets portables, installations fixes et contenance objet‑dans‑objet,
   avec lieu effectif matérialisé, capacité et refus des cycles ;
 - possession physique générique : un objet portable suit son personnage sans
