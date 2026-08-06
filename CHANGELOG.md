@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.29 — 6 août 2026
+
+- Presets environnementaux versionnés : lieux et connecteurs disposent de
+  contrats validés, brouillons, publication et immuabilité SQLite.
+- La migration 0019 est globale : elle ne crée aucun fait dans un monde et ne
+  modifie pas le graphe existant.
+- Documentation : `docs/20_PRESETS_ENVIRONNEMENT.md`; tests : 520 réussis.
+
 ## 0.28 — 6 août 2026
 
 - Gestionnaire d'objets : création et lecture d'installations fixes ou
