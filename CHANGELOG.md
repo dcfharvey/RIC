@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.50 — 6 août 2026
+
+- États affectifs subjectifs initiaux : humeur diffuse (valence/activation) et
+  épisodes émotionnels causés, privés et auditables. Une émotion ne peut pas
+  être créée depuis une information inaccessible à la résidente.
+- Les résolutions restent historisées et l'affect est exposé de façon bornée
+  dans le contexte LLM v3, sans aucun droit d'écriture. Migration `0030`.
+
 ## 0.49 — 6 août 2026
 
 - Premier registre de croyances subjectives sourcées : une résidente ne peut

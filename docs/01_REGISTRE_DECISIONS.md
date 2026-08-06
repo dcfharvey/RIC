@@ -81,7 +81,7 @@ Statuts : `implémenté` (présent dans le code et testé), `normatif futur` (di
 | DEC-044 | Décision bornée et explicable : peu d’options, impossibilité distincte de transgression, profils multidimensionnels, suffisance. | **normatif futur** |
 | DEC-045 | Mémoire reconstructive : encodage subjectif, récupération faillible, distincte de la vérité canonique. | **normatif futur** |
 | DEC-046 | Relations multidimensionnelles : directionnelles, propres aux domaines, fondées sur des preuves, réseau social ; confiance/intimité/pouvoir/engagement/réparation décomposés. | **normatif futur** |
-| DEC-047 | Émotions processuelles : multi-composants, appraisals ; humeur, sentiment, étiquette, expression, régulation séparés. | **normatif futur** |
+| DEC-047 | Émotions processuelles : multi-composants, appraisals ; humeur, sentiment, étiquette, expression, régulation séparés. | **partiel** (humeur et épisodes sourcés/audités séparés; appraisals calculés, expression et régulation futurs) |
 | DEC-048 | Régulation interpersonnelle : tentatives de réguler autrui, effet dépendant de la perception de la cible, interventions intrusives soumises aux permissions. | **normatif futur** |
 | DEC-049 | Ontologie composable : identité, type, phase, rôle, sujet cognitif, contrôleur, corps, manifestation, forme, apparence séparés. | **normatif futur** |
 | DEC-050 | Capacités et affordances : capacités dérivées des composants et de l’état ; affordances relationnelles situées. | **normatif futur** |

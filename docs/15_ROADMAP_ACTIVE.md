@@ -56,6 +56,9 @@ tests et documentation après un lot à conséquences étendues.
 - croyances subjectives initiales : livrées partiellement (source privée,
   preuve, révision auditée et contexte LLM v2); hypothèses concurrentes,
   modèles de source et contradictions gérées restent futurs ;
+- affect subjectif initial : livré partiellement (humeur, épisodes causés,
+  résolution auditée et contexte LLM v3); dynamique, expression et régulation
+  restent futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
 ## Jalons de version produit

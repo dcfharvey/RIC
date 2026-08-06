@@ -50,6 +50,7 @@ def test_context_contains_only_bounded_authorized_inputs(setup):
     context = CognitionContextService(conn, clock=clock).build(wid, "sophie")
     assert context.character_name == "Sophie"
     assert 0 < len(context.attention) <= 8 and len(context.memories) == 0 and len(context.beliefs) == 0
+    assert context.mood is None and context.emotions == ()
     assert {item["connector_key"] for item in context.allowed_traversals} == {
         "porte_entree", "passage_stationnement"
     }
@@ -113,7 +114,7 @@ def test_lm_studio_request_uses_native_reasoning_off_endpoint(monkeypatch, setup
 
     class Response:
         def read(self):
-            return b'{"output":[{"type":"message","content":"{\\"schema_version\\":2,\\"action\\":\\"no_action\\"}"}]}'
+            return b'{"output":[{"type":"message","content":"{\\"schema_version\\":3,\\"action\\":\\"no_action\\"}"}]}'
         def __enter__(self): return self
         def __exit__(self, *args): return False
 

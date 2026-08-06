@@ -694,6 +694,61 @@ def subjective_belief_audit(conn: sqlite3.Connection, world_id: int) -> list[str
     return findings
 
 
+def subjective_affect_digest(conn: sqlite3.Connection, world_id: int) -> dict[str, Any]:
+    """Projection des humeurs et émotions privées, séparée du digest canonique."""
+    moods = conn.execute(
+        "SELECT ch.key AS character, mood.valence_milli, mood.activation_milli "
+        "FROM mood_state mood JOIN character ch ON ch.id = mood.character_id "
+        "WHERE mood.world_id = ? ORDER BY ch.key",
+        (world_id,),
+    ).fetchall()
+    episodes = conn.execute(
+        "SELECT ch.key AS character, episode.episode_key, episode.family, target.key AS target, "
+        "episode.appraisal_json, episode.intensity_milli, episode.action_tendency, episode.expression_milli, episode.status "
+        "FROM emotion_episode episode JOIN character ch ON ch.id = episode.character_id "
+        "LEFT JOIN character target ON target.id = episode.target_character_id "
+        "WHERE episode.world_id = ? ORDER BY ch.key, episode.created_at, episode.id",
+        (world_id,),
+    ).fetchall()
+    return {
+        "moods": {row["character"]: {"valence_milli": row["valence_milli"], "activation_milli": row["activation_milli"]} for row in moods},
+        "episodes": [
+            {"character": row["character"], "episode_key": row["episode_key"], "family": row["family"],
+             "target": row["target"], "appraisal": json.loads(row["appraisal_json"]),
+             "intensity_milli": row["intensity_milli"], "action_tendency": row["action_tendency"],
+             "expression_milli": row["expression_milli"], "status": row["status"]}
+            for row in episodes
+        ],
+    }
+
+
+def subjective_affect_audit(conn: sqlite3.Connection, world_id: int) -> list[str]:
+    """Contrôle la provenance des états affectifs et leurs journaux privés."""
+    findings: list[str] = []
+    moods = conn.execute(
+        "SELECT mood.id, mood.character_id, mood.last_event_id, event.event_type, event.character_id AS event_character_id "
+        "FROM mood_state mood LEFT JOIN mood_event event ON event.id = mood.last_event_id WHERE mood.world_id = ?",
+        (world_id,),
+    ).fetchall()
+    for mood in moods:
+        if mood["event_type"] not in {"mood_initialized", "mood_changed"} or mood["event_character_id"] != mood["character_id"]:
+            findings.append(f"mood {mood['id']}: missing or mismatched latest event")
+    episodes = conn.execute(
+        "SELECT episode.id, episode.character_id, episode.status, episode.last_event_id, trace.character_id AS trace_character_id, "
+        "event.event_type, event.character_id AS event_character_id "
+        "FROM emotion_episode episode JOIN subjective_trace trace ON trace.id = episode.cause_trace_id "
+        "LEFT JOIN emotion_event event ON event.id = episode.last_event_id WHERE episode.world_id = ?",
+        (world_id,),
+    ).fetchall()
+    for episode in episodes:
+        expected = "emotion_started" if episode["status"] == "active" else "emotion_resolved"
+        if episode["trace_character_id"] != episode["character_id"]:
+            findings.append(f"emotion {episode['id']}: inaccessible cause")
+        if episode["event_type"] != expected or episode["event_character_id"] != episode["character_id"]:
+            findings.append(f"emotion {episode['id']}: missing or mismatched latest event")
+    return findings
+
+
 @dataclass
 class SimulationRunReport:
     """Rapport stable de simulation (outil de test/diagnostic, non canonique)."""

@@ -86,3 +86,8 @@ exige désormais un successeur déjà audité dans la même transaction, et
 interdit les éditions/suppressions silencieuses des preuves et événements.
 Le digest et l'audit restent subjectifs, hors vérité canonique. La suite
 complète a validé **624 tests**.
+
+Pour les états affectifs, l'audit a vérifié que l'humeur et l'épisode ne sont
+pas des faits canoniques, que l'épisode exige une trace privée accessible et
+que toute mise à jour pointe vers un événement privé plus récent. La suite
+complète a validé **629 tests**.
