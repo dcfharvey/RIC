@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.32 — 6 août 2026
+
+- `TraversalEngine` valide un franchissement concret par connecteur : présence,
+  sens, destination, état, topologie et garde-fous de déplacement existants.
+- Les déplacements de personnages dans un monde blueprint respectent aussi le
+  connecteur lié à l'arête et tracent sa clé causale dans l'événement.
+- Documentation : `docs/24_TRAVERSEE_VALIDEE.md`; tests : 532 réussis.
+
 ## 0.31 — 6 août 2026
 
 - Instances de connecteurs issues des blueprints, liées aux arêtes du graphe

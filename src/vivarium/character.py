@@ -24,7 +24,7 @@ from .injury import InjuryEngine, MOVEMENT_SURCHARGE_MILLI, level
 from .needs import NeedsEngine
 from .seed import SEED_CHARACTERS
 from .util import Clock, new_uuid
-from .world import SOURCE_ENGINE, SOURCE_SYSTEM, _append_event
+from .world import SOURCE_ENGINE, SOURCE_SYSTEM, WorldEngine, _append_event
 from .spatial import GraphEngine
 
 
@@ -135,6 +135,7 @@ class CharacterEngine:
         target_key: str,
         *,
         sim_now: str | None = None,
+        connector_key: str | None = None,
     ) -> dict[str, Any]:
         """Préparation interne du déplacement, à exécuter dans une transaction
         déjà ouverte (c) — utilisée aussi par le démarrage atomique d'activité.
@@ -193,6 +194,25 @@ class CharacterEngine:
                 code="invalid_destination",
             )
 
+        target_id = self._location_id(world_id, target_key)
+        connector = None
+        if WorldEngine._has_table(self._conn, "world_connector"):
+            connector = self._conn.execute(
+                "SELECT c.key, c.state FROM location_link ll JOIN world_connector c ON c.id = ll.connector_id "
+                "WHERE ll.world_id = ? AND ll.from_location_id = ? AND ll.to_location_id = ?",
+                (world_id, current["current_location_id"], target_id),
+            ).fetchone()
+        if connector_key is not None and (connector is None or connector["key"] != connector_key):
+            raise CharacterError("connecteur incompatible avec le déplacement", code="connector_mismatch")
+        if connector is not None:
+            if connector["state"] == "closed":
+                raise CharacterError("connecteur fermé", code="connector_closed")
+            if connector["state"] == "blocked":
+                raise CharacterError("connecteur bloqué", code="connector_blocked")
+            if connector["state"] != "available":
+                raise CharacterError("connecteur indisponible", code="connector_unavailable")
+            connector_key = connector["key"]
+
         # --- blessure : matérialisation canonique avant classification (3.3B2) ---
         # La blessure est matérialisée à l'heure simulée courante, dans la même
         # transaction, avec le régime réellement actif (récupération pendant une
@@ -240,7 +260,6 @@ class CharacterEngine:
                 surcharge = MOVEMENT_SURCHARGE_MILLI
 
         now = self._now_iso()
-        target_id = self._location_id(world_id, target_key)
         c.execute(
             "UPDATE character SET current_location_id = ?, updated_at = ? "
             "WHERE world_id = ? AND key = ?",
@@ -258,6 +277,8 @@ class CharacterEngine:
             "total_energy_cost": surcharge,
             "injury_effect_level": effect_level or "none",
         }
+        if connector_key is not None:
+            payload["connector"] = connector_key
         _append_event(
             c,
             world_id,

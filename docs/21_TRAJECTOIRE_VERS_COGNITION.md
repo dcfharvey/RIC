@@ -46,7 +46,7 @@ connecteur.
 **Sortie requise :** fermer un connecteur bloque réellement le passage concerné
 sans modifier un autre passage, et un refus ne laisse aucune trace partielle.
 
-### Lot C : traversée validée
+### Lot C : traversée validée — socle initial livré
 
 **But :** remplacer le déplacement qui ne connaît qu'une arête par une action
 canonique « tenter de traverser ce connecteur ».
@@ -63,8 +63,10 @@ proposition d'action -> validation moteur -> position canonique + événement
   décision de permission et de mutation;
 - aucun LLM ne peut déplacer quelqu'un directement.
 
-**Sortie requise :** chaque déplacement a un connecteur causal identifiable;
-un itinéraire possible mais fermé est refusé proprement.
+**Sortie requise :** chaque déplacement dans un monde blueprint a un connecteur
+causal identifiable; un itinéraire possible mais fermé est refusé proprement.
+Ces critères sont livrés pour les états et directions initiaux; les capacités
+et ressources restent des validateurs futurs.
 
 ## Porte 2 — monde d'intégration, pas encore cognition
 
