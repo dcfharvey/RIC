@@ -1,8 +1,7 @@
 # Plan — porte d'appel LLM événementielle
 
-**Statut :** premier étage implanté : politique pure, sans ordonnanceur, sans
-appel automatique et sans écriture. La persistance technique reste le lot
-suivant.
+**Statut :** deux premiers étages implantés : politique pure et journal
+technique append-only des admissions, sans ordonnanceur ni appel automatique.
 
 ## Décision de portée
 
@@ -67,7 +66,7 @@ déjà autorisées.
 ## Ordre d'implémentation
 
 1. ~~service pur de politique + cas de banc, sans écriture et sans appel réseau~~;
-2. état minimal séparé (dernier déclencheur/budget), append-only et idempotent;
+2. ~~état minimal séparé (dernier déclencheur/budget), append-only et idempotent~~;
 3. routeur qui consulte la politique avant `CognitionTurnService`;
 4. calibrage des seuils sur Gemma local avec rapports de banc;
 5. seulement ensuite, intention persistante, scènes et motifs sociaux.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.42 — 6 août 2026
+
+- Journal technique append-only des admissions d'appels cognitifs, migration
+  `0025`. Une admission est inscrite avant tout futur appel réseau; son retry
+  est dédupliqué de façon stable et un appel différé n'écrit rien.
+- Les admissions sont séparées des événements canoniques et des mémoires
+  subjectives. Elles utilisent l'heure canonique et un budget propre à chaque
+  résidente. Le routeur vers Gemma reste volontairement futur.
+
 ## 0.41 — 6 août 2026
 
 - Première porte déterministe d'appel LLM : motifs fermés, clé d'idempotence,

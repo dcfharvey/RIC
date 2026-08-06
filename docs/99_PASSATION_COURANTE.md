@@ -27,7 +27,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
   (exposition HTTP locale du même pipeline) ;
-- migration courante : `0024_subjective_trace.sql` ;
+- migration courante : `0025_cognition_call_admission.sql` ;
 - dernier test complet avant 4.2J : **469 passed** ;
 - tests HTTP ciblés après 4.2J : **112 passed** ;
 - test complet après 4.2J : **477 passed** ;
@@ -56,6 +56,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après frontière LLM locale et banc de fumée : **592 passed** ;
 - test complet après politique pure d'admissibilité des appels LLM :
   **599 passed** ;
+- test complet après journal append-only d'admission LLM : **602 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -86,8 +87,9 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   désactivé pour Gemma. Voir `docs/40_ADAPTATEUR_LLM_LOCAL.md`.
 - porte d'appel LLM événementielle : première politique pure livrée;
   déclencheurs fermés, déduplication, debounce et budget sont vérifiables sans
-  réseau ni écriture. La persistance append-only de ses admissions reste à
-  livrer; voir `docs/41_PLAN_PORTE_APPEL_LLM.md`.
+  réseau ni écriture canonique. Ses admissions techniques sont append-only,
+  idempotentes et distinctes des traces subjectives; le routeur reste à livrer.
+  Voir `docs/41_PLAN_PORTE_APPEL_LLM.md`.
 - idées retenues de scénarios et de systèmes futurs : jeux à information privée,
   effort physique et affrontements arbitrés; voir
   `docs/39_BACKLOG_SCENARIOS_ET_SYSTEMES.md`.
