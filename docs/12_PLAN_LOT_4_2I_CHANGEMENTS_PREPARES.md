@@ -41,7 +41,8 @@ canonique du fait et contient l'identifiant du plan qui l'a autorisé.
 
 - aucune mutation de personnage, aucune psychologie, aucun snapshot ou retour
   arrière ;
-- aucune exposition HTTP/UI du nouveau pipeline pour l'instant ;
+- aucune exposition UI du nouveau pipeline pour l'instant ; l'API HTTP locale
+  est livrée séparément par le sous-lot 4.2J ;
 - les anciennes commandes admin simples restent disponibles pour ne pas casser
   l'interface actuelle ; elles seront basculées ou retirées dans un lot dédié ;
 - le contrôle d'autorisation multi-rôles reste futur : le MVP local a un seul

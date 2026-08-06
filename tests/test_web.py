@@ -654,6 +654,105 @@ def test_post_charset_valide(server):
     assert status == 200
 
 
+# --- Pipeline de changements administratifs ----------------------------------
+
+def _prepare_change(port, wid, token, *, name="Après", ttl_seconds=None):
+    body = {"world_id": wid, "name": name}
+    if ttl_seconds is not None:
+        body["ttl_seconds"] = ttl_seconds
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/admin-changes/rename-world/prepare",
+        body=body,
+        token=token,
+    )
+    assert status == 200 and data["ok"] is True
+    return data["data"]
+
+
+def test_change_pipeline_http_complet(server):
+    srv, port, wid = server
+    plan = _prepare_change(port, wid, srv.token)
+    plan_id = plan["id"]
+    status, data, _ = _request(
+        port, "GET", f"/api/admin-changes/{plan_id}/validate", token=srv.token
+    )
+    assert status == 200 and data["data"]["valid"] is True
+    status, data, _ = _request(
+        port, "GET", f"/api/admin-changes/{plan_id}/impact", token=srv.token
+    )
+    assert status == 200 and data["data"]["impact"]["classification"] == "non_sensitive"
+    status, data, _ = _request(
+        port,
+        "POST",
+        f"/api/admin-changes/{plan_id}/confirm",
+        body={"hash": plan["hash"]},
+        token=srv.token,
+    )
+    assert status == 200 and data["data"]["status"] == "applied"
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}")
+    assert status == 200 and data["data"]["world"]["name"] == "Après"
+
+
+@pytest.mark.parametrize(
+    "method,path",
+    [
+        ("POST", "/api/admin-changes/rename-world/prepare"),
+        ("GET", "/api/admin-changes/00000000-0000-0000-0000-000000000000/validate"),
+        ("GET", "/api/admin-changes/00000000-0000-0000-0000-000000000000/impact"),
+        ("POST", "/api/admin-changes/00000000-0000-0000-0000-000000000000/confirm"),
+    ],
+)
+def test_change_pipeline_requiert_jeton(server, method, path):
+    srv, port, wid = server
+    body = {"world_id": wid, "name": "Après"} if path.endswith("prepare") else {"hash": "0" * 64}
+    status, data, _ = _request(port, method, path, body=body if method == "POST" else None)
+    assert status == 403 and data["error"]["code"] == "forbidden"
+
+
+def test_change_pipeline_refuse_hash_incorrect_sans_mutation(server):
+    srv, port, wid = server
+    plan = _prepare_change(port, wid, srv.token)
+    status, data, _ = _request(
+        port,
+        "POST",
+        f"/api/admin-changes/{plan['id']}/confirm",
+        body={"hash": "0" * 64},
+        token=srv.token,
+    )
+    assert status == 409 and data["error"]["code"] == "hash_mismatch"
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}")
+    assert data["data"]["world"]["name"] == "Admin"
+
+
+def test_change_pipeline_refuse_parametre_inconnu_et_uuid_invalide(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port,
+        "POST",
+        "/api/admin-changes/rename-world/prepare",
+        body={"world_id": wid, "name": "Après", "extra": 1},
+        token=srv.token,
+    )
+    assert status == 400 and data["error"]["code"] == "invalid_parameters"
+    status, data, _ = _request(
+        port, "GET", "/api/admin-changes/not-a-uuid/validate", token=srv.token
+    )
+    assert status == 400 and data["error"]["code"] == "invalid_parameters"
+
+
+def test_change_pipeline_confirme_retry_sans_double_action(server):
+    srv, port, wid = server
+    plan = _prepare_change(port, wid, srv.token)
+    path = f"/api/admin-changes/{plan['id']}/confirm"
+    for expected in ("applied", "already_applied"):
+        status, data, _ = _request(
+            port, "POST", path, body={"hash": plan["hash"]}, token=srv.token
+        )
+        assert status == 200 and data["data"]["status"] == expected
+
+
 # --- Erreurs internes et connexions -------------------------------------------
 
 def test_exception_inattendue_masquee(server, monkeypatch):

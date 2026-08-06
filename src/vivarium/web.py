@@ -12,7 +12,7 @@ validés (`AdminReadService`, `AdminCommandService`). Le serveur :
 Bibliothèque standard uniquement (`http.server`, `secrets`, `json`,
 `urllib.parse`, `logging`). Serveur mono-thread écoutant uniquement sur
 `127.0.0.1`, avec protection locale par validation Host/Origin et jeton local
-pour les mutations (POST).
+pour les mutations (POST) ainsi que les lectures de plans administratifs.
 """
 
 from __future__ import annotations
@@ -23,10 +23,12 @@ import json
 import logging
 import secrets
 import sqlite3
+import uuid
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from .admin import AdminCommandService, AdminReadError, AdminReadService
+from .admin_changes import AdminChangeError, AdminChangeService
 from .db import connect_database
 from .migrations import load_migrations
 
@@ -62,6 +64,8 @@ REQUIRED_TABLES = frozenset(
         "activity_allowed_location",
         "injury",
         "world_object",
+        "admin_change_plan",
+        "admin_audit_event",
         "migrations",
     }
 )
@@ -188,13 +192,19 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
                 else:
                     raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
             elif self.command in ("GET", "HEAD"):
-                if kind == "command":
+                if kind in ("command", "change_prepare", "change_confirm"):
                     raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
-                self._serve_get(kind, args, send_body=(self.command == "GET"))
+                if kind in ("change_validate", "change_impact"):
+                    self._serve_change_read(kind, args[0], send_body=(self.command == "GET"))
+                else:
+                    self._serve_get(kind, args, send_body=(self.command == "GET"))
             elif self.command == "POST":
-                if kind != "command":
+                if kind == "command":
+                    self._serve_command(args[0])
+                elif kind in ("change_prepare", "change_confirm"):
+                    self._serve_change_command(kind, args)
+                else:
                     raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
-                self._serve_command(args[0])
             else:
                 raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
         except HttpError as e:
@@ -284,6 +294,16 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             return ("character", [parts[2], parts[4]])
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "commands":
             return ("command", [parts[2]])
+        if parts == ["api", "admin-changes", "rename-world", "prepare"]:
+            return ("change_prepare", [])
+        if len(parts) == 4 and parts[0] == "api" and parts[1] == "admin-changes":
+            plan_id = self._parse_plan_id(parts[2])
+            if parts[3] == "validate":
+                return ("change_validate", [plan_id])
+            if parts[3] == "impact":
+                return ("change_impact", [plan_id])
+            if parts[3] == "confirm":
+                return ("change_confirm", [plan_id])
         raise HttpError(404, "not_found", "Route inconnue.")
 
     # --- fichiers statiques (Phase 4.1D) --------------------------------------
@@ -351,6 +371,90 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             raise HttpError(400, "unknown_command", "Commande inconnue.")
         if not self._check_token():
             raise HttpError(403, "forbidden", "Accès refusé.")
+        payload = self._read_json_object(COMMAND_PARAMS[command])
+
+        conn = connect_database(self.server.db_path)
+        try:
+            result = AdminCommandService(conn).execute(command, payload)
+        finally:
+            conn.close()
+        self._send_json(self._command_status(result), result)
+
+    # --- plans de changement administratifs (HTTP local) -------------------
+
+    def _serve_change_read(
+        self, kind: str, plan_id: str, send_body: bool = True
+    ) -> None:
+        """Expose les lectures d'un plan seulement au client local authentifié."""
+        if urlsplit(self.path).query:
+            raise HttpError(400, "invalid_parameters", "Paramètre inconnu.")
+        if not self._check_token():
+            raise HttpError(403, "forbidden", "Accès refusé.")
+        conn = connect_database(self.server.db_path)
+        try:
+            service = AdminChangeService(conn)
+            if kind == "change_validate":
+                data = service.validate(plan_id)
+            elif kind == "change_impact":
+                data = service.impact(plan_id)
+            else:  # pragma: no cover - routeur fermé
+                raise HttpError(404, "not_found", "Route inconnue.")
+        except AdminChangeError as exc:
+            self._send_change_error(exc, send_body=send_body)
+            return
+        finally:
+            conn.close()
+        self._send_json(200, {"ok": True, "data": data, "error": None}, send_body=send_body)
+
+    def _serve_change_command(self, kind: str, args: list[str]) -> None:
+        """Prépare ou confirme un plan; aucun SQL ni logique métier HTTP."""
+        if not self._check_token():
+            raise HttpError(403, "forbidden", "Accès refusé.")
+        if kind == "change_prepare":
+            payload = self._read_json_object(frozenset({"world_id", "name", "ttl_seconds"}))
+        elif kind == "change_confirm":
+            payload = self._read_json_object(frozenset({"hash"}))
+        else:  # pragma: no cover - routeur fermé
+            raise HttpError(404, "not_found", "Route inconnue.")
+
+        conn = connect_database(self.server.db_path)
+        try:
+            service = AdminChangeService(conn)
+            if kind == "change_prepare":
+                data = service.prepare_rename_world(
+                    payload.get("world_id"),
+                    payload.get("name"),
+                    ttl_seconds=payload.get("ttl_seconds"),
+                )
+            else:
+                data = service.confirm(args[0], payload.get("hash"))
+        except AdminChangeError as exc:
+            self._send_change_error(exc)
+            return
+        finally:
+            conn.close()
+        self._send_json(200, {"ok": True, "data": data, "error": None})
+
+    def _send_change_error(self, exc: AdminChangeError, send_body: bool = True) -> None:
+        mapping = {
+            "invalid_parameters": 400,
+            "invalid_name": 400,
+            "world_not_found": 404,
+            "plan_not_found": 404,
+            "no_effect": 409,
+            "hash_mismatch": 409,
+            "plan_expired": 409,
+            "world_changed": 409,
+        }
+        self._send_error(
+            mapping.get(exc.code, 500),
+            exc.code if exc.code in mapping else "internal",
+            str(exc) if exc.code in mapping else "Erreur interne.",
+            send_body=send_body,
+        )
+
+    def _read_json_object(self, allowed: frozenset[str]) -> dict:
+        """Lit un corps JSON objet borné et refuse les champs inconnus."""
         ctype = self.headers.get("Content-Type", "")
         if ctype.split(";")[0].strip().lower() != "application/json":
             raise HttpError(415, "unsupported_media_type", "Content-Type invalide.")
@@ -364,16 +468,9 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             raise HttpError(400, "invalid_parameters", "JSON invalide.")
         if not isinstance(payload, dict):
             raise HttpError(400, "invalid_parameters", "Corps JSON non objet.")
-        extra = set(payload) - COMMAND_PARAMS[command]
-        if extra:
+        if set(payload) - allowed:
             raise HttpError(400, "invalid_parameters", "Paramètre inconnu.")
-
-        conn = connect_database(self.server.db_path)
-        try:
-            result = AdminCommandService(conn).execute(command, payload)
-        finally:
-            conn.close()
-        self._send_json(self._command_status(result), result)
+        return payload
 
     def _read_content_length(self) -> int:
         raw = self.headers.get("Content-Length")
@@ -427,6 +524,18 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
         if not key or "/" in key:
             raise HttpError(400, "invalid_parameters", "character_key invalide.")
         return key
+
+    @staticmethod
+    def _parse_plan_id(segment: str) -> str:
+        """Accepte uniquement l'UUID canonique émis par le service métier."""
+        value = unquote(segment)
+        try:
+            parsed = uuid.UUID(value)
+        except (ValueError, AttributeError):
+            raise HttpError(400, "invalid_parameters", "plan_id invalide.") from None
+        if str(parsed) != value:
+            raise HttpError(400, "invalid_parameters", "plan_id invalide.")
+        return value
 
     def _parse_events_query(self) -> dict:
         query = urlsplit(self.path).query

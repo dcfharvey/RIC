@@ -1,14 +1,17 @@
 # Vivarium social artificiel — paquet destiné à une IA programmeuse
 
-Version 0.1, 3 août 2026.
+Version 1.2, 6 août 2026.
 
-## Fichier à lire en premier
+## Reprise d'un travail existant
 
-`docs/00_DOSSIER_MAITRE_IA.md` est la seule source normative initiale.
+Commencer par `docs/99_PASSATION_COURANTE.md`, puis lire
+`docs/00_DOSSIER_MAITRE_IA.md`, les documents de lots cités et l'état Git.
+La passation courante donne l'état opérationnel; le dossier maître reste la
+source normative du dépôt.
 
 Les fichiers du dossier `sources/` proviennent des cinq documents de conception antérieurs. Ils sont fournis pour la traçabilité et le détail historique, mais contiennent des formulations préliminaires qui ont été arbitrées dans le dossier maître. Une IA ne doit pas les utiliser pour contredire le dossier maître.
 
-## Première commande
+## Archive historique
 
 Copier le contenu de `docs/history/04_PROMPT_DEMARRAGE.md` dans l’environnement agentique après avoir ouvert le dossier du projet.
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.20 — 6 août 2026
+
+- **Phase 4.2I — premier pipeline de changement administratif préparé** :
+  `AdminChangeService` pour `rename_world`, plan immuable, hash exact,
+  expiration, impact sémantique, verrou optimiste par séquence canonique,
+  audit administratif séparé et confirmation idempotente.
+- Migration 0014 : `admin_change_plan` et `admin_audit_event`; aucune voie
+  SQLite parallèle et aucune confusion avec le journal canonique.
+- **Phase 4.2J — API HTTP locale du pipeline** : prepare, validate, impact et
+  confirm; jeton local requis pour chaque route, UUID canonique obligatoire,
+  corps JSON fermés et statuts HTTP stables.
+- Aucune modification de l'interface visuelle, du casting, de la cognition, de
+  Discord ou d'un fournisseur LLM.
+- Tests : 477 réussis.
+
 ## 0.19 — 4 août 2026
 
 - **Phase 4.1D — Premier tableau de bord local simple** (`src/vivarium/static/`).

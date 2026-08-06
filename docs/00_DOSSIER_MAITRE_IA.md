@@ -1,7 +1,7 @@
 # Vivarium social artificiel
 ## Dossier maître d’implémentation destiné à une IA programmeuse
 
-**Version :** 1.1
+**Version :** 1.2
 **Date :** 6 août 2026
 **Statut :** source normative unique du dépôt après fermeture technique de la Phase 3
 **Public cible :** IA programmeuse, agent de développement ou développeur humain
@@ -267,11 +267,13 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v0.9** (5 août 2026) : quantité de ressource, taux rationnel, bandes d'état et journal canonique génériques; les conséquences concrètes d'un état restent séparées et déclaratives.
 - **v1.0** (6 août 2026) : effets de ressource déclaratifs pour disponibilité de capacité ou signal contextuel, lus sans imposer d'émotion, de narration ou de décision.
 - **v1.1** (6 août 2026) : premier plan administratif immuable (`prepare -> validate -> impact -> confirm`) pour un renommage de monde; hash exact, expiration, concurrence optimiste, audit séparé et retry idempotent.
+- **v1.2** (6 août 2026) : API HTTP locale du pipeline préparé, protégée par jeton pour les deux mutations et les deux lectures administratives; aucune interface visuelle nouvelle.
 
 ## 24. Annexes et références
 
 - Registre des décisions : `docs/01_REGISTRE_DECISIONS.md` v0.3.
-- Matrice des exigences : `docs/02_MATRICE_EXIGENCES.md` v0.3.
+- Matrice des exigences : `docs/02_MATRICE_EXIGENCES.md` v0.4.
+- Passation opérationnelle : `docs/99_PASSATION_COURANTE.md`.
 - Décisions ouvertes : `docs/03_DECISIONS_OUVERTES.md` v0.3.
 - Gabarits : `docs/05_GABARITS.md` v0.2.
 - Exigences normatives post-audit : `docs/history/Vivarium_Exigences_Normatives_Post_Audit_v0_1.md`.
