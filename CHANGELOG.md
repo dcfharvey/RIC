@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.56 — 6 août 2026
+
+- Commande `vivarium living-bench` : affiche en direct les ticks, appels et
+  résultats du banc vivant dans une console, sans ouvrir de monde persistant.
+
 ## 0.55 — 6 août 2026
 
 - Banc vivant jetable : monde d’intégration réel en mémoire, événement

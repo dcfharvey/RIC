@@ -17,5 +17,10 @@ La prochaine opération autorisée est un essai contrôlé avec `LMStudioProvide
 et Gemma déjà chargée, sur ce banc seulement. Ce ne sera pas encore le lancement
 du monde MVP persistant.
 
+La commande `vivarium living-bench` affiche chaque tick, résidente, événement,
+verdict et erreur locale directement dans la console. Elle est conçue pour être
+lancée dans une fenêtre PowerShell séparée, afin que l'observation humaine reste
+distincte du moteur et de son journal.
+
 **Preuve de sortie :** deux scénarios injectés et suite complète : 642 tests
-réussis.
+réussis (643 après l'ajout de la console en direct).

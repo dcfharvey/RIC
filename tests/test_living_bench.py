@@ -13,3 +13,8 @@ def test_living_bench_is_jetable_and_exercises_a_routed_turn():
 def test_living_bench_reports_degraded_provider_without_corrupting_world():
  report=run_living_bench(Provider('llm_unavailable'),CognitionCallLimits(0,86400,100))
  assert any(item.outcome=='provider_degraded' for item in report.provider_outcomes) and all(v for k,v in report.audit_findings.items() if k!='bad_causes') and report.audit_findings['bad_causes']==[]
+
+def test_living_bench_calls_observer_for_each_tick():
+ ticks=[]
+ run_living_bench(Provider(),CognitionCallLimits(0,86400,100),on_tick=ticks.append)
+ assert ticks and ticks[-1].outcomes==()
