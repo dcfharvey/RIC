@@ -1,0 +1,22 @@
+CREATE TABLE subjective_belief (
+ id INTEGER PRIMARY KEY, public_id TEXT NOT NULL UNIQUE, world_id INTEGER NOT NULL, character_id INTEGER NOT NULL,
+ belief_key TEXT NOT NULL, question_key TEXT NOT NULL, proposition_json TEXT NOT NULL CHECK(json_type(proposition_json)='object'),
+ polarity TEXT NOT NULL CHECK(polarity IN ('true','false','uncertain')), confidence_milli INTEGER NOT NULL CHECK(confidence_milli BETWEEN 0 AND 1000),
+ status TEXT NOT NULL CHECK(status IN ('active','contested','abandoned')), visibility TEXT NOT NULL CHECK(visibility IN ('private','shared','declared')),
+ revision_of_id INTEGER REFERENCES subjective_belief(id), created_at TEXT NOT NULL, revised_at TEXT NOT NULL,
+ UNIQUE(world_id,character_id,belief_key));
+CREATE TABLE subjective_belief_evidence (
+ id INTEGER PRIMARY KEY, belief_id INTEGER NOT NULL REFERENCES subjective_belief(id), trace_id INTEGER NOT NULL REFERENCES subjective_trace(id),
+ polarity TEXT NOT NULL CHECK(polarity IN ('support','contradict')), diagnosticity_milli INTEGER NOT NULL CHECK(diagnosticity_milli BETWEEN 0 AND 1000),
+ source_reliability_milli INTEGER NOT NULL CHECK(source_reliability_milli BETWEEN 0 AND 1000), created_at TEXT NOT NULL, UNIQUE(belief_id,trace_id));
+CREATE TABLE subjective_belief_event (id INTEGER PRIMARY KEY, world_id INTEGER NOT NULL, character_id INTEGER NOT NULL, belief_id INTEGER NOT NULL REFERENCES subjective_belief(id), event_type TEXT NOT NULL CHECK(event_type IN ('belief_adopted','belief_revised')), payload_json TEXT NOT NULL CHECK(json_type(payload_json)='object'), recorded_at TEXT NOT NULL);
+CREATE TRIGGER subjective_belief_character_same_world_insert BEFORE INSERT ON subjective_belief WHEN NOT EXISTS (SELECT 1 FROM character ch WHERE ch.id=NEW.character_id AND ch.world_id=NEW.world_id) BEGIN SELECT RAISE(ABORT,'subjective belief character must be in same world'); END;
+CREATE TRIGGER subjective_belief_no_delete BEFORE DELETE ON subjective_belief BEGIN SELECT RAISE(ABORT,'subjective belief cannot be deleted'); END;
+CREATE TRIGGER subjective_belief_revision_only BEFORE UPDATE ON subjective_belief WHEN NOT (NEW.status='contested' AND OLD.status='active' AND NEW.public_id IS OLD.public_id AND NEW.world_id IS OLD.world_id AND NEW.character_id IS OLD.character_id AND NEW.belief_key IS OLD.belief_key AND NEW.question_key IS OLD.question_key AND NEW.proposition_json IS OLD.proposition_json AND NEW.polarity IS OLD.polarity AND NEW.confidence_milli IS OLD.confidence_milli AND NEW.visibility IS OLD.visibility AND NEW.revision_of_id IS OLD.revision_of_id AND NEW.created_at IS OLD.created_at) BEGIN SELECT RAISE(ABORT,'subjective belief revision must be append-only'); END;
+CREATE TRIGGER subjective_belief_revision_must_be_audited BEFORE UPDATE ON subjective_belief WHEN NOT EXISTS (SELECT 1 FROM subjective_belief child JOIN subjective_belief_event event ON event.belief_id=child.id WHERE child.revision_of_id=OLD.id AND event.event_type='belief_revised' AND event.world_id=OLD.world_id AND event.character_id=OLD.character_id) BEGIN SELECT RAISE(ABORT,'subjective belief revision requires audited successor'); END;
+CREATE TRIGGER subjective_belief_evidence_same_owner BEFORE INSERT ON subjective_belief_evidence WHEN NOT EXISTS (SELECT 1 FROM subjective_belief b JOIN subjective_trace t ON t.id=NEW.trace_id WHERE b.id=NEW.belief_id AND b.world_id=t.world_id AND b.character_id=t.character_id) BEGIN SELECT RAISE(ABORT,'belief evidence must belong to its holder'); END;
+CREATE TRIGGER subjective_belief_evidence_no_update BEFORE UPDATE ON subjective_belief_evidence BEGIN SELECT RAISE(ABORT,'belief evidence is append-only'); END;
+CREATE TRIGGER subjective_belief_evidence_no_delete BEFORE DELETE ON subjective_belief_evidence BEGIN SELECT RAISE(ABORT,'belief evidence is append-only'); END;
+CREATE TRIGGER subjective_belief_event_same_owner BEFORE INSERT ON subjective_belief_event WHEN NOT EXISTS (SELECT 1 FROM subjective_belief b WHERE b.id=NEW.belief_id AND b.world_id=NEW.world_id AND b.character_id=NEW.character_id) BEGIN SELECT RAISE(ABORT,'belief event must belong to its holder'); END;
+CREATE TRIGGER subjective_belief_event_no_update BEFORE UPDATE ON subjective_belief_event BEGIN SELECT RAISE(ABORT,'belief event is append-only'); END;
+CREATE TRIGGER subjective_belief_event_no_delete BEFORE DELETE ON subjective_belief_event BEGIN SELECT RAISE(ABORT,'belief event is append-only'); END;

@@ -53,6 +53,9 @@ tests et documentation après un lot à conséquences étendues.
 - première disposition de personnalité canonique : livrée (Big Five,
   attachement général, versions de gabarits immuables); valeurs, conception de
   soi, réputation, relations et émotions restent futurs ;
+- croyances subjectives initiales : livrées partiellement (source privée,
+  preuve, révision auditée et contexte LLM v2); hypothèses concurrentes,
+  modèles de source et contradictions gérées restent futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
 ## Jalons de version produit

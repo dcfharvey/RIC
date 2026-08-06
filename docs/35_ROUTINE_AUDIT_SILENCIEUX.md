@@ -79,3 +79,10 @@ que son origine reste le gabarit publié v2, et qu'elle apparaît dans le digest
 et le banc. Aucun événement autonome n'a été ajouté : une disposition initiale
 est déjà attribuable à `character_instantiated`, et toute révision future devra
 être un protocole distinct et audité. La suite complète a validé **616 tests**.
+
+Pour les croyances sourcées, l'audit a relevé qu'un simple statut mutable sur
+une ancienne croyance ne suffisait pas à prouver une révision. La migration
+exige désormais un successeur déjà audité dans la même transaction, et
+interdit les éditions/suppressions silencieuses des preuves et événements.
+Le digest et l'audit restent subjectifs, hors vérité canonique. La suite
+complète a validé **624 tests**.

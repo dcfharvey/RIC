@@ -14,7 +14,7 @@
 | F-03 | Faire avancer le temps réel, gérer pause/reprise et rattrapage condensé. | partiel (1:1 + pause/reprise ; rattrapage futur) |
 | F-04 | Permettre aux personnages de proposer des intentions selon leur état subjectif. | partiel (politique déterministe ; subjectivité future) |
 | F-05 | Valider toute intention par le moteur avant modification du monde. | implémenté (moteur seul autorité) |
-| F-06 | Distinguer événement canonique, perception, interprétation, croyance et souvenir. | partiel (événement canonique ; perception/croyance/souvenir futurs) |
+| F-06 | Distinguer événement canonique, perception, interprétation, croyance et souvenir. | partiel (événement, perception, trace/souvenir et croyance sourcée séparés; interprétation et reconstruction futurs) |
 | F-07 | Gérer conversations privées, de groupe, avec le propriétaire et avec le technicien. | futur |
 | F-08 | Permettre au propriétaire d’observer, interagir, se manifester, régir et administrer. | partiel (observation, commandes simples et premier pipeline de changement non sensible; manifestation et administration profonde futures) |
 | F-09 | Condenser les routines banales et développer les scènes significatives. | futur |

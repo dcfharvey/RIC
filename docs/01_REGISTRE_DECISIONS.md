@@ -73,7 +73,7 @@ Statuts : `implémenté` (présent dans le code et testé), `normatif futur` (di
 | DEC-036 | Méthode de conception : revue scientifique ou technique préalable, puis système opérationnel testable. | **normatif futur** |
 | DEC-037 | Cognition subjective : réalité, perception, interprétation, hypothèses, croyances, encodage, souvenirs et récit conscient restent séparés. | **normatif futur** |
 | DEC-038 | Perception faillible : enregistrement implicite, détection, attention, conscience, intégration multisensorielle ; omissions et fausses alertes possibles. | **normatif futur** |
-| DEC-039 | Épistémologie structurée : hypothèses concurrentes, preuves, provenance, modèles de source, contradictions, révisions. | **normatif futur** |
+| DEC-039 | Épistémologie structurée : hypothèses concurrentes, preuves, provenance, modèles de source, contradictions, révisions. | **partiel** (croyances privées sourcées et révisions auditées; hypothèses, modèles de source et contradictions gérées futurs) |
 | DEC-040 | Motivation restructurée : régulation physiologique, besoins psychologiques, motifs, incitations, désirs, objectifs, apprentissage de valeur. | **normatif futur** |
 | DEC-041 | Personnalité mécanistique : traits continus modulant des mécanismes, évolution lente ; attachement contextuel, dimensionnel, propre aux relations. | **partiel** (disposition Big Five et attachement général canoniques; plasticité, conception de soi et relationnel futurs) |
 | DEC-042 | Valeurs, principes et limites : structures distinctes (valeurs, principes, convictions morales, limites, normes, lois, contraintes physiques). | **partiel** (hiérarchies de valeurs et préférences initiales séparées; principes et limites futurs) |

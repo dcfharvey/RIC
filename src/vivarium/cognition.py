@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 
 from .action_contract import ActionOrchestrator, IntentProposal, ValidationResult
 from .attention import AttentionService
+from .beliefs import BeliefService
 from .character import CharacterEngine
 from .perception import PerceptionService
 from .registry import _KEY_RE
@@ -27,11 +28,11 @@ from .subjective_memory import SubjectiveMemoryService
 from .util import Clock
 
 
-COGNITION_SCHEMA_VERSION = 1
+COGNITION_SCHEMA_VERSION = 2
 DEFAULT_LM_STUDIO_BASE_URL = "http://127.0.0.1:1234"
 DEFAULT_TIMEOUT_SECONDS = 45.0
 DEFAULT_MAX_TOKENS = 128
-MAX_DIRECT_EVENTS, MAX_MEMORIES, MAX_ATTENTION = 10, 10, 8
+MAX_DIRECT_EVENTS, MAX_MEMORIES, MAX_ATTENTION, MAX_BELIEFS = 10, 10, 8, 10
 
 
 class CognitionError(ValueError):
@@ -163,6 +164,7 @@ class CognitionContext:
     attention: tuple[Mapping[str, Any], ...]
     direct_events: tuple[Mapping[str, Any], ...]
     memories: tuple[Mapping[str, Any], ...]
+    beliefs: tuple[Mapping[str, Any], ...]
     allowed_traversals: tuple[Mapping[str, str], ...]
     schema_version: int = COGNITION_SCHEMA_VERSION
 
@@ -172,7 +174,8 @@ class CognitionContext:
             "character": {"key": self.character_key, "name": self.character_name},
             "observed_at": self.observed_at, "latest_event_seq": self.latest_event_seq,
             "attention": _plain(self.attention), "direct_events": _plain(self.direct_events),
-            "memories": _plain(self.memories), "allowed_traversals": _plain(self.allowed_traversals),
+            "memories": _plain(self.memories), "beliefs": _plain(self.beliefs),
+            "allowed_traversals": _plain(self.allowed_traversals),
         }
 
 
@@ -189,6 +192,7 @@ class CognitionContextService:
         attention = AttentionService(self._conn, clock=self._clock).snapshot(world_id, character_key, limit=MAX_ATTENTION)
         feed = PerceptionService(self._conn, clock=self._clock).events_since(world_id, character_key, after_event_seq)
         memories = SubjectiveMemoryService(self._conn, clock=self._clock).recall_recent(world_id, character_key, limit=MAX_MEMORIES)
+        beliefs = BeliefService(self._conn, clock=self._clock).list(world_id, character_key, limit=MAX_BELIEFS)
         allowed: list[Mapping[str, str]] = []
         for item in attention.available:
             if item.source_kind != "perception:adjacent_connector":
@@ -201,7 +205,8 @@ class CognitionContextService:
             world_id, character_key, character["name"], attention.observed_at, feed.latest_seq,
             tuple(_fact_wire(item.source_kind, item.priority_milli, item.fact) for item in attention.selected),
             tuple(_fact_wire(item.access_kind, None, item.fact) for item in feed.candidates[:MAX_DIRECT_EVENTS]),
-            tuple(_freeze(_plain(memory)) for memory in memories), tuple(allowed),
+            tuple(_freeze(_plain(memory)) for memory in memories),
+            tuple(_freeze(_plain(belief)) for belief in beliefs), tuple(allowed),
         )
 
 
@@ -259,8 +264,8 @@ class LMStudioProvider:
         return (
             "Tu es un composant de décision du Vivarium. Tu ne connais que le JSON fourni. "
             "N'invente aucun fait ni action hors de allowed_traversals. Réponds UNIQUEMENT par l'un de ces objets JSON, sans texte ni Markdown : "
-            '{"schema_version":1,"action":"no_action"} OU '
-            '{"schema_version":1,"action":"traverse","connector_key":"une clé de allowed_traversals","target_location_key":"sa destination associée"}.\n\n'
+            f'{{"schema_version":{COGNITION_SCHEMA_VERSION},"action":"no_action"}} OU '
+            f'{{"schema_version":{COGNITION_SCHEMA_VERSION},"action":"traverse","connector_key":"une clé de allowed_traversals","target_location_key":"sa destination associée"}}.\n\n'
             + json.dumps(context.wire(), ensure_ascii=False, separators=(",", ":"))
         )
 

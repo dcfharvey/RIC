@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.49 — 6 août 2026
+
+- Premier registre de croyances subjectives sourcées : une résidente ne peut
+  adopter qu'à partir de sa propre trace, sans convertir cette croyance en fait
+  canonique.
+- Les révisions sont traçables et append-only : nouvelle croyance, preuve,
+  événement, puis statut `contested` contrôlé de l'ancienne. Digest et audit
+  subjectifs séparés; migration `0029`. Le contexte LLM passe en schéma v2.
+
 ## 0.48 — 6 août 2026
 
 - Objectifs subjectifs structurés et intentions persistantes : origine, cible,

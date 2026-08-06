@@ -619,6 +619,81 @@ def subjective_trace_audit(conn: sqlite3.Connection, world_id: int) -> list[str]
     return findings
 
 
+def subjective_belief_digest(conn: sqlite3.Connection, world_id: int) -> dict[str, list[dict[str, Any]]]:
+    """Projection vérifiable des croyances privées, hors du digest canonique."""
+    rows = conn.execute(
+        "SELECT ch.key AS character, b.id, b.belief_key, b.question_key, b.proposition_json, "
+        "b.polarity, b.confidence_milli, b.status, b.visibility, prior.belief_key AS revision_of, "
+        "e.polarity AS evidence_polarity, e.diagnosticity_milli, e.source_reliability_milli, "
+        "st.request_key AS source_trace "
+        "FROM subjective_belief b JOIN character ch ON ch.id = b.character_id "
+        "LEFT JOIN subjective_belief prior ON prior.id = b.revision_of_id "
+        "LEFT JOIN subjective_belief_evidence e ON e.belief_id = b.id "
+        "LEFT JOIN subjective_trace st ON st.id = e.trace_id "
+        "WHERE b.world_id = ? ORDER BY ch.key, b.created_at, b.id, e.id",
+        (world_id,),
+    ).fetchall()
+    out: dict[str, list[dict[str, Any]]] = {}
+    by_belief: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        entry = by_belief.get(row["id"])
+        if entry is None:
+            entry = {
+                "belief_key": row["belief_key"], "question_key": row["question_key"],
+                "proposition": json.loads(row["proposition_json"]), "polarity": row["polarity"],
+                "confidence_milli": row["confidence_milli"], "status": row["status"],
+                "visibility": row["visibility"], "revision_of": row["revision_of"], "evidence": [],
+            }
+            by_belief[row["id"]] = entry
+            out.setdefault(row["character"], []).append(entry)
+        if row["source_trace"] is not None:
+            entry["evidence"].append({
+                "source_trace": row["source_trace"], "polarity": row["evidence_polarity"],
+                "diagnosticity_milli": row["diagnosticity_milli"],
+                "source_reliability_milli": row["source_reliability_milli"],
+            })
+    return out
+
+
+def subjective_belief_audit(conn: sqlite3.Connection, world_id: int) -> list[str]:
+    """Détecte les écarts entre croyances, preuves et journal subjectif."""
+    findings: list[str] = []
+    beliefs = conn.execute(
+        "SELECT b.id, b.character_id, b.belief_key, b.status, b.revision_of_id, "
+        "parent.world_id AS parent_world_id, parent.character_id AS parent_character_id "
+        "FROM subjective_belief b LEFT JOIN subjective_belief parent ON parent.id = b.revision_of_id "
+        "WHERE b.world_id = ? ORDER BY b.id",
+        (world_id,),
+    ).fetchall()
+    for belief in beliefs:
+        evidence_count = conn.execute(
+            "SELECT COUNT(*) FROM subjective_belief_evidence WHERE belief_id = ?", (belief["id"],)
+        ).fetchone()[0]
+        if evidence_count == 0:
+            findings.append(f"belief {belief['id']}: missing evidence")
+        event_rows = conn.execute(
+            "SELECT event_type, character_id FROM subjective_belief_event "
+            "WHERE belief_id = ? AND world_id = ? ORDER BY id",
+            (belief["id"], world_id),
+        ).fetchall()
+        expected = "belief_revised" if belief["revision_of_id"] is not None else "belief_adopted"
+        if len(event_rows) != 1 or event_rows[0]["event_type"] != expected or event_rows[0]["character_id"] != belief["character_id"]:
+            findings.append(f"belief {belief['id']}: missing or mismatched audit event")
+        if belief["revision_of_id"] is not None and (
+            belief["parent_world_id"] != world_id or belief["parent_character_id"] != belief["character_id"]
+        ):
+            findings.append(f"belief {belief['id']}: invalid revision owner")
+        if belief["status"] == "contested":
+            successor = conn.execute(
+                "SELECT 1 FROM subjective_belief child JOIN subjective_belief_event event ON event.belief_id = child.id "
+                "WHERE child.revision_of_id = ? AND event.event_type = 'belief_revised' LIMIT 1",
+                (belief["id"],),
+            ).fetchone()
+            if successor is None:
+                findings.append(f"belief {belief['id']}: contested without audited successor")
+    return findings
+
+
 @dataclass
 class SimulationRunReport:
     """Rapport stable de simulation (outil de test/diagnostic, non canonique)."""
