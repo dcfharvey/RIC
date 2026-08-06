@@ -98,5 +98,7 @@ aussi livrés; voir `docs/19_OBJETS_ET_CONTENANCE.md`,
 lot recommandé est d'instancier le monde d'intégration et ses scénarios
 d'acceptation. Les cinq résidentes arrivent ensemble dans la cour, à côté de la
 boîte aux lettres. Voir `docs/25_REGLES_MONDE_STANDARD.md` et
-`docs/26_CALIBRATION_CHUU.md`. Ne pas créer le monde MVP sans le protocole
-renforcé correspondant.
+`docs/26_CALIBRATION_CHUU.md` et `docs/27_CONTEXTE_INITIAL_RESIDENTES.md`.
+Elles savent uniquement qu'elles ont volontairement accepté cette colocation
+financée avec allocation; les relations initiales sont neutres. Ne pas créer le
+monde MVP sans le protocole renforcé correspondant.
