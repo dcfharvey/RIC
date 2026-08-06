@@ -44,7 +44,8 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 # Placeholder du jeton local dans le modèle HTML (remplacé à la diffusion).
 TOKEN_PLACEHOLDER = "__VIVARIUM_TOKEN__"
 
-# Tables attendues pour une base compatible (schéma Phase 3, 8 migrations).
+# Tables attendues pour une base compatible (le numéro de migration est calculé
+# depuis le registre de migrations livré, jamais codé en dur).
 REQUIRED_TABLES = frozenset(
     {
         "worlds",
@@ -99,7 +100,7 @@ def _validate_db(db_path: Path) -> None:
     """Validation strictement en lecture de la base, sans aucune modification.
 
     Vérifie que le fichier existe, est une base SQLite lisible, contient les
-    tables requises et est à la version de schéma attendue (8 migrations).
+    tables requises et est à la version de schéma attendue.
     N'applique aucune migration et ne crée jamais une base absente.
     """
     path = Path(db_path)

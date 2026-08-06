@@ -1,0 +1,205 @@
+# Vivarium Social — Registre des audits scientifiques et techniques
+
+**Version :** 0.3  
+**Date :** 4 août 2026  
+**Statut :** actif  
+**Rôle :** suivre les audits rétroactifs, leurs verdicts et le travail restant avant de reprendre la conception de nouveaux systèmes.
+
+## 1. Règle méthodologique
+
+Pour chaque modèle ou système psychologique, cognitif, social ou technique :
+
+1. consulter la littérature scientifique ou technique appropriée;
+2. distinguer résultats robustes, débats ouverts et choix d’ingénierie;
+3. comparer la littérature avec la conception actuelle;
+4. conserver, corriger, restructurer ou reprendre le système;
+5. produire une version opérationnelle adaptée au vivarium;
+6. définir entrées, états, transitions, stockage, événements, interactions et portée MVP;
+7. obtenir la validation du propriétaire;
+8. transférer ensuite les décisions dans la documentation normative.
+
+La conception de nouveaux systèmes est temporairement suspendue jusqu’à la fermeture de l’audit rétroactif.
+
+## 2. Statuts
+
+- **VALIDÉ** : fondation suffisante; aucun changement structurel majeur.
+- **VALIDÉ AVEC CORRECTIONS** : fondation bonne; mécanismes importants à ajuster.
+- **VALIDÉ AVEC RESTRUCTURATION** : phénomènes pertinents, mais catégories ou architecture à réorganiser.
+- **À REPRENDRE** : fondation trop fragile ou incompatible.
+- **DÉCISION DE PRODUIT** : choix relevant principalement du propriétaire.
+- **OUVERT** : audit ou conception non commencé.
+
+## 3. Audits majeurs terminés
+
+### AUD-01 — Attention et perception
+
+**Verdict : VALIDÉ AVEC CORRECTIONS**
+
+Principales corrections :
+
+- ajouter un enregistrement sensoriel préconscient;
+- remplacer les perceptions dites automatiques par des priorités élevées mais faillibles;
+- séparer charge perceptive, cognitive et de contrôle;
+- modéliser orientation ouverte, orientation couverte, surveillance et exploration;
+- autoriser omissions et fausses alertes;
+- pondérer l’intégration multisensorielle selon fiabilité et cause commune probable;
+- rendre l’habituation spécifique au stimulus et au contexte;
+- modéliser la fatigue de vigilance;
+- séparer strictement perception et interprétation.
+
+### AUD-02 — Interprétation, hypothèses et croyances
+
+**Verdict : VALIDÉ AVEC CORRECTIONS**
+
+Principales corrections :
+
+- séparer génération d’hypothèses, évaluation des preuves et mise à jour;
+- introduire des questions épistémiques;
+- conserver une hypothèse résiduelle « autre / inconnu »;
+- représenter la provenance et les modèles de source;
+- séparer confiance épistémique, acceptation pratique, désirabilité et coût de révision;
+- gérer les dépendances entre preuves;
+- ajouter calibration métacognitive;
+- encadrer les inférences sur les intentions et traits d’autrui;
+- conserver les contradictions et la généalogie des croyances;
+- transformer certaines incertitudes importantes en objectifs d’enquête.
+
+### AUD-03 — Besoins et motivation
+
+**Verdict : VALIDÉ AVEC RESTRUCTURATION**
+
+Principales corrections :
+
+- abandonner les réservoirs psychologiques universels;
+- séparer variables régulées, déficits, motifs, désirs et objectifs;
+- ajouter régulation prédictive et allostatique;
+- séparer wanting, liking et apprentissage;
+- retenir autonomie, compétence et relation à autrui comme besoins psychologiques généraux;
+- traiter sécurité comme régulation de menace;
+- traiter ennui comme signal de désengagement;
+- traiter surcharge et récupération comme régulation de charge;
+- traiter sexualité comme motivation incitative et contextuelle;
+- produire des objets `MotiveCandidate` avant toute décision;
+- distinguer pression, urgence, plaisir attendu, importance et coût.
+
+### AUD-04 — Personnalité et attachement
+
+**Verdict : VALIDÉ AVEC RESTRUCTURATION**
+
+Principales corrections :
+
+- traiter les traits comme distributions d’états, non comme commandes;
+- conserver Big Five et facettes ciblées;
+- ajouter variabilité, inertie et signatures situationnelles;
+- faire moduler à la personnalité les mécanismes d’attention, interprétation, émotion, motivation et décision;
+- séparer profil dispositionnel, conception de soi et réputation;
+- permettre un changement lent par apprentissage et généralisation;
+- conserver anxiété et évitement comme dimensions;
+- ajouter une hiérarchie général / domaine / relation;
+- activer l’attachement surtout sous vulnérabilité, détresse, séparation ou rejet possible;
+- représenter hyperactivation et désactivation comme stratégies;
+- mettre à jour l’attachement par preuves relationnelles spécifiques.
+
+### AUD-05 — Valeurs, principes et limites personnelles
+
+**Verdict : VALIDÉ AVEC RESTRUCTURATION**
+
+Principales corrections :
+
+- séparer valeurs, principes, limites, normes, lois et contraintes du monde;
+- utiliser Schwartz comme bibliothèque de référence, sans en faire une prison;
+- représenter les valeurs comme priorités relatives;
+- faire des principes des règles contextuelles auto-endossées;
+- séparer importance, moralisation, centralité identitaire et résistance au compromis;
+- traiter les limites comme politiques contextuelles d’accès;
+- distinguer franchissement objectif et violation perçue;
+- conserver les conflits entre valeurs;
+- permettre la violation consciente d’un principe et ses conséquences;
+- séparer valeurs réelles, endossées, déclarées et attribuées;
+- permettre une évolution lente et traçable.
+
+### AUD-08 — Ontologie des entités, corps, formes et capacités
+
+**Verdict : VALIDÉ AVEC RESTRUCTURATION MAJEURE**
+
+Principales corrections :
+
+- distinguer référent du monde, entité suivie et enregistrement technique;
+- séparer identité, type constitutif, phase, rôle, qualité et relation;
+- faire de l'agent une organisation fonctionnelle plutôt qu'une classe d'identité;
+- séparer sujet cognitif, contrôleur, corps, manifestation, forme et présence;
+- inférer les capacités depuis les composants et l'état;
+- représenter les affordances comme des relations situées entre acteur, action, cible et environnement;
+- séparer capacité, compétence, possibilité actuelle, permission et autorisation;
+- traiter copies, séparations, fusions et remplacements par des transitions d'identité explicites;
+- séparer les axes de cycle de vie, d'existence, d'accessibilité et d'archivage;
+- conserver des relations temporelles et une provenance inspectable.
+
+## 4. Audits majeurs restants
+
+### AUD-09 — Sauvegarde, snapshots et personnages réutilisables
+
+**Statut : OUVERT**
+
+Audit technique des choix de persistance : état courant, event sourcing, journaux append-only, snapshots, modèles et instances, migrations, export et restauration.
+
+### AUD-10 — Interface administrative, registre de composants et validation
+
+**Statut : OUVERT**
+
+Audit technique de l’architecture administrative : API canonique, schémas dynamiques, validation, rapports d’impact, audit, sécurité et séparation interface/moteur.
+
+## 5. Contrôles de cohérence restants
+
+Ces systèmes ont déjà été explicitement fondés dans la littérature. Ils feront l’objet d’un contrôle plus léger, sauf lacune découverte.
+
+### CTRL-01 — Mémoire
+
+**Statut : À VÉRIFIER**
+
+Vérifier couverture, compatibilité avec croyances, émotions, objectifs et stockage.
+
+### CTRL-02 — Relations
+
+**Statut : À VÉRIFIER**
+
+Vérifier couverture, compatibilité avec attachement, valeurs, consentement et pouvoir.
+
+### CTRL-03 — Émotions
+
+**Statut : À VÉRIFIER**
+
+Vérifier couverture, compatibilité avec motivation, décision, expression et régulation.
+
+## 6. Travail futur après l’audit
+
+Une fois l’audit fermé, reprendre la conception des systèmes encore inexistants, toujours avec revue préalable :
+
+- actions et interactions;
+- conversations et scènes;
+- consentement, permissions, normes et transgressions;
+- modèle de soi;
+- apprentissage et évolution;
+- secrets et circulation de l’information;
+- orchestration globale et récupération de contexte LLM.
+
+## 7. État résumé
+
+```text
+Audits majeurs terminés : 8
+Audits majeurs restants : 2
+Contrôles de cohérence restants : 3
+Nouvelle conception suspendue : oui
+Prochain audit : sauvegarde, snapshots et personnages réutilisables
+```
+
+## 8. Règle d’entretien
+
+Mettre ce registre à jour après chaque audit ou contrôle :
+
+- verdict;
+- principales corrections;
+- conséquences sur les systèmes voisins;
+- décisions validées;
+- éléments à transférer dans l’index maître et la mémoire détaillée;
+- références bibliographiques conservées dans le dossier détaillé de l’audit.

@@ -276,6 +276,7 @@ class WorldEngine:
         with transaction(self._conn) as c:
             c.execute("DELETE FROM need_state WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM character_profile WHERE world_id = ?", (world_id,))
+            c.execute("DELETE FROM character_instance_origin WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM world_object WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM location_link WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM character WHERE world_id = ?", (world_id,))

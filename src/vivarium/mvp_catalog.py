@@ -1,0 +1,66 @@
+"""Catalogue initial minimal des composants du MVP.
+
+Les contrats descriptifs ne donnent encore aucune capacité au moteur : ils
+servent à créer des gabarits explicites et à éviter les branchements par espèce.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from typing import Any
+
+from .registry import RegistryService
+
+MVP_COMPONENT_CATALOG: tuple[tuple[str, str, dict[str, Any]], ...] = (
+    (
+        "component",
+        "body.morphology",
+        {
+            "title": "Morphologie déclarée",
+            "engine_status": "descriptive_only",
+            "config_schema": {
+                "required": ["body_plan"],
+                "properties": {
+                    "body_plan": {
+                        "type": "string",
+                        "enum": ["bipedal", "quadrupedal", "amorphous"],
+                    }
+                },
+                "additional_properties": False,
+            },
+        },
+    ),
+    (
+        "component",
+        "cognition.profile",
+        {
+            "title": "Profil cognitif déclaré",
+            "engine_status": "descriptive_only",
+            "config_schema": {
+                "required": ["level"],
+                "properties": {
+                    "level": {"type": "string", "enum": ["sapient", "non_sapient"]}
+                },
+                "additional_properties": False,
+            },
+        },
+    ),
+    (
+        "component",
+        "needs.standard",
+        {
+            "title": "Besoins standards du moteur MVP",
+            "engine_status": "implemented_need_state",
+            "config_schema": {
+                "required": [],
+                "properties": {},
+                "additional_properties": False,
+            },
+        },
+    ),
+)
+
+
+def install_mvp_component_catalog(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Installe le catalogue MVP de manière idempotente et sans écrasement."""
+    return RegistryService(conn).install_published_catalog(MVP_COMPONENT_CATALOG)

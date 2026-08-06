@@ -52,11 +52,12 @@ Statuts : `implémenté` (présent dans le code et testé), `normatif futur` (di
 | CLA-003 | Modification directe d’un personnage | Protocole obligatoire : analyse d’impact, snapshot, confirmation explicite, transaction, audit. | **normatif futur** |
 | CLA-004 | Sûreté de `init --force` | Commande destructive réservée au développement ; refusée par défaut pour tout monde réel/persistant ; non exécutable implicitement par Discord. | **implémenté** |
 
-## C. Décisions du dossier maître v0.2 (remplacements)
+## C. Décisions du dossier maître v0.2–v0.3 (remplacements)
 
 | ID | Décision | Statut |
 | --- | --- | --- |
-| DEC-001 v0.2 | Le scénario de référence du MVP comporte quatre entités actives : une femme humaine sapiente adulte, une louve anthro sapiente adulte, une slime sapiente adulte à apparence féminine et un chat domestique non sapient. Le moteur ne fixe pas globalement la population à quatre. | **normatif futur** |
+| DEC-001 v0.2 | Le scénario de référence du MVP comporte quatre entités actives : une femme humaine sapiente adulte, une louve anthro sapiente adulte, une slime sapiente adulte à apparence féminine et un chat domestique non sapient. Le moteur ne fixe pas globalement la population à quatre. | **supersédée** par DEC-001 v0.3 |
+| DEC-001 v0.3 | Le scénario de référence du MVP comporte cinq entités actives : Sophie et Erika, humaines sapientes adultes ; une louve anthro sapiente adulte ; une slime sapiente adulte à apparence féminine ; un chat domestique non sapient. Le moteur ne fixe pas globalement la population à cinq. | **normatif futur** |
 | DEC-009 v0.2 | Toute modification canonique profonde exige une commande métier, une validation en couches, un rapport d’impact, un plan préparé immuable, un checkpoint lorsque requis, une confirmation liée à un hash et une version, une transaction atomique et un audit administratif. | **normatif futur** |
 | DEC-013 v0.2 | Les variables physiologiques, besoins psychologiques, motifs, désirs, ressources et états dérivés sont des catégories distinctes. Les valeurs numériques restent normalement cachées et s’expriment par les comportements. | **normatif futur** |
 | DEC-015 v0.2 | La mémoire distingue événement canonique, perception, encodage subjectif, épisode, consolidation, représentation courante, récupération reconstructive, provenance et oubli multicausal. Le moteur conserve l’historique des révisions. | **normatif futur** |

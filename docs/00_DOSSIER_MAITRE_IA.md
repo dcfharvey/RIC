@@ -1,15 +1,15 @@
 # Vivarium social artificiel
 ## Dossier maître d’implémentation destiné à une IA programmeuse
 
-**Version :** 0.2
-**Date :** 4 août 2026
+**Version :** 0.7
+**Date :** 5 août 2026
 **Statut :** source normative unique du dépôt après fermeture technique de la Phase 3
 **Public cible :** IA programmeuse, agent de développement ou développeur humain
 **Commit de référence (Phase 3) :** `7e5459eaac5c2ad8ae8dcb53a197863575ab4914`
 **Tests de référence :** 228 réussis
 **Verdict de fermeture Phase 3 :** `FERMETURE APPROUVABLE`
 
-> Ce dossier est la version consolidée v0.2. Il remplace la v0.1 et intègre la
+> Ce dossier est la version consolidée v0.4. Il remplace les versions antérieures et intègre la
 > direction normative post-audit. Il décrit ce qui est **implémenté**, ce qui est
 > **normatif mais futur**, et ce qui est **historique**. Aucune capacité fictive
 > n’est présentée comme déjà codée.
@@ -151,7 +151,7 @@ Toute écriture passe par `db.transaction` + `world._append_event` (helper inter
 ## 9. Personnages (implémenté, provisoire)
 
 - Quatre personnages techniques `character_1..4`, tous adultes, positions canoniques initiales en chambres 1..4.
-- **Statut** : placeholders provisoires de test ; les quatre profils définitifs (femme humaine, louve anthro, slime, chat) seront créés ou migrés par le futur gestionnaire d’entités (Phase 4).
+- **Statut** : placeholders provisoires de test. Le casting MVP définitif compte cinq entités : quatre résidentes sapientes adultes (Sophie et Erika, humaines ; une louve anthro ; une slime à apparence féminine) et un chat domestique non sapient. Elles seront créées ou migrées par le futur gestionnaire d’entités (Phase 4), jamais ajoutées comme un seed spécial.
 - `key` immuable ; `name` modifiable ; une seule position canonique active.
 
 ## 10. Besoins (implémenté)
@@ -222,7 +222,7 @@ Capacités prouvées : horloge canonique, monde actif/paused, redémarrage, beso
 - Personnages encore techniques (placeholders).
 - Aucune interface administrative complète.
 - Aucun LLM intégré au moteur canonique.
-- Aucune Phase 4 commencée.
+- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée et le catalogue minimal de composants MVP; le pipeline de changement profond, les gestionnaires administratifs complets et les résidentes MVP restent futurs.
 
 ## 19. Dettes techniques (documentées, non bloquantes)
 
@@ -247,7 +247,7 @@ Les systèmes suivants sont des **exigences normatives futures**, jamais présen
 
 ## 21. Séquence vers la Phase 4
 
-- **Phase 4 = premier vertical slice administratif** : registre minimal de composants/capacités/unités, pipeline de validation, API `prepare / validate / impact / confirm`, journal administratif, gestionnaire d’univers, gestionnaire de modèles et d’entités, interface web locale, création ou migration de la résidence et des quatre profils définitifs.
+- **Phase 4 = premier vertical slice administratif** : registre minimal de composants/capacités/unités, pipeline de validation, API `prepare / validate / impact / confirm`, journal administratif, gestionnaire d’univers, gestionnaire de modèles et d’entités, interface web locale, création ou migration de la résidence et des cinq entités définitives.
 - L’ancienne définition « actions, scènes, événements, perceptions » est **supersédée** dans la séquence immédiate et devient une étape ultérieure (boucle monde–action–perception).
 
 ## 22. Règles de changement
@@ -258,12 +258,17 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 
 - **v0.1** (3 août 2026) : source normative initiale avant implémentation.
 - **v0.2** (4 août 2026) : consolidation après fermeture technique de la Phase 3 ; intégration de la direction post-audit ; distinction implémenté / normatif futur / historique ; casting de référence (femme humaine, louve anthro, slime, chat) ; Phase 4 = vertical slice administratif.
+- **v0.3** (5 août 2026) : photographie actualisée de la Phase 4.1 ; casting MVP fixé à Sophie, Erika, une louve anthro, une slime et un chat ; le nombre de résidentes sapientes est quatre, sans limiter le noyau à cette population.
+- **v0.4** (5 août 2026) : registre versionné de composants, capacités et unités, puis fondation des gabarits de personnage; aucune instance définitive ni validation structurelle complète n'est encore créée.
+- **v0.5** (5 août 2026) : gabarits liés à des versions précises de composants et validation structurelle déterministe de leur configuration; aucune instance définitive n'est encore créée.
+- **v0.6** (5 août 2026) : instanciation atomique depuis un gabarit publié, avec provenance et définition initiale figées; aucune résidente MVP n'est encore créée ni migrée.
+- **v0.7** (5 août 2026) : catalogue MVP publié (morphologie, profil cognitif, besoins standards), sans confondre contrats descriptifs et mécanismes réellement exécutés.
 
 ## 24. Annexes et références
 
-- Registre des décisions : `docs/01_REGISTRE_DECISIONS.md` v0.2.
-- Matrice des exigences : `docs/02_MATRICE_EXIGENCES.md` v0.2.
-- Décisions ouvertes : `docs/03_DECISIONS_OUVERTES.md` v0.2.
+- Registre des décisions : `docs/01_REGISTRE_DECISIONS.md` v0.3.
+- Matrice des exigences : `docs/02_MATRICE_EXIGENCES.md` v0.3.
+- Décisions ouvertes : `docs/03_DECISIONS_OUVERTES.md` v0.3.
 - Gabarits : `docs/05_GABARITS.md` v0.2.
 - Exigences normatives post-audit : `docs/history/Vivarium_Exigences_Normatives_Post_Audit_v0_1.md`.
 - Demande de changement post-audit : `docs/history/Vivarium_Demande_Changement_Post_Audit_v0_2.md`.

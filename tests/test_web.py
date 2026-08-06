@@ -13,7 +13,7 @@ import threading
 import pytest
 
 from vivarium.db import connect_database
-from vivarium.migrations import ensure_schema
+from vivarium.migrations import ensure_schema, load_migrations
 from vivarium.web import WebServerError, create_server, serve, shutdown
 from vivarium.world import WorldEngine
 
@@ -111,7 +111,7 @@ def test_create_server_refuse_base_invalide(tmp_path):
 def test_create_server_refuse_schema_incompatible(tmp_path):
     db, _ = _make_db(tmp_path)
     conn = connect_database(db)
-    conn.execute("DELETE FROM migrations WHERE version = 8")
+    conn.execute("DELETE FROM migrations WHERE version = ?", (max(m.version for m in load_migrations()),))
     conn.commit()
     conn.close()
     with pytest.raises(WebServerError):
