@@ -56,6 +56,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après croyances sourcées et révisions auditées : **624 passed** ;
 - test complet après états affectifs subjectifs : **629 passed** ;
 - test complet après relations, limites et permissions : **634 passed** ;
+- test complet après cadre décisionnel initial : **636 passed** ;
 - test complet après frontière LLM locale et banc de fumée : **592 passed** ;
 - test complet après politique pure d'admissibilité des appels LLM :
   **599 passed** ;

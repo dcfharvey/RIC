@@ -23,6 +23,7 @@ def test_goal_is_subjective_and_active_intention_is_stable_until_replaced(setup)
     goals.adopt_intention(world_id, "sophie", "check_phone", "check_phone_now", plan={"kind": "inspect"}, resume_context={"step": "start"})
     rows = conn.execute("SELECT intention_key, status FROM subjective_intention WHERE world_id = ? ORDER BY id", (world_id,)).fetchall()
     assert [(row["intention_key"], row["status"]) for row in rows] == [("rest_in_room", "interrupted"), ("check_phone_now", "active")]
+    assert goals.active_intention(world_id, "sophie")["intention_key"] == "check_phone_now"
     assert conn.execute("SELECT COUNT(*) FROM subjective_goal_event WHERE world_id = ?", (world_id,)).fetchone()[0] == 4
 
 

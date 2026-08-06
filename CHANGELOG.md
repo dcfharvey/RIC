@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.52 — 6 août 2026
+
+- Cadre décisionnel pur reliant intention active, objectifs et motifs connus,
+  sans exécution implicite ni nouvelle écriture dans le monde.
+
 ## 0.51 — 6 août 2026
 
 - Relations privées directionnelles, multidimensionnelles et sourcées : une

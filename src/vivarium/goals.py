@@ -43,3 +43,6 @@ class GoalService:
    c.execute("INSERT INTO subjective_goal_event (world_id,character_id,goal_id,intention_id,event_type,payload_json,recorded_at) VALUES (?,?,?,?, 'intention_adopted',?,?)",(wid,cid,goal['id'],cur.lastrowid,_j({'intention_key':intention_key}),now))
  def goals(self,wid: int,character: str)->tuple[dict[str,Any],...]:
   cid=self._character(wid,_key(character)); rows=self._conn.execute('SELECT * FROM subjective_goal WHERE world_id=? AND character_id=? ORDER BY id',(wid,cid)).fetchall(); return tuple({'goal_key':r['goal_key'],'family':r['family'],'target':json.loads(r['target_json']),'source_kind':r['source_kind'],'status':r['status'],'importance_milli':r['importance_milli'],'urgency_milli':r['urgency_milli']} for r in rows)
+ def active_intention(self,wid: int,character: str)->dict[str,Any]|None:
+  cid=self._character(wid,_key(character)); row=self._conn.execute("SELECT i.intention_key,i.plan_json,i.resume_context_json,g.goal_key FROM subjective_intention i JOIN subjective_goal g ON g.id=i.goal_id WHERE i.world_id=? AND i.character_id=? AND i.status='active'",(wid,cid)).fetchone()
+  return None if row is None else {'intention_key':row['intention_key'],'goal_key':row['goal_key'],'plan':json.loads(row['plan_json']),'resume_context':json.loads(row['resume_context_json'])}
