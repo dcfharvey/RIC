@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.24 — 6 août 2026
+
+- La version logicielle est corrigée de `0.1.0` à `0.0.0.dev0` : le projet est
+  en pré-alpha, pas encore au MVP.
+- Jalons produits consignés : `0.1.0a1` = premier MVP alpha; `0.1.0b1` = bêta
+  après essais prolongés; `1.0.0` = lancement.
+
 ## 0.23 — 6 août 2026
 
 - Clarification de roadmap : la résidence initialisée est un monde

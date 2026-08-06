@@ -1,7 +1,7 @@
 # Vivarium social artificiel
 ## Dossier maître d’implémentation destiné à une IA programmeuse
 
-**Version :** 1.5
+**Version :** 1.6
 **Date :** 6 août 2026
 **Statut :** source normative unique du dépôt après fermeture technique de la Phase 3
 **Public cible :** IA programmeuse, agent de développement ou développeur humain
@@ -272,10 +272,11 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v1.3** (6 août 2026) : action topologique `add_link` préparée, avec conservation auditée des plans lors de l'évolution du schéma administratif; aucune suppression de passage ou changement de personnage.
 - **v1.4** (6 août 2026) : monde MVP propre séparé des mondes de test; banc d'essai moteur reproductible placé avant perception, cognition et social.
 - **v1.5** (6 août 2026) : clarification de vocabulaire : résidence initiale = monde d'intégration pré-MVP; MVP = simulateur social présentable après les couches vivantes.
+- **v1.6** (6 août 2026) : chronologie logicielle explicite : état actuel `0.0.0.dev0` pré-alpha; premier MVP alpha au jalon `0.1.0a1`.
 
 ## 24. Annexes et références
 
-- Registre des décisions : `docs/01_REGISTRE_DECISIONS.md` v0.3.
+- Registre des décisions : `docs/01_REGISTRE_DECISIONS.md` v0.5.
 - Roadmap active : `docs/15_ROADMAP_ACTIVE.md`.
 - Matrice des exigences : `docs/02_MATRICE_EXIGENCES.md` v0.4.
 - Passation opérationnelle : `docs/99_PASSATION_COURANTE.md`.

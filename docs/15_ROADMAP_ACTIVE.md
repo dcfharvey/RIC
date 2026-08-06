@@ -1,6 +1,6 @@
 # Roadmap active — du moteur au Vivarium MVP
 
-**Version :** 1.1
+**Version :** 1.2
 **Mise à jour :** 6 août 2026
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
@@ -14,6 +14,8 @@ validation du moteur qui croît avec lui.
 
 ## État actuel
 
+**Version logicielle actuelle :** `0.0.0.dev0` — pré-alpha.
+
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
 - premiers changements administratifs préparés (renommage, ajout de passage) :
@@ -22,6 +24,21 @@ validation du moteur qui croît avec lui.
   monde réel ;
 - cognition, perception, mémoire et social : futurs ;
 - banc d'essai : décidé, à construire avant ces systèmes subjectifs.
+
+## Jalons de version produit
+
+| Version | Place dans la roadmap | Signification |
+| --- | --- | --- |
+| `0.0.0.dev0` | État actuel | Pré-alpha : fondations rigoureuses, mais pas encore de boucle sociale complète. |
+| `0.0.1.dev0` | Après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
+| `0.0.2.dev0` | Après le monde d'intégration | Les cinq vraies configurations peuvent être assemblées et réinitialisées sans histoire officielle. |
+| `0.1.0a1` | Fin de l'étape 5 | **Premier MVP alpha** : boucle sociale minimale complète et présentable, encore réinitialisable. |
+| `0.1.0b1` | Après essais prolongés | Bêta : le MVP tourne durablement; les défauts restants sont recherchés par observation réelle. |
+| `1.0.0` | Lancement | Usage normal et persistance suffisamment fiables pour que l'histoire compte durablement. |
+
+Les suffixes suivent la convention Python/PEP 440 : `dev0` = développement,
+`a1` = alpha 1 et `b1` = bêta 1. Un jalon est publié seulement lorsque ses
+critères sont réellement atteints, jamais parce qu'un calendrier l'exige.
 
 ## Ordre de travail
 
@@ -67,7 +84,8 @@ Ajouter ces couches dans cet ordre, avec le banc d'essai comme critère de sorti
 de chaque lot. Le LLM n'entre qu'après le contrat moteur–LLM, avec sorties
 structurées, validation et coût borné. Le **MVP** est atteint seulement lorsque
 le simulateur social est suffisamment cohérent, stable et lisible pour être
-présenté : il ne se confond pas avec le simple monde d'intégration.
+présenté : il ne se confond pas avec le simple monde d'intégration. Ce jalon
+correspond à `0.1.0a1`, pas à une date arbitraire.
 
 ## Frontières explicites
 

@@ -1,6 +1,6 @@
 # Vivarium social artificiel — paquet destiné à une IA programmeuse
 
-Version 1.5, 6 août 2026.
+Version documentaire 1.6, 6 août 2026. Version logicielle : `0.0.0.dev0` (pré-alpha).
 
 ## Reprise d'un travail existant
 

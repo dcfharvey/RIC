@@ -15,6 +15,8 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 
 ## État vérifié
 
+- version logicielle : `0.0.0.dev0` (**pré-alpha**). Les numéros de documents
+  et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
 - commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J

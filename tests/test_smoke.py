@@ -1,4 +1,7 @@
-"""Test de fumée de la Phase 0 : import du package et version."""
+"""Test de fumée : import du package et cohérence de version."""
+
+import tomllib
+from pathlib import Path
 
 import vivarium
 from vivarium import __version__
@@ -17,4 +20,7 @@ def test_package_importable():
 
 
 def test_version_package_coherente():
-    assert __version__ == "0.1.0"
+    metadata_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    with metadata_path.open("rb") as source:
+        metadata = tomllib.load(source)
+    assert __version__ == metadata["project"]["version"] == "0.0.0.dev0"

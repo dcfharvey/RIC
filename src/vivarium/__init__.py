@@ -1,7 +1,7 @@
 """Vivarium social artificiel — package principal.
 
-Phase 0 : infrastructure uniquement. Aucune logique métier n'est encore
-présente (ni personnage, ni simulation, ni LLM, ni Discord).
+Pré-alpha : fondations canoniques et administratives en construction. Le
+simulateur social présentable n'est pas encore atteint.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.0.0.dev0"
