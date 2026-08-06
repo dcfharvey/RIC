@@ -179,7 +179,7 @@ def _run_llm_smoke(character_key: str) -> int:
     return 0 if report.healthy else 1
 
 
-def _run_living_bench(max_ticks: int) -> int:
+def _run_living_bench(max_ticks: int, verbose: bool) -> int:
     """Affiche chaque tick d'un essai autonome isolé, avec le LLM local réel."""
     from .cognition import CognitionError, LMStudioProvider, LocalLLMSettings
     from .cognition_policy import CognitionCallLimits
@@ -190,8 +190,13 @@ def _run_living_bench(max_ticks: int) -> int:
         print(f"Banc vivant jetable — modèle : {settings.model_id}")
         print("Aucun monde persistant n'est ouvert.\n")
         def show(tick):
-            print(f"[tick] jusqu'à l'événement {tick.through_event_seq} — {len(tick.outcomes)} source(s)")
+            counts = {}
             for item in tick.outcomes:
+                counts[item.outcome] = counts.get(item.outcome, 0) + 1
+            summary = ", ".join(f"{kind}={count}" for kind, count in sorted(counts.items())) or "aucune source"
+            print(f"[tick] jusqu'à l'événement {tick.through_event_seq} — {summary}")
+            visible = tick.outcomes if verbose else tuple(item for item in tick.outcomes if item.outcome != "unperceived")
+            for item in visible:
                 detail = f" ({item.detail_code})" if item.detail_code else ""
                 print(f"  {item.character_key:<8} event_{item.source_event_seq:<3} {item.outcome}{detail}")
         report = run_living_bench(LMStudioProvider(settings), CognitionCallLimits(0, 3600, 20), max_ticks=max_ticks, on_tick=show)
@@ -230,6 +235,7 @@ def main(argv: list[str] | None = None) -> int:
     p_smoke.add_argument("--character", default="sophie", help="Résidente à utiliser pour l'essai (défaut : sophie).")
     p_living = sub.add_parser("living-bench", help="Affiche un essai autonome jetable avec le LLM local.")
     p_living.add_argument("--max-ticks", type=int, default=8, help="Nombre maximal de ticks (défaut : 8).")
+    p_living.add_argument("--verbose", action="store_true", help="Affiche aussi chaque événement non perceptible.")
 
     args = parser.parse_args(argv)
 
@@ -246,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "llm-smoke":
         return _run_llm_smoke(args.character)
     if args.command == "living-bench":
-        return _run_living_bench(args.max_ticks)
+        return _run_living_bench(args.max_ticks, args.verbose)
 
     db_path = _resolve_db_path(getattr(args, "db", None))
     conn = connect_database(db_path)

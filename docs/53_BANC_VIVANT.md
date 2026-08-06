@@ -17,8 +17,9 @@ La prochaine opération autorisée est un essai contrôlé avec `LMStudioProvide
 et Gemma déjà chargée, sur ce banc seulement. Ce ne sera pas encore le lancement
 du monde MVP persistant.
 
-La commande `vivarium living-bench` affiche chaque tick, résidente, événement,
-verdict et erreur locale directement dans la console. Elle est conçue pour être
+La commande `python -m vivarium living-bench` affiche un résumé par tick et le
+détail de chaque appel admis ou dégradé. L'option `--verbose` ajoute les sources
+écartées parce qu'elles n'étaient pas perceptibles. Elle est conçue pour être
 lancée dans une fenêtre PowerShell séparée, afin que l'observation humaine reste
 distincte du moteur et de son journal.
 
