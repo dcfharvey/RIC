@@ -12,10 +12,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from .cognition import CognitionTurnService, LMStudioProvider, LocalLLMSettings
+from .cognition import CognitionError, LMStudioProvider, LocalLLMSettings
+from .cognition_policy import CognitionCallLimits
+from .cognition_router import CognitionCallRouter
 from .db import connect_database
 from .integration_world import IntegrationWorldService
 from .migrations import ensure_schema
+from .repro import max_seq
+from .traversal import TraversalEngine
 from .util import Clock, to_iso
 
 
@@ -77,10 +81,19 @@ def run_local_cognition_smoke(
         ensure_schema(conn)
         clock = _SmokeClock()
         world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
-        result = CognitionTurnService(
-            conn, LMStudioProvider(settings), clock=clock
-        ).run(world_id, character_key, f"smoke_{character_key}_entry")
-        validation = result.validation
+        TraversalEngine(conn, clock=clock).traverse_character(
+            world_id, character_key, "porte_entree", "salon"
+        )
+        source_key = f"event_{max_seq(conn, world_id)}"
+        routed = CognitionCallRouter(conn, LMStudioProvider(settings), clock=clock).run(
+            world_id, character_key, "direct_event", source_key,
+            f"smoke_{character_key}_direct", CognitionCallLimits(0, 3_600, 1),
+        )
+        if routed.provider_error_code is not None:
+            raise CognitionError("essai LLM local indisponible", code=routed.provider_error_code)
+        if routed.turn is None:
+            raise CognitionError("essai LLM local non admis", code=routed.admission.verdict.reason_code)
+        result, validation = routed.turn, routed.turn.validation
         return CognitionSmokeReport(
             model_id=settings.model_id,
             character_key=character_key,

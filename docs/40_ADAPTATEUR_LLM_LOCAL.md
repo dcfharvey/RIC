@@ -20,6 +20,12 @@ ou un serveur non local est refusé explicitement.
 Chaque appel porte aussi un plafond de sortie (`VIVARIUM_LLM_MAX_TOKENS=128` par
 défaut), puisqu'il s'agit d'une courte décision JSON et non d'un dialogue.
 
+L'accès normal est désormais gardé par une porte événementielle : avant l'appel,
+le Vivarium vérifie la source, consulte un budget par résidente et inscrit une
+admission technique append-only. Le test `llm-smoke` exerce ce chemin avec un
+événement propre, dans sa base mémoire jetable. Aucun scheduler autonome ne
+choisit encore de faire un appel.
+
 Ce lot ne prétend pas encore donner personnalité, mémoire narrative ou boucle
 de simulation au modèle. Il rend d'abord la connexion et sa frontière testables.
 

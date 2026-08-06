@@ -57,6 +57,8 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après politique pure d'admissibilité des appels LLM :
   **599 passed** ;
 - test complet après journal append-only d'admission LLM : **602 passed** ;
+- test complet après routeur LLM événementiel et fumée intégrée :
+  **606 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -88,8 +90,10 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - porte d'appel LLM événementielle : première politique pure livrée;
   déclencheurs fermés, déduplication, debounce et budget sont vérifiables sans
   réseau ni écriture canonique. Ses admissions techniques sont append-only,
-  idempotentes et distinctes des traces subjectives; le routeur reste à livrer.
-  Voir `docs/41_PLAN_PORTE_APPEL_LLM.md`.
+  idempotentes et distinctes des traces subjectives. Le routeur ne laisse
+  actuellement passer qu'un événement direct réellement perceptible; les autres
+  motifs restent fermés jusqu'à leur contrat source. Voir
+  `docs/41_PLAN_PORTE_APPEL_LLM.md`.
 - idées retenues de scénarios et de systèmes futurs : jeux à information privée,
   effort physique et affrontements arbitrés; voir
   `docs/39_BACKLOG_SCENARIOS_ET_SYSTEMES.md`.

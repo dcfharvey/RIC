@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.43 — 6 août 2026
+
+- Routeur cognitif explicite : le seul déclencheur actuellement raccordé,
+  `direct_event`, doit désigner un événement réellement perceptible par la
+  résidente. Un déclencheur sans contrat source est refusé avant admission ou
+  réseau.
+- Le routeur consulte l'admission append-only avant d'appeler le fournisseur;
+  un retry ne joint donc pas Gemma. Un fournisseur indisponible donne un état
+  dégradé explicite sans mutation canonique.
+- `llm-smoke` passe désormais par ce même chemin dans son monde jetable;
+  tests : 606 réussis.
+
 ## 0.42 — 6 août 2026
 
 - Journal technique append-only des admissions d'appels cognitifs, migration

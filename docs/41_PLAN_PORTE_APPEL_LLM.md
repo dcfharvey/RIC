@@ -1,7 +1,8 @@
 # Plan — porte d'appel LLM événementielle
 
-**Statut :** deux premiers étages implantés : politique pure et journal
-technique append-only des admissions, sans ordonnanceur ni appel automatique.
+**Statut :** trois premiers étages implantés : politique pure, journal
+technique append-only et routeur explicite de `direct_event`, sans ordonnanceur
+ni appel automatique.
 
 ## Décision de portée
 
@@ -67,7 +68,7 @@ déjà autorisées.
 
 1. ~~service pur de politique + cas de banc, sans écriture et sans appel réseau~~;
 2. ~~état minimal séparé (dernier déclencheur/budget), append-only et idempotent~~;
-3. routeur qui consulte la politique avant `CognitionTurnService`;
+3. ~~routeur qui consulte la politique avant `CognitionTurnService`~~;
 4. calibrage des seuils sur Gemma local avec rapports de banc;
 5. seulement ensuite, intention persistante, scènes et motifs sociaux.
 
@@ -75,6 +76,11 @@ Les nombres de debounce et budget sont intentionnellement ouverts : ils doivent
 être mesurés sur la cadence, la latence et la qualité réelles du modèle local,
 puis devenir une décision versionnée. Aucune espèce, aucun nom du casting et
 aucun trait de personnalité ne reçoit de traitement spécial.
+
+Le seul motif actuellement raccordé est `direct_event`, avec une source au
+format `event_<seq>` qui doit être réellement perceptible par la résidente.
+Les autres motifs restent fermés mais sont refusés par le routeur tant que leur
+contrat source n'existe pas; ils ne reçoivent donc aucune interprétation libre.
 
 ## Critères de sortie du lot futur
 
