@@ -28,6 +28,9 @@ validation du moteur qui croît avec lui.
   propre par blueprint est livrée; les connecteurs à état simple sont livrés;
   la traversée validée initiale est livrée; le monde d'intégration devient le
   prochain jalon avant la cognition ;
+- règles standard de résidence installables hors du seed technique : livrées;
+  la calibration de Chuu et les placements initiaux restent nécessaires avant
+  une instanciation réelle du casting ;
 - cognition, perception, mémoire et social : futurs ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 

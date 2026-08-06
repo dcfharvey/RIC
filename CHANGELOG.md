@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.33 — 6 août 2026
+
+- Les besoins et activités standards de résidence peuvent maintenant être
+  installés explicitement dans un monde neuf, sans dépendre du seed technique.
+- Installation atomique, idempotente et conflictuelle par conception : aucune
+  définition existante n'est modifiée silencieusement.
+- Documentation : `docs/25_REGLES_MONDE_STANDARD.md`; tests : 535 réussis.
+
 ## 0.32 — 6 août 2026
 
 - `TraversalEngine` valide un franchissement concret par connecteur : présence,
