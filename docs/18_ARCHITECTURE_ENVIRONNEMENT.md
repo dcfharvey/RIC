@@ -82,5 +82,5 @@ de la topologie; aucun objet ne crée implicitement un lieu ni un passage.
 4. blueprint et instanciateur de monde propre — livré;
 5. connecteurs à état simple — livré;
 6. validation de traversée dépendante de l'entité — socle initial livré;
-7. eau, conteneurs, ventilation et formes de Chuu lorsque leurs règles sont
-   concrètes et testables.
+7. eau, conteneurs, ventilation, vêtements/buanderie et formes de Chuu lorsque
+   leurs règles sont concrètes et testables.

@@ -100,5 +100,7 @@ d'acceptation. Les cinq résidentes arrivent ensemble dans la cour, à côté de
 boîte aux lettres. Voir `docs/25_REGLES_MONDE_STANDARD.md` et
 `docs/26_CALIBRATION_CHUU.md` et `docs/27_CONTEXTE_INITIAL_RESIDENTES.md`.
 Elles savent uniquement qu'elles ont volontairement accepté cette colocation
-financée avec allocation; les relations initiales sont neutres. Ne pas créer le
-monde MVP sans le protocole renforcé correspondant.
+financée avec allocation; les relations initiales sont neutres. La résidence
+prévue comporte aussi une buanderie; sa gestion fonctionnelle de vêtements est
+un lot environnemental ultérieur, décrit dans `docs/28_VETEMENTS_ET_BUANDERIE.md`.
+Ne pas créer le monde MVP sans le protocole renforcé correspondant.
