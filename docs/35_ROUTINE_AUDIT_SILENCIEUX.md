@@ -100,3 +100,8 @@ pas des blocages physiques. La suite complète a validé **634 tests**.
 Pour le cadre décisionnel initial, l'audit a confirmé qu'il reste une
 projection pure : il organise les raisons disponibles mais n'écrit ni état,
 ni journal canonique, ni décision LLM. La suite complète a validé **636 tests**.
+
+Pour les scènes sociales, l'audit a vérifié que la parole n'est pas promue en
+vérité, que seules les participantes co-localisées peuvent ouvrir une scène et
+qu'une interruption se ferme sans nouvelle parole inventée. La suite complète
+a validé **638 tests**.

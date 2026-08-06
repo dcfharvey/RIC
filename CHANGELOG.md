@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.53 — 6 août 2026
+
+- Première scène sociale persistante : participantes co-localisées, actes de
+  parole structurés append-only et clôture explicite ou sûre après interruption.
+  Une phrase reste une expression, jamais un fait ou consentement automatique.
+  Migration `0032`.
+
 ## 0.52 — 6 août 2026
 
 - Cadre décisionnel pur reliant intention active, objectifs et motifs connus,

@@ -15,7 +15,7 @@
 | F-04 | Permettre aux personnages de proposer des intentions selon leur état subjectif. | partiel (politique déterministe ; subjectivité future) |
 | F-05 | Valider toute intention par le moteur avant modification du monde. | implémenté (moteur seul autorité) |
 | F-06 | Distinguer événement canonique, perception, interprétation, croyance et souvenir. | partiel (événement, perception, trace/souvenir et croyance sourcée séparés; interprétation et reconstruction futurs) |
-| F-07 | Gérer conversations privées, de groupe, avec le propriétaire et avec le technicien. | futur |
+| F-07 | Gérer conversations privées, de groupe, avec le propriétaire et avec le technicien. | partiel (scène et actes de parole structurés/co-localisés; confidentialité, propriétaire et technicien futurs) |
 | F-08 | Permettre au propriétaire d’observer, interagir, se manifester, régir et administrer. | partiel (observation, commandes simples et premier pipeline de changement non sensible; manifestation et administration profonde futures) |
 | F-09 | Condenser les routines banales et développer les scènes significatives. | futur |
 | F-10 | Produire notifications, résumés périodiques, rapports de coût et alertes. | futur |
@@ -65,7 +65,7 @@
 | INV-018 | Toute restauration ou migration s’exécute en mode maintenance. | futur |
 | INV-019 | Les résumés, caches et index dérivés sont reconstructibles depuis leurs sources. | futur |
 | INV-020 | Une notification échouée ne modifie jamais l’histoire canonique. | futur |
-| INV-021 | Une conversation interrompue est clôturée sans suite inventée. | futur |
+| INV-021 | Une conversation interrompue est clôturée sans suite inventée. | implémenté (scène sociale interrompue explicitement) |
 | INV-022 | Le MVP ne crée ni vieillissement, ni maladie, ni grossesse, ni mort. | implémenté |
 | INV-023 | Toute correction canonique conserve l’ancien enregistrement et un lien de rectification. | implémenté (journal append-only) |
 | INV-024 | Les opérations administratives et techniques restent séparées de la mémoire des personnages sauf manifestation explicite. | futur |

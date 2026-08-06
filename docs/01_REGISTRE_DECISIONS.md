@@ -21,7 +21,7 @@ Statuts : `implémenté` (présent dans le code et testé), `normatif futur` (di
 | DEC-004 | Après un arrêt ou une veille, le temps écoulé est rattrapé de façon condensée au prochain démarrage ; aucun appel par minute manquée. | **normatif futur** (rattrapage non implémenté) |
 | DEC-005 | Les personnages sont assez actifs et peuvent initier activités, projets, conversations, rapprochements, conflits et changements relationnels. | **normatif futur** |
 | DEC-006 | Les contacts spontanés vers le propriétaire sont activables ou désactivables globalement et par personnage. | **normatif futur** |
-| DEC-007 | Les conversations et scènes entre personnages continuent sans le propriétaire ; leur affichage peut être direct, résumé ou masqué. | **normatif futur** |
+| DEC-007 | Les conversations et scènes entre personnages continuent sans le propriétaire ; leur affichage peut être direct, résumé ou masqué. | **partiel** (scènes persistantes et clôture sûre; autonomie LLM et modes d'affichage futurs) |
 | DEC-008 | Le propriétaire est une entité supérieure connue des personnages et peut intervenir comme observateur, interlocuteur, manifestation ou administrateur. | **normatif futur** (autorité/ perceptibilité : CLA-001) |
 | DEC-009 | Tout élément du vivarium est administrativement modifiable. Une modification directe d’un personnage exige une analyse d’impact, un snapshot et une confirmation explicite. | **supersédée** — par DEC-009 v0.2 (protocole renforcé) |
 | DEC-010 | Les personnages ne connaissent une intervention que par ses manifestations perceptibles ou par une communication explicite. | **normatif futur** |
@@ -38,7 +38,7 @@ Statuts : `implémenté` (présent dans le code et testé), `normatif futur` (di
 | DEC-021 | L’architecture doit permettre ultérieurement un ordinateur dédié, un modèle local et un changement de fournisseur sans migration narrative majeure. | **actif** |
 | DEC-022 | Le technicien existe dans le MVP comme assistant de diagnostic et de recommandation en lecture seule ; il ne modifie ni code, ni données actives, ni déploiement. | **normatif futur** |
 | DEC-023 | Le MVP ne simule ni vieillissement, ni maladie, ni grossesse, ni mort. Les blessures peuvent exister si elles sont causales et récupérables. | **implémenté** (blessures non mortelles récupérables) |
-| DEC-024 | Une conversation interrompue par une panne ou un arrêt est clôturée automatiquement sans inventer la suite. | **normatif futur** |
+| DEC-024 | Une conversation interrompue par une panne ou un arrêt est clôturée automatiquement sans inventer la suite. | **implémenté** (fermeture `interrupted` du registre de scènes) |
 | DEC-025 | Le budget API initial n’est pas fixé, mais la mesure des coûts, les alertes et les limites configurables sont obligatoires. | **normatif futur** |
 | DEC-026 | Le modèle de langage et le fournisseur sont des composants remplaçables derrière un adaptateur ; le moteur local demeure l’autorité. | **actif** |
 | DEC-027 | LM Studio Bionic est l’environnement de développement initial envisagé, mais ne constitue pas une dépendance du produit ni du dossier. | **actif** |
