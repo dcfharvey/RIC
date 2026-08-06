@@ -7,6 +7,7 @@ from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
 from vivarium.repro import canonical_state_digest, max_seq
+from vivarium.repro import subjective_trace_audit, subjective_trace_digest
 from vivarium.subjective_memory import SubjectiveMemoryError, SubjectiveMemoryService
 from vivarium.traversal import TraversalEngine
 from vivarium.util import to_iso
@@ -66,3 +67,15 @@ def test_recall_is_private_bounded_and_does_not_write(setup):
         memory.recall_recent(wid, "sophie", limit=0)
     assert raised.value.code == "invalid_limit"
     assert canonical_state_digest(conn, wid) == before_state and max_seq(conn, wid) == before_seq
+
+
+def test_subjective_digest_and_audit_are_separate_from_the_canon(setup):
+    conn, wid, clock = setup
+    item = AttentionService(conn, clock=clock).snapshot(wid, "sophie").selected[0]
+    SubjectiveMemoryService(conn, clock=clock).encode_attention(wid, "sophie", "notice_entry", item)
+
+    digest = subjective_trace_digest(conn, wid)
+
+    assert list(digest) == ["sophie"]
+    assert digest["sophie"][0]["request_key"] == "notice_entry"
+    assert subjective_trace_audit(conn, wid) == []

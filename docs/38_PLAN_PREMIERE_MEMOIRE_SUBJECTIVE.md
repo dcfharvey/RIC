@@ -64,9 +64,9 @@ payloads réduits, identifiants de source, fidélite et clés de demande seront
 interrogeables; un court résumé libre n'arrivera qu'avec la tâche LLM de
 consolidation, sous validation de sources.
 
-Le digest canonique ne mélangera pas ces traces avec la réalité du monde. Un
-digest ou audit subjectif distinct les rendra néanmoins vérifiables à la
-reprise et au banc d'essai.
+Le digest canonique ne mélange pas ces traces avec la réalité du monde. Un
+digest et audit subjectifs distincts les rendent vérifiables à la reprise et au
+banc d'essai.
 
 ## Lecture initiale
 

@@ -548,6 +548,53 @@ def materialization_chain_audit(
     return errors
 
 
+def subjective_trace_digest(conn: sqlite3.Connection, world_id: int) -> dict[str, list[dict[str, Any]]]:
+    """Projection vérifiable de la mémoire subjective, hors digest canonique."""
+    rows = conn.execute(
+        "SELECT ch.key AS character, st.request_key, st.source_kind, st.source_event_seq, "
+        "st.fact_type, st.fact_occurred_at, st.access_kind, st.fidelity, st.payload_json "
+        "FROM subjective_trace st JOIN character ch ON ch.id = st.character_id "
+        "WHERE st.world_id = ? ORDER BY ch.key, st.encoded_at, st.id",
+        (world_id,),
+    ).fetchall()
+    out: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        out.setdefault(row["character"], []).append({
+            "request_key": row["request_key"], "source_kind": row["source_kind"],
+            "source_event_seq": row["source_event_seq"], "fact_type": row["fact_type"],
+            "fact_occurred_at": row["fact_occurred_at"], "access_kind": row["access_kind"],
+            "fidelity": row["fidelity"], "payload": json.loads(row["payload_json"]),
+        })
+    return out
+
+
+def subjective_trace_audit(conn: sqlite3.Connection, world_id: int) -> list[str]:
+    """Vérifie l'append-only subjectif sans lui attribuer le statut canonique."""
+    findings: list[str] = []
+    rows = conn.execute(
+        "SELECT st.id, st.character_id, st.source_kind, st.source_event_seq, st.fact_type, "
+        "ste.character_id AS event_character_id, ste.event_type, ste.payload_json "
+        "FROM subjective_trace st LEFT JOIN subjective_trace_event ste ON ste.trace_id = st.id "
+        "WHERE st.world_id = ? ORDER BY st.id, ste.id",
+        (world_id,),
+    ).fetchall()
+    seen: set[int] = set()
+    for row in rows:
+        if row["id"] in seen:
+            findings.append(f"trace {row['id']}: multiple audit events")
+            continue
+        seen.add(row["id"])
+        if row["event_type"] != "trace_encoded" or row["event_character_id"] != row["character_id"]:
+            findings.append(f"trace {row['id']}: missing or mismatched audit event")
+            continue
+        payload = json.loads(row["payload_json"])
+        if payload.get("trace_id") != row["id"] or payload.get("source_kind") != row["source_kind"] or payload.get("fact_type") != row["fact_type"]:
+            findings.append(f"trace {row['id']}: audit payload mismatch")
+        if (row["source_kind"] == "event") != (row["source_event_seq"] is not None):
+            findings.append(f"trace {row['id']}: source kind mismatch")
+    return findings
+
+
 @dataclass
 class SimulationRunReport:
     """Rapport stable de simulation (outil de test/diagnostic, non canonique)."""
