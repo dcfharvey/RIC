@@ -70,6 +70,9 @@ Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
 - première mémoire subjective : plan de contrat prêt, mais migration et service
   de trace encodée et rappel privé borné sont livrés; consolidation, oubli,
   croyances et LLM restent futurs. Voir `docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md` ;
+- idées retenues de scénarios et de systèmes futurs : jeux à information privée,
+  effort physique et affrontements arbitrés; voir
+  `docs/39_BACKLOG_SCENARIOS_ET_SYSTEMES.md`.
 - objets portables, installations fixes et contenance objet‑dans‑objet,
   avec lieu effectif matérialisé, capacité et refus des cycles ;
 - possession physique générique : un objet portable suit son personnage sans
