@@ -101,6 +101,23 @@ def canonical_state_digest(conn: sqlite3.Connection, world_id: int) -> dict[str,
         k: dict(sorted(v.items())) for k, v in sorted(needs.items())
     }
 
+    resources: dict[str, dict[str, dict[str, Any]]] = {}
+    for r in conn.execute(
+        "SELECT ch.key, rs.resource_key, rs.value_milli, rs.rate_num, rs.rate_den, "
+        "rs.rate_remainder, rs.anchor_at FROM resource_state rs "
+        "JOIN character ch ON ch.id = rs.character_id WHERE rs.world_id = ?",
+        (world_id,),
+    ).fetchall():
+        resources.setdefault(r["key"], {})[r["resource_key"]] = {
+            field: r[field]
+            for field in (
+                "value_milli", "rate_num", "rate_den", "rate_remainder", "anchor_at"
+            )
+        }
+    d["resource_state"] = {
+        key: dict(sorted(value.items())) for key, value in sorted(resources.items())
+    }
+
     acts: dict[str, list[dict[str, Any]]] = {}
     for r in conn.execute(
         "SELECT ch.key, a.type, a.status, a.started_at, a.planned_end_at, l.key AS loc "

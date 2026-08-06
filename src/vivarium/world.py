@@ -276,6 +276,13 @@ class WorldEngine:
         with transaction(self._conn) as c:
             c.execute("DELETE FROM need_state WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM character_profile WHERE world_id = ?", (world_id,))
+            c.execute(
+                "DELETE FROM resource_state_band WHERE resource_state_id IN "
+                "(SELECT id FROM resource_state WHERE world_id = ?)",
+                (world_id,),
+            )
+            c.execute("DELETE FROM resource_state WHERE world_id = ?", (world_id,))
+            c.execute("DELETE FROM resource_definition WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM character_instance_origin WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM world_object WHERE world_id = ?", (world_id,))
             c.execute("DELETE FROM location_link WHERE world_id = ?", (world_id,))

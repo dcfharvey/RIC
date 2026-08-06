@@ -36,11 +36,11 @@ comme tendances contextualisées, jamais comme scripts.
 - lorsqu'elle est une flaque pouvant tenir dans un seau : cognition très
   simplifiée.
 
-**Verrou technique :** cette variation doit devenir un état physiologique
-canonique, lié à une plage d'hydratation explicite et à des effets déclarés sur
-la forme, les capacités accessibles et le profil cognitif. Elle n'est pas
-encore simulée par le moteur actuel; aucun texte de personnage ne doit la
-remplacer ou l'ignorer silencieusement.
+**Verrou technique :** le moteur possède maintenant la famille générique de
+ressources et de bandes d'état. Avant l'instanciation de Chuu, il reste à fixer
+ses seuils et taux d'hydratation, puis à déclarer les effets sur sa forme, ses
+capacités accessibles et son profil cognitif. Aucun texte de personnage ne doit
+remplacer ou ignorer ces conséquences.
 
 ## Patoune
 

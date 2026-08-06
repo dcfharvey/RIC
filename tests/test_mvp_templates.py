@@ -21,7 +21,12 @@ def test_mvp_templates_are_published_and_idempotent(conn):
     assert all(item["status"] == "published" for item in installed)
     assert install_mvp_character_templates(conn) == installed
     chuu = CharacterTemplateService(conn).get_version("resident.chuu", 1)
-    assert any(component["key"] == "physiology.resource_dependent_state" for component in chuu["components"])
+    resource_component = next(
+        component
+        for component in chuu["components"]
+        if component["key"] == "physiology.resource_dependent_state"
+    )
+    assert resource_component["config"]["resource_key"] == "hydration"
 
 
 def test_mvp_templates_do_not_overwrite_existing_versions(conn):
