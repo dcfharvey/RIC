@@ -46,6 +46,11 @@ critères sont réellement atteints, jamais parce qu'un calendrier l'exige.
 
 ## Ordre de travail
 
+La trajectoire détaillée jusqu'aux premiers systèmes cognitifs est dans
+`docs/21_TRAJECTOIRE_VERS_COGNITION.md`. Elle fixe les portes de qualité :
+blueprint, connecteurs à état, traversée validée, monde d'intégration, puis
+contrat moteur–cognition, perception, état interne, mémoire, social et LLM.
+
 ### 1. Sûreté de l'univers administratif — fermeture de passage livrée
 
 La fermeture de passage détecte maintenant l'isolement dans les deux sens du
