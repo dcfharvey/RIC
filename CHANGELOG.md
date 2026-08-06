@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.41 — 6 août 2026
+
+- Première porte déterministe d'appel LLM : motifs fermés, clé d'idempotence,
+  déduplication durable, debounce et budget explicites. Elle est pure : aucun
+  réseau, SQLite ou fait canonique ne peut être modifié par son évaluation.
+- Les traces de politique portent explicitement leur résidente; un historique
+  mélangé est refusé plutôt que de partager par erreur un budget entre elles.
+- Les valeurs de cadence ne sont pas encore choisies pour le produit : le banc
+  les injectera et les calibrera avec Gemma avant toute boucle autonome. Voir
+  `docs/41_PLAN_PORTE_APPEL_LLM.md`; tests : 599 réussis.
+
 ## 0.40 — 6 août 2026
 
 - Première frontière LLM locale : adaptateur LM Studio natif, contexte factuel

@@ -163,6 +163,9 @@ conservent la séparation entre fait, accès, encodage et croyance.
   seul à appliquer un fait;
 - tests avec faux modèle avant tout appel API ou modèle local.
 
+La porte événementielle qui décidera quand un appel est admissible est planifiée
+dans `docs/41_PLAN_PORTE_APPEL_LLM.md`; elle précède toute boucle autonome.
+
 ## Ce qui n'est pas un prérequis à la cognition
 
 - une interface finale;

@@ -54,6 +54,8 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après rappel subjectif minimal : **579 passed** ;
 - test complet après audit subjectif séparé : **580 passed** ;
 - test complet après frontière LLM locale et banc de fumée : **592 passed** ;
+- test complet après politique pure d'admissibilité des appels LLM :
+  **599 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -82,6 +84,10 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   aucune boucle autonome ni écriture LLM. Le diagnostic `llm-status` et l'essai
   jetable `llm-smoke` utilisent désormais l'API native LM Studio avec raisonnement
   désactivé pour Gemma. Voir `docs/40_ADAPTATEUR_LLM_LOCAL.md`.
+- porte d'appel LLM événementielle : première politique pure livrée;
+  déclencheurs fermés, déduplication, debounce et budget sont vérifiables sans
+  réseau ni écriture. La persistance append-only de ses admissions reste à
+  livrer; voir `docs/41_PLAN_PORTE_APPEL_LLM.md`.
 - idées retenues de scénarios et de systèmes futurs : jeux à information privée,
   effort physique et affrontements arbitrés; voir
   `docs/39_BACKLOG_SCENARIOS_ET_SYSTEMES.md`.
