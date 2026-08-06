@@ -60,6 +60,8 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après routeur LLM événementiel et fumée intégrée :
   **606 passed** ;
 - test complet après banc de calibration des appels LLM : **609 passed** ;
+- test complet après première projection de motifs physiologiques :
+  **613 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Capacités récentes
@@ -98,6 +100,10 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - banc de calibration des chronologies d'appels livré, sans réseau ni SQLite;
   il compare des limites candidates avant toute décision de cadence produit.
   Voir `docs/42_BANC_CALIBRATION_APPELS_LLM.md`.
+- première projection de candidats de motifs physiologiques livrée; pression,
+  urgence, importance et actions possibles sont bornées par le contexte
+  déterministe, sans inventer plaisir, coût ou personnalité. Voir
+  `docs/43_MOTIFS_PHYSIOLOGIQUES.md`.
 - idées retenues de scénarios et de systèmes futurs : jeux à information privée,
   effort physique et affrontements arbitrés; voir
   `docs/39_BACKLOG_SCENARIOS_ET_SYSTEMES.md`.

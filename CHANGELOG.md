@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.45 — 6 août 2026
+
+- Première projection de `MotiveCandidate` : les déficits physiologiques connus
+  deviennent des candidats bornés avec pression, urgence, importance et
+  actions actuellement accessibles.
+- Les dimensions non mesurées (plaisir attendu et coût) restent explicitement
+  absentes; la projection demeure isolée jusqu'à une intégration prouvée sans
+  régression. Tests : 613 réussis.
+
 ## 0.44 — 6 août 2026
 
 - Banc de calibration des appels cognitifs : une chronologie de signaux peut
