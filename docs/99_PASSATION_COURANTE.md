@@ -254,6 +254,12 @@ signaux n'est canonique. Le prochain gros lot candidat est le noyau de
 conséquences sociales situé avec mémoire minimale; ne pas coder de delta direct
 `speech_act -> relation`.
 
+La photographie technique et comportementale post-rodage demandée par la R&D
+est dans `docs/67_REPONSE_TECHNIQUE_R_D_POST_RODAGE_0_1_0A10.md`. Elle distingue
+les composants actifs des services seulement présents, documente les défauts
+réellement découverts et formule les interfaces fonctionnelles souhaitables du
+futur `Social Consequence Core` sans prescrire son implantation.
+
 L'alpha est livré. La prochaine étape n'est pas une nouvelle grosse couche :
 faire tourner quelques sessions observées, conserver les bases qui comptent,
 et classer les défauts ou frictions mesurés avant de choisir le lot de bêta.

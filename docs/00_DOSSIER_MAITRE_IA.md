@@ -317,4 +317,6 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - Contre-audit R&D reçu : `docs/65_CONTRE_AUDIT_R_D_CHATGPT_0_1_0A9.md`.
 - Matrice d'alignement de l'implémentation :
   `docs/66_MATRICE_ALIGNEMENT_CONTRE_AUDIT_0_1_0A9.md`.
+- Réponse technique R&D post-rodage :
+  `docs/67_REPONSE_TECHNIQUE_R_D_POST_RODAGE_0_1_0A10.md`.
 - Sources historiques : `sources/01..05`.
