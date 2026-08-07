@@ -68,6 +68,9 @@ tests et documentation après un lot à conséquences étendues.
 - premier tour social LLM : livré pour une scène active et co-localisée,
   avec admission technique, schéma propre, validation de destinataire et acte
   append-only; sa sélection automatique par l'orchestrateur reste future ;
+- banc social multi-tours : livré, avec occasions de parole alternées,
+  déterministes et bornées dans un monde jetable; il ne remplace pas encore
+  le déclenchement autonome d'une scène ;
 - banc vivant jetable : livré avec fournisseur faux normal et indisponible;
   l'essai contrôlé avec Gemma local a validé le chemin réel, et un banc de
   calibration répété est maintenant disponible sans fixer de cadence produit;

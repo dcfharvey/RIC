@@ -10,6 +10,8 @@
   distinct, admission `scene_turn`, validation stricte et idempotence de
   l'acte. Une parole reste une expression, jamais une vérité ou une
   conséquence sociale automatique.
+- Ajout du banc social multi-tours : occasions de parole alternées et bornées,
+  monde mémoire neuf, arrêt explicite en cas d'anomalie.
 
 ## 0.56 — 6 août 2026
 

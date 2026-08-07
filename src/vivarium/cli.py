@@ -254,6 +254,32 @@ def _run_scene_smoke() -> int:
     return 0 if report.healthy else 1
 
 
+def _run_scene_bench(max_turns: int) -> int:
+    """Affiche une courte conversation locale, strictement jetable."""
+    from .cognition import CognitionError, LocalLLMSettings
+    from .cognition_policy import CognitionCallLimits
+    from .scene_bench import run_scene_bench
+    from .scene_turn import LMStudioSceneTurnProvider, SceneTurnError
+    from .scene_scheduler import SceneSchedulerError
+
+    try:
+        settings = LocalLLMSettings.from_environment()
+        report = run_scene_bench(
+            LMStudioSceneTurnProvider(settings), CognitionCallLimits(0, 3_600, max_turns), max_turns=max_turns
+        )
+    except (CognitionError, SceneTurnError, SceneSchedulerError, ValueError) as exc:
+        print(f"Banc de scène : {getattr(exc, 'code', 'invalid_request')} — {exc}", file=__import__('sys').stderr)
+        return 2
+    print(f"Banc de scène jetable — modèle : {settings.model_id}")
+    for turn in report.turns:
+        result = turn.result
+        detail = result.provider_error_code or result.validation_error_code or result.deferred_reason_code or ""
+        speech = "-" if result.speech is None else result.speech["content"]
+        print(f"  tour {turn.opportunity.turn_number}: {turn.opportunity.speaker_key:<6} {result.decision.action if result.decision else '-':<10} {speech}" + (f" ({detail})" if detail else ""))
+    print(f"Scène : {len(report.final_scene['acts'])} parole(s) — verdict : {'sain' if report.healthy else 'anomalie explicite'}")
+    return 0 if report.healthy else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vivarium", description="Vivarium social artificiel")
     sub = parser.add_subparsers(dest="command")
@@ -286,6 +312,8 @@ def main(argv: list[str] | None = None) -> int:
     p_calibration.add_argument("--trials", type=int, default=3, help="Nombre d'essais isolés (1 à 20, défaut : 3).")
     p_calibration.add_argument("--character", default="sophie", help="Résidente à utiliser (défaut : sophie).")
     sub.add_parser("scene-smoke", help="Teste un tour de parole LLM dans une scène mémoire jetable.")
+    p_scene_bench = sub.add_parser("scene-bench", help="Joue quelques tours sociaux LLM dans une scène jetable.")
+    p_scene_bench.add_argument("--max-turns", type=int, default=4, help="Occasions de parole (1 à 20, défaut : 4).")
 
     args = parser.parse_args(argv)
 
@@ -307,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_llm_calibration(args.trials, args.character)
     if args.command == "scene-smoke":
         return _run_scene_smoke()
+    if args.command == "scene-bench":
+        return _run_scene_bench(args.max_turns)
 
     db_path = _resolve_db_path(getattr(args, "db", None))
     conn = connect_database(db_path)

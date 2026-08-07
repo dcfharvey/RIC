@@ -107,3 +107,19 @@ def test_cli_scene_smoke_reports_a_healthy_ephemeral_turn(monkeypatch, capsys):
     assert main(["scene-smoke"]) == 0
     output = capsys.readouterr().out
     assert "Essai de scène jetable" in output and "parole        : Salut." in output
+
+
+def test_cli_scene_bench_reports_a_healthy_ephemeral_conversation(monkeypatch, capsys):
+    class Opportunity:
+        turn_number = 1; speaker_key = "sophie"
+    class Result:
+        decision = type("Decision", (), {"action": "speak"})(); speech = {"content": "Salut."}
+        provider_error_code = None; validation_error_code = None; deferred_reason_code = None
+    class Report:
+        turns = (type("Turn", (), {"opportunity": Opportunity(), "result": Result()})(),)
+        final_scene = {"acts": ({"content": "Salut."},)}; healthy = True
+
+    monkeypatch.setattr("vivarium.scene_bench.run_scene_bench", lambda provider, limits, max_turns: Report())
+    assert main(["scene-bench", "--max-turns", "1"]) == 0
+    output = capsys.readouterr().out
+    assert "Banc de scène jetable" in output and "tour 1: sophie" in output

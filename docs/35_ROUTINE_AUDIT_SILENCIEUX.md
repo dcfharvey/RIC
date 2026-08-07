@@ -121,3 +121,8 @@ distincte d'une parole, qu'un retry d'acte ne rappelle pas le modèle, qu'une
 destinataire hors scène est refusée et qu'une participante ayant quitté le
 lieu ne peut plus produire de parole. Aucun texte n'est promu en fait,
 croyance, relation ou permission. La suite complète a validé **658 tests**.
+
+Pour le banc social multi-tours, l'audit a vérifié que la rotation n'est qu'une
+occasion de parole, que `no_action` reste possible, que la borne ferme la
+boucle et que chaque essai reconstruit un monde en mémoire. La suite complète
+a validé **664 tests**.
