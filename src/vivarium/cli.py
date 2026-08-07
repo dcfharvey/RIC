@@ -356,6 +356,8 @@ def _run_mvp_runtime(
     from .guardian import LocalGuardian
     from .scene_turn import LMStudioSceneTurnProvider
     from .simulation import SimulationLimitError
+    from .telemetry import RuntimeOutcomeLog
+    from .util import Clock
     from .world_rules import WorldRuleService
     from .web import WebServerError, create_server, serve, shutdown
 
@@ -410,6 +412,9 @@ def _run_mvp_runtime(
             service_probe=lambda: thread is not None and thread.is_alive(),
             interval_seconds=guardian_interval,
         )
+        outcome_log = RuntimeOutcomeLog(
+            db_path.parent.parent / "logs" / "runtime_outcomes.jsonl"
+        )
         server = create_server(db_path, host="127.0.0.1", port=port)
         thread = threading.Thread(target=serve, args=(server,), daemon=True)
         thread.start()
@@ -433,6 +438,14 @@ def _run_mvp_runtime(
                     arrival_state = arrival.routed.turn.decision.action
                 suffix = " (suite à venir)" if arrival.pending else ""
                 print(f"[tick {ticks}] arrivée {arrival.character_key} : {arrival_state}{suffix}")
+                routed = arrival.routed
+                outcome_log.append(
+                    checked_at=Clock().now_iso(), cycle="arrival",
+                    character=arrival.character_key, outcome=arrival_state,
+                    provider_error=None if routed is None else routed.provider_error_code,
+                    validation_error=None if routed is None or routed.turn is None
+                    or routed.turn.validation is None else routed.turn.validation.reason_code,
+                )
             autonomy = tick.autonomy
             if autonomy and autonomy.character_key:
                 if autonomy.routed is None:
@@ -447,10 +460,25 @@ def _run_mvp_runtime(
                     if turn.validation is not None:
                         autonomy_state += f"/{turn.validation.status}"
                 print(f"[tick {ticks}] autonomie {autonomy.character_key} : {autonomy_state}")
+                routed = autonomy.routed
+                outcome_log.append(
+                    checked_at=Clock().now_iso(), cycle="autonomy",
+                    character=autonomy.character_key, outcome=autonomy_state,
+                    provider_error=None if routed is None else routed.provider_error_code,
+                    validation_error=None if routed is None or routed.turn is None
+                    or routed.turn.validation is None else routed.turn.validation.reason_code,
+                )
             social = tick.social
             if social and (social.opened_scene_keys or social.closed_scene_keys or social.interrupted_scene_keys or social.turn):
                 action = social.turn.decision.action if social.turn and social.turn.decision else "-"
                 print(f"[tick {ticks}] scènes +{len(social.opened_scene_keys)} -{len(social.closed_scene_keys)} !{len(social.interrupted_scene_keys)} tour={action}")
+                if social.turn is not None:
+                    outcome_log.append(
+                        checked_at=Clock().now_iso(), cycle="social", character=None,
+                        outcome=action,
+                        provider_error=social.turn.provider_error_code,
+                        validation_error=social.turn.validation_error_code,
+                    )
             guardian_report = guardian.run_if_due()
             if guardian_report is not None:
                 print(

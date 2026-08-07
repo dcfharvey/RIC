@@ -13,6 +13,7 @@ import sqlite3
 from typing import Any, Callable, Protocol
 
 from .mvp_preflight import inspect_mvp_preflight
+from .telemetry import inspect_rodage
 from .util import Clock, parse_iso, to_iso
 from .world import WorldEngine
 
@@ -143,6 +144,20 @@ class LocalGuardian:
                         "actif" if service_alive else "thread arrêté",
                     )
                 )
+
+        telemetry = inspect_rodage(self._conn, self._world_id)
+        if telemetry.warnings:
+            checks.append(GuardianCheck(
+                "rodage_patterns",
+                "attention",
+                "; ".join(f"{item.key}: {item.detail}" for item in telemetry.warnings),
+            ))
+        else:
+            checks.append(GuardianCheck(
+                "rodage_patterns",
+                "ok",
+                f"fenêtre: {telemetry.speech_acts} paroles, {telemetry.activity_starts} activités",
+            ))
 
         levels = {check.level for check in checks}
         status = "CRITIQUE" if "critical" in levels else "ATTENTION" if "attention" in levels else "SAIN"

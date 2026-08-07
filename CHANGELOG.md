@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.0a10 — 7 août 2026
+
+- Contre-audit scientifique `0.1.0a9` archivé et traduit en matrice d'écarts
+  sans transformer ses propositions R&D en canon technique.
+- Contrats renforcés : parole, refus et excuse ne produisent automatiquement
+  ni croyance, ni affect, ni relation, ni permission; une relation positive
+  n'implique jamais une permission ou un consentement.
+- Télémétrie locale en lecture seule : répétition des paroles, scènes vides,
+  interruptions et monoculture d'activités sont des signaux heuristiques,
+  jamais des faits psychologiques.
+- Le gardien conserve ces signaux dans son journal; les résultats techniques
+  d'arrivée, d'autonomie et de dialogue alimentent un JSONL append-only séparé.
+- Validation complète : **718 tests**.
+
 ## 0.1.0a9 — 7 août 2026
 
 - La planification d'un retry cognitif invalide est désormais figée à l'instant

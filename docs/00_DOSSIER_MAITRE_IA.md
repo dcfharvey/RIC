@@ -314,4 +314,7 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - Index maître des décisions : `docs/history/Vivarium_Index_Maitre_Decisions_v0_3.md`.
 - Mémoire de travail : `docs/history/Vivarium_Memoire_Assistante_v10.md` (non normative).
 - Historique des lots : `CHANGELOG.md`.
+- Contre-audit R&D reçu : `docs/65_CONTRE_AUDIT_R_D_CHATGPT_0_1_0A9.md`.
+- Matrice d'alignement de l'implémentation :
+  `docs/66_MATRICE_ALIGNEMENT_CONTRE_AUDIT_0_1_0A9.md`.
 - Sources historiques : `sources/01..05`.

@@ -25,7 +25,7 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a9` — retry cognitif figé avant latence et gardien permanent.
+**Version logicielle actuelle :** `0.1.0a10` — alignement du contre-audit et télémétrie locale de rodage.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;

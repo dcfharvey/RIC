@@ -21,11 +21,11 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 
 ## État vérifié
 
-- version logicielle : `0.1.0a9` (**MVP alpha, retry cognitif temporellement sûr et gardien permanent**). Les numéros de documents
+- version logicielle : `0.1.0a10` (**MVP alpha, contre-audit aligné et télémétrie locale de rodage**). Les numéros de documents
   et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
 - gardien intégré au runtime : premier contrôle immédiat, puis toutes les
   3600 secondes et après chaque progression canonique; journal local
-  `logs/guardian.jsonl`; **713 tests** réussis ;
+  `logs/guardian.jsonl`; **718 tests** réussis ;
 - commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
@@ -241,10 +241,18 @@ enregistrée; pause/reprise et le panneau de scène ont répondu.
 
 ## Prochaine action recommandée
 
-Le contre-audit scientifique et fonctionnel de l'alpha `0.1.0a9` est préparé
-dans `docs/64_DOSSIER_CONTRE_AUDIT_R_D_0_1_0A9.md`. Il doit être transmis à
-l'instance ChatGPT chargée de la R&D avant de choisir le premier gros lot
-post-rodage; sa réponse reste une proposition jusqu'à audit Codex.
+Le dossier transmis est dans `docs/64_DOSSIER_CONTRE_AUDIT_R_D_0_1_0A9.md`;
+la réponse R&D intégrale reçue est archivée dans
+`docs/65_CONTRE_AUDIT_R_D_CHATGPT_0_1_0A9.md`. Son verdict est **aligné avec
+réserves**. La traduction architecturale et les décisions de séquençage sont
+dans `docs/66_MATRICE_ALIGNEMENT_CONTRE_AUDIT_0_1_0A9.md`.
+
+Pendant le rodage, `vivarium.telemetry` fournit des métriques descriptives en
+lecture seule; le gardien signale les patterns suspects et le runtime conserve
+les résultats techniques LLM dans `logs/runtime_outcomes.jsonl`. Aucun de ces
+signaux n'est canonique. Le prochain gros lot candidat est le noyau de
+conséquences sociales situé avec mémoire minimale; ne pas coder de delta direct
+`speech_act -> relation`.
 
 L'alpha est livré. La prochaine étape n'est pas une nouvelle grosse couche :
 faire tourner quelques sessions observées, conserver les bases qui comptent,
