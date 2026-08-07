@@ -23,6 +23,8 @@ from .scene_turn import SceneTurnProvider
 from .simulation import SimulationReport, SimulationEngine
 from .social_cycle import SocialCycleOutcome, SocialSceneCycle
 from .world import WorldEngine
+from .non_sapient import NonSapientAgencyCycle, NonSapientOutcome
+from .util import Clock
 
 
 class MVPRuntimeError(ValueError):
@@ -42,6 +44,7 @@ class MVPRunReport:
     cognition: OrchestratorTick | None
     autonomy: AutonomyOutcome | None
     social: SocialCycleOutcome | None
+    non_sapient: NonSapientOutcome | None = None
 
 
 class MVPRuntime:
@@ -56,6 +59,7 @@ class MVPRuntime:
         scene_provider: SceneTurnProvider | None = None,
         limits: CognitionCallLimits | None = None,
         max_transitions: int = 120,
+        clock: Clock | None = None,
     ) -> None:
         if not isinstance(world_id, int) or isinstance(world_id, bool) or world_id < 1:
             raise MVPRuntimeError("monde invalide", code="invalid_mvp_runtime")
@@ -73,15 +77,16 @@ class MVPRuntime:
         self._limits = limits or CognitionCallLimits(0, 3600, 8)
         self._limits.validated()
         self._max_transitions = max_transitions
+        self._clock = clock or Clock()
 
     def run_once(self) -> MVPRunReport:
         """Fait progresser un monde actif, sans jamais traiter une pause."""
-        world = WorldEngine(self._conn).get_world(self.world_id)
+        world = WorldEngine(self._conn, clock=self._clock).get_world(self.world_id)
         if world["status"] == "paused":
             return MVPRunReport(self.world_id, "paused", None, None, None, None, None)
         arrival = None
         if self._cognition_provider is not None and self._scene_provider is not None:
-            arrival = InitialArrivalCycle(self._conn, self._cognition_provider).tick(
+            arrival = InitialArrivalCycle(self._conn, self._cognition_provider, clock=self._clock).tick(
                 self.world_id, self._limits
             )
             # L'activité déterministe verrouille un déplacement en cours. La
@@ -89,7 +94,7 @@ class MVPRuntime:
             # une résidente reçoit au plus une occasion par tick.
             if arrival.pending:
                 return MVPRunReport(self.world_id, "active", None, arrival, None, None, None)
-        target = WorldEngine(self._conn).read_canonical_time(self.world_id)
+        target = WorldEngine(self._conn, clock=self._clock).read_canonical_time(self.world_id)
         # `run_to` matérialise les besoins des activités actives. L'appeler à
         # chaque pulsation murale alors qu'aucune activité n'arrive à son terme
         # ne crée aucune décision et gonfle inutilement le journal canonique.
@@ -98,12 +103,13 @@ class MVPRuntime:
         # reprend seul la main.
         simulation = None
         if self._simulation_due(target):
-            simulation = SimulationEngine(self._conn).run_to(
+            simulation = SimulationEngine(self._conn, clock=self._clock).run_to(
                 self.world_id, target, max_transitions=self._max_transitions
             )
         cognition = None
         autonomy = None
         social = None
+        non_sapient = NonSapientAgencyCycle(self._conn, clock=self._clock).tick(self.world_id)
         if self._cognition_provider is not None and self._scene_provider is not None:
             # Une nouvelle attente commune est une occasion sociale factuelle.
             # Elle doit être observée avant que l'autonomie puisse remplacer
@@ -116,24 +122,29 @@ class MVPRuntime:
             # monde. On rend alors immediatement la main au determinisme au
             # lieu de construire un contexte cognitif deja en retard.
             if self._simulation_due(
-                WorldEngine(self._conn).read_canonical_time(self.world_id)
+                WorldEngine(self._conn, clock=self._clock).read_canonical_time(self.world_id)
             ):
                 return MVPRunReport(
-                    self.world_id, "active", simulation, arrival, None, None, social
+                    self.world_id, "active", simulation, arrival, None, None, social,
+                    non_sapient,
                 )
-            autonomy = AutonomyCycle(self._conn, self._cognition_provider).tick(
+            autonomy = AutonomyCycle(self._conn, self._cognition_provider, clock=self._clock).tick(
                 self.world_id, self._limits
             )
             if self._simulation_due(
-                WorldEngine(self._conn).read_canonical_time(self.world_id)
+                WorldEngine(self._conn, clock=self._clock).read_canonical_time(self.world_id)
             ):
                 return MVPRunReport(
-                    self.world_id, "active", simulation, arrival, None, autonomy, social
+                    self.world_id, "active", simulation, arrival, None, autonomy, social,
+                    non_sapient,
                 )
             cognition = VivariumOrchestrator(
-                self._conn, self._cognition_provider
+                self._conn, self._cognition_provider, clock=self._clock
             ).tick(self.world_id, self._limits, max_events_per_character=1)
-        return MVPRunReport(self.world_id, "active", simulation, arrival, cognition, autonomy, social)
+        return MVPRunReport(
+            self.world_id, "active", simulation, arrival, cognition, autonomy, social,
+            non_sapient,
+        )
 
     def _simulation_due(self, target_time: str) -> bool:
         """Retourne si une transition déterministe est exigible à `target_time`.

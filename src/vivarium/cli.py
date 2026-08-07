@@ -468,6 +468,19 @@ def _run_mvp_runtime(
                     validation_error=None if routed is None or routed.turn is None
                     or routed.turn.validation is None else routed.turn.validation.reason_code,
                 )
+            animal = tick.non_sapient
+            if animal and animal.character_key:
+                print(
+                    f"[tick {ticks}] non-sapient {animal.character_key} : "
+                    f"{animal.selected_action}/{animal.outcome} "
+                    f"cible={animal.target_key or '-'} motif={animal.reason_code}"
+                )
+                outcome_log.append(
+                    checked_at=Clock().now_iso(), cycle="non_sapient",
+                    character=animal.character_key,
+                    outcome=f"{animal.selected_action}/{animal.outcome}",
+                    provider_error=None, validation_error=animal.reason_code,
+                )
             social = tick.social
             if social and (social.opened_scene_keys or social.closed_scene_keys or social.interrupted_scene_keys or social.turn):
                 action = social.turn.decision.action if social.turn and social.turn.decision else "-"

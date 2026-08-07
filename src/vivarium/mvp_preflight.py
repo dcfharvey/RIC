@@ -186,13 +186,13 @@ def inspect_mvp_preflight(
         for item in origins
     )
     expected_origins = tuple(
-        sorted((character_key, template_key, 3) for template_key, character_key in INITIAL_RESIDENTS)
+        sorted((character_key, template_key, 4) for template_key, character_key in INITIAL_RESIDENTS)
     )
     checks.append(
         _check(
             "character_origins",
             actual_origins == expected_origins,
-            "gabarits MVP v3 et provenance immuable vérifiés"
+            "gabarits MVP v4 et provenance immuable vérifiés"
             if actual_origins == expected_origins
             else f"provenances incompatibles : {actual_origins!r}",
         )

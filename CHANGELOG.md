@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.0a13 — 7 août 2026
+
+- Première couche d'agence animale générique (`CAT-0`) : un personnage non
+  sapient configuré observe uniquement les passages adjacents, forme une
+  intention courte et se déplace sans appel LLM par les moteurs canoniques.
+- Les attentes sont bornées et réactivées par une échéance ou un changement de
+  passage local. Une cible durablement bloquée est abandonnée après trois
+  échecs explicites afin de permettre une solution locale alternative.
+- Intentions, transitions et décisions sont append-only, attribuées à leur
+  événement source et indépendantes du nom ou de l'espèce du personnage.
+- Les gabarits MVP immuables passent en v4; seule Patoune reçoit le nouveau
+  composant. Le schéma SQLite passe en version 34.
+- Validation complète : **728 tests**.
+
 ## 0.1.0a12 — 7 août 2026
 
 - Correction d'un dépassement chronologique observé en rodage : la latence

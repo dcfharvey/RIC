@@ -176,6 +176,23 @@ def _mvp_v3_template(key: str, definition: dict[str, Any], components: tuple[dic
 MVP_CHARACTER_TEMPLATES_V3 = tuple(_mvp_v3_template(*entry) for entry in MVP_CHARACTER_TEMPLATES_V2)
 
 
+def _mvp_v4_template(key: str, definition: dict[str, Any], components: tuple[dict[str, Any], ...]) -> tuple[str, dict[str, Any], tuple[dict[str, Any], ...]]:
+    if key != "resident.patoune":
+        return key, definition, components
+    return key, definition, (*components, _component(
+        "behavior.non_sapient_agency",
+        {
+            "policy": "reactive_associative",
+            "wake_interval_seconds": 300,
+            "max_obstacle_retries": 3,
+            "preferred_location_functions": ["relax"],
+        },
+    ))
+
+
+MVP_CHARACTER_TEMPLATES_V4 = tuple(_mvp_v4_template(*entry) for entry in MVP_CHARACTER_TEMPLATES_V3)
+
+
 def install_mvp_character_templates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Installe les gabarits du casting après le catalogue de composants."""
     install_mvp_component_catalog(conn)
@@ -219,5 +236,29 @@ def install_mvp_living_templates(conn: sqlite3.Connection) -> list[dict[str, Any
             draft = service.create_draft(key, definition, components); installed.append(service.publish(key, draft["version"])); continue
         if existing["status"] != "published" or {"definition": existing["definition"], "components": existing["components"]} != expected:
             raise RuntimeError(f"version 3 de gabarit MVP incompatible : {key}")
+        installed.append(existing)
+    return installed
+
+
+def install_mvp_agent_templates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Publie la v4 CAT-0 sans modifier les origines v1-v3 gelées."""
+    install_mvp_living_templates(conn)
+    service = CharacterTemplateService(conn)
+    installed: list[dict[str, Any]] = []
+    for key, definition, components in MVP_CHARACTER_TEMPLATES_V4:
+        try:
+            existing = service.get_version(key, 4)
+        except TemplateError as exc:
+            if "modèle introuvable" not in str(exc):
+                raise
+            existing = None
+        expected = {"definition": definition, "components": list(components)}
+        if existing is None:
+            draft = service.create_draft(key, definition, components)
+            installed.append(service.publish(key, draft["version"]))
+            continue
+        actual = {"definition": existing["definition"], "components": existing["components"]}
+        if existing["status"] != "published" or actual != expected:
+            raise RuntimeError(f"version 4 de gabarit MVP incompatible : {key}")
         installed.append(existing)
     return installed

@@ -72,9 +72,9 @@ def setup():
 
 
 def test_runtime_progresses_deterministic_world_without_a_model(setup):
-    conn, world_id, _ = setup
+    conn, world_id, clock = setup
 
-    report = MVPRuntime(conn, world_id).run_once()
+    report = MVPRuntime(conn, world_id, clock=clock).run_once()
 
     assert report.status == "active"
     assert report.simulation is not None
@@ -86,7 +86,7 @@ def test_runtime_does_not_materialize_needs_on_each_wall_clock_tick(setup, monke
     conn, world_id, clock = setup
     target = clock.now_iso()
     monkeypatch.setattr(WorldEngine, "read_canonical_time", lambda _self, _wid: target)
-    runtime = MVPRuntime(conn, world_id)
+    runtime = MVPRuntime(conn, world_id, clock=clock)
 
     first = runtime.run_once()
     seq_after_first = conn.execute(
@@ -103,10 +103,10 @@ def test_runtime_does_not_materialize_needs_on_each_wall_clock_tick(setup, monke
 
 
 def test_runtime_respects_pause_without_starting_new_activity(setup):
-    conn, world_id, _ = setup
+    conn, world_id, clock = setup
     WorldEngine(conn).pause_world(world_id)
 
-    report = MVPRuntime(conn, world_id).run_once()
+    report = MVPRuntime(conn, world_id, clock=clock).run_once()
 
     assert report.status == "paused"
     assert report.simulation is None
@@ -118,7 +118,8 @@ def test_runtime_can_open_and_process_a_bounded_social_scene(setup):
     CharacterEngine(conn, clock=clock).move_character(world_id, "sophie", "salon")
 
     report = MVPRuntime(
-        conn, world_id, cognition_provider=CognitionProvider(), scene_provider=SceneProvider()
+        conn, world_id, cognition_provider=CognitionProvider(), scene_provider=SceneProvider(),
+        clock=clock,
     ).run_once()
 
     assert report.social is not None
@@ -147,7 +148,7 @@ def test_runtime_preserves_idle_social_opportunity_before_autonomy_consumes_it(s
 
     report = MVPRuntime(
         conn, world_id, cognition_provider=ActivityProvider(),
-        scene_provider=SceneProvider(), limits=limits,
+        scene_provider=SceneProvider(), limits=limits, clock=clock,
     ).run_once()
 
     assert report.social is not None and report.social.opened_scene_keys
@@ -175,7 +176,7 @@ def test_runtime_yields_to_determinism_when_social_latency_crosses_a_boundary(se
     cognition = CountingProvider()
     report = MVPRuntime(
         conn, world_id, cognition_provider=cognition,
-        scene_provider=SceneProvider(), limits=limits,
+        scene_provider=SceneProvider(), limits=limits, clock=clock,
     ).run_once()
 
     assert report.social is not None
@@ -184,15 +185,16 @@ def test_runtime_yields_to_determinism_when_social_latency_crosses_a_boundary(se
 
 
 def test_runtime_rejects_half_configured_model_layer(setup):
-    conn, world_id, _ = setup
+    conn, world_id, clock = setup
     with pytest.raises(MVPRuntimeError, match="ensemble"):
-        MVPRuntime(conn, world_id, cognition_provider=CognitionProvider())
+        MVPRuntime(conn, world_id, cognition_provider=CognitionProvider(), clock=clock)
 
 
 def test_runtime_finishes_bounded_arrival_before_starting_activities(setup):
-    conn, world_id, _ = setup
+    conn, world_id, clock = setup
     runtime = MVPRuntime(
-        conn, world_id, cognition_provider=ArrivalTraversalProvider(), scene_provider=SceneProvider()
+        conn, world_id, cognition_provider=ArrivalTraversalProvider(),
+        scene_provider=SceneProvider(), clock=clock,
     )
 
     first = runtime.run_once()
@@ -209,5 +211,5 @@ def test_runtime_finishes_bounded_arrival_before_starting_activities(setup):
         "WHERE c.world_id = ? ORDER BY c.key", (world_id,)
     ).fetchall()
     assert dict(rows) == {
-        "chuu": "salon", "erika": "salon", "luna": "salon", "patoune": "entree_exterieure", "sophie": "salon"
+        "chuu": "salon", "erika": "salon", "luna": "salon", "patoune": "salon", "sophie": "salon"
     }

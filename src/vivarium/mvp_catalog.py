@@ -47,6 +47,27 @@ MVP_COMPONENT_CATALOG: tuple[tuple[str, str, dict[str, Any]], ...] = (
     ),
     (
         "component",
+        "behavior.non_sapient_agency",
+        {
+            "title": "Agence autonome non sapiente",
+            "engine_status": "implemented_cat0",
+            "config_schema": {
+                "required": [
+                    "policy", "wake_interval_seconds", "max_obstacle_retries",
+                    "preferred_location_functions",
+                ],
+                "properties": {
+                    "policy": {"type": "string", "enum": ["reactive_associative"]},
+                    "wake_interval_seconds": {"type": "integer"},
+                    "max_obstacle_retries": {"type": "integer"},
+                    "preferred_location_functions": {"type": "array"},
+                },
+                "additional_properties": False,
+            },
+        },
+    ),
+    (
+        "component",
         "needs.standard",
         {
             "title": "Besoins standards du moteur MVP",
