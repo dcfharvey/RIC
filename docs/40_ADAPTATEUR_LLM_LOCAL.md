@@ -17,8 +17,11 @@ contient ni SQLite, ni journal canonique brut, ni informations cachées d'autrui
 Toute traversée repasse dans `ActionOrchestrator` : les préconditions réelles
 restent donc jugées par le moteur. Une réponse malformée, une action inventée
 ou un serveur non local est refusé explicitement.
-Chaque appel porte aussi un plafond de sortie (`VIVARIUM_LLM_MAX_TOKENS=128` par
-défaut), puisqu'il s'agit d'une courte décision JSON et non d'un dialogue.
+Le Vivarium n'impose aucun plafond de tokens de sortie : le paramètre
+`max_output_tokens` n'est pas envoyé à LM Studio. Le modèle peut utiliser sa
+configuration locale. Les contrats de réponse restent néanmoins structurés et
+validés, puisqu'une longue sortie ne lui donne jamais le droit d'inventer un
+fait ou d'écrire dans le monde.
 
 L'accès normal est désormais gardé par une porte événementielle : avant l'appel,
 le Vivarium vérifie la source, consulte un budget par résidente et inscrit une

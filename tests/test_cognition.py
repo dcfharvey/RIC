@@ -133,7 +133,7 @@ def test_lm_studio_request_uses_native_reasoning_off_endpoint(monkeypatch, setup
     assert decision.action == "no_action"
     assert captured["url"].endswith("/api/v1/chat") and captured["timeout"] == 12
     assert sent["reasoning"] == "off" and sent["store"] is False
-    assert sent["max_output_tokens"] == 128
+    assert "max_output_tokens" not in sent
 
 
 def test_lm_studio_model_listing_is_read_only(monkeypatch):

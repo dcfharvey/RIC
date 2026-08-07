@@ -37,7 +37,6 @@ from .values import ValuesService
 COGNITION_SCHEMA_VERSION = 7
 DEFAULT_LM_STUDIO_BASE_URL = "http://127.0.0.1:1234"
 DEFAULT_TIMEOUT_SECONDS = 45.0
-DEFAULT_MAX_TOKENS = 128
 MAX_DIRECT_EVENTS, MAX_MEMORIES, MAX_ATTENTION, MAX_BELIEFS, MAX_EMOTIONS, MAX_RELATIONSHIPS, MAX_BOUNDARIES = 10, 10, 8, 10, 6, 8, 8
 
 
@@ -117,7 +116,6 @@ class LocalLLMSettings:
     model_id: str
     api_token: str | None
     timeout_seconds: float
-    max_tokens: int = DEFAULT_MAX_TOKENS
 
     @classmethod
     def from_environment(cls, *, require_model: bool = True) -> "LocalLLMSettings":
@@ -126,15 +124,13 @@ class LocalLLMSettings:
         raw = value("VIVARIUM_LLM_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT_SECONDS))
         try:
             timeout = float(raw)
-            max_tokens = int(value("VIVARIUM_LLM_MAX_TOKENS", str(DEFAULT_MAX_TOKENS)))
         except ValueError as exc:
-            raise CognitionError("budget ou délai LLM invalide", code="invalid_llm_configuration") from exc
+            raise CognitionError("délai LLM invalide", code="invalid_llm_configuration") from exc
         return cls(
             value("VIVARIUM_LLM_BASE_URL", DEFAULT_LM_STUDIO_BASE_URL),
             value("VIVARIUM_LLM_MODEL").strip(),
             value("VIVARIUM_LLM_API_TOKEN") or None,
             timeout,
-            max_tokens,
         ).validated(require_model=require_model)
 
     def validated(self, *, require_model: bool = True) -> "LocalLLMSettings":
@@ -147,8 +143,6 @@ class LocalLLMSettings:
             raise CognitionError("modèle LLM non configuré", code="missing_llm_model")
         if not isinstance(self.timeout_seconds, (int, float)) or not 1 <= self.timeout_seconds <= 300:
             raise CognitionError("délai LLM hors limites", code="invalid_llm_configuration")
-        if not isinstance(self.max_tokens, int) or isinstance(self.max_tokens, bool) or not 16 <= self.max_tokens <= 512:
-            raise CognitionError("budget de sortie LLM hors limites", code="invalid_llm_configuration")
         return self
 
     @property
@@ -337,7 +331,8 @@ def request_local_model(
 
     Les tâches cognitives possèdent des schémas distincts, mais elles doivent
     partager cette frontière réseau : loopback seulement, raisonnement coupé,
-    budget borné et aucune conservation par le fournisseur.
+    aucune limite de génération imposée par le Vivarium et aucune conservation
+    par le fournisseur.
     """
     settings = settings.validated(require_model=False)
     if not settings.model_id:
@@ -347,7 +342,6 @@ def request_local_model(
         "system_prompt": system_prompt,
         "input": input_text,
         "temperature": 0.2,
-        "max_output_tokens": settings.max_tokens,
         "reasoning": "off",
         "store": False,
     }

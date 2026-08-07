@@ -283,8 +283,10 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
   `docs/58_MVP_ALPHA_0_1_0A1.md`.
 - **v1.10** (6 août 2026) : correctifs alpha `0.1.0a2` (observation et arrivée)
   puis `0.1.0a3` (cadence utile, rencontre d'attente et lecture de journal
-  compacte); voir `docs/59_CORRECTIF_ALPHA_0_1_0A2.md` et
-  `docs/60_RODAGE_CADENCE_ET_RENCONTRE_0_1_0A3.md`.
+  compacte), et `0.1.0a4` (sortie LLM sans plafond imposé); voir
+  `docs/59_CORRECTIF_ALPHA_0_1_0A2.md`,
+  `docs/60_RODAGE_CADENCE_ET_RENCONTRE_0_1_0A3.md` et
+  `docs/61_CORRECTIF_ALPHA_0_1_0A4_SORTIE_LLM.md`.
 
 ## 24. Annexes et références
 

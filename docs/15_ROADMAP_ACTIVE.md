@@ -25,7 +25,7 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a3` — second correctif de rodage du MVP alpha.
+**Version logicielle actuelle :** `0.1.0a4` — configuration LLM locale sans plafond de tokens imposé.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
@@ -90,6 +90,7 @@ tests et documentation après un lot à conséquences étendues.
 | `0.1.0a1` | Atteint | **Premier MVP alpha** : boucle sociale minimale complète et présentable, encore réinitialisable. |
 | `0.1.0a2` | Atteint | Correctif d'observation et d'arrivée : le tableau se rafraîchit, et l'occasion initiale de traversée est bornée et validée. |
 | `0.1.0a3` | Atteint | Cadence runtime sans écritures intermédiaires, rencontre unique pendant une attente commune et filtre de lecture du bruit de journal. |
+| `0.1.0a4` | Atteint | Le runtime ne transmet plus de plafond de sortie à LM Studio; le modèle suit sa configuration locale. |
 | `0.1.0b1` | Après essais prolongés | Bêta : le MVP tourne durablement; les défauts restants sont recherchés par observation réelle. |
 | `1.0.0` | Lancement | Usage normal et persistance suffisamment fiables pour que l'histoire compte durablement. |
 
