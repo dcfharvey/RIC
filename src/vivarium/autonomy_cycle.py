@@ -11,14 +11,22 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
+from .activities import ActivityEngine
 from .character_capabilities import sapient_character_keys
 from .cognition import CognitionProvider
 from .cognition_call_ledger import CognitionCallLedgerService
 from .cognition_policy import CALL_TRIGGER_PLANNED_REFLECTION, CognitionCallLimits
 from .cognition_router import CognitionCallRouter, CognitionCallRouterError, RoutedCognitionCall
-from .util import Clock
+from .util import Clock, parse_iso, to_iso
+from .world import WorldEngine
+
+
+RETRY_DELAY_SECONDS = 300
+RETRY_IDLE_SECONDS = 600
+RETRY_ORIGIN = "cognition_retry"
 
 
 @dataclass(frozen=True)
@@ -37,6 +45,7 @@ class AutonomyCycle:
 
     def _active_idle_sources(self, world_id: int) -> tuple[tuple[str, int], ...]:
         candidates: list[tuple[str, int]] = []
+        canonical_now = parse_iso(WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id))
         for character_key in sapient_character_keys(self._conn, world_id):
             active = self._conn.execute(
                 "SELECT a.started_at, a.planned_end_at, l.key AS location FROM activity a "
@@ -61,9 +70,37 @@ class AutonomyCycle:
                 if event["occurred_at"] == active["started_at"] \
                         and payload.get("planned_end_at") == active["planned_end_at"] \
                         and payload.get("location") == active["location"]:
+                    provenance = payload.get("action_provenance")
+                    if isinstance(provenance, dict) and provenance.get("origin") == RETRY_ORIGIN:
+                        retry_at = parse_iso(event["occurred_at"]) + timedelta(
+                            seconds=RETRY_DELAY_SECONDS
+                        )
+                        if canonical_now < retry_at:
+                            break
                     candidates.append((character_key, int(event["seq"])))
                     break
         return tuple(candidates)
+
+    def _schedule_retry(self, world_id: int, character_key: str, event_seq: int) -> None:
+        """Remplace l'idle courant par une fenêtre de retry bornée et traçable."""
+        activities = ActivityEngine(self._conn, clock=self._clock)
+        active = activities.activity_sheet(world_id, character_key)
+        if active is None or active["type"] != "idle":
+            return
+        now = WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
+        activities.abort_activity(world_id, character_key, sim_now=now)
+        activities.start_activity(
+            world_id,
+            character_key,
+            "idle",
+            active["location_key"],
+            sim_now=now,
+            duration_seconds=RETRY_IDLE_SECONDS,
+            action_provenance={
+                "proposal_id": f"retry_{character_key}_{event_seq}",
+                "origin": RETRY_ORIGIN,
+            },
+        )
 
     def tick(self, world_id: Any, limits: Any) -> AutonomyOutcome:
         if not isinstance(world_id, int) or isinstance(world_id, bool) or world_id < 1:
@@ -89,6 +126,8 @@ class AutonomyCycle:
             except CognitionCallRouterError as exc:
                 return AutonomyOutcome(character_key, event_seq, None, exc.code)
             outcome = AutonomyOutcome(character_key, event_seq, routed, routed.provider_error_code)
+            if routed.provider_error_code is not None:
+                self._schedule_retry(world_id, character_key, event_seq)
             if routed.attempted:
                 return outcome
             # Un budget ou debounce individuel ne doit pas affamer les autres

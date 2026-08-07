@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0a7 — 6 août 2026
+
+- Une réponse cognitive invalide ne condamne plus une résidente à attendre la
+  fin complète de son `idle` déterministe.
+- Le cycle autonome remplace cet `idle` par une fenêtre de reprise traçable de
+  dix minutes, interdit les appels en rafale pendant cinq minutes, puis ouvre
+  une nouvelle occasion de décision.
+- Le comportement non sapient de Patoune demeure déterministe et indépendant
+  des appels LLM.
+- Régression couverte : réponse invalide, absence de retry précoce, puis seconde
+  réponse valide et activité canonique acceptée.
+
 ## Unreleased
 
 ## 0.1.0a6 — 6 août 2026
