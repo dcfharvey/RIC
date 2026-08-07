@@ -15,6 +15,7 @@ from typing import Any
 
 from .cognition import CognitionProvider
 from .cognition_policy import CognitionCallLimits
+from .arrival_cycle import InitialArrivalCycle, InitialArrivalOutcome
 from .orchestrator import OrchestratorTick, VivariumOrchestrator
 from .scenes import SocialSceneService
 from .scene_turn import SceneTurnProvider
@@ -36,6 +37,7 @@ class MVPRunReport:
     world_id: int
     status: str
     simulation: SimulationReport | None
+    arrival: InitialArrivalOutcome | None
     cognition: OrchestratorTick | None
     social: SocialCycleOutcome | None
 
@@ -74,7 +76,17 @@ class MVPRuntime:
         """Fait progresser un monde actif, sans jamais traiter une pause."""
         world = WorldEngine(self._conn).get_world(self.world_id)
         if world["status"] == "paused":
-            return MVPRunReport(self.world_id, "paused", None, None, None)
+            return MVPRunReport(self.world_id, "paused", None, None, None, None)
+        arrival = None
+        if self._cognition_provider is not None and self._scene_provider is not None:
+            arrival = InitialArrivalCycle(self._conn, self._cognition_provider).tick(
+                self.world_id, self._limits
+            )
+            # L'activité déterministe verrouille un déplacement en cours. La
+            # phase d'arrivée doit donc se terminer avant son initialisation;
+            # une résidente reçoit au plus une occasion par tick.
+            if arrival.pending:
+                return MVPRunReport(self.world_id, "active", None, arrival, None, None)
         target = WorldEngine(self._conn).read_canonical_time(self.world_id)
         simulation = SimulationEngine(self._conn).run_to(
             self.world_id, target, max_transitions=self._max_transitions
@@ -88,7 +100,7 @@ class MVPRuntime:
             social = SocialSceneCycle(self._conn, self._scene_provider).tick(
                 self.world_id, self._limits
             )
-        return MVPRunReport(self.world_id, "active", simulation, cognition, social)
+        return MVPRunReport(self.world_id, "active", simulation, arrival, cognition, social)
 
     def shutdown(self) -> int:
         """Clôture les scènes actives sans produire de parole fictive."""

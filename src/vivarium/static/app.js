@@ -17,6 +17,10 @@
 
   // Nombre maximal d'événements du journal affichés (les plus récents).
   var MAX_JOURNAL_SHOWN = 20;
+  // Le runtime est local et persistant : une photo initiale ferait croire que
+  // le monde est figé. Une lecture bornée toutes les deux secondes suffit à
+  // l'observation sans créer de commande ni d'écriture côté navigateur.
+  var AUTO_REFRESH_MS = 2000;
 
   var state = {
     worlds: [],
@@ -316,7 +320,7 @@
   }
 
   // --- chargement / rafraîchissement ---
-  async function refresh() {
+  async function refresh(silent) {
     if (state.refreshing) return;
     state.refreshing = true;
     refreshBtn.disabled = true;
@@ -362,7 +366,7 @@
         }
         renderDetail();
       }
-      showGlobal("Vue actualisée.");
+      if (!silent) showGlobal("Vue actualisée.");
     } catch (e) {
       showGlobal("Erreur de rafraîchissement : " + safeMessage(e), true);
     } finally {
@@ -374,12 +378,12 @@
   function selectWorld(id) {
     state.worldId = id;
     state.characterKey = null;
-    refresh();
+    refresh(true);
   }
 
   function selectCharacter(key) {
     state.characterKey = key;
-    refresh();
+    refresh(true);
   }
 
   // --- commandes ---
@@ -391,7 +395,7 @@
     try {
       await apiPost(command, params);
       showCommand(successMsg, false);
-      await refresh();
+      await refresh(true);
       return true;
     } catch (e) {
       showCommand(safeMessage(e), true);
@@ -433,8 +437,15 @@
     });
   });
 
-  refreshBtn.addEventListener("click", function () { refresh(); });
+  refreshBtn.addEventListener("click", function () { refresh(false); });
+
+  function refreshIfVisible() {
+    if (!document.hidden) refresh(true);
+  }
+
+  document.addEventListener("visibilitychange", refreshIfVisible);
+  setInterval(refreshIfVisible, AUTO_REFRESH_MS);
 
   // --- initialisation ---
-  refresh();
+  refresh(true);
 })();

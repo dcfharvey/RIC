@@ -65,6 +65,42 @@ def test_replay_is_stopped_before_provider_and_unseen_event_is_refused(setup):
     assert raised.value.code == "cognition_call_source_not_perceived"
 
 
+def test_initial_arrival_is_sourced_once_and_exposes_only_shared_context(setup):
+    conn, wid, clock = setup
+    source_seq = conn.execute(
+        "SELECT seq FROM canonical_event WHERE world_id = ? AND event_type = 'world_initial_context_set'",
+        (wid,),
+    ).fetchone()[0]
+    provider = Provider(CognitionDecision("traverse", "porte_entree", "salon"))
+    router = CognitionCallRouter(conn, provider, clock=clock)
+    limits = CognitionCallLimits(0, 3_600, 2)
+
+    result = router.run(wid, "sophie", "initial_arrival", f"arrival_{source_seq}", "arrival_sophie", limits)
+
+    assert result.attempted and result.turn is not None
+    assert result.turn.validation is not None and result.turn.validation.status == "accepted"
+    assert result.turn.context.decision_cue["trigger"] == "initial_arrival"
+    assert result.turn.context.decision_cue["initial_shared_facts"]["residency"]["voluntary"] is True
+    replay = router.run(wid, "sophie", "initial_arrival", f"arrival_{source_seq}", "arrival_sophie_retry", limits)
+    assert not replay.attempted and replay.admission.verdict.reason_code == "duplicate_call"
+    assert provider.calls == 1
+
+
+def test_initial_arrival_is_refused_after_a_real_departure(setup):
+    conn, wid, clock = setup
+    source_seq = conn.execute(
+        "SELECT seq FROM canonical_event WHERE world_id = ? AND event_type = 'world_initial_context_set'",
+        (wid,),
+    ).fetchone()[0]
+    TraversalEngine(conn, clock=clock).traverse_character(wid, "sophie", "porte_entree", "salon")
+
+    with pytest.raises(CognitionCallRouterError) as raised:
+        CognitionCallRouter(conn, Provider(CognitionDecision("no_action")), clock=clock).run(
+            wid, "sophie", "initial_arrival", f"arrival_{source_seq}", "arrival_sophie", CognitionCallLimits(0, 3_600, 2)
+        )
+    assert raised.value.code == "cognition_call_source_not_available"
+
+
 def test_provider_failure_is_explicit_after_admission_but_cannot_mutate_canon(setup):
     conn, wid, clock = setup
     source_key = direct_event_for_sophie(conn, wid, clock)

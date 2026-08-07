@@ -29,6 +29,13 @@ class CognitionProvider:
         return CognitionDecision("no_action")
 
 
+class ArrivalTraversalProvider:
+    def decide(self, context):
+        if context.character_key in {"chuu", "erika", "luna", "sophie"}:
+            return CognitionDecision("traverse", "porte_entree", "salon")
+        return CognitionDecision("no_action")
+
+
 class SceneProvider:
     def decide(self, context):
         return SceneTurnDecision("no_action")
@@ -82,3 +89,27 @@ def test_runtime_rejects_half_configured_model_layer(setup):
     conn, world_id, _ = setup
     with pytest.raises(MVPRuntimeError, match="ensemble"):
         MVPRuntime(conn, world_id, cognition_provider=CognitionProvider())
+
+
+def test_runtime_finishes_bounded_arrival_before_starting_activities(setup):
+    conn, world_id, _ = setup
+    runtime = MVPRuntime(
+        conn, world_id, cognition_provider=ArrivalTraversalProvider(), scene_provider=SceneProvider()
+    )
+
+    first = runtime.run_once()
+    second = runtime.run_once()
+    third = runtime.run_once()
+    fourth = runtime.run_once()
+
+    assert first.simulation is None and first.arrival and first.arrival.pending
+    assert second.simulation is None and second.arrival and second.arrival.pending
+    assert third.simulation is None and third.arrival and third.arrival.pending
+    assert fourth.simulation is not None and fourth.arrival and not fourth.arrival.pending
+    rows = conn.execute(
+        "SELECT c.key, l.key FROM character c JOIN location l ON l.id = c.current_location_id "
+        "WHERE c.world_id = ? ORDER BY c.key", (world_id,)
+    ).fetchall()
+    assert dict(rows) == {
+        "chuu": "salon", "erika": "salon", "luna": "salon", "patoune": "entree_exterieure", "sophie": "salon"
+    }

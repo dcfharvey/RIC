@@ -192,7 +192,6 @@ def test_app_js_securite():
         "document.cookie",
         "http://",
         "https://",
-        "setInterval",  # pas de polling
     ]:
         assert bad not in js, bad
     assert "textContent" in js
@@ -201,6 +200,15 @@ def test_app_js_securite():
     assert "X-Vivarium-Token" in js
     assert "vivarium-token" in js
     assert ".remove()" in js  # la meta est retirée du DOM
+
+
+def test_app_js_rafraichit_la_vue_locale_sans_ecriture():
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert "AUTO_REFRESH_MS = 2000" in js
+    assert "setInterval(refreshIfVisible, AUTO_REFRESH_MS)" in js
+    assert "document.hidden" in js
+    # Le rafraîchissement passe par les mêmes GET; aucune commande n'est lancée.
+    assert "refresh(true)" in js
 
 
 def test_index_html_structure():

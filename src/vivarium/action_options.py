@@ -39,6 +39,15 @@ class ActionOptionService:
     def visible_traversals(
         self, world_id: int, character_key: str, visible: Iterable[Mapping[str, Any]]
     ) -> tuple[ActionOption, ...]:
+        active = self._conn.execute(
+            "SELECT 1 FROM activity a JOIN character c ON c.id = a.character_id "
+            "WHERE a.world_id = ? AND c.key = ? AND a.status = 'active' LIMIT 1",
+            (world_id, character_key),
+        ).fetchone()
+        # CharacterEngine refuse aussi ce cas. Le filtrer ici évite de présenter
+        # au modèle une traversée qui serait immédiatement refusée.
+        if active is not None:
+            return ()
         candidates: set[tuple[str, str]] = set()
         for item in visible:
             connector = item.get("connector_key", item.get("connector"))

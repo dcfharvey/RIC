@@ -34,7 +34,7 @@ from .util import Clock
 from .values import ValuesService
 
 
-COGNITION_SCHEMA_VERSION = 6
+COGNITION_SCHEMA_VERSION = 7
 DEFAULT_LM_STUDIO_BASE_URL = "http://127.0.0.1:1234"
 DEFAULT_TIMEOUT_SECONDS = 45.0
 DEFAULT_MAX_TOKENS = 128
@@ -178,6 +178,7 @@ class CognitionContext:
     decision_frame: Mapping[str, Any]
     allowed_traversals: tuple[Mapping[str, str], ...]
     self_profile: Mapping[str, Any]
+    decision_cue: Mapping[str, Any]
     schema_version: int = COGNITION_SCHEMA_VERSION
 
     def wire(self) -> dict[str, Any]:
@@ -192,6 +193,7 @@ class CognitionContext:
             "decision_frame": _plain(self.decision_frame),
             "allowed_traversals": _plain(self.allowed_traversals),
             "self_profile": _plain(self.self_profile),
+            "decision_cue": _plain(self.decision_cue),
         }
 
 
@@ -239,7 +241,14 @@ class CognitionContextService:
             "preferences": () if values is None else tuple(values["preferences"]),
         })
 
-    def build(self, world_id: Any, character_key: Any, *, after_event_seq: Any = 0) -> CognitionContext:
+    def build(
+        self,
+        world_id: Any,
+        character_key: Any,
+        *,
+        after_event_seq: Any = 0,
+        decision_cue: Mapping[str, Any] | None = None,
+    ) -> CognitionContext:
         world_id, character_key = _world_id(world_id), _key(character_key, "personnage")
         character = CharacterEngine(self._conn, clock=self._clock).character_sheet(world_id, character_key)
         attention = AttentionService(self._conn, clock=self._clock).snapshot(world_id, character_key, limit=MAX_ATTENTION)
@@ -268,6 +277,7 @@ class CognitionContextService:
             "connector_key": option.connector_key,
             "target_location_key": option.target_location_key,
         }) for option in options)
+        cue = {} if decision_cue is None else _freeze(_plain(decision_cue))
         return CognitionContext(
             world_id, character_key, character["name"], attention.observed_at, feed.latest_seq,
             tuple(_fact_wire(item.source_kind, item.priority_milli, item.fact) for item in attention.selected),
@@ -278,7 +288,7 @@ class CognitionContextService:
             tuple(_freeze(_plain(emotion)) for emotion in emotions),
             tuple(_freeze(_plain(relationship)) for relationship in relationships),
             tuple(_freeze(_plain(boundary)) for boundary in boundaries), _freeze(decision_frame), tuple(allowed),
-            self._self_profile(world_id, character_key),
+            self._self_profile(world_id, character_key), cue,
         )
 
 
@@ -382,6 +392,9 @@ class LMStudioProvider:
     def _prompt(context: CognitionContext) -> str:
         return (
             "Tu es un composant de décision du Vivarium. Tu ne connais que le JSON fourni. "
+            "decision_cue décrit la raison technique d'une unique occasion de décider; ce n'est jamais un ordre. "
+            "Quand trigger vaut initial_arrival, les initial_shared_facts sont des faits communs établis : "
+            "une résidente arrivée volontairement peut normalement entrer par une traversée disponible, mais peut aussi attendre si son contexte le justifie. "
             "N'invente aucun fait ni action hors de allowed_traversals. Réponds UNIQUEMENT par l'un de ces objets JSON, sans texte ni Markdown : "
             f'{{"schema_version":{COGNITION_SCHEMA_VERSION},"action":"no_action"}} OU '
             f'{{"schema_version":{COGNITION_SCHEMA_VERSION},"action":"traverse","connector_key":"une clé de allowed_traversals","target_location_key":"sa destination associée"}}.\n\n'
@@ -429,9 +442,19 @@ class CognitionTurnService:
     def __init__(self, conn: sqlite3.Connection, provider: CognitionProvider, clock: Clock | None = None) -> None:
         self._conn, self._provider, self._clock = conn, provider, clock or Clock()
 
-    def run(self, world_id: Any, character_key: Any, proposal_id: Any, *, after_event_seq: Any = 0) -> CognitionTurnResult:
+    def run(
+        self,
+        world_id: Any,
+        character_key: Any,
+        proposal_id: Any,
+        *,
+        after_event_seq: Any = 0,
+        decision_cue: Mapping[str, Any] | None = None,
+    ) -> CognitionTurnResult:
         proposal_id = _key(proposal_id, "identifiant de proposition")
-        context = CognitionContextService(self._conn, clock=self._clock).build(world_id, character_key, after_event_seq=after_event_seq)
+        context = CognitionContextService(self._conn, clock=self._clock).build(
+            world_id, character_key, after_event_seq=after_event_seq, decision_cue=decision_cue
+        )
         decision = self._provider.decide(context)
         if not isinstance(decision, CognitionDecision):
             raise CognitionError("fournisseur cognitif hors contrat", code="invalid_llm_response")

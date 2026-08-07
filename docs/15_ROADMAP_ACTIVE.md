@@ -25,7 +25,7 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a1` — premier MVP alpha.
+**Version logicielle actuelle :** `0.1.0a2` — correctif du premier MVP alpha.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
@@ -88,6 +88,7 @@ tests et documentation après un lot à conséquences étendues.
 | `0.0.1.dev0` | Jalon atteint après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
 | `0.0.2.dev0` | État actuel, après le monde d'intégration | Les cinq vraies configurations peuvent être assemblées et réinitialisées sans histoire officielle. |
 | `0.1.0a1` | Atteint | **Premier MVP alpha** : boucle sociale minimale complète et présentable, encore réinitialisable. |
+| `0.1.0a2` | Atteint | Correctif d'observation et d'arrivée : le tableau se rafraîchit, et l'occasion initiale de traversée est bornée et validée. |
 | `0.1.0b1` | Après essais prolongés | Bêta : le MVP tourne durablement; les défauts restants sont recherchés par observation réelle. |
 | `1.0.0` | Lancement | Usage normal et persistance suffisamment fiables pour que l'histoire compte durablement. |
 

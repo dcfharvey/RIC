@@ -398,6 +398,18 @@ def _run_mvp_runtime(
         while max_ticks == 0 or ticks < max_ticks:
             tick = runtime.run_once()
             ticks += 1
+            arrival = tick.arrival
+            if arrival and arrival.character_key:
+                if arrival.routed is None:
+                    arrival_state = "sans appel"
+                elif arrival.routed.provider_error_code:
+                    arrival_state = "LLM indisponible"
+                elif arrival.routed.turn is None:
+                    arrival_state = arrival.routed.admission.verdict.reason_code
+                else:
+                    arrival_state = arrival.routed.turn.decision.action
+                suffix = " (suite à venir)" if arrival.pending else ""
+                print(f"[tick {ticks}] arrivée {arrival.character_key} : {arrival_state}{suffix}")
             social = tick.social
             if social and (social.opened_scene_keys or social.closed_scene_keys or social.interrupted_scene_keys or social.turn):
                 action = social.turn.decision.action if social.turn and social.turn.decision else "-"

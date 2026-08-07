@@ -21,7 +21,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 
 ## État vérifié
 
-- version logicielle : `0.1.0a1` (**MVP alpha**). Les numéros de documents
+- version logicielle : `0.1.0a2` (**MVP alpha, correctif**). Les numéros de documents
   et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
 - commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
   signifie que cette passation décrit l'état de `HEAD` ;
@@ -80,6 +80,22 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après valeurs et préférences initiales : **618 passed** ;
 - test complet après objectifs et intentions persistantes : **620 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
+
+## Correctif alpha 0.1.0a2
+
+- le tableau d'observation se rafraîchit localement toutes les deux secondes
+  quand son onglet est visible; il n'exécute aucune commande ni écriture;
+- l'arrivée initiale déjà déclarée dans le contrat d'admission est maintenant
+  raccordée : chaque résidente sapiente reçoit une occasion unique, sourcée et
+  validée de traverser avant l'initialisation des activités automatiques;
+- Patoune reste hors des appels LLM; une arrivée déjà dépassée ou un retry est
+  refusé/dédupliqué explicitement, jamais rejoué silencieusement.
+
+Voir `docs/59_CORRECTIF_ALPHA_0_1_0A2.md`.
+
+Validation de code : **692 passed**. Un lancement réel local a confirmé les
+quatre décisions d'arrivée Gemma, les traversées validées et le démarrage de
+scènes; l'inspection graphique reste à refaire si l'interface évolue encore.
 
 ## Livraison alpha 0.1.0a1
 
