@@ -335,10 +335,10 @@
       if (worldId != null) {
         dash = await apiGet("/api/worlds/" + encodeURIComponent(worldId));
         chars = await apiGet("/api/worlds/" + encodeURIComponent(worldId) + "/characters");
-        // L'API renvoie le journal en ordre croissant (ancien → récent) :
-        // on conserve les MAX_JOURNAL_SHOWN plus récents puis on inverse.
-        var all = await apiGet("/api/worlds/" + encodeURIComponent(worldId) + "/events?limit=200&offset=0&include_payload=false");
-        events = all.slice(-MAX_JOURNAL_SHOWN).reverse();
+        // L'API renvoie ici les événements significatifs les plus récents,
+        // déjà dans l'ordre visuel récent → ancien.
+        var all = await apiGet("/api/worlds/" + encodeURIComponent(worldId) + "/events?limit=200&offset=0&include_payload=false&exclude_event_type=needs_materialized&order=desc");
+        events = all.slice(0, MAX_JOURNAL_SHOWN);
         scenes = await apiGet("/api/worlds/" + encodeURIComponent(worldId) + "/scenes");
         if (!chars.some(function (cv) { return cv.character.key === charKey; })) {
           charKey = chars.length ? chars[0].character.key : null;

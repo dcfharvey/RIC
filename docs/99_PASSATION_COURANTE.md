@@ -21,7 +21,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 
 ## État vérifié
 
-- version logicielle : `0.1.0a2` (**MVP alpha, correctif**). Les numéros de documents
+- version logicielle : `0.1.0a3` (**MVP alpha, correctif de rodage**). Les numéros de documents
   et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
 - commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
   signifie que cette passation décrit l'état de `HEAD` ;

@@ -164,6 +164,8 @@ class AdminReadService:
         limit: int,
         offset: int = 0,
         include_payload: bool = False,
+        exclude_event_type: str | None = None,
+        order: str = "asc",
     ) -> list[dict[str, Any]]:
         """Journal canonique paginé (ordre par seq, borné, sans écriture).
 
@@ -180,13 +182,26 @@ class AdminReadService:
             raise ValueError(f"limit ne peut pas dépasser {MAX_JOURNAL_LIMIT}")
         if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
             raise ValueError("offset doit être un entier >= 0")
+        if exclude_event_type is not None and exclude_event_type != "needs_materialized":
+            raise ValueError("filtre d'événement invalide")
+        if order not in {"asc", "desc"}:
+            raise ValueError("ordre d'événement invalide")
         with self._read_snapshot():
             self._require_world(world_id)
-            rows = self._conn.execute(
+            sql = (
                 "SELECT seq, event_type, occurred_at, recorded_at, source_kind, payload "
-                "FROM canonical_event WHERE world_id = ? ORDER BY seq LIMIT ? OFFSET ?",
-                (world_id, limit, offset),
-            ).fetchall()
+                "FROM canonical_event WHERE world_id = ?"
+            )
+            args: list[Any] = [world_id]
+            if exclude_event_type is not None:
+                sql += " AND event_type <> ?"
+                args.append(exclude_event_type)
+            # `order` est fermé ci-dessus; il ne provient jamais librement de
+            # l'entrée SQL. Le tableau peut ainsi demander les faits récents
+            # sans casser la pagination historique croissante par défaut.
+            sql += f" ORDER BY seq {order.upper()} LIMIT ? OFFSET ?"
+            args.extend((limit, offset))
+            rows = self._conn.execute(sql, args).fetchall()
             out: list[dict[str, Any]] = []
             for r in rows:
                 payload = json.loads(r["payload"])

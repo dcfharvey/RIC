@@ -583,7 +583,7 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
     def _parse_events_query(self) -> dict:
         query = urlsplit(self.path).query
         params = parse_qs(query, keep_blank_values=True)
-        allowed = {"limit", "offset", "include_payload"}
+        allowed = {"limit", "offset", "include_payload", "exclude_event_type", "order"}
         unknown = set(params) - allowed
         if unknown:
             raise HttpError(400, "invalid_parameters", "Paramètre inconnu.")
@@ -605,10 +605,24 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
                 include_payload = False
             else:
                 raise HttpError(400, "invalid_parameters", "include_payload invalide.")
+        exclude_event_type = None
+        if "exclude_event_type" in params:
+            value = params["exclude_event_type"][0]
+            if value != "needs_materialized":
+                raise HttpError(400, "invalid_parameters", "exclude_event_type invalide.")
+            exclude_event_type = value
+        order = "asc"
+        if "order" in params:
+            value = params["order"][0]
+            if value not in {"asc", "desc"}:
+                raise HttpError(400, "invalid_parameters", "order invalide.")
+            order = value
         return {
             "limit": limit,
             "offset": offset,
             "include_payload": include_payload,
+            "exclude_event_type": exclude_event_type,
+            "order": order,
         }
 
     def _parse_int_param(self, value: str, name: str, lo: int, hi: int | None) -> int:

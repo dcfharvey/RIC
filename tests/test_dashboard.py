@@ -286,8 +286,9 @@ def test_app_js_format_dates():
 def test_app_js_journal_reduit_et_ordre():
     js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
     assert "MAX_JOURNAL_SHOWN = 20" in js
-    assert ".slice(-MAX_JOURNAL_SHOWN).reverse()" in js  # plus récents en premier
+    assert ".slice(0, MAX_JOURNAL_SHOWN)" in js  # plus récents en premier
     assert "limit=200" in js
+    assert "order=desc" in js
 
 
 def test_css_journal_scroll_interne():

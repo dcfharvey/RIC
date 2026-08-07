@@ -61,6 +61,27 @@ def test_runtime_progresses_deterministic_world_without_a_model(setup):
     assert report.cognition is None and report.social is None
 
 
+def test_runtime_does_not_materialize_needs_on_each_wall_clock_tick(setup, monkeypatch):
+    """Une activité active n'est rejouée qu'à sa vraie échéance planifiée."""
+    conn, world_id, clock = setup
+    target = clock.now_iso()
+    monkeypatch.setattr(WorldEngine, "read_canonical_time", lambda _self, _wid: target)
+    runtime = MVPRuntime(conn, world_id)
+
+    first = runtime.run_once()
+    seq_after_first = conn.execute(
+        "SELECT MAX(seq) FROM canonical_event WHERE world_id = ?", (world_id,)
+    ).fetchone()[0]
+    second = runtime.run_once()
+    seq_after_second = conn.execute(
+        "SELECT MAX(seq) FROM canonical_event WHERE world_id = ?", (world_id,)
+    ).fetchone()[0]
+
+    assert first.simulation is not None
+    assert second.simulation is None
+    assert seq_after_second == seq_after_first
+
+
 def test_runtime_respects_pause_without_starting_new_activity(setup):
     conn, world_id, _ = setup
     WorldEngine(conn).pause_world(world_id)

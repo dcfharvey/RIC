@@ -187,29 +187,98 @@ class SocialSceneCycle:
                 break
         return tuple(found)
 
+    def _idle_encounter_candidates(self, world_id: int) -> tuple[tuple[int, str, str], ...]:
+        """Occasions sociales uniques ancrées au début d'une attente commune.
+
+        Ce n'est pas une minuterie sociale. Une activité `idle` active est un
+        fait canonique avec un début, un lieu et une échéance; une co-présence
+        sapiente à ce début peut donc ouvrir une seule scène bornée. La clé
+        fondée sur `activity_started.seq` empêche toute réouverture après la
+        fermeture normale de cette occasion.
+        """
+        active = self._active_participants(world_id)
+        events = self._conn.execute(
+            "SELECT seq, payload FROM canonical_event "
+            "WHERE world_id = ? AND event_type = 'activity_started' "
+            "ORDER BY seq DESC LIMIT 64",
+            (world_id,),
+        ).fetchall()
+        found: list[tuple[int, str, str]] = []
+        for event in events:
+            try:
+                payload = json.loads(event["payload"])
+                actor = payload["character"]
+                activity = payload["activity"]
+                location = payload["location"]
+            except (KeyError, TypeError, ValueError):
+                continue
+            if (
+                activity != "idle"
+                or not isinstance(actor, str)
+                or not isinstance(location, str)
+                or actor in active
+                or not self._sapient(world_id, actor)
+            ):
+                continue
+            # L'événement historique ne suffit pas : son attente doit encore
+            # être l'activité active du personnage, dans ce même lieu.
+            still_idle = self._conn.execute(
+                "SELECT 1 FROM activity a "
+                "JOIN character c ON c.id = a.character_id "
+                "JOIN location l ON l.id = a.location_id "
+                "WHERE a.world_id = ? AND c.key = ? AND a.status = 'active' "
+                "AND a.type = 'idle' AND l.key = ?",
+                (world_id, actor, location),
+            ).fetchone()
+            if still_idle is None:
+                continue
+            companions = self._conn.execute(
+                "SELECT c.key FROM character c "
+                "JOIN location l ON l.id = c.current_location_id "
+                "WHERE c.world_id = ? AND l.key = ? AND c.key <> ? ORDER BY c.key",
+                (world_id, location, actor),
+            ).fetchall()
+            for companion_row in companions:
+                companion = companion_row["key"]
+                if companion in active or not self._sapient(world_id, companion):
+                    continue
+                found.append((event["seq"], actor, companion))
+                active.update({actor, companion})
+                break
+        return tuple(found)
+
+    def _open_candidate(self, world_id: int, scene_key: str, actor: str, companion: str) -> bool:
+        """Ouvre une scène si sa provenance n'a jamais déjà été consommée."""
+        try:
+            before = self._scenes.sheet(world_id, scene_key)
+        except SceneError as exc:
+            if exc.code != "scene_not_found":
+                raise SocialCycleError(str(exc), code=exc.code) from exc
+            before = None
+        if before is not None:
+            return False
+        try:
+            self._scenes.open(world_id, scene_key, (actor, companion))
+        except SceneError as exc:
+            # Une participante peut avoir bougé entre la lecture et
+            # l'ouverture : la rencontre est simplement devenue caduque.
+            if exc.code == "scene_participants_not_colocated":
+                return False
+            raise SocialCycleError(str(exc), code=exc.code) from exc
+        return True
+
     def discover(self, world_id: Any) -> tuple[str, ...]:
         """Ouvre au plus une scène par nouvelle rencontre disponible."""
         world_id = self._world_id(world_id)
         opened: list[str] = []
         for event_seq, actor, companion in self._encounter_candidates(world_id):
             scene_key = f"encounter_{event_seq}_{actor}_{companion}"
-            try:
-                before = self._scenes.sheet(world_id, scene_key)
-            except SceneError as exc:
-                if exc.code != "scene_not_found":
-                    raise SocialCycleError(str(exc), code=exc.code) from exc
-                before = None
-            if before is not None:
-                continue
-            try:
-                self._scenes.open(world_id, scene_key, (actor, companion))
-            except SceneError as exc:
-                # Une participante peut avoir bougé entre la lecture et
-                # l'ouverture : la rencontre est simplement devenue caduque.
-                if exc.code == "scene_participants_not_colocated":
-                    continue
-                raise SocialCycleError(str(exc), code=exc.code) from exc
-            opened.append(scene_key)
+            if self._open_candidate(world_id, scene_key, actor, companion):
+                opened.append(scene_key)
+        for event_seq, actor, companion in self._idle_encounter_candidates(world_id):
+            scene_key = f"idle_encounter_{event_seq}_{actor}_{companion}"
+            if self._open_candidate(world_id, scene_key, actor, companion):
+                opened.append(scene_key)
         return tuple(opened)
 
     def tick(

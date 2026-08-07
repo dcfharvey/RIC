@@ -88,9 +88,17 @@ class MVPRuntime:
             if arrival.pending:
                 return MVPRunReport(self.world_id, "active", None, arrival, None, None)
         target = WorldEngine(self._conn).read_canonical_time(self.world_id)
-        simulation = SimulationEngine(self._conn).run_to(
-            self.world_id, target, max_transitions=self._max_transitions
-        )
+        # `run_to` matérialise les besoins des activités actives. L'appeler à
+        # chaque pulsation murale alors qu'aucune activité n'arrive à son terme
+        # ne crée aucune décision et gonfle inutilement le journal canonique.
+        # La prochaine échéance planifiée est le jalon objectif : avant elle,
+        # l'état dérivé reste lisible sans écriture; à elle, le simulateur
+        # reprend seul la main.
+        simulation = None
+        if self._simulation_due(target):
+            simulation = SimulationEngine(self._conn).run_to(
+                self.world_id, target, max_transitions=self._max_transitions
+            )
         cognition = None
         social = None
         if self._cognition_provider is not None and self._scene_provider is not None:
@@ -101,6 +109,21 @@ class MVPRuntime:
                 self.world_id, self._limits
             )
         return MVPRunReport(self.world_id, "active", simulation, arrival, cognition, social)
+
+    def _simulation_due(self, target_time: str) -> bool:
+        """Retourne si une transition déterministe est exigible à `target_time`.
+
+        Le cas sans activité reste dû : `SimulationEngine` doit alors choisir
+        l'activité déterministe initiale. Sinon, seule la première fin planifiée
+        peut faire évoluer le monde; une lecture intermédiaire ne doit pas se
+        transformer en écriture périodique.
+        """
+        row = self._conn.execute(
+            "SELECT MIN(planned_end_at) AS next_end FROM activity "
+            "WHERE world_id = ? AND status = 'active'",
+            (self.world_id,),
+        ).fetchone()
+        return row is None or row["next_end"] is None or row["next_end"] <= target_time
 
     def shutdown(self) -> int:
         """Clôture les scènes actives sans produire de parole fictive."""

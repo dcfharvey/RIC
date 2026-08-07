@@ -415,6 +415,13 @@ def test_get_events_pagination(server):
     assert data["data"][0]["seq"] < page2["data"][0]["seq"]
 
 
+def test_get_events_descending_order_returns_the_recent_page_first(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?limit=2&order=desc")
+    assert status == 200 and len(data["data"]) == 2
+    assert data["data"][0]["seq"] > data["data"][1]["seq"]
+
+
 def test_get_events_page_vide(server):
     srv, port, wid = server
     status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?offset=99999")
@@ -497,6 +504,32 @@ def test_get_include_payload_invalide(server):
     srv, port, wid = server
     status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?include_payload=yes")
     assert status == 400
+
+
+def test_get_events_accepts_the_read_only_noise_filter(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port,
+        "GET",
+        f"/api/worlds/{wid}/events?exclude_event_type=needs_materialized",
+    )
+    assert status == 200 and data["ok"] is True
+
+
+def test_get_events_refuse_unknown_noise_filter(server):
+    srv, port, wid = server
+    status, data, _ = _request(
+        port,
+        "GET",
+        f"/api/worlds/{wid}/events?exclude_event_type=world_created",
+    )
+    assert status == 400 and data["error"]["code"] == "invalid_parameters"
+
+
+def test_get_events_refuse_invalid_order(server):
+    srv, port, wid = server
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events?order=random")
+    assert status == 400 and data["error"]["code"] == "invalid_parameters"
 
 
 # --- POST ---------------------------------------------------------------------

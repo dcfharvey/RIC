@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from vivarium.character import CharacterEngine
+from vivarium.activities import ActivityEngine
 from vivarium.cognition_policy import CognitionCallLimits
 from vivarium.connectors import WorldConnectorService
 from vivarium.db import connect_database
@@ -10,6 +11,7 @@ from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
 from vivarium.scene_turn import SceneTurnDecision
 from vivarium.social_cycle import SocialSceneCycle
+from vivarium.scenes import SocialSceneService
 from vivarium.traversal import TraversalEngine
 from vivarium.util import to_iso
 
@@ -97,6 +99,41 @@ def test_cycle_never_opens_a_scene_with_patoune(setup):
 
     assert outcome.opened_scene_keys == ()
     assert outcome.turn is None
+
+
+def test_idle_colocation_opens_one_bounded_scene_after_initial_context(setup):
+    """Une attente commune est une occasion factuelle, pas une minuterie sociale."""
+    conn, world_id, clock = setup
+    provider = Provider(SceneTurnDecision("no_action"))
+    cycle = SocialSceneCycle(conn, provider)
+    limits = CognitionCallLimits(0, 3600, 8)
+
+    initial = cycle.tick(world_id, limits)
+    SocialSceneService(conn).close(world_id, initial.opened_scene_keys[0], reason="test_closed")
+    activities = ActivityEngine(conn, clock=clock)
+    activities.start_activity(world_id, "chuu", "idle", "entree_exterieure", duration_seconds=60)
+    activities.start_activity(world_id, "erika", "idle", "entree_exterieure", duration_seconds=60)
+    source_seq = conn.execute(
+        "SELECT seq FROM canonical_event WHERE world_id = ? AND event_type = 'activity_started' "
+        "ORDER BY seq DESC LIMIT 1",
+        (world_id,),
+    ).fetchone()[0]
+
+    opened = cycle.tick(world_id, limits)
+    expected = f"idle_encounter_{source_seq}_erika_chuu"
+    assert opened.opened_scene_keys == (expected,)
+    assert opened.turn is not None
+    participants = conn.execute(
+        "SELECT c.key FROM social_scene s JOIN social_scene_participant p ON p.scene_id = s.id "
+        "JOIN character c ON c.id = p.character_id WHERE s.world_id = ? AND s.scene_key = ? "
+        "ORDER BY c.key",
+        (world_id, expected),
+    ).fetchall()
+    assert [row["key"] for row in participants] == ["chuu", "erika"]
+
+    SocialSceneService(conn).close(world_id, expected, reason="test_closed")
+    later = cycle.tick(world_id, limits)
+    assert later.opened_scene_keys == ()
 
 
 def test_cycle_closes_after_its_fixed_turn_budget_without_extra_call(setup):
