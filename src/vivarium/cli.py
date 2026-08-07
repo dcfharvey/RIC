@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import sqlite3
+import threading
+import time
 
 from . import __version__
 from .db import connect_database
@@ -307,6 +309,117 @@ def _run_mvp_preflight(db_path: Path, world_id: int | None) -> int:
     return 0 if report.healthy else 1
 
 
+def _run_mvp_init(db_path: Path, name: str) -> int:
+    """Crée une unique résidence alpha par les services réels, jamais par seed SQL."""
+    from .integration_world import IntegrationWorldService
+    from .mvp_preflight import inspect_mvp_preflight
+
+    if db_path.exists():
+        print(
+            f"Initialisation MVP : la cible existe déjà : {db_path}",
+            file=__import__("sys").stderr,
+        )
+        return 2
+    conn = connect_database(db_path)
+    try:
+        ensure_schema(conn)
+        world = IntegrationWorldService(conn).create_initial_world(name=name)
+        report = inspect_mvp_preflight(conn, world_id=world["id"])
+    except (sqlite3.Error, ValueError) as exc:
+        print(f"Initialisation MVP : échec : {exc}", file=__import__("sys").stderr)
+        return 2
+    finally:
+        conn.close()
+    if not report.healthy:
+        print("Initialisation MVP : prévol en échec; monde non présenté.", file=__import__("sys").stderr)
+        return 1
+    print(f"Monde MVP créé : id={world['id']} nom={world['name']!r}")
+    print(f"Base : {db_path.resolve()}")
+    print("Prévol : prêt structurellement")
+    return 0
+
+
+def _run_mvp_runtime(
+    db_path: Path,
+    world_id: int | None,
+    *,
+    enable_local_llm: bool,
+    port: int,
+    tick_seconds: float,
+    max_ticks: int,
+) -> int:
+    """Lance le runtime alpha et le tableau local jusqu'à Ctrl+C ou la borne."""
+    from .cognition import LMStudioProvider, LocalLLMSettings
+    from .mvp_preflight import inspect_mvp_preflight
+    from .mvp_runtime import MVPRuntime
+    from .scene_turn import LMStudioSceneTurnProvider
+    from .simulation import SimulationLimitError
+    from .web import WebServerError, create_server, serve, shutdown
+
+    if not db_path.is_file():
+        print(f"Runtime MVP : base introuvable : {db_path}", file=__import__("sys").stderr)
+        return 2
+    if not isinstance(port, int) or isinstance(port, bool) or not 0 <= port <= 65535:
+        print("Runtime MVP : port invalide", file=__import__("sys").stderr)
+        return 2
+    if not isinstance(tick_seconds, (float, int)) or not 0.25 <= tick_seconds <= 60:
+        print("Runtime MVP : intervalle invalide", file=__import__("sys").stderr)
+        return 2
+    if not isinstance(max_ticks, int) or isinstance(max_ticks, bool) or not 0 <= max_ticks <= 100_000:
+        print("Runtime MVP : borne de ticks invalide", file=__import__("sys").stderr)
+        return 2
+    conn = connect_database(db_path)
+    server = None
+    thread = None
+    runtime = None
+    try:
+        report = inspect_mvp_preflight(conn, world_id=world_id)
+        if not report.healthy:
+            print("Runtime MVP : prévol en échec; lancement refusé.", file=__import__("sys").stderr)
+            for check in report.failures:
+                print(f"  {check.key} : {check.detail}", file=__import__("sys").stderr)
+            return 1
+        cognition_provider = scene_provider = None
+        if enable_local_llm:
+            settings = LocalLLMSettings.from_environment()
+            cognition_provider = LMStudioProvider(settings)
+            scene_provider = LMStudioSceneTurnProvider(settings)
+        runtime = MVPRuntime(
+            conn, report.world_id, cognition_provider=cognition_provider, scene_provider=scene_provider
+        )
+        server = create_server(db_path, host="127.0.0.1", port=port)
+        thread = threading.Thread(target=serve, args=(server,), daemon=True)
+        thread.start()
+        actual_port = server.server_address[1]
+        print(f"Runtime MVP actif — tableau de contrôle : http://127.0.0.1:{actual_port}/")
+        print("Ctrl+C arrête proprement le runtime et interrompt les scènes ouvertes.")
+        print(f"LLM local : {'activé' if enable_local_llm else 'désactivé (routines déterministes seulement)'}")
+        ticks = 0
+        while max_ticks == 0 or ticks < max_ticks:
+            tick = runtime.run_once()
+            ticks += 1
+            social = tick.social
+            if social and (social.opened_scene_keys or social.closed_scene_keys or social.interrupted_scene_keys or social.turn):
+                action = social.turn.decision.action if social.turn and social.turn.decision else "-"
+                print(f"[tick {ticks}] scènes +{len(social.opened_scene_keys)} -{len(social.closed_scene_keys)} !{len(social.interrupted_scene_keys)} tour={action}")
+            time.sleep(tick_seconds)
+    except KeyboardInterrupt:
+        print("Arrêt demandé.")
+    except (ValueError, WebServerError, SimulationLimitError, sqlite3.Error) as exc:
+        print(f"Runtime MVP : arrêt sur erreur explicite : {exc}", file=__import__("sys").stderr)
+        return 2
+    finally:
+        if runtime is not None:
+            runtime.shutdown()
+        if server is not None:
+            shutdown(server)
+        if thread is not None:
+            thread.join(timeout=5)
+        conn.close()
+    print("Runtime MVP arrêté proprement.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vivarium", description="Vivarium social artificiel")
     sub = parser.add_subparsers(dest="command")
@@ -344,6 +457,16 @@ def main(argv: list[str] | None = None) -> int:
     p_preflight = sub.add_parser("mvp-preflight", help="Contrôle une base MVP existante en lecture seule, sans LLM.")
     p_preflight.add_argument("--db", required=True, help="Chemin de la base existante à contrôler.")
     p_preflight.add_argument("--world-id", type=int, default=None, help="Identifiant requis si la base contient plusieurs mondes.")
+    p_mvp_init = sub.add_parser("mvp-init", help="Crée une nouvelle résidence MVP par les services canoniques.")
+    p_mvp_init.add_argument("--db", required=True, help="Nouvelle base cible; elle doit être absente.")
+    p_mvp_init.add_argument("--name", default="Résidence Vivarium", help="Nom initial du monde MVP.")
+    p_mvp_run = sub.add_parser("mvp-run", help="Lance le runtime MVP et le tableau de contrôle local.")
+    p_mvp_run.add_argument("--db", required=True, help="Base MVP existante et validée.")
+    p_mvp_run.add_argument("--world-id", type=int, default=None, help="Cible explicite si la base contient plusieurs mondes.")
+    p_mvp_run.add_argument("--enable-local-llm", action="store_true", help="Autorise les appels Gemma locaux bornés.")
+    p_mvp_run.add_argument("--port", type=int, default=8765, help="Port local du tableau de contrôle (défaut : 8765).")
+    p_mvp_run.add_argument("--tick-seconds", type=float, default=2.0, help="Intervalle de boucle, entre 0,25 et 60 s.")
+    p_mvp_run.add_argument("--max-ticks", type=int, default=0, help="0 = jusqu'à Ctrl+C; borne utile pour un essai contrôlé.")
 
     args = parser.parse_args(argv)
 
@@ -369,6 +492,16 @@ def main(argv: list[str] | None = None) -> int:
         return _run_scene_bench(args.max_turns)
     if args.command == "mvp-preflight":
         return _run_mvp_preflight(Path(args.db), args.world_id)
+    if args.command == "mvp-init":
+        return _run_mvp_init(Path(args.db), args.name)
+    if args.command == "mvp-run":
+        return _run_mvp_runtime(
+            Path(args.db), args.world_id,
+            enable_local_llm=args.enable_local_llm,
+            port=args.port,
+            tick_seconds=args.tick_seconds,
+            max_ticks=args.max_ticks,
+        )
 
     db_path = _resolve_db_path(getattr(args, "db", None))
     conn = connect_database(db_path)

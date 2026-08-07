@@ -2,11 +2,18 @@ from datetime import datetime, timezone
 
 import pytest
 
+from vivarium.cognition import CognitionError, DEFAULT_LM_STUDIO_BASE_URL, LocalLLMSettings
 from vivarium.cognition_policy import CognitionCallLimits
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
-from vivarium.scene_turn import SceneTurnDecision, SceneTurnError, SceneTurnService
+from vivarium.scene_turn import (
+    LMStudioSceneTurnProvider,
+    SceneTurnContextService,
+    SceneTurnDecision,
+    SceneTurnError,
+    SceneTurnService,
+)
 from vivarium.scenes import SocialSceneService
 from vivarium.traversal import TraversalEngine
 from vivarium.util import to_iso
@@ -88,6 +95,39 @@ def test_scene_turn_marks_a_bad_provider_response_without_expression(setup):
 
     assert result.attempted and result.provider_error_code == "invalid_scene_turn_response"
     assert len(scenes.sheet(world_id, "arrival_chat")["acts"]) == 1
+
+
+def test_local_scene_adapter_normalizes_gemma_redundant_action_only(setup, monkeypatch):
+    conn, world_id, _clock, _scenes = setup
+    context = SceneTurnContextService(conn).build(world_id, "arrival_chat", "sophie")
+    monkeypatch.setattr(
+        "vivarium.scene_turn.request_local_model",
+        lambda *args, **kwargs: '{"schema_version":2,"action":"greet","act_kind":"greet","content":"Bonjour.","recipient_key":"erika"}',
+    )
+    provider = LMStudioSceneTurnProvider(
+        LocalLLMSettings(DEFAULT_LM_STUDIO_BASE_URL, "gemma-local", None, 12)
+    )
+
+    decision = provider.decide(context)
+
+    assert decision.action == "speak" and decision.act_kind == "greet"
+
+
+def test_local_scene_adapter_still_refuses_unknown_action(setup, monkeypatch):
+    conn, world_id, _clock, _scenes = setup
+    context = SceneTurnContextService(conn).build(world_id, "arrival_chat", "sophie")
+    monkeypatch.setattr(
+        "vivarium.scene_turn.request_local_model",
+        lambda *args, **kwargs: '{"schema_version":2,"action":"invent","act_kind":"greet","content":"Bonjour.","recipient_key":"erika"}',
+    )
+    provider = LMStudioSceneTurnProvider(
+        LocalLLMSettings(DEFAULT_LM_STUDIO_BASE_URL, "gemma-local", None, 12)
+    )
+
+    with pytest.raises(CognitionError) as raised:
+        provider.decide(context)
+
+    assert getattr(raised.value, "code", None) == "invalid_scene_turn_response"
 
 
 def test_scene_turn_duplicate_no_action_is_deferred_before_a_second_provider_call(setup):

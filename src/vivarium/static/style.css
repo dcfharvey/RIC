@@ -42,7 +42,8 @@ body {
   grid-template-columns: 240px 1fr 1fr;
   grid-template-areas:
     "worlds chars detail"
-    "journal journal commands";
+    "journal journal commands"
+    "scenes scenes commands";
   gap: 10px;
   padding: 10px;
   align-items: start;
@@ -52,6 +53,7 @@ body {
 .detail-panel { grid-area: detail; }
 .journal-panel { grid-area: journal; }
 .commands-panel { grid-area: commands; }
+.scenes-panel { grid-area: scenes; }
 
 .panel {
   background: var(--panel);
@@ -91,6 +93,12 @@ body {
 .journal-row:hover { background: transparent; }
 .journal-time { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
 .journal-summary { color: var(--text); }
+
+.scenes-panel .list { max-height: 260px; overflow-y: auto; }
+.scene-row { cursor: default; }
+.scene-row:hover { background: transparent; }
+.scene-meta { color: var(--text-dim); font-size: 12px; display: block; }
+.scene-line { display: block; margin-top: 3px; }
 
 .command-row { display: flex; gap: 8px; margin-bottom: 10px; }
 
@@ -152,6 +160,7 @@ button:focus-visible, input:focus-visible {
       "chars"
       "detail"
       "journal"
+      "scenes"
       "commands";
   }
 }

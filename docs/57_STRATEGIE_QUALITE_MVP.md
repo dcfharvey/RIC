@@ -77,15 +77,15 @@ Ils n'utilisent pas le quota Codex; ils ne sont lancés que lorsqu'ils apportent
 une information nouvelle sur le contrat réel ou la qualité des sorties. Le
 contenu généré ne devient pas une preuve de vérité canonique.
 
-## Ce qui reste nécessaire avant `0.1.0a1`
+## Porte franchie : `0.1.0a1`
 
-Le prévol couvre un candidat de base, pas encore un MVP alpha. La roadmap
-reste honnête : il faut encore raccorder les options d'action légales, les
-décisions et conséquences validées, les déclencheurs/fermetures de scènes dans
-l'orchestrateur, puis un runtime persistant contrôlable. Les contrôles
-opérateur existants (lecture, pause/reprise, commandes simples et premiers
-changements préparés) seront utilisés comme fondation; ils ne seront pas
-contournés par un script de lancement.
+Le prévol couvre un candidat de base; l'alpha l'emploie désormais comme porte
+de lancement. Les options de traversée visibles sont revérifiées par le moteur,
+les co-présences canoniques déclenchent des scènes bornées et le runtime local
+persistant sert le tableau opérateur. Les contrôles existants (lecture,
+pause/reprise et commandes simples) sont utilisés comme fondation; ils ne sont
+pas contournés par un script de lancement. La portée et les limites exactes de
+la livraison sont dans `docs/58_MVP_ALPHA_0_1_0A1.md`.
 
 Avant de déclarer l'alpha, chaque capacité ajoutée devra fournir au minimum :
 

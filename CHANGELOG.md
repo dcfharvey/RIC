@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.1.0a1 — 6 août 2026
+
+- Premier MVP alpha présentable : création sûre d'une résidence par `mvp-init`,
+  prévol bloquant, runtime persistant `mvp-run` et tableau de contrôle local.
+- Boucle sociale minimale : co-présence canonique, scène append-only bornée à
+  quatre occasions de parole, fermeture explicite et interruption propre à
+  l'arrêt; le texte ne produit aucun fait ni effet social automatique.
+- Les traversées visibles proposées au LLM sont maintenant revérifiées par le
+  moteur avant exposition. Le contexte initial commun peut amorcer une unique
+  rencontre de départ sans inventer un événement.
+- Adaptateur Gemma local durci pour une variation JSON redondante observée,
+  sans assouplir le contrat interne de décision.
+- La console montre désormais les scènes et paroles enregistrées. La livraison
+  reste alpha/réinitialisable; conséquences sociales causales et vie autonome
+  générale sont explicitement hors de portée.
+
 - Ajout de `mvp-preflight`, contrôle déterministe et strictement en lecture
   seule d'une base candidate au MVP.
 - Documentation de la stratégie de couverture : règles, bancs, LLM borné,

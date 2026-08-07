@@ -150,3 +150,26 @@ def test_cli_mvp_preflight_refuses_a_missing_database(tmp_path, capsys):
 
     assert main(["mvp-preflight", "--db", str(missing)]) == 2
     assert "base introuvable" in capsys.readouterr().err
+
+
+def test_cli_mvp_init_builds_a_new_preflight_ready_candidate(tmp_path, capsys):
+    db = tmp_path / "mvp.sqlite"
+
+    assert main(["mvp-init", "--db", str(db), "--name", "MVP test"]) == 0
+    assert db.is_file()
+    output = capsys.readouterr().out
+    assert "Prévol : prêt structurellement" in output
+    assert main(["mvp-init", "--db", str(db)]) == 2
+    assert "existe déjà" in capsys.readouterr().err
+
+
+def test_cli_mvp_run_starts_and_stops_a_valid_candidate(tmp_path, capsys):
+    db = tmp_path / "mvp-run.sqlite"
+    assert main(["mvp-init", "--db", str(db)]) == 0
+
+    assert main([
+        "mvp-run", "--db", str(db), "--port", "0", "--tick-seconds", "0.25", "--max-ticks", "1",
+    ]) == 0
+
+    output = capsys.readouterr().out
+    assert "tableau de contrôle" in output and "arrêté proprement" in output

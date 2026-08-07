@@ -4,7 +4,7 @@ import json
 import pytest
 
 from vivarium.cognition import (
-    CognitionContextService, CognitionDecision, CognitionError, CognitionTurnService,
+    COGNITION_SCHEMA_VERSION, CognitionContextService, CognitionDecision, CognitionError, CognitionTurnService,
     DEFAULT_LM_STUDIO_BASE_URL, LMStudioProvider, LocalLLMSettings,
 )
 from vivarium.db import connect_database
@@ -53,6 +53,8 @@ def test_context_contains_only_bounded_authorized_inputs(setup):
     assert context.mood is None and context.emotions == ()
     assert context.relationships == () and context.boundaries == ()
     assert context.decision_frame["character_key"] == "sophie"
+    assert "photoreporter tsundere" in context.self_profile["expression_summaries"][1]
+    assert context.self_profile["ranked_values"][0] == "autonomy"
     assert {item["connector_key"] for item in context.allowed_traversals} == {
         "porte_entree", "passage_stationnement"
     }
@@ -116,7 +118,8 @@ def test_lm_studio_request_uses_native_reasoning_off_endpoint(monkeypatch, setup
 
     class Response:
         def read(self):
-            return b'{"output":[{"type":"message","content":"{\\"schema_version\\":5,\\"action\\":\\"no_action\\"}"}]}'
+            return ('{"output":[{"type":"message","content":"{\\"schema_version\\":'
+                    + str(COGNITION_SCHEMA_VERSION) + ',\\"action\\":\\"no_action\\"}"}]}').encode("utf-8")
         def __enter__(self): return self
         def __exit__(self, *args): return False
 

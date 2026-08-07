@@ -203,6 +203,41 @@ class AdminReadService:
                 out.append(item)
             return out
 
+    def scene_views(self, world_id: int, *, limit: int = 12) -> list[dict[str, Any]]:
+        """Expose les scènes sociales comme expressions, hors journal canonique."""
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 50:
+            raise ValueError("limit de scènes invalide")
+        with self._read_snapshot():
+            self._require_world(world_id)
+            rows = self._conn.execute(
+                "SELECT s.id, s.scene_key, s.status, s.opened_at, s.closed_at, s.close_reason, l.key AS location_key "
+                "FROM social_scene s JOIN location l ON l.id = s.location_id "
+                "WHERE s.world_id = ? ORDER BY s.id DESC LIMIT ?",
+                (world_id, limit),
+            ).fetchall()
+            output: list[dict[str, Any]] = []
+            for row in rows:
+                participants = self._conn.execute(
+                    "SELECT c.key, c.name FROM social_scene_participant p JOIN character c ON c.id = p.character_id "
+                    "WHERE p.scene_id = ? ORDER BY p.id",
+                    (row["id"],),
+                ).fetchall()
+                acts = self._conn.execute(
+                    "SELECT a.act_kind, a.content_text, sp.key AS speaker_key, rp.key AS recipient_key "
+                    "FROM social_speech_act a JOIN character sp ON sp.id = a.speaker_character_id "
+                    "LEFT JOIN character rp ON rp.id = a.recipient_character_id "
+                    "WHERE a.scene_id = ? ORDER BY a.id DESC LIMIT 6",
+                    (row["id"],),
+                ).fetchall()
+                output.append({
+                    "scene_key": row["scene_key"], "status": row["status"],
+                    "location": row["location_key"], "opened_at": row["opened_at"],
+                    "closed_at": row["closed_at"], "close_reason": row["close_reason"],
+                    "participants": [dict(item) for item in participants],
+                    "recent_acts": [dict(item) for item in reversed(acts)],
+                })
+            return output
+
     # --- résumés déterministes -----------------------------------------------
 
     @staticmethod

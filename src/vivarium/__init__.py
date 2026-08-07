@@ -1,7 +1,6 @@
 """Vivarium social artificiel — package principal.
 
-Pré-alpha : fondations canoniques et administratives en construction. Le
-simulateur social présentable n'est pas encore atteint.
+Alpha : boucle sociale minimale présentable, toujours réinitialisable.
 """
 
-__version__ = "0.0.2.dev0"
+__version__ = "0.1.0a1"

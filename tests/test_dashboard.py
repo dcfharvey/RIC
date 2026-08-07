@@ -209,6 +209,7 @@ def test_index_html_structure():
     assert "__VIVARIUM_TOKEN__" in html
     assert "/static/style.css" in html
     assert "/static/app.js" in html
+    assert 'id="scene-list"' in html
 
 
 # --- Énergie (D-1) -----------------------------------------------------------

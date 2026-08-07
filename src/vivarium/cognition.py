@@ -19,19 +19,22 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from .action_contract import ActionOrchestrator, IntentProposal, ValidationResult
+from .action_options import ActionOptionService
 from .affect import AffectService
 from .attention import AttentionService
 from .beliefs import BeliefService
 from .decision import DecisionFrameService
 from .character import CharacterEngine
 from .perception import PerceptionService
+from .personality import PersonalityService
 from .registry import _KEY_RE
 from .social import SocialService
 from .subjective_memory import SubjectiveMemoryService
 from .util import Clock
+from .values import ValuesService
 
 
-COGNITION_SCHEMA_VERSION = 5
+COGNITION_SCHEMA_VERSION = 6
 DEFAULT_LM_STUDIO_BASE_URL = "http://127.0.0.1:1234"
 DEFAULT_TIMEOUT_SECONDS = 45.0
 DEFAULT_MAX_TOKENS = 128
@@ -174,6 +177,7 @@ class CognitionContext:
     boundaries: tuple[Mapping[str, Any], ...]
     decision_frame: Mapping[str, Any]
     allowed_traversals: tuple[Mapping[str, str], ...]
+    self_profile: Mapping[str, Any]
     schema_version: int = COGNITION_SCHEMA_VERSION
 
     def wire(self) -> dict[str, Any]:
@@ -187,6 +191,7 @@ class CognitionContext:
             "relationships": _plain(self.relationships), "boundaries": _plain(self.boundaries),
             "decision_frame": _plain(self.decision_frame),
             "allowed_traversals": _plain(self.allowed_traversals),
+            "self_profile": _plain(self.self_profile),
         }
 
 
@@ -196,6 +201,43 @@ class CognitionContextService:
     def __init__(self, conn: sqlite3.Connection, clock: Clock | None = None) -> None:
         self._conn = conn
         self._clock = clock or Clock()
+
+    def _self_profile(self, world_id: int, character_key: str) -> Mapping[str, Any]:
+        """Expose une calibration propre au personnage, jamais celle d'autrui.
+
+        Les textes des composants restent des directions d'expression; ils ne
+        constituent pas une règle qui force l'action ni une connaissance partagée.
+        """
+        row = self._conn.execute(
+            "SELECT resolved_initial_definition_json FROM character_instance_origin o "
+            "JOIN character c ON c.id = o.character_id "
+            "WHERE o.world_id = ? AND c.key = ?",
+            (world_id, character_key),
+        ).fetchone()
+        summaries: list[str] = []
+        if row is not None:
+            try:
+                components = json.loads(row["resolved_initial_definition_json"]).get("components", [])
+                for component in components:
+                    if not isinstance(component, Mapping):
+                        continue
+                    if component.get("key") in {"appearance.descriptive", "personality.initial_dispositions"}:
+                        summary = component.get("config", {}).get("summary")
+                        if isinstance(summary, str) and summary:
+                            summaries.append(summary)
+            except (TypeError, ValueError):
+                pass
+        personality = PersonalityService(self._conn, clock=self._clock).read(world_id, character_key)
+        traits = {} if personality is None else {
+            key: value["mean_milli"] for key, value in personality["traits"].items()
+        }
+        values = ValuesService(self._conn, clock=self._clock).read(world_id, character_key)
+        return _freeze({
+            "expression_summaries": tuple(summaries),
+            "trait_means_milli": traits,
+            "ranked_values": () if values is None else tuple(values["ranked_value_keys"][:5]),
+            "preferences": () if values is None else tuple(values["preferences"]),
+        })
 
     def build(self, world_id: Any, character_key: Any, *, after_event_seq: Any = 0) -> CognitionContext:
         world_id, character_key = _world_id(world_id), _key(character_key, "personnage")
@@ -211,14 +253,21 @@ class CognitionContextService:
         relationships = social.relationships(world_id, character_key, limit=MAX_RELATIONSHIPS)
         boundaries = social.active_boundaries(world_id, character_key, limit=MAX_BOUNDARIES)
         decision_frame = DecisionFrameService(self._conn).build_current(world_id, character_key).wire()
-        allowed: list[Mapping[str, str]] = []
+        visible_traversals: list[Mapping[str, str]] = []
         for item in attention.available:
             if item.source_kind != "perception:adjacent_connector":
                 continue
             payload = item.fact.payload
             candidate = _freeze({"connector_key": payload["connector"], "target_location_key": payload["destination"]})
-            if candidate not in allowed:
-                allowed.append(candidate)
+            if candidate not in visible_traversals:
+                visible_traversals.append(candidate)
+        options = ActionOptionService(self._conn).visible_traversals(
+            world_id, character_key, (_plain(item) for item in visible_traversals)
+        )
+        allowed = tuple(_freeze({
+            "connector_key": option.connector_key,
+            "target_location_key": option.target_location_key,
+        }) for option in options)
         return CognitionContext(
             world_id, character_key, character["name"], attention.observed_at, feed.latest_seq,
             tuple(_fact_wire(item.source_kind, item.priority_milli, item.fact) for item in attention.selected),
@@ -229,6 +278,7 @@ class CognitionContextService:
             tuple(_freeze(_plain(emotion)) for emotion in emotions),
             tuple(_freeze(_plain(relationship)) for relationship in relationships),
             tuple(_freeze(_plain(boundary)) for boundary in boundaries), _freeze(decision_frame), tuple(allowed),
+            self._self_profile(world_id, character_key),
         )
 
 

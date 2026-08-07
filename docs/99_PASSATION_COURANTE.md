@@ -21,7 +21,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 
 ## État vérifié
 
-- version logicielle : `0.0.2.dev0` (**pré-alpha**). Les numéros de documents
+- version logicielle : `0.1.0a1` (**MVP alpha**). Les numéros de documents
   et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
 - commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
   signifie que cette passation décrit l'état de `HEAD` ;
@@ -65,6 +65,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après premier tour social LLM : **658 passed** ;
 - test complet après banc social multi-tours : **664 passed** ;
 - test complet après porte de prévol MVP : **670 passed** ;
+- test complet de livraison alpha : **686 passed** ;
 - test complet après frontière LLM locale et banc de fumée : **592 passed** ;
 - test complet après politique pure d'admissibilité des appels LLM :
   **599 passed** ;
@@ -79,6 +80,34 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après valeurs et préférences initiales : **618 passed** ;
 - test complet après objectifs et intentions persistantes : **620 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
+
+## Livraison alpha 0.1.0a1
+
+- `ActionOptionService` ne propose une traversée visible qu'après une nouvelle
+  vérification du connecteur par le moteur;
+- `SocialSceneCycle` transforme une co-présence canonique en scène bornée,
+  sans jamais convertir une parole en fait. La première scène est ancrée dans
+  le contexte initial commun; Patoune est hors de la boucle sapiente;
+- `MVPRuntime` assemble simulation, orchestrateur et scène au plus une fois par
+  tick, respecte la pause et interrompt proprement les scènes à l'arrêt;
+- `mvp-init`, `mvp-preflight` et `mvp-run` constituent le parcours opérateur.
+  Le dernier expose la console locale et peut activer Gemma via LM Studio;
+- le tableau local affiche les scènes et leurs paroles en plus du journal;
+- l'adaptateur local normalise seulement la forme Gemma
+  `action: "greet"`/`act_kind: "greet"` en acte de parole contractuel;
+- documentation de portée : `docs/58_MVP_ALPHA_0_1_0A1.md`.
+
+Pour reproduire un lancement sans toucher une histoire existante :
+
+```powershell
+.\.venv\Scripts\python.exe -m vivarium mvp-init --db data\vivarium-alpha.sqlite
+.\.venv\Scripts\python.exe -m vivarium mvp-run --db data\vivarium-alpha.sqlite --enable-local-llm
+```
+
+Le test local réel de cette livraison a créé une résidence jetable, effectué
+quatre tours Gemma admis et enregistrés, fermé la scène à sa borne, puis passé
+le prévol. L'interface a aussi été inspectée avec une scène réellement
+enregistrée; pause/reprise et le panneau de scène ont répondu.
 
 ## Capacités récentes
 
@@ -189,7 +218,12 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 
 ## Prochaine action recommandée
 
-Le banc d'essai minimal est maintenant livré (`vivarium.bench`) : scénarios
+L'alpha est livré. La prochaine étape n'est pas une nouvelle grosse couche :
+faire tourner quelques sessions observées, conserver les bases qui comptent,
+et classer les défauts ou frictions mesurés avant de choisir le lot de bêta.
+Les conséquences sociales causales, la vie autonome générale et les systèmes
+futurs restent explicitement hors de la version actuelle. Pour l'historique
+antérieur, le banc d'essai minimal est maintenant livré (`vivarium.bench`) : scénarios
 isolés, actions déclaratives fermées, rapports/audits et comparaison de runs.
 Les objets, leur contenance, les presets et les blueprints d'environnement sont
 aussi livrés; voir `docs/19_OBJETS_ET_CONTENANCE.md`,

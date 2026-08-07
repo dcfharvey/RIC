@@ -377,6 +377,15 @@ def test_get_character(server):
     assert data["data"]["character"]["key"] == "character_1"
 
 
+def test_get_social_scenes_returns_a_read_only_empty_collection(server):
+    _srv, port, wid = server
+
+    status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/scenes")
+
+    assert status == 200
+    assert data["data"] == []
+
+
 def test_get_events(server):
     srv, port, wid = server
     status, data, _ = _request(port, "GET", f"/api/worlds/{wid}/events")

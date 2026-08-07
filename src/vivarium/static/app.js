@@ -31,6 +31,7 @@
   var charList = document.getElementById("char-list");
   var charDetail = document.getElementById("char-detail");
   var journalList = document.getElementById("journal-list");
+  var sceneList = document.getElementById("scene-list");
   var worldName = document.getElementById("world-name");
   var worldStatus = document.getElementById("world-status");
   var canonicalTime = document.getElementById("canonical-time");
@@ -257,6 +258,39 @@
     });
   }
 
+  function renderScenes(scenes) {
+    clear(sceneList);
+    if (!scenes || !scenes.length) {
+      var none = document.createElement("li");
+      none.textContent = "Aucune scène";
+      sceneList.appendChild(none);
+      return;
+    }
+    scenes.forEach(function (scene) {
+      var li = document.createElement("li");
+      li.className = "scene-row";
+      var names = scene.participants.map(function (p) { return p.name; }).join(" · ");
+      var meta = document.createElement("span");
+      meta.className = "scene-meta";
+      meta.textContent = scene.status.toUpperCase() + " · " + scene.location + " · " + names;
+      li.appendChild(meta);
+      var acts = scene.recent_acts || [];
+      if (!acts.length) {
+        var empty = document.createElement("span");
+        empty.className = "scene-line";
+        empty.textContent = "Aucune parole enregistrée.";
+        li.appendChild(empty);
+      }
+      acts.forEach(function (act) {
+        var line = document.createElement("span");
+        line.className = "scene-line";
+        line.textContent = act.speaker_key + " : " + act.content_text;
+        li.appendChild(line);
+      });
+      sceneList.appendChild(li);
+    });
+  }
+
   function renderWorld(dash) {
     worldName.textContent = dash.world.name;
     worldStatus.textContent = dash.world.status === "paused" ? "EN PAUSE" : "ACTIF";
@@ -292,7 +326,7 @@
       if (!worlds.some(function (w) { return w.id === worldId; })) {
         worldId = worlds.length ? worlds[0].id : null;
       }
-      var dash = null, chars = [], events = [], detail = null;
+      var dash = null, chars = [], events = [], scenes = [], detail = null;
       var charKey = state.characterKey;
       if (worldId != null) {
         dash = await apiGet("/api/worlds/" + encodeURIComponent(worldId));
@@ -301,6 +335,7 @@
         // on conserve les MAX_JOURNAL_SHOWN plus récents puis on inverse.
         var all = await apiGet("/api/worlds/" + encodeURIComponent(worldId) + "/events?limit=200&offset=0&include_payload=false");
         events = all.slice(-MAX_JOURNAL_SHOWN).reverse();
+        scenes = await apiGet("/api/worlds/" + encodeURIComponent(worldId) + "/scenes");
         if (!chars.some(function (cv) { return cv.character.key === charKey; })) {
           charKey = chars.length ? chars[0].character.key : null;
         }
@@ -320,6 +355,7 @@
         renderWorld(dash);
         renderCharacters();
         renderJournal(events);
+        renderScenes(scenes);
         if (detail) {
           var idx = chars.findIndex(function (x) { return x.character.key === charKey; });
           if (idx >= 0) chars[idx] = detail;

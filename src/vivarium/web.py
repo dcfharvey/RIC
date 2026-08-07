@@ -290,6 +290,8 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
                 return ("characters", [parts[2]])
             if parts[3] == "events":
                 return ("events", [parts[2]])
+            if parts[3] == "scenes":
+                return ("scenes", [parts[2]])
             raise HttpError(404, "not_found", "Route inconnue.")
         if (
             len(parts) == 5
@@ -364,6 +366,8 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
                 wid = self._parse_world_id(args[0])
                 query = self._parse_events_query()
                 data = svc.journal_view(wid, **query)
+            elif kind == "scenes":
+                data = svc.scene_views(self._parse_world_id(args[0]))
             else:  # pragma: no cover - routeur garantit la fermeture
                 raise HttpError(404, "not_found", "Route inconnue.")
             self._send_json(200, {"ok": True, "data": data, "error": None}, send_body=send_body)

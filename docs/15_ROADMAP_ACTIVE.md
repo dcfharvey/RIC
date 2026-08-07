@@ -1,6 +1,6 @@
 # Roadmap active — du moteur au Vivarium MVP
 
-**Version :** 1.3
+**Version :** 1.4
 **Mise à jour :** 6 août 2026
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
@@ -25,7 +25,7 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.0.2.dev0` — pré-alpha.
+**Version logicielle actuelle :** `0.1.0a1` — premier MVP alpha.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
@@ -71,11 +71,10 @@ tests et documentation après un lot à conséquences étendues.
 - banc social multi-tours : livré, avec occasions de parole alternées,
   déterministes et bornées dans un monde jetable; il ne remplace pas encore
   le déclenchement autonome d'une scène ;
-- banc vivant jetable : livré avec fournisseur faux normal et indisponible;
-  l'essai contrôlé avec Gemma local a validé le chemin réel, et un banc de
-  calibration répété est maintenant disponible sans fixer de cadence produit;
-  avant toute activation d’un monde MVP persistant, il reste à raccorder les
-  déclencheurs sociaux, les options d'action et leurs conséquences validées ;
+- boucle alpha : livrée. Les options de traversée visibles sont revérifiées par
+  le moteur, les rencontres canoniques ouvrent des scènes bornées, le contexte
+  initial commun peut amorcer une première rencontre, et le runtime local
+  persistant offre le contrôle opérateur; voir `docs/58_MVP_ALPHA_0_1_0A1.md` ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 - porte de prévol MVP : livrée (`mvp-preflight`) pour inspecter une base candidate
   sans écriture ni appel LLM; elle ne remplace ni les scénarios vivants ni les
@@ -88,7 +87,7 @@ tests et documentation après un lot à conséquences étendues.
 | `0.0.0.dev0` | État actuel | Pré-alpha : fondations rigoureuses, mais pas encore de boucle sociale complète. |
 | `0.0.1.dev0` | Jalon atteint après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
 | `0.0.2.dev0` | État actuel, après le monde d'intégration | Les cinq vraies configurations peuvent être assemblées et réinitialisées sans histoire officielle. |
-| `0.1.0a1` | Fin de l'étape 5 | **Premier MVP alpha** : boucle sociale minimale complète et présentable, encore réinitialisable. |
+| `0.1.0a1` | Atteint | **Premier MVP alpha** : boucle sociale minimale complète et présentable, encore réinitialisable. |
 | `0.1.0b1` | Après essais prolongés | Bêta : le MVP tourne durablement; les défauts restants sont recherchés par observation réelle. |
 | `1.0.0` | Lancement | Usage normal et persistance suffisamment fiables pour que l'histoire compte durablement. |
 

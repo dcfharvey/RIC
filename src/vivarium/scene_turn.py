@@ -27,7 +27,7 @@ from .scenes import SceneError, SocialSceneService
 from .util import Clock
 
 
-SCENE_TURN_SCHEMA_VERSION = 1
+SCENE_TURN_SCHEMA_VERSION = 2
 MAX_SCENE_TURN_CONTENT = 320
 MAX_SCENE_CONTEXT_ACTS = 8
 _ACT_KINDS = frozenset({
@@ -180,6 +180,30 @@ class LMStudioSceneTurnProvider:
         self._settings = settings.validated(require_model=False)
 
     @staticmethod
+    def _parse_model_response(raw: str) -> SceneTurnDecision:
+        """Adapte une seule variation connue de Gemma avant le contrat strict.
+
+        Certains modèles locaux renvoient ``action: "greet"`` tout en donnant
+        déjà ``act_kind: "greet"`` et tous les champs imposés. C'est une
+        proposition sans ambiguïté, mais pas la forme de transport retenue par
+        le moteur. L'adaptateur corrige uniquement cette redondance; toute
+        autre forme reste refusée par ``SceneTurnDecision.parse``.
+        """
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise CognitionError("réponse LM Studio illisible", code="invalid_scene_turn_response") from exc
+        if (
+            isinstance(payload, Mapping)
+            and payload.get("action") in _ACT_KINDS
+            and payload.get("act_kind") == payload.get("action")
+            and set(payload) == {"schema_version", "action", "act_kind", "content", "recipient_key"}
+        ):
+            payload = dict(payload)
+            payload["action"] = "speak"
+        return SceneTurnDecision.parse(payload)
+
+    @staticmethod
     def _prompt(context: SceneTurnContext) -> str:
         return (
             "Tu es un composant de dialogue du Vivarium. Utilise uniquement le JSON fourni. "
@@ -193,13 +217,13 @@ class LMStudioSceneTurnProvider:
 
     def decide(self, context: SceneTurnContext) -> SceneTurnDecision:
         try:
-            return SceneTurnDecision.parse(json.loads(request_local_model(
+            return self._parse_model_response(request_local_model(
                 self._settings,
                 system_prompt="Tu produis au plus un acte de parole structuré, jamais un fait du monde.",
                 input_text=self._prompt(context),
-            )))
-        except json.JSONDecodeError as exc:
-            raise CognitionError("réponse LM Studio illisible", code="invalid_scene_turn_response") from exc
+            ))
+        except SceneTurnError as exc:
+            raise CognitionError(str(exc), code="invalid_scene_turn_response") from exc
 
 
 @dataclass(frozen=True)

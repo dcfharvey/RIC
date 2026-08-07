@@ -1,6 +1,6 @@
 # Vivarium social artificiel — paquet destiné à une IA programmeuse
 
-Version documentaire 1.7, 6 août 2026. Version logicielle : `0.0.2.dev0` (pré-alpha).
+Version documentaire 1.8, 6 août 2026. Version logicielle : `0.1.0a1` (MVP alpha).
 
 ## Reprise d'un travail existant
 
@@ -54,10 +54,16 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 .venv/Scripts/python -m vivarium init [--name NOM] [--force]
 .venv/Scripts/python -m vivarium status
 .venv/Scripts/python -m vivarium upgrade-dev
+.venv/Scripts/python -m vivarium mvp-init --db data/vivarium-alpha.sqlite
+.venv/Scripts/python -m vivarium mvp-run --db data/vivarium-alpha.sqlite --enable-local-llm
 ```
 
 - `init` initialise un monde de développement.
 - `status` inspecte l'état général (intégrité, version de schéma, horloge, compteurs).
+- `mvp-init` crée une résidence alpha sans jamais écraser une base existante;
+  `mvp-run` lance son runtime et sa console locale. `Ctrl+C` ferme proprement
+  les scènes ouvertes. Ajouter `--enable-local-llm` pour employer le modèle
+  chargé dans LM Studio; sans ce drapeau, seules les routines canoniques tournent.
 - `mvp-preflight --db <base>` inspecte en lecture seule une base candidate au MVP
   (intégrité, journal, casting et journaux subjectifs), sans LLM ni réparation.
 - `upgrade-dev` ajoute, de façon **non destructive et idempotente**, les 4 identités

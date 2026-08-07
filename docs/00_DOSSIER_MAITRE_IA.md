@@ -278,6 +278,9 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v1.8** (6 août 2026) : monde d'intégration atomique et possession générique;
   version logicielle `0.0.2.dev0`.
 - **v1.8** (6 août 2026) : fermeture de passage préparée et protégée contre l'isolement spatial.
+- **v1.9** (6 août 2026) : boucle sociale minimale alpha, runtime persistant,
+  contrôle local et version logicielle `0.1.0a1`; voir
+  `docs/58_MVP_ALPHA_0_1_0A1.md`.
 
 ## 24. Annexes et références
 
