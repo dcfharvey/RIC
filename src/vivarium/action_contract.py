@@ -311,6 +311,22 @@ class ActionOrchestrator:
                     return ValidationResult(
                         proposal.proposal_id, "refused", "stale_decision_context", ()
                     )
+                # Un appel LLM peut durer assez longtemps pour qu'une fin
+                # d'activite devienne exigible pendant que la proposition est
+                # hors du moteur. Cette consequence deterministe doit etre
+                # materialisee avant toute nouvelle action subjective, meme si
+                # aucun autre evenement n'a encore augmente la sequence.
+                next_boundary = self._conn.execute(
+                    "SELECT MIN(planned_end_at) AS next_end FROM activity "
+                    "WHERE world_id = ? AND status = 'active'",
+                    (world_id,),
+                ).fetchone()
+                if effective_at is not None and next_boundary is not None \
+                        and next_boundary["next_end"] is not None \
+                        and parse_iso(next_boundary["next_end"]) <= parse_iso(effective_at):
+                    return ValidationResult(
+                        proposal.proposal_id, "refused", "deterministic_boundary_pending", ()
+                    )
                 if effective_at is not None and latest is not None \
                         and parse_iso(effective_at) < parse_iso(latest["occurred_at"]):
                     return ValidationResult(

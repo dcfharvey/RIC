@@ -25,7 +25,7 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a11` — arbitrage social avant consommation de l'attente par l'autonomie.
+**Version logicielle actuelle :** `0.1.0a12` — priorité chronologique absolue des échéances déterministes malgré la latence LLM.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;

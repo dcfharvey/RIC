@@ -52,6 +52,15 @@ class ActivityProvider:
         return CognitionDecision("no_action")
 
 
+class CountingProvider:
+    def __init__(self):
+        self.calls = 0
+
+    def decide(self, context):
+        self.calls += 1
+        return CognitionDecision("no_action")
+
+
 @pytest.fixture
 def setup():
     conn = connect_database(":memory:")
@@ -144,6 +153,34 @@ def test_runtime_preserves_idle_social_opportunity_before_autonomy_consumes_it(s
     assert report.social is not None and report.social.opened_scene_keys
     assert report.social.turn is not None
     assert ActivityEngine(conn).activity_sheet(world_id, "chuu")["type"] == "photography"
+
+
+def test_runtime_yields_to_determinism_when_social_latency_crosses_a_boundary(setup, monkeypatch):
+    """Aucune cognition n'est lancee apres qu'une scene a franchi une echeance."""
+    conn, world_id, clock = setup
+    limits = CognitionCallLimits(0, 3600, 100)
+    arrival = InitialArrivalCycle(conn, CognitionProvider(), clock=clock)
+    for _ in range(4):
+        arrival.tick(world_id, limits)
+    activities = ActivityEngine(conn, clock=clock)
+    activities.start_activity(
+        world_id, "chuu", "idle", "entree_exterieure", duration_seconds=600
+    )
+    activities.start_activity(
+        world_id, "erika", "idle", "entree_exterieure", duration_seconds=600
+    )
+
+    due_checks = iter((False, True))
+    monkeypatch.setattr(MVPRuntime, "_simulation_due", lambda _self, _target: next(due_checks))
+    cognition = CountingProvider()
+    report = MVPRuntime(
+        conn, world_id, cognition_provider=cognition,
+        scene_provider=SceneProvider(), limits=limits,
+    ).run_once()
+
+    assert report.social is not None
+    assert report.autonomy is None and report.cognition is None
+    assert cognition.calls == 0
 
 
 def test_runtime_rejects_half_configured_model_layer(setup):

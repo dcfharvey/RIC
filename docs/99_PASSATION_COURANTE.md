@@ -1,6 +1,6 @@
 # Passation courante — Vivarium social
 
-**Mise à jour :** 6 août 2026
+**Mise à jour :** 7 août 2026
 **But :** point d'entrée opérationnel pour une nouvelle instance de Codex.
 Lire ensuite `README.md`, `docs/00_DOSSIER_MAITRE_IA.md`, les documents de lot
 cités et le diff Git avant toute écriture.
@@ -21,11 +21,11 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 
 ## État vérifié
 
-- version logicielle : `0.1.0a11` (**MVP alpha, occasion sociale préservée avant autonomie**). Les numéros de documents
+- version logicielle : `0.1.0a12` (**MVP alpha, échéances déterministes protégées contre la latence LLM**). Les numéros de documents
   et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
 - gardien intégré au runtime : premier contrôle immédiat, puis toutes les
   3600 secondes et après chaque progression canonique; journal local
-  `logs/guardian.jsonl`; **719 tests** réussis ;
+  `logs/guardian.jsonl`; **721 tests** réussis ;
 - commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J

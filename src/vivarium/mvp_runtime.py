@@ -112,9 +112,24 @@ class MVPRuntime:
             social = SocialSceneCycle(self._conn, self._scene_provider).tick(
                 self.world_id, self._limits
             )
+            # L'attente d'une replique peut faire franchir une echeance du
+            # monde. On rend alors immediatement la main au determinisme au
+            # lieu de construire un contexte cognitif deja en retard.
+            if self._simulation_due(
+                WorldEngine(self._conn).read_canonical_time(self.world_id)
+            ):
+                return MVPRunReport(
+                    self.world_id, "active", simulation, arrival, None, None, social
+                )
             autonomy = AutonomyCycle(self._conn, self._cognition_provider).tick(
                 self.world_id, self._limits
             )
+            if self._simulation_due(
+                WorldEngine(self._conn).read_canonical_time(self.world_id)
+            ):
+                return MVPRunReport(
+                    self.world_id, "active", simulation, arrival, None, autonomy, social
+                )
             cognition = VivariumOrchestrator(
                 self._conn, self._cognition_provider
             ).tick(self.world_id, self._limits, max_events_per_character=1)

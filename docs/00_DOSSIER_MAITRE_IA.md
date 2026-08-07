@@ -321,4 +321,6 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
   `docs/67_REPONSE_TECHNIQUE_R_D_POST_RODAGE_0_1_0A10.md`.
 - Correctif d'arbitrage social `0.1.0a11` :
   `docs/68_CORRECTIF_ARBITRAGE_SOCIAL_0_1_0A11.md`.
+- Correctif de latence chronologique `0.1.0a12` :
+  `docs/69_CORRECTIF_LATENCE_CHRONOLOGIQUE_0_1_0A12.md`.
 - Sources historiques : `sources/01..05`.

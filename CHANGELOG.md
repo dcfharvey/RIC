@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0a12 — 7 août 2026
+
+- Correction d'un dépassement chronologique observé en rodage : la latence
+  d'un appel LLM ne peut plus laisser une action subjective franchir une fin
+  d'activité déterministe encore en attente.
+- Le runtime réévalue les échéances après chaque phase vivante potentiellement
+  lente et rend immédiatement la main au simulateur si l'une devient exigible.
+- Le contrat d'action refuse en dernier ressort toute proposition située à ou
+  après une échéance déterministe pendante, sans mutation partielle.
+- Deux régressions couvrent l'arbitrage interphase et la barrière
+  transactionnelle. Validation complète : **721 tests**.
+
 ## 0.1.0a11 — 7 août 2026
 
 - Correction d'une famine sociale découverte en rodage : l'autonomie ne peut

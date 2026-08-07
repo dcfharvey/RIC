@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -134,6 +134,29 @@ def test_contract_can_replace_idle_with_an_attributed_available_activity(setup):
         "proposal_id": "proposal_photo", "origin": "cognition"
     }
     assert ActivityEngine(conn).activity_sheet(world_id, "test_person")["type"] == "photography"
+
+
+def test_contract_refuses_action_past_a_pending_deterministic_boundary(setup):
+    """Une latence LLM ne peut pas faire sauter une fin d'activite."""
+    conn, world_id, clock = setup
+    WorldRuleService(conn, clock=clock).install_standard_residence_rules(world_id)
+    ActivityEngine(conn, clock=clock).start_activity(
+        world_id, "test_person", "idle", "entree_exterieure", duration_seconds=60
+    )
+    before = canonical_state_digest(conn, world_id)
+
+    result = ActionOrchestrator(conn, clock=clock).execute(
+        world_id,
+        IntentProposal.start_activity(
+            "proposal_too_late", "test_person", "photography", "entree_exterieure"
+        ),
+        effective_at=to_iso(T0 + timedelta(seconds=61)),
+    )
+
+    assert result.status == "refused"
+    assert result.reason_code == "deterministic_boundary_pending"
+    assert canonical_state_digest(conn, world_id) == before
+    assert ActivityEngine(conn).activity_sheet(world_id, "test_person")["type"] == "idle"
 
 
 def test_refused_activity_rolls_back_the_idle_abort(setup):
