@@ -115,3 +115,9 @@ Pour le banc vivant, l'audit a vérifié que la base est strictement en mémoire
 que la chaîne complète est exercée avec un fournisseur injectable, et que le
 mode dégradé garde un audit canonique propre. La suite complète a validé
 **642 tests**.
+
+Pour le tour social LLM, l'audit a vérifié que l'admission technique reste
+distincte d'une parole, qu'un retry d'acte ne rappelle pas le modèle, qu'une
+destinataire hors scène est refusée et qu'une participante ayant quitté le
+lieu ne peut plus produire de parole. Aucun texte n'est promu en fait,
+croyance, relation ou permission. La suite complète a validé **658 tests**.

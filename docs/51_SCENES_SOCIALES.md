@@ -16,11 +16,14 @@ Les actes et événements de scène sont append-only. Au redémarrage, les scèn
 encore actives sont clôturées `interrupted` sans inventer la réplique suivante,
 ce qui applique INV-021.
 
-Restent futurs : perception auditive des témoins, confidentialité spatiale,
-tour de parole LLM, effets de parole validés, scènes de groupe élaborées et
-résumés mémoire. La couche est néanmoins suffisante pour qu'un orchestrateur
-prépare et clôture une conversation sûre.
+Le premier tour de parole LLM est désormais livré par un contrat propre,
+une admission technique append-only et une validation de participante; voir
+`docs/55_TOUR_SOCIAL_LLM.md`. Restent futurs : perception auditive des témoins,
+confidentialité spatiale, effets de parole validés, scènes de groupe
+élaborées et résumés mémoire. La couche est néanmoins suffisante pour qu'un
+orchestrateur prépare et clôture une conversation sûre.
 
 **Preuve de sortie :** co-localisation, idempotence des actes, fermeture,
-interruption après service et refus d'une parole hors scène sont testés; suite
-complète : 638 tests réussis.
+interruption après service, refus d'une parole hors scène, d'une destinataire
+absente et d'une scène dont une participante a quitté le lieu sont testés;
+suite complète : 658 tests réussis.

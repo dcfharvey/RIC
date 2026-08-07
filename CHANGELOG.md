@@ -6,6 +6,10 @@
   sa base mémoire neuve, avec durée, décision, validation et erreur explicite.
   Il mesure la frontière sans créer d'histoire partagée ni fixer une cadence
   produit.
+- Ajout du premier tour de parole LLM dans une scène co-localisée : schéma
+  distinct, admission `scene_turn`, validation stricte et idempotence de
+  l'acte. Une parole reste une expression, jamais une vérité ou une
+  conséquence sociale automatique.
 
 ## 0.56 — 6 août 2026
 

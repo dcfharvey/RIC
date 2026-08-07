@@ -270,6 +270,53 @@ class CognitionProvider(Protocol):
     def decide(self, context: CognitionContext) -> CognitionDecision: ...
 
 
+def request_local_model(
+    settings: LocalLLMSettings, *, system_prompt: str, input_text: str
+) -> str:
+    """Exécute une requête native locale et retourne son unique message.
+
+    Les tâches cognitives possèdent des schémas distincts, mais elles doivent
+    partager cette frontière réseau : loopback seulement, raisonnement coupé,
+    budget borné et aucune conservation par le fournisseur.
+    """
+    settings = settings.validated(require_model=False)
+    if not settings.model_id:
+        raise CognitionError("modèle LLM non configuré", code="missing_llm_model")
+    body = {
+        "model": settings.model_id,
+        "system_prompt": system_prompt,
+        "input": input_text,
+        "temperature": 0.2,
+        "max_output_tokens": settings.max_tokens,
+        "reasoning": "off",
+        "store": False,
+    }
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    if settings.api_token:
+        headers["Authorization"] = f"Bearer {settings.api_token}"
+    request = Request(
+        settings.api_root + "/api/v1/chat",
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=settings.timeout_seconds) as response:  # endpoint validated loopback
+            raw = response.read().decode("utf-8")
+    except HTTPError as exc:
+        raise CognitionError(f"LM Studio a refusé la requête HTTP {exc.code}", code="llm_http_error") from exc
+    except (URLError, TimeoutError, OSError) as exc:
+        raise CognitionError("LM Studio est inaccessible", code="llm_unavailable") from exc
+    try:
+        output = json.loads(raw)["output"]
+        messages = [item["content"] for item in output if item.get("type") == "message"]
+        if len(messages) != 1 or not isinstance(messages[0], str):
+            raise TypeError("message absent ou ambigu")
+        return messages[0]
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise CognitionError("réponse LM Studio illisible", code="invalid_llm_response") from exc
+
+
 class LMStudioProvider:
     """Client de l'API native LM Studio, avec raisonnement explicitement coupé.
 
@@ -292,36 +339,13 @@ class LMStudioProvider:
         )
 
     def decide(self, context: CognitionContext) -> CognitionDecision:
-        if not self._settings.model_id:
-            raise CognitionError("modèle LLM non configuré", code="missing_llm_model")
-        body = {
-            "model": self._settings.model_id,
-            "system_prompt": "Tu proposes une seule action structurée, jamais un fait du monde.",
-            "input": self._prompt(context),
-            "temperature": 0.2,
-            "max_output_tokens": self._settings.max_tokens,
-            "reasoning": "off",
-            "store": False,
-        }
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        if self._settings.api_token:
-            headers["Authorization"] = f"Bearer {self._settings.api_token}"
-        request = Request(self._settings.api_root + "/api/v1/chat", data=json.dumps(body, ensure_ascii=False).encode("utf-8"), headers=headers, method="POST")
         try:
-            with urlopen(request, timeout=self._settings.timeout_seconds) as response:  # endpoint validated loopback
-                raw = response.read().decode("utf-8")
-        except HTTPError as exc:
-            raise CognitionError(f"LM Studio a refusé la requête HTTP {exc.code}", code="llm_http_error") from exc
-        except (URLError, TimeoutError, OSError) as exc:
-            raise CognitionError("LM Studio est inaccessible", code="llm_unavailable") from exc
-        try:
-            output = json.loads(raw)["output"]
-            messages = [item["content"] for item in output if item.get("type") == "message"]
-            if len(messages) != 1 or not isinstance(messages[0], str):
-                raise TypeError("message absent ou ambigu")
-            content = messages[0]
-            return CognitionDecision.parse(json.loads(content))
-        except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+            return CognitionDecision.parse(json.loads(request_local_model(
+                self._settings,
+                system_prompt="Tu proposes une seule action structurée, jamais un fait du monde.",
+                input_text=self._prompt(context),
+            )))
+        except json.JSONDecodeError as exc:
             raise CognitionError("réponse LM Studio illisible", code="invalid_llm_response") from exc
 
     def list_models(self) -> tuple[str, ...]:

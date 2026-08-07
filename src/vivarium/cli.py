@@ -232,6 +232,28 @@ def _run_llm_calibration(trials: int, character: str) -> int:
     return 0 if report.healthy else 1
 
 
+def _run_scene_smoke() -> int:
+    """Teste un tour de parole local réel dans une scène mémoire jetable."""
+    from .cognition import CognitionError, LocalLLMSettings
+    from .scene_turn import SceneTurnError
+    from .scene_turn_smoke import run_local_scene_turn_smoke
+
+    try:
+        settings = LocalLLMSettings.from_environment()
+        report = run_local_scene_turn_smoke(settings)
+    except (CognitionError, SceneTurnError, ValueError) as exc:
+        print(f"Essai de scène : {getattr(exc, 'code', 'invalid_request')} — {exc}", file=__import__('sys').stderr)
+        return 2
+    print(f"Essai de scène jetable — modèle : {report.model_id}")
+    print(f"  décision     : {report.decision or '-'}")
+    print(f"  acte          : {report.act_kind or '-'}")
+    print(f"  parole        : {report.content or '-'}")
+    detail = report.provider_error_code or report.validation_error_code or report.deferred_reason_code or "aucun"
+    print(f"  anomalie      : {detail}")
+    print(f"  sain          : {'oui' if report.healthy else 'non'} (base mémoire jetable)")
+    return 0 if report.healthy else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vivarium", description="Vivarium social artificiel")
     sub = parser.add_subparsers(dest="command")
@@ -263,6 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     p_calibration = sub.add_parser("llm-calibrate", help="Répète un tour LLM jetable pour mesurer le contrat et la latence.")
     p_calibration.add_argument("--trials", type=int, default=3, help="Nombre d'essais isolés (1 à 20, défaut : 3).")
     p_calibration.add_argument("--character", default="sophie", help="Résidente à utiliser (défaut : sophie).")
+    sub.add_parser("scene-smoke", help="Teste un tour de parole LLM dans une scène mémoire jetable.")
 
     args = parser.parse_args(argv)
 
@@ -282,6 +305,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_living_bench(args.max_ticks, args.verbose)
     if args.command == "llm-calibrate":
         return _run_llm_calibration(args.trials, args.character)
+    if args.command == "scene-smoke":
+        return _run_scene_smoke()
 
     db_path = _resolve_db_path(getattr(args, "db", None))
     conn = connect_database(db_path)

@@ -15,7 +15,7 @@
 | F-04 | Permettre aux personnages de proposer des intentions selon leur état subjectif. | partiel (politique déterministe ; subjectivité future) |
 | F-05 | Valider toute intention par le moteur avant modification du monde. | implémenté (moteur seul autorité) |
 | F-06 | Distinguer événement canonique, perception, interprétation, croyance et souvenir. | partiel (événement, perception, trace/souvenir et croyance sourcée séparés; interprétation et reconstruction futurs) |
-| F-07 | Gérer conversations privées, de groupe, avec le propriétaire et avec le technicien. | partiel (scène et actes de parole structurés/co-localisés; confidentialité, propriétaire et technicien futurs) |
+| F-07 | Gérer conversations privées, de groupe, avec le propriétaire et avec le technicien. | partiel (scène co-localisée, actes structurés et premier tour LLM validé; confidentialité, propriétaire, groupe et technicien futurs) |
 | F-08 | Permettre au propriétaire d’observer, interagir, se manifester, régir et administrer. | partiel (observation, commandes simples et premier pipeline de changement non sensible; manifestation et administration profonde futures) |
 | F-09 | Condenser les routines banales et développer les scènes significatives. | futur |
 | F-10 | Produire notifications, résumés périodiques, rapports de coût et alertes. | futur |

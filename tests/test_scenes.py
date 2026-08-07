@@ -28,3 +28,12 @@ def test_restart_interrupts_scene_without_inventing_next_speech(setup):
  s.open(w,'interrupted',['sophie','erika']);s.speak(w,'interrupted','ask','sophie',act_kind='ask',content='Ça va?')
  assert s.interrupt_active(w)==1
  sheet=s.sheet(w,'interrupted');assert sheet['status']=='interrupted' and len(sheet['acts'])==1 and sheet['close_reason']=='service_restart'
+
+
+def test_scene_refuses_new_speech_when_a_participant_left_the_scene_location(setup):
+ c,w,s=setup
+ TraversalEngine(c).traverse_character(w,'sophie','porte_entree','salon');TraversalEngine(c).traverse_character(w,'erika','porte_entree','salon')
+ s.open(w,'left_scene',['sophie','erika'])
+ TraversalEngine(c).traverse_character(w,'erika','porte_entree','entree_exterieure')
+ with pytest.raises(SceneError) as err:s.speak(w,'left_scene','late','sophie',act_kind='inform',content='Tu es partie.')
+ assert err.value.code=='scene_participants_not_colocated'

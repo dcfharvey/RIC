@@ -59,6 +59,8 @@ class SocialSceneService:
    if scene['status']!='active':raise SceneError('scène fermée',code='scene_not_active')
    ids={row['character_id'] for row in c.execute('SELECT character_id FROM social_scene_participant WHERE scene_id=?',(scene['id'],)).fetchall()}
    if speaker['id'] not in ids or (recipient is not None and recipient['id'] not in ids):raise SceneError('locutrice ou destinataire hors scène',code='speech_participant_not_in_scene')
+   current_ids={row['id'] for row in c.execute('SELECT id FROM character WHERE id IN (SELECT character_id FROM social_scene_participant WHERE scene_id=?) AND current_location_id=?',(scene['id'],scene['location_id'])).fetchall()}
+   if current_ids!=ids:raise SceneError('participantes de scène non co-localisées',code='scene_participants_not_colocated')
    existing=c.execute('SELECT * FROM social_speech_act WHERE scene_id=? AND act_key=?',(scene['id'],act_key)).fetchone()
    if existing is not None:return self._act_sheet(existing)
    cur=c.execute('INSERT INTO social_speech_act (public_id,scene_id,speaker_character_id,recipient_character_id,act_key,act_kind,content_text,payload_json,spoken_at) VALUES (?,?,?,?,?,?,?,?,?)',(new_uuid(),scene['id'],speaker['id'],None if recipient is None else recipient['id'],act_key,act_kind,content,_json(payload),now))
@@ -86,3 +88,22 @@ class SocialSceneService:
   participants=tuple(row['key'] for row in self._conn.execute('SELECT ch.key FROM social_scene_participant p JOIN character ch ON ch.id=p.character_id WHERE p.scene_id=? ORDER BY p.id',(scene['id'],)).fetchall())
   acts=tuple(self._act_sheet(row) for row in self._conn.execute('SELECT * FROM social_speech_act WHERE scene_id=? ORDER BY id',(scene['id'],)).fetchall())
   return {'scene_key':scene['scene_key'],'status':scene['status'],'participants':participants,'acts':acts,'close_reason':scene['close_reason']}
+ def turn_context(self,wid:Any,scene_key:Any,speaker_key:Any,*,recent_limit:int=8)->dict[str,Any]:
+  """Expose seulement le cadre d'une scène active à sa participante."""
+  if not isinstance(wid,int) or isinstance(wid,bool) or wid<1:raise SceneError('monde invalide',code='invalid_scene')
+  scene_key,speaker_key=_key(scene_key,'scène'),_key(speaker_key,'locutrice')
+  if not isinstance(recent_limit,int) or isinstance(recent_limit,bool) or not 1<=recent_limit<=20:raise SceneError('limite de tours invalide',code='invalid_scene')
+  scene=self._scene(wid,scene_key)
+  if scene['status']!='active':raise SceneError('scène fermée',code='scene_not_active')
+  rows=self._conn.execute('SELECT ch.id,ch.key,ch.name,ch.current_location_id FROM social_scene_participant p JOIN character ch ON ch.id=p.character_id WHERE p.scene_id=? ORDER BY p.id',(scene['id'],)).fetchall()
+  if not any(row['key']==speaker_key for row in rows):raise SceneError('locutrice hors scène',code='speech_participant_not_in_scene')
+  if any(row['current_location_id']!=scene['location_id'] for row in rows):raise SceneError('participantes de scène non co-localisées',code='scene_participants_not_colocated')
+  acts=self._conn.execute('SELECT a.act_key,a.act_kind,a.content_text,sp.key AS speaker_key,rp.key AS recipient_key FROM social_speech_act a JOIN character sp ON sp.id=a.speaker_character_id LEFT JOIN character rp ON rp.id=a.recipient_character_id WHERE a.scene_id=? ORDER BY a.id DESC LIMIT ?',(scene['id'],recent_limit)).fetchall()
+  return {'scene_key':scene_key,'speaker_key':speaker_key,'participants':tuple({'key':row['key'],'name':row['name']} for row in rows),'recent_acts':tuple({'act_key':row['act_key'],'act_kind':row['act_kind'],'content':row['content_text'],'speaker_key':row['speaker_key'],'recipient_key':row['recipient_key']} for row in reversed(acts))}
+ def existing_act(self,wid:Any,scene_key:Any,act_key:Any)->dict[str,Any]|None:
+  """Lecture idempotente d'un acte précédemment accepté, sans en créer."""
+  if not isinstance(wid,int) or isinstance(wid,bool) or wid<1:raise SceneError('monde invalide',code='invalid_scene')
+  scene=self._scene(wid,_key(scene_key,'scène'));act_key=_key(act_key,'acte')
+  row=self._conn.execute('SELECT a.*,sp.key AS speaker_key,rp.key AS recipient_key FROM social_speech_act a JOIN character sp ON sp.id=a.speaker_character_id LEFT JOIN character rp ON rp.id=a.recipient_character_id WHERE a.scene_id=? AND a.act_key=?',(scene['id'],act_key)).fetchone()
+  if row is None:return None
+  sheet=self._act_sheet(row);sheet['speaker_key']=row['speaker_key'];sheet['recipient_key']=row['recipient_key'];return sheet

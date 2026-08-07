@@ -96,3 +96,14 @@ def test_cli_llm_calibrate_reports_a_healthy_ephemeral_series(monkeypatch, capsy
     assert main(["llm-calibrate", "--trials", "1"]) == 0
     output = capsys.readouterr().out
     assert "Calibration LLM jetable" in output and "Médiane : 12 ms" in output
+
+
+def test_cli_scene_smoke_reports_a_healthy_ephemeral_turn(monkeypatch, capsys):
+    class Report:
+        model_id = "gemma-local"; decision = "speak"; act_kind = "greet"; content = "Salut."
+        provider_error_code = None; validation_error_code = None; deferred_reason_code = None; healthy = True
+
+    monkeypatch.setattr("vivarium.scene_turn_smoke.run_local_scene_turn_smoke", lambda settings: Report())
+    assert main(["scene-smoke"]) == 0
+    output = capsys.readouterr().out
+    assert "Essai de scène jetable" in output and "parole        : Salut." in output

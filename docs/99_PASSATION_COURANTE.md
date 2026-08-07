@@ -62,6 +62,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après banc vivant jetable : **642 passed** ;
 - test complet après console d'observation du banc vivant : **643 passed** ;
 - test complet après banc de calibration locale LLM : **650 passed** ;
+- test complet après premier tour social LLM : **658 passed** ;
 - test complet après frontière LLM locale et banc de fumée : **592 passed** ;
 - test complet après politique pure d'admissibilité des appels LLM :
   **599 passed** ;
@@ -117,6 +118,10 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   base mémoire et d'une horloge identiques, puis rapporte durée, contrat,
   décision, validation et panne explicite. Voir
   `docs/54_CALIBRATION_LOCALE_LLM.md`.
+- premier tour social LLM livré : scène active et co-localisée, contexte
+  subjectif borné, admission `scene_turn`, schéma de parole distinct,
+  validation de destinataire et idempotence. Le texte ne produit encore aucun
+  effet social automatique. Voir `docs/55_TOUR_SOCIAL_LLM.md`.
 - première projection de candidats de motifs physiologiques livrée; pression,
   urgence, importance et actions possibles sont bornées par le contexte
   déterministe, sans inventer plaisir, coût ou personnalité. Voir

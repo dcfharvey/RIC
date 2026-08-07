@@ -65,11 +65,14 @@ tests et documentation après un lot à conséquences étendues.
 - premier orchestrateur : livré pour les événements directs perceptibles,
   avec snapshot borné, curseur persistant et dégradation LLM; déclencheurs de
   scènes, intentions et réflexion restent futurs ;
+- premier tour social LLM : livré pour une scène active et co-localisée,
+  avec admission technique, schéma propre, validation de destinataire et acte
+  append-only; sa sélection automatique par l'orchestrateur reste future ;
 - banc vivant jetable : livré avec fournisseur faux normal et indisponible;
   l'essai contrôlé avec Gemma local a validé le chemin réel, et un banc de
   calibration répété est maintenant disponible sans fixer de cadence produit;
-  le tour social LLM reste le prochain contrat à livrer avant toute activation
-  d’un monde MVP persistant ;
+  avant toute activation d’un monde MVP persistant, il reste à raccorder les
+  déclencheurs sociaux, les options d'action et leurs conséquences validées ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
 
 ## Jalons de version produit
