@@ -18,6 +18,11 @@
 
 ## 1. Statut du document
 
+Le dossier de contre-audit R&D consolidé de l'alpha actuelle est
+`docs/64_DOSSIER_CONTRE_AUDIT_R_D_0_1_0A9.md`. Il décrit les choix réellement
+implantés et formule les questions scientifiques à soumettre à ChatGPT; il ne
+remplace pas les invariants du présent dossier maître.
+
 Deux catégories de classification sont distinguées et ne doivent pas être confondues.
 
 ### Nature du contenu

@@ -241,6 +241,11 @@ enregistrée; pause/reprise et le panneau de scène ont répondu.
 
 ## Prochaine action recommandée
 
+Le contre-audit scientifique et fonctionnel de l'alpha `0.1.0a9` est préparé
+dans `docs/64_DOSSIER_CONTRE_AUDIT_R_D_0_1_0A9.md`. Il doit être transmis à
+l'instance ChatGPT chargée de la R&D avant de choisir le premier gros lot
+post-rodage; sa réponse reste une proposition jusqu'à audit Codex.
+
 L'alpha est livré. La prochaine étape n'est pas une nouvelle grosse couche :
 faire tourner quelques sessions observées, conserver les bases qui comptent,
 et classer les défauts ou frictions mesurés avant de choisir le lot de bêta.
