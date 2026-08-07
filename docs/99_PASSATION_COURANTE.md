@@ -21,11 +21,11 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 
 ## État vérifié
 
-- version logicielle : `0.1.0a10` (**MVP alpha, contre-audit aligné et télémétrie locale de rodage**). Les numéros de documents
+- version logicielle : `0.1.0a11` (**MVP alpha, occasion sociale préservée avant autonomie**). Les numéros de documents
   et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
 - gardien intégré au runtime : premier contrôle immédiat, puis toutes les
   3600 secondes et après chaque progression canonique; journal local
-  `logs/guardian.jsonl`; **718 tests** réussis ;
+  `logs/guardian.jsonl`; **719 tests** réussis ;
 - commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
   signifie que cette passation décrit l'état de `HEAD` ;
 - derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J

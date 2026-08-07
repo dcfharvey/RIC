@@ -3,12 +3,16 @@ from datetime import datetime, timezone
 import pytest
 
 from vivarium.character import CharacterEngine
+from vivarium.activities import ActivityEngine
+from vivarium.arrival_cycle import InitialArrivalCycle
 from vivarium.cognition import CognitionDecision
+from vivarium.cognition_policy import CognitionCallLimits
 from vivarium.connectors import WorldConnectorService
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
 from vivarium.mvp_runtime import MVPRuntime, MVPRuntimeError
+from vivarium.scenes import SocialSceneService
 from vivarium.scene_turn import SceneTurnDecision
 from vivarium.simulation import SimulationEngine
 from vivarium.traversal import TraversalEngine
@@ -39,6 +43,13 @@ class ArrivalTraversalProvider:
 class SceneProvider:
     def decide(self, context):
         return SceneTurnDecision("no_action")
+
+
+class ActivityProvider:
+    def decide(self, context):
+        if context.character_key == "chuu":
+            return CognitionDecision("start_activity", None, "entree_exterieure", "photography")
+        return CognitionDecision("no_action")
 
 
 @pytest.fixture
@@ -104,6 +115,35 @@ def test_runtime_can_open_and_process_a_bounded_social_scene(setup):
     assert report.social is not None
     assert report.social.opened_scene_keys
     assert report.social.turn is not None
+
+
+def test_runtime_preserves_idle_social_opportunity_before_autonomy_consumes_it(setup):
+    """Régression vivante : le social observe l'idle avant son remplacement."""
+    conn, world_id, clock = setup
+    limits = CognitionCallLimits(0, 3600, 100)
+    arrival = InitialArrivalCycle(conn, CognitionProvider(), clock=clock)
+    for _ in range(4):
+        arrival.tick(world_id, limits)
+
+    scenes = SocialSceneService(conn, clock=clock)
+    scenes.open(world_id, "prior_scene", ("chuu", "erika"))
+    scenes.close(world_id, "prior_scene", reason="test_closed")
+    activities = ActivityEngine(conn, clock=clock)
+    activities.start_activity(
+        world_id, "chuu", "idle", "entree_exterieure", duration_seconds=600
+    )
+    activities.start_activity(
+        world_id, "erika", "idle", "entree_exterieure", duration_seconds=600
+    )
+
+    report = MVPRuntime(
+        conn, world_id, cognition_provider=ActivityProvider(),
+        scene_provider=SceneProvider(), limits=limits,
+    ).run_once()
+
+    assert report.social is not None and report.social.opened_scene_keys
+    assert report.social.turn is not None
+    assert ActivityEngine(conn).activity_sheet(world_id, "chuu")["type"] == "photography"
 
 
 def test_runtime_rejects_half_configured_model_layer(setup):

@@ -105,15 +105,19 @@ class MVPRuntime:
         autonomy = None
         social = None
         if self._cognition_provider is not None and self._scene_provider is not None:
+            # Une nouvelle attente commune est une occasion sociale factuelle.
+            # Elle doit être observée avant que l'autonomie puisse remplacer
+            # l'`idle` qui la source; sinon une décision d'activité valide
+            # efface systématiquement l'occasion avant sa découverte.
+            social = SocialSceneCycle(self._conn, self._scene_provider).tick(
+                self.world_id, self._limits
+            )
             autonomy = AutonomyCycle(self._conn, self._cognition_provider).tick(
                 self.world_id, self._limits
             )
             cognition = VivariumOrchestrator(
                 self._conn, self._cognition_provider
             ).tick(self.world_id, self._limits, max_events_per_character=1)
-            social = SocialSceneCycle(self._conn, self._scene_provider).tick(
-                self.world_id, self._limits
-            )
         return MVPRunReport(self.world_id, "active", simulation, arrival, cognition, autonomy, social)
 
     def _simulation_due(self, target_time: str) -> bool:

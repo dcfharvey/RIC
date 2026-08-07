@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0a11 — 7 août 2026
+
+- Correction d'une famine sociale découverte en rodage : l'autonomie ne peut
+  plus consommer une nouvelle attente commune avant que le cycle social ait eu
+  la possibilité de l'observer.
+- L'ordre du runtime devient déterminisme, social, autonomie puis événements
+  directs. La scène reste issue d'un `idle` canonique unique; aucune minuterie
+  conversationnelle ni parole forcée n'est ajoutée.
+- Régression couverte : une scène est ouverte avant le remplacement atomique de
+  l'`idle`, et l'activité choisie demeure ensuite applicable.
+- Validation complète : **719 tests**.
+
 ## 0.1.0a10 — 7 août 2026
 
 - Contre-audit scientifique `0.1.0a9` archivé et traduit en matrice d'écarts
