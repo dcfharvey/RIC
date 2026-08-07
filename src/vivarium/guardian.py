@@ -73,9 +73,21 @@ class LocalGuardian:
         self._interval_seconds = interval_seconds
         self._clock = clock or Clock()
         self._next_check_at = None
+        self._last_event_seq: int | None = None
+
+    def _event_seq(self) -> int:
+        row = self._conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) FROM canonical_event WHERE world_id = ?",
+            (self._world_id,),
+        ).fetchone()
+        return int(row[0])
 
     def due(self) -> bool:
-        return self._next_check_at is None or self._clock.now() >= self._next_check_at
+        return (
+            self._next_check_at is None
+            or self._clock.now() >= self._next_check_at
+            or self._event_seq() != self._last_event_seq
+        )
 
     def inspect(self) -> GuardianReport:
         checked_at = self._clock.now_iso()
@@ -136,6 +148,7 @@ class LocalGuardian:
         status = "CRITIQUE" if "critical" in levels else "ATTENTION" if "attention" in levels else "SAIN"
         report = GuardianReport(checked_at, self._world_id, status, tuple(checks))
         self._append(report)
+        self._last_event_seq = self._event_seq()
         self._next_check_at = self._clock.now() + timedelta(seconds=self._interval_seconds)
         return report
 

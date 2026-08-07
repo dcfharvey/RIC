@@ -10,6 +10,7 @@ from vivarium.db import connect_database
 from vivarium.migrations import ensure_schema
 from vivarium.needs import NeedsEngine
 from vivarium.policy import MAX_IDLE
+from vivarium.repro import structural_event_audit
 from vivarium.simulation import SimulationEngine, SimulationLimitError
 from vivarium.util import parse_iso, to_iso
 from vivarium.world import WorldEngine
@@ -85,6 +86,18 @@ def test_simulation_24h():
         "SELECT COUNT(*) FROM activity WHERE world_id = ? AND status='active'", (wid,)
     ).fetchone()[0]
     assert active <= 4
+    conn.close()
+
+
+def test_run_to_never_moves_back_to_a_wall_target_captured_one_millisecond_earlier():
+    conn, clock, wid = _world()
+    captured = clock.now_iso()
+    clock._now += timedelta(milliseconds=1)
+    report = SimulationEngine(conn, clock=clock).run_to(wid, captured)
+    assert report.target_time == clock.now_iso()
+    assert structural_event_audit(conn, wid)["occurred_at_monotonic"] is True
+    for row in conn.execute("SELECT anchor_at FROM need_state WHERE world_id = ?", (wid,)):
+        assert parse_iso(row["anchor_at"]) >= T0
     conn.close()
 
 

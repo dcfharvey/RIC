@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.0a9 — 7 août 2026
+
+- La planification d'un retry cognitif invalide est désormais figée à l'instant
+  d'admission précédant l'appel LLM, jamais à l'heure murale suivant sa latence.
+- Régression vivante couverte : une réponse invalide lente ne peut plus placer
+  le retry après une échéance canonique déjà pendante.
+- Le gardien `0.1.0a8` a détecté cette anomalie en exploitation et arrêté le
+  runtime avant le contrôle suivant, sans réparation silencieuse.
+- `SimulationEngine.run_to` borne maintenant toute cible murale déjà dépassée
+  à l'instant canonique courant, empêchant un recul d'une milliseconde pendant
+  l'initialisation des activités.
+- Le gardien conserve son bilan horaire et réaudite aussi immédiatement après
+  toute progression du numéro d'événement canonique.
+
 ## 0.1.0a8 — 7 août 2026
 
 - Gardien local intégré au runtime : contrôle immédiat, puis horaire par défaut,

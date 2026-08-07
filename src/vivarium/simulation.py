@@ -254,7 +254,11 @@ class SimulationEngine:
         fallback: dict[str, tuple] = {}
         current = self._world().read_canonical_time(world_id)
         last_time = current
-        target = parse_iso(target_time)
+        # Une cible murale capturée par l'appelant peut déjà être antérieure de
+        # quelques millisecondes lorsque la boucle entre ici. Le simulateur ne
+        # doit jamais matérialiser derrière son propre instant canonique.
+        target = max(parse_iso(target_time), parse_iso(current))
+        target_time = to_iso(target)
 
         # décision initiale de chaque personnage
         for char in chars:

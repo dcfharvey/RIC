@@ -7,6 +7,7 @@ from vivarium.guardian import LocalGuardian
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
 from vivarium.util import to_iso
+from vivarium.world import WorldEngine
 
 
 class Clock:
@@ -53,6 +54,17 @@ def test_guardian_is_hourly_logged_and_non_generative(tmp_path):
     assert models.calls == 2
     lines = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
     assert [line["status"] for line in lines] == ["SAIN", "SAIN"]
+    conn.close()
+
+
+def test_guardian_rechecks_immediately_after_a_canonical_event(tmp_path):
+    clock = Clock()
+    conn, world_id = _world(clock)
+    guardian = LocalGuardian(conn, world_id, log_path=tmp_path / "guardian.jsonl", clock=clock)
+    assert guardian.run_if_due() is not None
+    assert guardian.run_if_due() is None
+    WorldEngine(conn, clock=clock).rename_world(world_id, "Événement surveillé")
+    assert guardian.run_if_due() is not None
     conn.close()
 
 

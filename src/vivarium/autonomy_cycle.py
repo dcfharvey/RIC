@@ -81,20 +81,26 @@ class AutonomyCycle:
                     break
         return tuple(candidates)
 
-    def _schedule_retry(self, world_id: int, character_key: str, event_seq: int) -> None:
+    def _schedule_retry(
+        self,
+        world_id: int,
+        character_key: str,
+        event_seq: int,
+        *,
+        effective_at: str,
+    ) -> None:
         """Remplace l'idle courant par une fenêtre de retry bornée et traçable."""
         activities = ActivityEngine(self._conn, clock=self._clock)
         active = activities.activity_sheet(world_id, character_key)
         if active is None or active["type"] != "idle":
             return
-        now = WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
-        activities.abort_activity(world_id, character_key, sim_now=now)
+        activities.abort_activity(world_id, character_key, sim_now=effective_at)
         activities.start_activity(
             world_id,
             character_key,
             "idle",
             active["location_key"],
-            sim_now=now,
+            sim_now=effective_at,
             duration_seconds=RETRY_IDLE_SECONDS,
             action_provenance={
                 "proposal_id": f"retry_{character_key}_{event_seq}",
@@ -127,7 +133,13 @@ class AutonomyCycle:
                 return AutonomyOutcome(character_key, event_seq, None, exc.code)
             outcome = AutonomyOutcome(character_key, event_seq, routed, routed.provider_error_code)
             if routed.provider_error_code is not None:
-                self._schedule_retry(world_id, character_key, event_seq)
+                assert routed.admission.admitted_at is not None
+                self._schedule_retry(
+                    world_id,
+                    character_key,
+                    event_seq,
+                    effective_at=routed.admission.admitted_at,
+                )
             if routed.attempted:
                 return outcome
             # Un budget ou debounce individuel ne doit pas affamer les autres

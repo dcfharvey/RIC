@@ -154,3 +154,16 @@ contexte et refuse toute proposition dont le numéro d'événement observé est
 devenu périmé. Un test fait avancer une horloge de dix secondes pendant une
 inférence face à une échéance à cinq secondes; l'audit reste monotone. La suite
 complète a validé **706 tests**.
+
+Le gardien permanent `0.1.0a8` a ensuite détecté en rodage nocturne une seconde
+voie de la même famille : après une réponse LLM invalide, la fenêtre de retry
+était datée après l'inférence plutôt qu'à son admission. Elle a précédé dans le
+journal une échéance pourtant antérieure de 811 ms. Le runtime s'est arrêté
+protectivement au contrôle horaire, sans écriture compensatoire. Le correctif
+`0.1.0a9` transmet l'instant d'admission append-only au réarmement; le test de
+régression fait maintenant avancer l'horloge pendant la réponse invalide.
+Au redémarrage suivant, un contrôle manuel postérieur au premier bilan du
+gardien a révélé un recul distinct de 1 ms : la cible murale avait été capturée
+juste avant que `run_to` relise l'instant canonique. La cible effective est
+désormais le maximum des deux instants. Le gardien réaudite également après
+chaque nouvelle séquence canonique, en plus de son contrôle horaire.

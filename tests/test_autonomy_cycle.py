@@ -90,6 +90,7 @@ def test_invalid_llm_response_is_retried_after_a_bounded_delay():
             def decide(self, context):
                 self.calls += 1
                 if self.calls == 1:
+                    clock.advance(20)
                     return {"not": "a CognitionDecision"}
                 return CognitionDecision("start_activity", None, "salon", "socialize")
 
@@ -101,6 +102,7 @@ def test_invalid_llm_response_is_retried_after_a_bounded_delay():
         assert first.detail_code == "invalid_llm_response"
         retry_idle = ActivityEngine(conn).activity_sheet(world_id, "luna")
         assert retry_idle["type"] == "idle"
+        assert retry_idle["started_at"] == first.routed.admission.admitted_at
         assert provider.calls == 1
 
         assert cycle.tick(world_id, limits).character_key is None
