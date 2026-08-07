@@ -290,6 +290,9 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
 - **v1.11** (6 août 2026) : `0.1.0a5`, première boucle d'activités autonomes
   déclenchée par un nouvel `idle`, options canoniques et contrat d'action v2;
   voir `docs/62_ACTIVITES_AUTONOMES_0_1_0A5.md`.
+- **v1.12** (6 août 2026) : `0.1.0a6`, instant d'observation figé pour les
+  actions LLM et refus optimiste des contextes concurrents; voir
+  `docs/63_CORRECTIF_TEMPS_LLM_0_1_0A6.md`.
 
 ## 24. Annexes et références
 

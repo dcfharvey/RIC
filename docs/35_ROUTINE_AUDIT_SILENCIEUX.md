@@ -143,3 +143,14 @@ d'idempotence couvre désormais tous les événements attribués. Enfin, Patoune
 capacité sapiente est maintenant projetée par une lecture commune. Le rollback
 du remplacement d'idle, le prévol après essai réel et la suite complète ont
 validé **704 tests**.
+
+Le premier rodage prolongé de `0.1.0a5` a révélé une régression que les tests
+à horloge fixe ne pouvaient pas voir : pendant l'inférence Gemma, l'heure
+dérivée continuait d'avancer. Une action était alors inscrite après une
+échéance plus ancienne qui n'était traitée qu'au tick suivant. L'état courant,
+les besoins et les clés étrangères demeuraient cohérents, mais
+`occurred_at_monotonic` échouait. Le correctif `0.1.0a6` fige l'instant du
+contexte et refuse toute proposition dont le numéro d'événement observé est
+devenu périmé. Un test fait avancer une horloge de dix secondes pendant une
+inférence face à une échéance à cinq secondes; l'audit reste monotone. La suite
+complète a validé **706 tests**.

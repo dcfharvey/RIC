@@ -21,7 +21,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 
 ## État vérifié
 
-- version logicielle : `0.1.0a5` (**MVP alpha, activités autonomes événementielles**). Les numéros de documents
+- version logicielle : `0.1.0a6` (**MVP alpha, cohérence temporelle des décisions LLM**). Les numéros de documents
   et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
 - commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
   signifie que cette passation décrit l'état de `HEAD` ;
@@ -80,6 +80,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après valeurs et préférences initiales : **618 passed** ;
 - test complet après objectifs et intentions persistantes : **620 passed** ;
 - test complet après activités autonomes événementielles : **704 passed** ;
+- test complet après correction de la latence temporelle LLM : **706 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Correctif alpha 0.1.0a2

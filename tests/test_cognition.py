@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 
 import pytest
@@ -11,12 +11,23 @@ from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
 from vivarium.repro import canonical_state_digest, max_seq
+from vivarium.repro import structural_event_audit
+from vivarium.activities import ActivityEngine
+from vivarium.simulation import SimulationEngine
+from vivarium.world import WorldEngine
 from vivarium.util import to_iso
 
 
 class Clock:
     def now(self): return datetime(2026, 8, 6, 12, tzinfo=timezone.utc)
     def now_iso(self): return to_iso(self.now())
+
+
+class AdvancingClock:
+    def __init__(self): self.current = datetime(2026, 8, 6, 12, tzinfo=timezone.utc)
+    def now(self): return self.current
+    def now_iso(self): return to_iso(self.current)
+    def advance(self, seconds): self.current += timedelta(seconds=seconds)
 
 
 class Provider:
@@ -170,3 +181,68 @@ def test_lm_studio_adapts_only_an_exact_available_activity_shorthand(monkeypatch
     assert decision == CognitionDecision(
         "start_activity", None, "entree_exterieure", "photography"
     )
+
+
+def test_llm_latency_cannot_put_an_action_after_a_still_pending_boundary():
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    clock = AdvancingClock()
+    wid = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
+    activities = ActivityEngine(conn, clock=clock)
+    for character in ("chuu", "luna", "patoune", "sophie"):
+        activities.start_activity(
+            wid, character, "idle", "entree_exterieure", duration_seconds=600
+        )
+    activities.start_activity(wid, "erika", "idle", "entree_exterieure", duration_seconds=5)
+
+    class SlowProvider:
+        def decide(self, context):
+            clock.advance(10)
+            return CognitionDecision(
+                "start_activity", None, "entree_exterieure", "photography"
+            )
+
+    turn = CognitionTurnService(conn, SlowProvider(), clock=clock).run(
+        wid, "sophie", "slow_photo", decision_cue={"trigger": "planned_reflection"}
+    )
+    assert turn.validation is not None and turn.validation.status == "accepted"
+    event = conn.execute(
+        "SELECT occurred_at FROM canonical_event WHERE world_id = ? "
+        "AND json_extract(payload, '$.action_provenance.proposal_id') = 'slow_photo'",
+        (wid,),
+    ).fetchone()
+    assert event["occurred_at"] == turn.context.observed_at
+
+    # Le temps de calcul du modèle n'est pas du temps vécu. Une fois dix
+    # secondes simulées réellement écoulées, l'échéance Erika à +5 s peut être
+    # traitée après l'action Sophie sans retour en arrière dans le journal.
+    clock.advance(10)
+    SimulationEngine(conn, clock=clock).run_to(wid, WorldEngine(conn, clock=clock).read_canonical_time(wid))
+    assert structural_event_audit(conn, wid)["occurred_at_monotonic"] is True
+    conn.close()
+
+
+def test_canonical_change_during_llm_call_refuses_the_stale_decision():
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    clock = AdvancingClock()
+    wid = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
+    ActivityEngine(conn, clock=clock).start_activity(
+        wid, "sophie", "idle", "entree_exterieure", duration_seconds=600
+    )
+
+    class ConcurrentProvider:
+        def decide(self, context):
+            WorldEngine(conn, clock=clock).rename_world(wid, "Modification concurrente")
+            return CognitionDecision(
+                "start_activity", None, "entree_exterieure", "photography"
+            )
+
+    turn = CognitionTurnService(conn, ConcurrentProvider(), clock=clock).run(
+        wid, "sophie", "stale_photo", decision_cue={"trigger": "planned_reflection"}
+    )
+    assert turn.validation is not None
+    assert turn.validation.status == "refused"
+    assert turn.validation.reason_code == "stale_decision_context"
+    assert ActivityEngine(conn).activity_sheet(wid, "sophie")["type"] == "idle"
+    conn.close()

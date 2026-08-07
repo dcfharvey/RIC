@@ -25,7 +25,7 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a5` — première sélection autonome d'activités, événementielle et validée.
+**Version logicielle actuelle :** `0.1.0a6` — instant de décision LLM figé et concurrence refusée.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
@@ -93,6 +93,7 @@ tests et documentation après un lot à conséquences étendues.
 | `0.1.0a3` | Atteint | Cadence runtime sans écritures intermédiaires, rencontre unique pendant une attente commune et filtre de lecture du bruit de journal. |
 | `0.1.0a4` | Atteint | Le runtime ne transmet plus de plafond de sortie à LM Studio; le modèle suit sa configuration locale. |
 | `0.1.0a5` | Atteint | Un nouvel `idle` ouvre une décision autonome unique parmi des activités canoniquement disponibles; le moteur exécute ou refuse atomiquement. |
+| `0.1.0a6` | Atteint | La latence LLM ne peut plus désordonner le journal; une proposition issue d'un contexte devenu périmé est refusée sans écriture. |
 | `0.1.0b1` | Après essais prolongés | Bêta : le MVP tourne durablement; les défauts restants sont recherchés par observation réelle. |
 | `1.0.0` | Lancement | Usage normal et persistance suffisamment fiables pour que l'histoire compte durablement. |
 

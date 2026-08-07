@@ -537,6 +537,9 @@ class CognitionTurnService:
                 proposal_id, context.character_key, decision.activity_type, decision.target_location_key
             )
         validation = ActionOrchestrator(self._conn, clock=self._clock).execute(
-            context.world_id, proposal,
+            context.world_id,
+            proposal,
+            effective_at=context.observed_at,
+            expected_event_seq=context.latest_event_seq,
         )
         return CognitionTurnResult(context, decision, validation)

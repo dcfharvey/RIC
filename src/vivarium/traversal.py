@@ -95,6 +95,7 @@ class TraversalEngine:
         target_key: Any,
         *,
         action_provenance: dict[str, str] | None = None,
+        sim_now: str | None = None,
     ) -> dict[str, Any]:
         """Franchit un connecteur réel ou annule entièrement la tentative."""
         world_id = self._world_id(world_id)
@@ -107,6 +108,7 @@ class TraversalEngine:
                 result = CharacterEngine(conn, clock=self._clock)._move(
                     conn, world_id, character_key, target_key, connector_key=connector_key,
                     action_provenance=action_provenance,
+                    sim_now=sim_now,
                 )
             except CharacterError as exc:
                 raise TraversalError(str(exc), code=exc.code or "character_move_refused") from exc

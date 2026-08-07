@@ -417,13 +417,15 @@ class ActivityEngine:
             self._world()._advance_clock(world_id, at_time, c)
         return self.activity_sheet(world_id, character_key)
 
-    def abort_activity(self, world_id: int, character_key: str) -> dict[str, Any] | None:
+    def abort_activity(
+        self, world_id: int, character_key: str, *, sim_now: str | None = None
+    ) -> dict[str, Any] | None:
         """Abandon explicite de l'activité active (matérialisation + aborted)."""
         with transaction(self._conn) as c:
             active = self._active_row(c, world_id, character_key)
             if active is None:
                 raise ActivityError("aucune activité active à abandonner")
-            canonical = self._world().read_canonical_time(world_id)
+            canonical = sim_now or self._world().read_canonical_time(world_id)
             now = self._clock.now_iso()
             rates = self._rates(world_id, active["type"])
             NeedsEngine(self._conn, clock=self._clock).materialize_with_rates(

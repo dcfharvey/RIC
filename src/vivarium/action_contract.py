@@ -18,7 +18,7 @@ from .activities import ActivityEngine, ActivityError
 from .registry import _KEY_RE
 from .traversal import TraversalEngine, TraversalError
 from .db import transaction
-from .util import Clock
+from .util import Clock, parse_iso
 
 
 CONTRACT_SCHEMA_VERSION = 2
@@ -268,10 +268,32 @@ class ActionOrchestrator:
             )
         return self._fact_from_event(world_id, event)
 
-    def execute(self, world_id: Any, proposal: Any) -> ValidationResult:
+    def execute(
+        self,
+        world_id: Any,
+        proposal: Any,
+        *,
+        effective_at: str | None = None,
+        expected_event_seq: int | None = None,
+    ) -> ValidationResult:
         """Applique une intention supportée, ou retourne un refus stable sans écriture."""
         world_id = _world_id(world_id)
         proposal = self._validate_proposal(proposal)
+        if effective_at is not None:
+            try:
+                parse_iso(effective_at)
+            except (TypeError, ValueError) as exc:
+                raise ActionContractError(
+                    "instant de décision invalide", code="invalid_action_contract"
+                ) from exc
+        if expected_event_seq is not None and (
+            not isinstance(expected_event_seq, int)
+            or isinstance(expected_event_seq, bool)
+            or expected_event_seq < 0
+        ):
+            raise ActionContractError(
+                "séquence de contexte invalide", code="invalid_action_contract"
+            )
         # Le verrou transactionnel englobe recherche et exécution : deux retries
         # concurrents ne peuvent pas tous les deux conclure qu'ils sont premiers.
         try:
@@ -279,6 +301,21 @@ class ActionOrchestrator:
                 existing = self._existing_fact(world_id, proposal)
                 if existing is not None:
                     return ValidationResult(proposal.proposal_id, "accepted", None, (existing,))
+                latest = self._conn.execute(
+                    "SELECT seq, occurred_at FROM canonical_event WHERE world_id = ? "
+                    "ORDER BY seq DESC LIMIT 1",
+                    (world_id,),
+                ).fetchone()
+                latest_seq = 0 if latest is None else int(latest["seq"])
+                if expected_event_seq is not None and latest_seq != expected_event_seq:
+                    return ValidationResult(
+                        proposal.proposal_id, "refused", "stale_decision_context", ()
+                    )
+                if effective_at is not None and latest is not None \
+                        and parse_iso(effective_at) < parse_iso(latest["occurred_at"]):
+                    return ValidationResult(
+                        proposal.proposal_id, "refused", "stale_decision_context", ()
+                    )
                 provenance = {"proposal_id": proposal.proposal_id, "origin": proposal.origin}
                 if proposal.action_kind == ACTION_TRAVERSE:
                     TraversalEngine(self._conn, clock=self._clock).traverse_character(
@@ -287,6 +324,7 @@ class ActionOrchestrator:
                         proposal.params["connector_key"],
                         proposal.params["target_location_key"],
                         action_provenance=provenance,
+                        sim_now=effective_at,
                     )
                 else:
                     activities = ActivityEngine(self._conn, clock=self._clock)
@@ -296,13 +334,16 @@ class ActionOrchestrator:
                             return ValidationResult(
                                 proposal.proposal_id, "refused", "activity_active", ()
                             )
-                        activities.abort_activity(world_id, proposal.actor_key)
+                        activities.abort_activity(
+                            world_id, proposal.actor_key, sim_now=effective_at
+                        )
                     activities.start_activity(
                         world_id,
                         proposal.actor_key,
                         proposal.params["activity_type"],
                         proposal.params["target_location_key"],
                         action_provenance=provenance,
+                        sim_now=effective_at,
                     )
 
                 fact = self._existing_fact(world_id, proposal)

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.1.0a6 — 6 août 2026
+
+- Correction d'une régression temporelle découverte en rodage : la latence du
+  LLM ne peut plus horodater une action après une échéance encore pendante.
+- Une action cognitive est exécutée à l'instant observé par son contexte; le
+  temps de calcul du modèle n'est pas du temps simulé vécu.
+- Le numéro du dernier événement observé forme une garde optimiste. Toute
+  mutation concurrente rend la proposition périmée et la fait refuser sans
+  écriture (`stale_decision_context`).
+- Traversées, abandon d'idle et démarrage d'activité partagent le même instant
+  effectif validé.
+- Validation complète : **706 tests**.
+
 ## 0.1.0a5 — 6 août 2026
 
 - Première boucle d'activités autonomes réellement vivante : chaque nouvel
@@ -15,7 +28,7 @@
   additive; Patoune est exclue de tous les appels cognitifs directs.
 - Essai réel Gemma validé sur monde mémoire : choix `photography`, adaptation
   syntaxique étroite, validation canonique acceptée et activité visible.
-- Validation complète : **704 tests** (résultat final à confirmer après audit).
+- Validation complète : **704 tests**.
 
 ## 0.1.0a1 — 6 août 2026
 
