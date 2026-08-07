@@ -1,6 +1,6 @@
 # Roadmap active — du moteur au Vivarium MVP
 
-**Version :** 1.2
+**Version :** 1.3
 **Mise à jour :** 6 août 2026
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
@@ -77,6 +77,9 @@ tests et documentation après un lot à conséquences étendues.
   avant toute activation d’un monde MVP persistant, il reste à raccorder les
   déclencheurs sociaux, les options d'action et leurs conséquences validées ;
 - banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
+- porte de prévol MVP : livrée (`mvp-preflight`) pour inspecter une base candidate
+  sans écriture ni appel LLM; elle ne remplace ni les scénarios vivants ni les
+  contrôles opérateur qui restent à raccorder.
 
 ## Jalons de version produit
 

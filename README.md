@@ -58,6 +58,8 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 
 - `init` initialise un monde de développement.
 - `status` inspecte l'état général (intégrité, version de schéma, horloge, compteurs).
+- `mvp-preflight --db <base>` inspecte en lecture seule une base candidate au MVP
+  (intégrité, journal, casting et journaux subjectifs), sans LLM ni réparation.
 - `upgrade-dev` ajoute, de façon **non destructive et idempotente**, les 4 identités
   provisoires `character_1..4` au monde local (aucun personnage existant modifié ;
   n'insère que les manquants). `init --force` reste un dernier recours manuel.

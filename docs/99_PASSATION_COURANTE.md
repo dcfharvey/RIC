@@ -64,6 +64,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après banc de calibration locale LLM : **650 passed** ;
 - test complet après premier tour social LLM : **658 passed** ;
 - test complet après banc social multi-tours : **664 passed** ;
+- test complet après porte de prévol MVP : **670 passed** ;
 - test complet après frontière LLM locale et banc de fumée : **592 passed** ;
 - test complet après politique pure d'admissibilité des appels LLM :
   **599 passed** ;
@@ -126,6 +127,10 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - banc social multi-tours livré : des occasions alternées et bornées testent
   une courte conversation sans créer d'histoire partagée. Voir
   `docs/56_BANC_SCENE_SOCIALE.md`.
+- porte de prévol MVP livrée : `python -m vivarium mvp-preflight --db <base>`
+  inspecte strictement en lecture seule l'intégrité SQLite, le casting, le
+  contexte et les audits de journaux d'un monde candidat. Voir
+  `docs/57_STRATEGIE_QUALITE_MVP.md`.
 - première projection de candidats de motifs physiologiques livrée; pression,
   urgence, importance et actions possibles sont bornées par le contexte
   déterministe, sans inventer plaisir, coût ou personnalité. Voir

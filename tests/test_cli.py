@@ -3,6 +3,9 @@
 import pytest
 
 from vivarium.cli import main
+from vivarium.db import connect_database
+from vivarium.integration_world import IntegrationWorldService
+from vivarium.migrations import ensure_schema
 
 
 def test_cli_init_et_status(tmp_path, capsys):
@@ -123,3 +126,27 @@ def test_cli_scene_bench_reports_a_healthy_ephemeral_conversation(monkeypatch, c
     assert main(["scene-bench", "--max-turns", "1"]) == 0
     output = capsys.readouterr().out
     assert "Banc de scène jetable" in output and "tour 1: sophie" in output
+
+
+def test_cli_mvp_preflight_reads_a_candidate_without_modifying_it(tmp_path, capsys):
+    db = tmp_path / "candidate.sqlite"
+    conn = connect_database(db)
+    try:
+        ensure_schema(conn)
+        IntegrationWorldService(conn).create_initial_world()
+    finally:
+        conn.close()
+    before = db.read_bytes()
+
+    assert main(["mvp-preflight", "--db", str(db)]) == 0
+    output = capsys.readouterr().out
+    assert "Prévol MVP" in output
+    assert "prêt structurellement" in output
+    assert db.read_bytes() == before
+
+
+def test_cli_mvp_preflight_refuses_a_missing_database(tmp_path, capsys):
+    missing = tmp_path / "missing.sqlite"
+
+    assert main(["mvp-preflight", "--db", str(missing)]) == 2
+    assert "base introuvable" in capsys.readouterr().err

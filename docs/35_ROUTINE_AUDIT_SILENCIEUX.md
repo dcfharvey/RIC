@@ -126,3 +126,9 @@ Pour le banc social multi-tours, l'audit a vérifié que la rotation n'est qu'un
 occasion de parole, que `no_action` reste possible, que la borne ferme la
 boucle et que chaque essai reconstruit un monde en mémoire. La suite complète
 a validé **664 tests**.
+
+Pour la porte de prévol MVP, l'audit a vérifié que la CLI ouvre la base en mode
+lecture seule, n'applique aucune migration, ne lance aucun LLM et ne tente
+aucune réparation. Une base d'intégration propre passe; une identité ajoutée
+ou une sélection ambiguë est explicitement refusée. La suite complète a validé
+**670 tests**.

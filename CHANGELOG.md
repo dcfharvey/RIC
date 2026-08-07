@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Ajout de `mvp-preflight`, contrôle déterministe et strictement en lecture
+  seule d'une base candidate au MVP.
+- Documentation de la stratégie de couverture : règles, bancs, LLM borné,
+  prévol et inspection opérateur restent des preuves complémentaires.
+
 - Ajout du banc local `llm-calibrate` : plusieurs tours LLM réels, chacun dans
   sa base mémoire neuve, avec durée, décision, validation et erreur explicite.
   Il mesure la frontière sans créer d'histoire partagée ni fixer une cadence

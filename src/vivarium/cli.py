@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import sqlite3
 
 from . import __version__
 from .db import connect_database
@@ -280,6 +281,32 @@ def _run_scene_bench(max_turns: int) -> int:
     return 0 if report.healthy else 1
 
 
+def _run_mvp_preflight(db_path: Path, world_id: int | None) -> int:
+    """Contrôle une base existante en lecture seule, sans migration ni LLM."""
+    from .mvp_preflight import MVPPreflightError, inspect_mvp_preflight
+
+    if not db_path.is_file():
+        print(f"Prévol MVP : base introuvable : {db_path}", file=__import__("sys").stderr)
+        return 2
+    try:
+        uri = db_path.resolve().as_uri() + "?mode=ro"
+        conn = sqlite3.connect(uri, uri=True)
+        conn.row_factory = sqlite3.Row
+        try:
+            report = inspect_mvp_preflight(conn, world_id=world_id)
+        finally:
+            conn.close()
+    except (sqlite3.DatabaseError, MVPPreflightError) as exc:
+        print(f"Prévol MVP : impossible : {exc}", file=__import__("sys").stderr)
+        return 2
+    print(f"Prévol MVP — monde : {report.world_name or 'non sélectionné'}")
+    for check in report.checks:
+        marker = "OK" if check.passed else "ECHEC"
+        print(f"  [{marker:<5}] {check.key:<24} {check.detail}")
+    print(f"Verdict : {'prêt structurellement' if report.healthy else 'non prêt — aucune correction appliquée'}")
+    return 0 if report.healthy else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vivarium", description="Vivarium social artificiel")
     sub = parser.add_subparsers(dest="command")
@@ -314,6 +341,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("scene-smoke", help="Teste un tour de parole LLM dans une scène mémoire jetable.")
     p_scene_bench = sub.add_parser("scene-bench", help="Joue quelques tours sociaux LLM dans une scène jetable.")
     p_scene_bench.add_argument("--max-turns", type=int, default=4, help="Occasions de parole (1 à 20, défaut : 4).")
+    p_preflight = sub.add_parser("mvp-preflight", help="Contrôle une base MVP existante en lecture seule, sans LLM.")
+    p_preflight.add_argument("--db", required=True, help="Chemin de la base existante à contrôler.")
+    p_preflight.add_argument("--world-id", type=int, default=None, help="Identifiant requis si la base contient plusieurs mondes.")
 
     args = parser.parse_args(argv)
 
@@ -337,6 +367,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_scene_smoke()
     if args.command == "scene-bench":
         return _run_scene_bench(args.max_turns)
+    if args.command == "mvp-preflight":
+        return _run_mvp_preflight(Path(args.db), args.world_id)
 
     db_path = _resolve_db_path(getattr(args, "db", None))
     conn = connect_database(db_path)
