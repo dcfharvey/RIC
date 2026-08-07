@@ -61,6 +61,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - test complet après orchestrateur autonome initial : **640 passed** ;
 - test complet après banc vivant jetable : **642 passed** ;
 - test complet après console d'observation du banc vivant : **643 passed** ;
+- test complet après banc de calibration locale LLM : **650 passed** ;
 - test complet après frontière LLM locale et banc de fumée : **592 passed** ;
 - test complet après politique pure d'admissibilité des appels LLM :
   **599 passed** ;
@@ -112,6 +113,10 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 - banc de calibration des chronologies d'appels livré, sans réseau ni SQLite;
   il compare des limites candidates avant toute décision de cadence produit.
   Voir `docs/42_BANC_CALIBRATION_APPELS_LLM.md`.
+- calibration locale répétée livrée : chaque tour réel Gemma repart d'une
+  base mémoire et d'une horloge identiques, puis rapporte durée, contrat,
+  décision, validation et panne explicite. Voir
+  `docs/54_CALIBRATION_LOCALE_LLM.md`.
 - première projection de candidats de motifs physiologiques livrée; pression,
   urgence, importance et actions possibles sont bornées par le contexte
   déterministe, sans inventer plaisir, coût ou personnalité. Voir

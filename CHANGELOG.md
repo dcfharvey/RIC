@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Ajout du banc local `llm-calibrate` : plusieurs tours LLM réels, chacun dans
+  sa base mémoire neuve, avec durée, décision, validation et erreur explicite.
+  Il mesure la frontière sans créer d'histoire partagée ni fixer une cadence
+  produit.
+
 ## 0.56 — 6 août 2026
 
 - Commande `vivarium living-bench` : affiche en direct les ticks, appels et

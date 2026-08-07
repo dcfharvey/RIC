@@ -1,6 +1,6 @@
 # Banc vivant jetable — porte avant Gemma
 
-**Statut :** livré au 6 août 2026.
+**Statut :** livré et essayé avec Gemma local au 6 août 2026.
 
 `run_living_bench(provider, limits)` construit une base SQLite en mémoire,
 assemble le monde d’intégration réel, crée un événement de déplacement concret
@@ -13,9 +13,10 @@ perception → admission → contexte → proposition → moteur; le second prou
 mode dégradé, sans corruption canonique. Le rapport contient les outcomes,
 le digest canonique final et l’audit structurel.
 
-La prochaine opération autorisée est un essai contrôlé avec `LMStudioProvider`
-et Gemma déjà chargée, sur ce banc seulement. Ce ne sera pas encore le lancement
-du monde MVP persistant.
+L'essai contrôlé avec `LMStudioProvider` et Gemma local a été réussi sur ce
+banc seulement : une source directement perceptible a été routée et l'audit
+final est resté sain. Ce n'est pas le lancement d'un monde MVP persistant. La
+calibration répétée est documentée dans `docs/54_CALIBRATION_LOCALE_LLM.md`.
 
 La commande `python -m vivarium living-bench` affiche un résumé par tick et le
 détail de chaque appel admis ou dégradé. L'option `--verbose` ajoute les sources

@@ -208,6 +208,30 @@ def _run_living_bench(max_ticks: int, verbose: bool) -> int:
     return 0
 
 
+def _run_llm_calibration(trials: int, character: str) -> int:
+    """Mesure des tours LLM réels répétés, sans monde persistant."""
+    from .cognition import CognitionError, LMStudioProvider, LocalLLMSettings
+    from .local_llm_calibration import LocalCalibrationError, run_local_cognition_calibration
+
+    try:
+        settings = LocalLLMSettings.from_environment()
+        report = run_local_cognition_calibration(
+            LMStudioProvider(settings), settings.model_id, trials=trials, character_key=character
+        )
+    except (CognitionError, LocalCalibrationError, ValueError) as exc:
+        print(f"Calibration LLM : {getattr(exc, 'code', 'invalid_request')} — {exc}", file=__import__('sys').stderr)
+        return 2
+    print(f"Calibration LLM jetable — modèle : {report.model_id}, personnage : {report.character_key}")
+    for trial in report.trials:
+        validation = "aucune" if trial.validation_status is None else trial.validation_status
+        detail = trial.provider_error_code or trial.validation_reason or ""
+        suffix = f" ({detail})" if detail else ""
+        print(f"  essai {trial.number:>2}: {trial.outcome:<14} {trial.elapsed_ms:>5} ms  décision={trial.decision or '-'}  validation={validation}{suffix}")
+    print(f"Médiane : {report.median_elapsed_ms} ms — issues : {report.outcome_counts} — décisions : {report.decision_counts}")
+    print(f"Verdict : {'sain' if report.healthy else 'anomalie explicite'} (bases mémoire jetables)")
+    return 0 if report.healthy else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vivarium", description="Vivarium social artificiel")
     sub = parser.add_subparsers(dest="command")
@@ -236,6 +260,9 @@ def main(argv: list[str] | None = None) -> int:
     p_living = sub.add_parser("living-bench", help="Affiche un essai autonome jetable avec le LLM local.")
     p_living.add_argument("--max-ticks", type=int, default=8, help="Nombre maximal de ticks (défaut : 8).")
     p_living.add_argument("--verbose", action="store_true", help="Affiche aussi chaque événement non perceptible.")
+    p_calibration = sub.add_parser("llm-calibrate", help="Répète un tour LLM jetable pour mesurer le contrat et la latence.")
+    p_calibration.add_argument("--trials", type=int, default=3, help="Nombre d'essais isolés (1 à 20, défaut : 3).")
+    p_calibration.add_argument("--character", default="sophie", help="Résidente à utiliser (défaut : sophie).")
 
     args = parser.parse_args(argv)
 
@@ -253,6 +280,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_llm_smoke(args.character)
     if args.command == "living-bench":
         return _run_living_bench(args.max_ticks, args.verbose)
+    if args.command == "llm-calibrate":
+        return _run_llm_calibration(args.trials, args.character)
 
     db_path = _resolve_db_path(getattr(args, "db", None))
     conn = connect_database(db_path)

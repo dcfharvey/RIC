@@ -19,3 +19,8 @@ La calibration réelle se fera ensuite en deux mesures séparées :
 Une seule mesure de latence ou un seul `llm-smoke` ne justifie pas un budget
 quotidien. Tant que les mesures ne sont pas suffisantes, les limites restent
 injectées par l'appelant du banc et aucune boucle autonome ne les utilise.
+
+La première mesure réelle isolée est maintenant disponible via
+`python -m vivarium llm-calibrate`; elle reconstruit le même monde mémoire
+pour chaque essai et rapporte contrat, décision, validation et durée. Voir
+`docs/54_CALIBRATION_LOCALE_LLM.md`.

@@ -78,3 +78,21 @@ def test_cli_llm_smoke_reports_a_healthy_ephemeral_run(monkeypatch, capsys):
     assert main(["llm-smoke"]) == 0
     output = capsys.readouterr().out
     assert "porte_entree -> salon" in output and "base mémoire jetable" in output
+
+
+def test_cli_llm_calibrate_reports_a_healthy_ephemeral_series(monkeypatch, capsys):
+    class Trial:
+        number = 1; outcome = "routed"; elapsed_ms = 12; decision = "no_action"
+        validation_status = None; validation_reason = None; provider_error_code = None
+
+    class Report:
+        model_id = "gemma-local"; character_key = "sophie"; trials = (Trial(),)
+        median_elapsed_ms = 12; outcome_counts = {"routed": 1}; decision_counts = {"no_action": 1}; healthy = True
+
+    monkeypatch.setattr(
+        "vivarium.local_llm_calibration.run_local_cognition_calibration",
+        lambda provider, model_id, trials, character_key: Report(),
+    )
+    assert main(["llm-calibrate", "--trials", "1"]) == 0
+    output = capsys.readouterr().out
+    assert "Calibration LLM jetable" in output and "Médiane : 12 ms" in output
