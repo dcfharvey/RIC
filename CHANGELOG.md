@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0a8 — 7 août 2026
+
+- Gardien local intégré au runtime : contrôle immédiat, puis horaire par défaut,
+  sans appel génératif ni consommation de quota Codex.
+- Audit du prévol canonique, des échéances actives, de LM Studio et du thread du
+  tableau de contrôle; résultats `SAIN`, `ATTENTION` ou `CRITIQUE`.
+- Rapports append-only dans `logs/guardian.jsonl`.
+- Une conclusion critique provoque un arrêt protecteur et une fermeture propre;
+  le gardien ne tente jamais de réécrire ou de masquer l'histoire canonique.
+
 ## 0.1.0a7 — 6 août 2026
 
 - Une réponse cognitive invalide ne condamne plus une résidente à attendre la

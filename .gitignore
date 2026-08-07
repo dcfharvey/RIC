@@ -15,6 +15,7 @@ htmlcov/
 
 # Données et journaux locaux (jamais versionnés)
 logs/*.log
+logs/*.jsonl
 data/
 *.db
 *.sqlite

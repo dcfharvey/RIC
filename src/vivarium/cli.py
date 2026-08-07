@@ -347,11 +347,13 @@ def _run_mvp_runtime(
     port: int,
     tick_seconds: float,
     max_ticks: int,
+    guardian_interval: int,
 ) -> int:
     """Lance le runtime alpha et le tableau local jusqu'à Ctrl+C ou la borne."""
     from .cognition import LMStudioProvider, LocalLLMSettings
     from .mvp_preflight import inspect_mvp_preflight
     from .mvp_runtime import MVPRuntime
+    from .guardian import LocalGuardian
     from .scene_turn import LMStudioSceneTurnProvider
     from .simulation import SimulationLimitError
     from .world_rules import WorldRuleService
@@ -369,10 +371,15 @@ def _run_mvp_runtime(
     if not isinstance(max_ticks, int) or isinstance(max_ticks, bool) or not 0 <= max_ticks <= 100_000:
         print("Runtime MVP : borne de ticks invalide", file=__import__("sys").stderr)
         return 2
+    if not isinstance(guardian_interval, int) or isinstance(guardian_interval, bool) \
+            or not 60 <= guardian_interval <= 86400:
+        print("Runtime MVP : intervalle du gardien invalide", file=__import__("sys").stderr)
+        return 2
     conn = connect_database(db_path)
     server = None
     thread = None
     runtime = None
+    protective_stop = False
     try:
         report = inspect_mvp_preflight(conn, world_id=world_id)
         if not report.healthy:
@@ -394,6 +401,14 @@ def _run_mvp_runtime(
             scene_provider = LMStudioSceneTurnProvider(settings)
         runtime = MVPRuntime(
             conn, report.world_id, cognition_provider=cognition_provider, scene_provider=scene_provider
+        )
+        guardian = LocalGuardian(
+            conn,
+            report.world_id,
+            log_path=db_path.parent.parent / "logs" / "guardian.jsonl",
+            model_lister=cognition_provider,
+            service_probe=lambda: thread is not None and thread.is_alive(),
+            interval_seconds=guardian_interval,
         )
         server = create_server(db_path, host="127.0.0.1", port=port)
         thread = threading.Thread(target=serve, args=(server,), daemon=True)
@@ -436,6 +451,19 @@ def _run_mvp_runtime(
             if social and (social.opened_scene_keys or social.closed_scene_keys or social.interrupted_scene_keys or social.turn):
                 action = social.turn.decision.action if social.turn and social.turn.decision else "-"
                 print(f"[tick {ticks}] scènes +{len(social.opened_scene_keys)} -{len(social.closed_scene_keys)} !{len(social.interrupted_scene_keys)} tour={action}")
+            guardian_report = guardian.run_if_due()
+            if guardian_report is not None:
+                print(
+                    f"[gardien] {guardian_report.status} - "
+                    f"{guardian_report.checked_at} - logs/guardian.jsonl"
+                )
+                if guardian_report.status == "CRITIQUE":
+                    print(
+                        "Runtime MVP : arrêt protecteur demandé par le gardien local.",
+                        file=__import__("sys").stderr,
+                    )
+                    protective_stop = True
+                    return 3
             time.sleep(tick_seconds)
     except KeyboardInterrupt:
         print("Arrêt demandé.")
@@ -443,7 +471,7 @@ def _run_mvp_runtime(
         print(f"Runtime MVP : arrêt sur erreur explicite : {exc}", file=__import__("sys").stderr)
         return 2
     finally:
-        if runtime is not None:
+        if runtime is not None and not protective_stop:
             runtime.shutdown()
         if server is not None:
             shutdown(server)
@@ -502,6 +530,11 @@ def main(argv: list[str] | None = None) -> int:
     p_mvp_run.add_argument("--tick-seconds", type=float, default=2.0, help="Intervalle de boucle, entre 0,25 et 60 s.")
     p_mvp_run.add_argument("--max-ticks", type=int, default=0, help="0 = jusqu'à Ctrl+C; borne utile pour un essai contrôlé.")
 
+    p_mvp_run.add_argument(
+        "--guardian-interval", type=int, default=3600,
+        help="Intervalle du gardien local en secondes (défaut : 3600).",
+    )
+
     args = parser.parse_args(argv)
 
     from .logging_setup import configure_logging
@@ -535,6 +568,7 @@ def main(argv: list[str] | None = None) -> int:
             port=args.port,
             tick_seconds=args.tick_seconds,
             max_ticks=args.max_ticks,
+            guardian_interval=args.guardian_interval,
         )
 
     db_path = _resolve_db_path(getattr(args, "db", None))
