@@ -1,8 +1,9 @@
 # Plan — porte d'appel LLM événementielle
 
-**Statut :** trois premiers étages implantés : politique pure, journal
-technique append-only et routeur explicite de `direct_event`, sans ordonnanceur
-ni appel automatique.
+**Statut :** politique pure, journal technique append-only et routeur explicite
+livrés. `direct_event`, `initial_arrival` et `planned_reflection` possèdent une
+source vérifiable; la réflexion est appelée automatiquement une seule fois lors
+d'un nouvel `idle`.
 
 ## Décision de portée
 
@@ -39,7 +40,7 @@ Motifs fermés prévus :
 - `action_refused` après une proposition validée mais impossible;
 - `intention_blocked` ou `intention_completed` (futurs, après intentions);
 - `scene_turn` (futur, après scènes);
-- `planned_reflection` (futur, après planificateur);
+- `planned_reflection` (raccordé au nouvel `idle`; planificateur long futur);
 - `owner_intervention` (futur, après contrat d'administration cognitive).
 
 Un motif ne transmet pas de texte libre et ne déclare pas une émotion, une
@@ -77,10 +78,10 @@ Les nombres de debounce et budget sont intentionnellement ouverts : ils doivent
 puis devenir une décision versionnée. Aucune espèce, aucun nom du casting et
 aucun trait de personnalité ne reçoit de traitement spécial.
 
-Le seul motif actuellement raccordé est `direct_event`, avec une source au
-format `event_<seq>` qui doit être réellement perceptible par la résidente.
-Les autres motifs restent fermés mais sont refusés par le routeur tant que leur
-contrat source n'existe pas; ils ne reçoivent donc aucune interprétation libre.
+`direct_event` exige un `event_<seq>` réellement perceptible;
+`initial_arrival` exige le contexte initial encore actuel; `planned_reflection`
+exige un `idle_<seq>` correspondant exactement à l'activité idle encore active.
+Les autres motifs restent fermés tant que leur contrat source n'existe pas.
 
 Le banc préalable de chronologies et de budgets est livré dans
 `vivarium.cognition_call_bench`; voir `docs/42_BANC_CALIBRATION_APPELS_LLM.md`.

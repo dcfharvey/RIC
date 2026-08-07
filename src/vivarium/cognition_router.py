@@ -14,7 +14,12 @@ from typing import Any
 
 from .cognition import CognitionError, CognitionProvider, CognitionTurnResult, CognitionTurnService
 from .cognition_call_ledger import CognitionCallAdmission, CognitionCallLedgerService
-from .cognition_policy import CALL_TRIGGER_DIRECT_EVENT, CALL_TRIGGER_INITIAL_ARRIVAL, CognitionCallLimits
+from .cognition_policy import (
+    CALL_TRIGGER_DIRECT_EVENT,
+    CALL_TRIGGER_INITIAL_ARRIVAL,
+    CALL_TRIGGER_PLANNED_REFLECTION,
+    CognitionCallLimits,
+)
 from .perception import PerceptionError, PerceptionService
 from .registry import _KEY_RE
 from .util import Clock
@@ -22,6 +27,7 @@ from .util import Clock
 
 _DIRECT_EVENT_SOURCE_RE = re.compile(r"^event_([1-9][0-9]*)$")
 _INITIAL_ARRIVAL_SOURCE_RE = re.compile(r"^arrival_([1-9][0-9]*)$")
+_IDLE_SOURCE_RE = re.compile(r"^idle_([1-9][0-9]*)$")
 
 
 class CognitionCallRouterError(ValueError):
@@ -100,6 +106,40 @@ class CognitionCallRouter:
             raise CognitionCallRouterError("arrivée initiale déjà dépassée", code="cognition_call_source_not_available")
         return event_seq
 
+    def _validate_idle_source(self, world_id: int, character_key: str, source_key: str) -> int:
+        """Prouve que la réflexion correspond à l'idle encore actif."""
+        match = _IDLE_SOURCE_RE.fullmatch(source_key)
+        if match is None:
+            raise CognitionCallRouterError("source d'idle invalide", code="invalid_cognition_call_source")
+        event_seq = int(match.group(1))
+        event = self._conn.execute(
+            "SELECT occurred_at, payload FROM canonical_event WHERE world_id = ? AND seq = ? "
+            "AND event_type = 'activity_started'",
+            (world_id, event_seq),
+        ).fetchone()
+        if event is None:
+            raise CognitionCallRouterError("idle source introuvable", code="cognition_call_source_not_available")
+        import json
+        try:
+            payload = json.loads(event["payload"])
+        except (TypeError, ValueError) as exc:
+            raise CognitionCallRouterError("idle source illisible", code="invalid_cognition_call_source") from exc
+        if payload.get("character") != character_key or payload.get("activity") != "idle":
+            raise CognitionCallRouterError("idle source hors personnage", code="cognition_call_source_not_available")
+        active = self._conn.execute(
+            "SELECT a.started_at, a.planned_end_at, l.key AS location FROM activity a "
+            "JOIN character c ON c.id = a.character_id "
+            "JOIN location l ON l.id = a.location_id "
+            "WHERE a.world_id = ? AND c.key = ? AND a.status = 'active' AND a.type = 'idle' "
+            "ORDER BY a.id DESC LIMIT 1",
+            (world_id, character_key),
+        ).fetchone()
+        if active is None or active["started_at"] != event["occurred_at"] \
+                or active["planned_end_at"] != payload.get("planned_end_at") \
+                or active["location"] != payload.get("location"):
+            raise CognitionCallRouterError("idle source déjà dépassé", code="cognition_call_source_not_available")
+        return event_seq
+
     def run(
         self,
         world_id: Any,
@@ -126,6 +166,8 @@ class CognitionCallRouter:
             after_event_seq = self._validate_direct_event_source(world_id, character_key, source_key) - 1
         elif trigger == CALL_TRIGGER_INITIAL_ARRIVAL:
             after_event_seq = self._validate_initial_arrival_source(world_id, character_key, source_key) - 1
+        elif trigger == CALL_TRIGGER_PLANNED_REFLECTION:
+            after_event_seq = self._validate_idle_source(world_id, character_key, source_key) - 1
         else:
             raise CognitionCallRouterError("motif d'appel non raccordé", code="unroutable_cognition_call_trigger")
         admission = self._ledger.admit(world_id, character_key, trigger, source_key, limits)
@@ -134,15 +176,18 @@ class CognitionCallRouter:
         try:
             turn = CognitionTurnService(self._conn, self._provider, clock=self._clock).run(
                 world_id, character_key, proposal_id, after_event_seq=after_event_seq,
-                decision_cue=self._decision_cue(world_id, trigger),
+                decision_cue=self._decision_cue(world_id, trigger, source_key),
             )
         except CognitionError as exc:
             return RoutedCognitionCall(admission, None, exc.code)
         return RoutedCognitionCall(admission, turn, None)
 
-    def _decision_cue(self, world_id: int, trigger: str) -> dict[str, object]:
+    def _decision_cue(self, world_id: int, trigger: str, source_key: str) -> dict[str, object]:
         """Expose seulement l'origine établie de l'occasion, jamais une consigne."""
         cue: dict[str, object] = {"trigger": trigger}
+        if trigger == CALL_TRIGGER_PLANNED_REFLECTION:
+            cue["source"] = source_key
+            cue["reason"] = "idle_activity_started"
         if trigger == CALL_TRIGGER_INITIAL_ARRIVAL:
             row = self._conn.execute(
                 "SELECT facts_json FROM world_initial_context WHERE world_id = ?", (world_id,)

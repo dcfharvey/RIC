@@ -354,6 +354,7 @@ def _run_mvp_runtime(
     from .mvp_runtime import MVPRuntime
     from .scene_turn import LMStudioSceneTurnProvider
     from .simulation import SimulationLimitError
+    from .world_rules import WorldRuleService
     from .web import WebServerError, create_server, serve, shutdown
 
     if not db_path.is_file():
@@ -379,6 +380,13 @@ def _run_mvp_runtime(
             for check in report.failures:
                 print(f"  {check.key} : {check.detail}", file=__import__("sys").stderr)
             return 1
+        rules = WorldRuleService(conn).install_standard_residence_rules(report.world_id)
+        if rules["changed"]:
+            print(
+                "Règles du monde mises à niveau : "
+                f"+{rules['activities_added']} activités, "
+                f"+{rules['activity_locations_added']} autorisations."
+            )
         cognition_provider = scene_provider = None
         if enable_local_llm:
             settings = LocalLLMSettings.from_environment()
@@ -410,6 +418,20 @@ def _run_mvp_runtime(
                     arrival_state = arrival.routed.turn.decision.action
                 suffix = " (suite à venir)" if arrival.pending else ""
                 print(f"[tick {ticks}] arrivée {arrival.character_key} : {arrival_state}{suffix}")
+            autonomy = tick.autonomy
+            if autonomy and autonomy.character_key:
+                if autonomy.routed is None:
+                    autonomy_state = autonomy.detail_code or "sans appel"
+                elif autonomy.routed.provider_error_code:
+                    autonomy_state = autonomy.routed.provider_error_code
+                elif autonomy.routed.turn is None:
+                    autonomy_state = autonomy.routed.admission.verdict.reason_code
+                else:
+                    turn = autonomy.routed.turn
+                    autonomy_state = turn.decision.action
+                    if turn.validation is not None:
+                        autonomy_state += f"/{turn.validation.status}"
+                print(f"[tick {ticks}] autonomie {autonomy.character_key} : {autonomy_state}")
             social = tick.social
             if social and (social.opened_scene_keys or social.closed_scene_keys or social.interrupted_scene_keys or social.turn):
                 action = social.turn.decision.action if social.turn and social.turn.decision else "-"

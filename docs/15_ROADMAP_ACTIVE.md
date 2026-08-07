@@ -25,7 +25,7 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a4` — configuration LLM locale sans plafond de tokens imposé.
+**Version logicielle actuelle :** `0.1.0a5` — première sélection autonome d'activités, événementielle et validée.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
@@ -43,13 +43,14 @@ tests et documentation après un lot à conséquences étendues.
 - règles standard de résidence installables hors du seed technique : livrées;
   la calibration déclarative de Chuu et l'arrivée initiale commune à la boîte
   aux lettres sont définies; l'instanciation réelle peut être préparée ;
-- contrat fermé moteur–cognition v1, perception factuelle locale, attention
+- contrat fermé moteur–cognition v2, perception factuelle locale, attention
   déterministe et première trace subjective : livrés; relations et décision
   sociale restent futures ;
 - première frontière LLM locale LM Studio : livrée, avec contexte borné,
   réponse JSON validée, admission événementielle append-only et routeur de
-  source perceptible; l'action reste soumise au moteur. Boucle autonome,
-  dialogue reste futur ;
+  source perceptible; l'action reste soumise au moteur. La première boucle
+  autonome choisit maintenant une activité à chaque nouvel `idle`; les
+  intentions longues et la planification multi-étapes restent futures ;
 - première disposition de personnalité canonique : livrée (Big Five,
   attachement général, versions de gabarits immuables); valeurs, conception de
   soi, réputation, relations et émotions restent futurs ;
@@ -91,6 +92,7 @@ tests et documentation après un lot à conséquences étendues.
 | `0.1.0a2` | Atteint | Correctif d'observation et d'arrivée : le tableau se rafraîchit, et l'occasion initiale de traversée est bornée et validée. |
 | `0.1.0a3` | Atteint | Cadence runtime sans écritures intermédiaires, rencontre unique pendant une attente commune et filtre de lecture du bruit de journal. |
 | `0.1.0a4` | Atteint | Le runtime ne transmet plus de plafond de sortie à LM Studio; le modèle suit sa configuration locale. |
+| `0.1.0a5` | Atteint | Un nouvel `idle` ouvre une décision autonome unique parmi des activités canoniquement disponibles; le moteur exécute ou refuse atomiquement. |
 | `0.1.0b1` | Après essais prolongés | Bêta : le MVP tourne durablement; les défauts restants sont recherchés par observation réelle. |
 | `1.0.0` | Lancement | Usage normal et persistance suffisamment fiables pour que l'histoire compte durablement. |
 

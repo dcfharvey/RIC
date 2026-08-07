@@ -216,6 +216,7 @@ class ActivityEngine:
         *,
         sim_now: str | None = None,
         duration_seconds: int | None = None,
+        action_provenance: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Démarre une activité de façon **atomique** (une seule transaction).
 
@@ -317,14 +318,21 @@ class ActivityEngine:
                 ),
             )
             # 6) événement
+            payload = {
+                "character": character_key,
+                "activity": activity_type,
+                "location": target_location_key,
+                "planned_end_at": planned_end,
+            }
+            if action_provenance is not None:
+                if set(action_provenance) != {"proposal_id", "origin"} or not all(
+                    isinstance(value, str) for value in action_provenance.values()
+                ):
+                    raise ActivityError("provenance d'action invalide")
+                payload["action_provenance"] = dict(action_provenance)
             _append_event(
                 c, world_id, SOURCE_ENGINE, "activity_started",
-                {
-                    "character": character_key,
-                    "activity": activity_type,
-                    "location": target_location_key,
-                    "planned_end_at": planned_end,
-                },
+                payload,
                 occurred_at=start_at, recorded_at=now,
             )
             # 7) avancement de l'horloge canonique à l'instant de début

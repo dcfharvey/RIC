@@ -14,6 +14,12 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
 from .traversal import TraversalEngine
+from .spatial import GraphEngine
+
+
+AUTONOMOUS_ACTIVITY_TYPES = frozenset({
+    "gaming", "photography", "sport", "girly_care", "watch_tv", "socialize",
+})
 
 
 @dataclass(frozen=True)
@@ -27,6 +33,20 @@ class ActionOption:
             "action_kind": self.action_kind,
             "connector_key": self.connector_key,
             "target_location_key": self.target_location_key,
+        }
+
+
+@dataclass(frozen=True)
+class ActivityOption:
+    activity_type: str
+    target_location_key: str
+    duration_seconds: int
+
+    def wire(self) -> dict[str, str | int]:
+        return {
+            "activity_type": self.activity_type,
+            "target_location_key": self.target_location_key,
+            "duration_seconds": self.duration_seconds,
         }
 
 
@@ -60,4 +80,41 @@ class ActionOptionService:
             preview = engine.preview(world_id, character_key, connector, destination)
             if preview["allowed"]:
                 options.append(ActionOption("traverse", connector, destination))
+        return tuple(options)
+
+    def available_activities(self, world_id: int, character_key: str) -> tuple[ActivityOption, ...]:
+        """Projette les loisirs atteignables pendant une reservation ``idle``.
+
+        La liste blanche est un vocabulaire moteur, pas une liste generee par
+        le modele. Le chemin, le lieu autorise et la duree canonique sont relus
+        avant que l'option soit exposee.
+        """
+        row = self._conn.execute(
+            "SELECT a.type, l.key AS current_location FROM character c "
+            "JOIN location l ON l.id = c.current_location_id "
+            "LEFT JOIN activity a ON a.character_id = c.id AND a.world_id = c.world_id "
+            "AND a.status = 'active' WHERE c.world_id = ? AND c.key = ?",
+            (world_id, character_key),
+        ).fetchone()
+        if row is None or row["type"] not in {None, "idle"}:
+            return ()
+        from .activities import ActivityEngine
+
+        engine = ActivityEngine(self._conn)
+        graph = GraphEngine(self._conn)
+        options: list[ActivityOption] = []
+        for activity_type in sorted(AUTONOMOUS_ACTIVITY_TYPES):
+            definition = self._conn.execute(
+                "SELECT min_duration_seconds FROM activity_definition "
+                "WHERE world_id = ? AND activity_type = ?",
+                (world_id, activity_type),
+            ).fetchone()
+            if definition is None:
+                continue
+            for destination in sorted(engine.allowed_locations(world_id, activity_type)):
+                # ``preview`` ne couvre qu'un connecteur. Ici une activite peut
+                # demander un trajet; GraphEngine est deja la source BFS de
+                # ActivityEngine et start_activity le reverifiera atomiquement.
+                if graph.find_path(world_id, row["current_location"], destination) is not None:
+                    options.append(ActivityOption(activity_type, destination, definition["min_duration_seconds"]))
         return tuple(options)

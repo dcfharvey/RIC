@@ -75,6 +75,15 @@ SEED_ACTIVITIES: list[tuple[str, int, int, int, int, int, int]] = [
     ("rest", 3600, 3600, -80, 30, 27, -30),
     ("clean", 900, 900, -80, -60, -50, 2400),
     ("sleep", 0, 28800, -32, 80, 50, -18),
+    # Activites choisies subjectivement. Leurs effets restent volontairement
+    # ceux du regime passif pour ce premier rodage : le moteur atteste que
+    # l'activite a lieu, sans inventer encore une physiologie fine.
+    ("gaming", 1800, 1800, -80, -60, -50, -30),
+    ("photography", 1800, 1800, -80, -60, -50, -30),
+    ("sport", 1800, 1800, -80, -60, -50, -30),
+    ("girly_care", 1800, 1800, -80, -60, -50, -30),
+    ("watch_tv", 1800, 1800, -80, -60, -50, -30),
+    ("socialize", 1800, 1800, -80, -60, -50, -30),
 ]
 
 # Lieux autorisés par activité (key OU kind, jamais les deux).
@@ -85,6 +94,16 @@ SEED_ACTIVITY_ALLOWED: list[tuple[str, str | None, str | None]] = [
     ("rest", "salon", None),
     ("rest", None, "bedroom"),
     ("sleep", None, "bedroom"),
+    ("gaming", "salon", None),
+    ("photography", "cour_arriere", None),
+    ("photography", "entree_exterieure", None),
+    ("sport", "cour_arriere", None),
+    ("girly_care", "salle_de_bain", None),
+    ("girly_care", None, "bedroom"),
+    ("watch_tv", "salon", None),
+    ("socialize", "salon", None),
+    ("socialize", "cuisine", None),
+    ("socialize", "cour_arriere", None),
     # idle : lieu courant (aucune règle)
 ]
 

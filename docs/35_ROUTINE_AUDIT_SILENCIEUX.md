@@ -132,3 +132,14 @@ lecture seule, n'applique aucune migration, ne lance aucun LLM et ne tente
 aucune réparation. Une base d'intégration propre passe; une identité ajoutée
 ou une sélection ambiguë est explicitement refusée. La suite complète a validé
 **670 tests**.
+
+Pour les activités autonomes `0.1.0a5`, l'audit a trouvé puis corrigé trois
+écarts avant remise : Gemma employait directement le type d'activité comme
+verbe JSON malgré le contrat; une adaptation n'est donc admise que pour une
+paire exacte déjà proposée par le moteur. L'identifiant d'une proposition
+pouvait aussi être réutilisé entre deux familles d'action; la recherche
+d'idempotence couvre désormais tous les événements attribués. Enfin, Patoune
+était encore incluse dans l'ancien orchestrateur d'événements directs; la
+capacité sapiente est maintenant projetée par une lecture commune. Le rollback
+du remplacement d'idle, le prévol après essai réel et la suite complète ont
+validé **704 tests**.

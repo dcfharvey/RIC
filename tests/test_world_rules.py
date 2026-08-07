@@ -24,7 +24,11 @@ class FakeClock:
 def _empty_residence(conn, clock):
     world_id = WorldEngine(conn, clock=clock).init_world(name="Règles", seed=False)["id"]
     with transaction(conn) as c:
-        for key, kind in (("salon", "room"), ("cuisine", "room"), ("salle_de_bain", "bathroom"), ("chambre", "bedroom")):
+        for key, kind in (
+            ("salon", "room"), ("cuisine", "room"),
+            ("salle_de_bain", "bathroom"), ("chambre", "bedroom"),
+            ("cour_arriere", "backyard"), ("entree_exterieure", "entry_exterior"),
+        ):
             c.execute(
                 "INSERT INTO location (public_id, world_id, key, name, kind, capacity, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)",
                 (new_uuid(), world_id, key, key.title(), kind, clock.now_iso()),

@@ -17,8 +17,9 @@ La calibration réelle se fera ensuite en deux mesures séparées :
    refus moteur sur des scénarios ciblés.
 
 Une seule mesure de latence ou un seul `llm-smoke` ne justifie pas un budget
-quotidien. Tant que les mesures ne sont pas suffisantes, les limites restent
-injectées par l'appelant du banc et aucune boucle autonome ne les utilise.
+quotidien. Le banc garde des limites injectées; le runtime alpha emploie
+provisoirement 8 admissions par heure canonique et par personnage. Cette valeur
+protège le rodage mais n'est pas une constante psychologique ni un réglage bêta.
 
 La première mesure réelle isolée est maintenant disponible via
 `python -m vivarium llm-calibrate`; elle reconstruit le même monde mémoire

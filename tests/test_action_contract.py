@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from vivarium.action_contract import ActionContractError, ActionOrchestrator, IntentProposal
+from vivarium.activities import ActivityEngine
 from vivarium.connectors import CLOSED, WorldConnectorService
 from vivarium.db import connect_database
 from vivarium.initial_residence import install_initial_residence_catalog
@@ -10,6 +11,7 @@ from vivarium.environment_blueprints import EnvironmentBlueprintService
 from vivarium.migrations import ensure_schema
 from vivarium.repro import canonical_state_digest, max_seq
 from vivarium.util import to_iso
+from vivarium.world_rules import WorldRuleService
 
 
 T0 = datetime(2026, 8, 6, 12, 0, 0, tzinfo=timezone.utc)
@@ -109,3 +111,63 @@ def test_contract_rejects_unknown_or_mutated_actions_before_execution(setup):
     assert raised.value.code == "unsupported_action"
     assert canonical_state_digest(conn, world_id) == before_state
     assert max_seq(conn, world_id) == before_seq
+
+
+def test_contract_can_replace_idle_with_an_attributed_available_activity(setup):
+    conn, world_id, clock = setup
+    WorldRuleService(conn, clock=clock).install_standard_residence_rules(world_id)
+    ActivityEngine(conn, clock=clock).start_activity(
+        world_id, "test_person", "idle", "entree_exterieure", duration_seconds=600
+    )
+
+    result = ActionOrchestrator(conn, clock=clock).execute(
+        world_id,
+        IntentProposal.start_activity(
+            "proposal_photo", "test_person", "photography", "entree_exterieure"
+        ),
+    )
+
+    assert result.status == "accepted"
+    assert result.facts[0].event_type == "activity_started"
+    assert result.facts[0].payload["activity"] == "photography"
+    assert result.facts[0].payload["action_provenance"] == {
+        "proposal_id": "proposal_photo", "origin": "cognition"
+    }
+    assert ActivityEngine(conn).activity_sheet(world_id, "test_person")["type"] == "photography"
+
+
+def test_refused_activity_rolls_back_the_idle_abort(setup):
+    conn, world_id, clock = setup
+    WorldRuleService(conn, clock=clock).install_standard_residence_rules(world_id)
+    ActivityEngine(conn, clock=clock).start_activity(
+        world_id, "test_person", "idle", "entree_exterieure", duration_seconds=600
+    )
+    before = canonical_state_digest(conn, world_id)
+
+    result = ActionOrchestrator(conn, clock=clock).execute(
+        world_id,
+        IntentProposal.start_activity(
+            "proposal_impossible", "test_person", "photography", "salon"
+        ),
+    )
+
+    assert result.status == "refused" and result.reason_code == "activity_refused"
+    assert canonical_state_digest(conn, world_id) == before
+    assert ActivityEngine(conn).activity_sheet(world_id, "test_person")["type"] == "idle"
+
+
+def test_proposal_identifier_cannot_be_reused_across_action_kinds(setup):
+    conn, world_id, clock = setup
+    WorldRuleService(conn, clock=clock).install_standard_residence_rules(world_id)
+    proposal_id = "proposal_cross_kind"
+    ActionOrchestrator(conn, clock=clock).execute(
+        world_id, IntentProposal.traverse(proposal_id, "test_person", "porte_entree", "salon")
+    )
+
+    with pytest.raises(ActionContractError) as raised:
+        ActionOrchestrator(conn, clock=clock).execute(
+            world_id,
+            IntentProposal.start_activity(proposal_id, "test_person", "gaming", "salon"),
+        )
+
+    assert raised.value.code == "proposal_id_conflict"

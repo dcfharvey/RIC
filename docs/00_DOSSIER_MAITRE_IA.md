@@ -287,6 +287,9 @@ Chaque lot : portée et exclusions, inspection de l’existant, tests de référ
   `docs/59_CORRECTIF_ALPHA_0_1_0A2.md`,
   `docs/60_RODAGE_CADENCE_ET_RENCONTRE_0_1_0A3.md` et
   `docs/61_CORRECTIF_ALPHA_0_1_0A4_SORTIE_LLM.md`.
+- **v1.11** (6 août 2026) : `0.1.0a5`, première boucle d'activités autonomes
+  déclenchée par un nouvel `idle`, options canoniques et contrat d'action v2;
+  voir `docs/62_ACTIVITES_AUTONOMES_0_1_0A5.md`.
 
 ## 24. Annexes et références
 

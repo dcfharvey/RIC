@@ -116,12 +116,12 @@ def test_provider_failure_is_explicit_after_admission_but_cannot_mutate_canon(se
     assert canonical_state_digest(conn, wid) == before_state and max_seq(conn, wid) == before_seq
 
 
-def test_unroutable_trigger_is_refused_before_an_admission_is_written(setup):
+def test_planned_reflection_requires_a_current_idle_source_before_admission(setup):
     conn, wid, clock = setup
     provider = Provider(CognitionDecision("no_action"))
     with pytest.raises(CognitionCallRouterError) as raised:
         CognitionCallRouter(conn, provider, clock=clock).run(
             wid, "sophie", "planned_reflection", "plan_42", "proposal_42", CognitionCallLimits(0, 3_600, 2)
         )
-    assert raised.value.code == "unroutable_cognition_call_trigger"
+    assert raised.value.code == "invalid_cognition_call_source"
     assert conn.execute("SELECT COUNT(*) FROM cognition_call_admission").fetchone()[0] == 0

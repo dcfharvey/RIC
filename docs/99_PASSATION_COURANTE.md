@@ -21,7 +21,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
 
 ## État vérifié
 
-- version logicielle : `0.1.0a4` (**MVP alpha, sorties LLM non plafonnées**). Les numéros de documents
+- version logicielle : `0.1.0a5` (**MVP alpha, activités autonomes événementielles**). Les numéros de documents
   et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
 - commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
   signifie que cette passation décrit l'état de `HEAD` ;
@@ -79,6 +79,7 @@ sources et limites dans la documentation du lot. Voir DEC-036 dans
   **616 passed** ;
 - test complet après valeurs et préférences initiales : **618 passed** ;
 - test complet après objectifs et intentions persistantes : **620 passed** ;
+- test complet après activités autonomes événementielles : **704 passed** ;
 - aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
 
 ## Correctif alpha 0.1.0a2
@@ -133,8 +134,9 @@ enregistrée; pause/reprise et le panneau de scène ont répondu.
   ensemble par le monde d'intégration atomique ;
 - ressources génériques à bandes et effets déclaratifs, sans imposer une
   émotion ou narration ;
-- contrat fermé moteur–cognition v1 : une intention de traversée peut être
-  acceptée ou refusée sans LLM, avec provenance sur le fait canonique ;
+- contrat fermé moteur–cognition v2 : une traversée ou une activité disponible
+  peut être acceptée ou refusée sans autorité du LLM, avec provenance sur le
+  fait canonique et rollback intégral ;
 - perception factuelle locale : candidates immuables, limitées à la présence,
   objets visibles et connecteurs adjacents de l'observateur ;
 - attention déterministe minimale : besoins sous seuil, blessure et effets de
@@ -148,7 +150,8 @@ enregistrée; pause/reprise et le panneau de scène ont répondu.
   mémoire narrative restent futurs. Voir `docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md` ;
 - frontière LLM locale livrée : contexte borné, sortie JSON strictement vérifiée,
   refus des actions non perceptibles et passage obligé par le contrat canonique;
-  aucune boucle autonome ni écriture LLM. Le diagnostic `llm-status` et l'essai
+  une boucle autonome événementielle sur nouvel `idle`, sans écriture LLM
+  directe. Le diagnostic `llm-status` et l'essai
   jetable `llm-smoke` utilisent désormais l'API native LM Studio avec raisonnement
   désactivé pour Gemma. Voir `docs/40_ADAPTATEUR_LLM_LOCAL.md`.
 - porte d'appel LLM événementielle : première politique pure livrée;

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.1.0a5 — 6 août 2026
+
+- Première boucle d'activités autonomes réellement vivante : chaque nouvel
+  `idle` d'une résidente sapiente ouvre une unique réflexion événementielle.
+- Le LLM choisit seulement parmi des activités et destinations calculées par
+  le moteur (`gaming`, `photography`, `sport`, `girly_care`, `watch_tv`,
+  `socialize`); l'exécution repasse par le contrat canonique v2.
+- Le remplacement atomique de l'attente garantit un rollback intégral en cas
+  de refus. La provenance et les retries restent vérifiables et idempotents.
+- Les anciennes bases reçoivent les nouvelles règles au lancement de façon
+  additive; Patoune est exclue de tous les appels cognitifs directs.
+- Essai réel Gemma validé sur monde mémoire : choix `photography`, adaptation
+  syntaxique étroite, validation canonique acceptée et activité visible.
+- Validation complète : **704 tests** (résultat final à confirmer après audit).
+
 ## 0.1.0a1 — 6 août 2026
 
 - Premier MVP alpha présentable : création sûre d'une résidence par `mvp-init`,

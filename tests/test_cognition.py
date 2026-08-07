@@ -145,3 +145,28 @@ def test_lm_studio_model_listing_is_read_only(monkeypatch):
     monkeypatch.setattr("vivarium.cognition.urlopen", lambda request, timeout: Response())
     provider = LMStudioProvider(LocalLLMSettings(DEFAULT_LM_STUDIO_BASE_URL, "gemma-local", None, 12))
     assert provider.list_models() == ("gemma-local",)
+
+
+def test_lm_studio_adapts_only_an_exact_available_activity_shorthand(monkeypatch, setup):
+    conn, wid, clock = setup
+    from vivarium.activities import ActivityEngine
+    ActivityEngine(conn, clock=clock).start_activity(
+        wid, "sophie", "idle", "entree_exterieure", duration_seconds=600
+    )
+    context = CognitionContextService(conn, clock=clock).build(
+        wid, "sophie", decision_cue={"trigger": "planned_reflection"}
+    )
+
+    class Response:
+        def read(self):
+            return b'{"output":[{"type":"message","content":"{\\"schema_version\\":8,\\"action\\":\\"photography\\",\\"target_location_key\\":\\"entree_exterieure\\"}"}]}'
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+
+    monkeypatch.setattr("vivarium.cognition.urlopen", lambda request, timeout: Response())
+    decision = LMStudioProvider(
+        LocalLLMSettings(DEFAULT_LM_STUDIO_BASE_URL, "gemma-local", None, 12)
+    ).decide(context)
+    assert decision == CognitionDecision(
+        "start_activity", None, "entree_exterieure", "photography"
+    )

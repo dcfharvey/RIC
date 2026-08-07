@@ -34,7 +34,7 @@ from .util import Clock
 from .values import ValuesService
 
 
-COGNITION_SCHEMA_VERSION = 7
+COGNITION_SCHEMA_VERSION = 8
 DEFAULT_LM_STUDIO_BASE_URL = "http://127.0.0.1:1234"
 DEFAULT_TIMEOUT_SECONDS = 45.0
 MAX_DIRECT_EVENTS, MAX_MEMORIES, MAX_ATTENTION, MAX_BELIEFS, MAX_EMOTIONS, MAX_RELATIONSHIPS, MAX_BOUNDARIES = 10, 10, 8, 10, 6, 8, 8
@@ -171,6 +171,7 @@ class CognitionContext:
     boundaries: tuple[Mapping[str, Any], ...]
     decision_frame: Mapping[str, Any]
     allowed_traversals: tuple[Mapping[str, str], ...]
+    allowed_activities: tuple[Mapping[str, Any], ...]
     self_profile: Mapping[str, Any]
     decision_cue: Mapping[str, Any]
     schema_version: int = COGNITION_SCHEMA_VERSION
@@ -186,6 +187,7 @@ class CognitionContext:
             "relationships": _plain(self.relationships), "boundaries": _plain(self.boundaries),
             "decision_frame": _plain(self.decision_frame),
             "allowed_traversals": _plain(self.allowed_traversals),
+            "allowed_activities": _plain(self.allowed_activities),
             "self_profile": _plain(self.self_profile),
             "decision_cue": _plain(self.decision_cue),
         }
@@ -272,6 +274,14 @@ class CognitionContextService:
             "target_location_key": option.target_location_key,
         }) for option in options)
         cue = {} if decision_cue is None else _freeze(_plain(decision_cue))
+        activity_options = ()
+        if cue.get("trigger") == "planned_reflection":
+            activity_options = tuple(
+                _freeze(option.wire())
+                for option in ActionOptionService(self._conn).available_activities(
+                    world_id, character_key
+                )
+            )
         return CognitionContext(
             world_id, character_key, character["name"], attention.observed_at, feed.latest_seq,
             tuple(_fact_wire(item.source_kind, item.priority_milli, item.fact) for item in attention.selected),
@@ -282,7 +292,7 @@ class CognitionContextService:
             tuple(_freeze(_plain(emotion)) for emotion in emotions),
             tuple(_freeze(_plain(relationship)) for relationship in relationships),
             tuple(_freeze(_plain(boundary)) for boundary in boundaries), _freeze(decision_frame), tuple(allowed),
-            self._self_profile(world_id, character_key), cue,
+            activity_options, self._self_profile(world_id, character_key), cue,
         )
 
 
@@ -290,32 +300,46 @@ class CognitionContextService:
 class CognitionDecision:
     """Sortie minimale du LLM, avant validation canonique."""
 
-    action: str  # no_action | traverse
+    action: str  # no_action | traverse | start_activity
     connector_key: str | None = None
     target_location_key: str | None = None
+    activity_type: str | None = None
     schema_version: int = COGNITION_SCHEMA_VERSION
 
     @classmethod
     def parse(cls, value: Any) -> "CognitionDecision":
-        allowed_fields = {"schema_version", "action", "connector_key", "target_location_key"}
+        allowed_fields = {
+            "schema_version", "action", "connector_key", "target_location_key", "activity_type"
+        }
         if not isinstance(value, Mapping) or set(value) - allowed_fields:
             raise CognitionError("réponse LLM hors contrat", code="invalid_llm_response")
         if value.get("schema_version") != COGNITION_SCHEMA_VERSION:
             raise CognitionError("version de réponse LLM incompatible", code="invalid_llm_response")
         if value.get("action") == "no_action" and set(value) == {"schema_version", "action"}:
             return cls("no_action")
-        if value.get("action") == "traverse" and set(value) == allowed_fields:
+        if value.get("action") == "traverse" and set(value) == allowed_fields - {"activity_type"}:
             return cls("traverse", _key(value["connector_key"], "connecteur"), _key(value["target_location_key"], "destination"))
+        if value.get("action") == "start_activity" and set(value) == allowed_fields - {"connector_key"}:
+            return cls(
+                "start_activity", None, _key(value["target_location_key"], "destination"),
+                _key(value["activity_type"], "activité"),
+            )
         raise CognitionError("réponse LLM hors contrat", code="invalid_llm_response")
 
     def validated(self) -> "CognitionDecision":
         """Valide aussi une décision fournie par un adaptateur Python."""
         if self.action == "no_action":
             wire = {"schema_version": self.schema_version, "action": self.action}
-        else:
+        elif self.action == "traverse":
             wire = {
                 "schema_version": self.schema_version, "action": self.action,
                 "connector_key": self.connector_key, "target_location_key": self.target_location_key,
+            }
+        else:
+            wire = {
+                "schema_version": self.schema_version, "action": self.action,
+                "activity_type": self.activity_type,
+                "target_location_key": self.target_location_key,
             }
         return self.parse(wire)
 
@@ -384,26 +408,66 @@ class LMStudioProvider:
 
     @staticmethod
     def _prompt(context: CognitionContext) -> str:
+        valid_actions: list[dict[str, Any]] = [
+            {"schema_version": COGNITION_SCHEMA_VERSION, "action": "no_action"}
+        ]
+        valid_actions.extend({
+            "schema_version": COGNITION_SCHEMA_VERSION,
+            "action": "traverse",
+            "connector_key": item["connector_key"],
+            "target_location_key": item["target_location_key"],
+        } for item in context.allowed_traversals)
+        valid_actions.extend({
+            "schema_version": COGNITION_SCHEMA_VERSION,
+            "action": "start_activity",
+            "activity_type": item["activity_type"],
+            "target_location_key": item["target_location_key"],
+        } for item in context.allowed_activities)
+        arrival_note = ""
+        if context.decision_cue.get("trigger") == "initial_arrival":
+            arrival_note = (
+                "Les initial_shared_facts sont des faits communs établis : une résidente arrivée "
+                "volontairement peut normalement entrer, mais peut aussi attendre si son contexte le justifie. "
+            )
         return (
             "Tu es un composant de décision du Vivarium. Tu ne connais que le JSON fourni. "
             "decision_cue décrit la raison technique d'une unique occasion de décider; ce n'est jamais un ordre. "
-            "Quand trigger vaut initial_arrival, les initial_shared_facts sont des faits communs établis : "
-            "une résidente arrivée volontairement peut normalement entrer par une traversée disponible, mais peut aussi attendre si son contexte le justifie. "
-            "N'invente aucun fait ni action hors de allowed_traversals. Réponds UNIQUEMENT par l'un de ces objets JSON, sans texte ni Markdown : "
-            f'{{"schema_version":{COGNITION_SCHEMA_VERSION},"action":"no_action"}} OU '
-            f'{{"schema_version":{COGNITION_SCHEMA_VERSION},"action":"traverse","connector_key":"une clé de allowed_traversals","target_location_key":"sa destination associée"}}.\n\n'
+            + arrival_note
+            + "Les seules réponses valides sont énumérées dans valid_actions. Copie exactement un de ces objets; "
+            "n'en combine pas les champs, n'invente ni clé ni destination, et n'ajoute aucun texte ou Markdown.\n"
+            + "valid_actions=" + json.dumps(valid_actions, ensure_ascii=False, separators=(",", ":")) + "\n\n"
             + json.dumps(context.wire(), ensure_ascii=False, separators=(",", ":"))
         )
 
     def decide(self, context: CognitionContext) -> CognitionDecision:
         try:
-            return CognitionDecision.parse(json.loads(request_local_model(
+            payload = json.loads(request_local_model(
                 self._settings,
                 system_prompt="Tu proposes une seule action structurée, jamais un fait du monde.",
                 input_text=self._prompt(context),
-            )))
+            ))
         except json.JSONDecodeError as exc:
             raise CognitionError("réponse LM Studio illisible", code="invalid_llm_response") from exc
+        # Adaptation syntaxique étroite, identique dans son principe à celle
+        # des actes de scène : Gemma emploie parfois directement le type
+        # d'activité comme verbe d'action. La paire doit déjà être une option
+        # exacte du moteur; aucune destination ni activité n'est inférée.
+        if (
+            isinstance(payload, Mapping)
+            and set(payload) == {"schema_version", "action", "target_location_key"}
+            and any(
+                payload.get("action") == item["activity_type"]
+                and payload.get("target_location_key") == item["target_location_key"]
+                for item in context.allowed_activities
+            )
+        ):
+            payload = {
+                "schema_version": payload["schema_version"],
+                "action": "start_activity",
+                "activity_type": payload["action"],
+                "target_location_key": payload["target_location_key"],
+            }
+        return CognitionDecision.parse(payload)
 
     def list_models(self) -> tuple[str, ...]:
         """Diagnostic en lecture seule des identifiants chargés par LM Studio."""
@@ -455,12 +519,24 @@ class CognitionTurnService:
         decision = decision.validated()
         if decision.action == "no_action":
             return CognitionTurnResult(context, decision, None)
-        assert decision.connector_key is not None and decision.target_location_key is not None
-        allowed = {(item["connector_key"], item["target_location_key"]) for item in context.allowed_traversals}
-        if (decision.connector_key, decision.target_location_key) not in allowed:
-            raise CognitionError("traversée LLM non perceptible", code="llm_action_not_perceived")
+        assert decision.target_location_key is not None
+        if decision.action == "traverse":
+            assert decision.connector_key is not None
+            allowed = {(item["connector_key"], item["target_location_key"]) for item in context.allowed_traversals}
+            if (decision.connector_key, decision.target_location_key) not in allowed:
+                raise CognitionError("traversée LLM non perceptible", code="llm_action_not_perceived")
+            proposal = IntentProposal.traverse(
+                proposal_id, context.character_key, decision.connector_key, decision.target_location_key
+            )
+        else:
+            assert decision.activity_type is not None
+            allowed = {(item["activity_type"], item["target_location_key"]) for item in context.allowed_activities}
+            if (decision.activity_type, decision.target_location_key) not in allowed:
+                raise CognitionError("activité LLM non disponible", code="llm_action_not_available")
+            proposal = IntentProposal.start_activity(
+                proposal_id, context.character_key, decision.activity_type, decision.target_location_key
+            )
         validation = ActionOrchestrator(self._conn, clock=self._clock).execute(
-            context.world_id,
-            IntentProposal.traverse(proposal_id, context.character_key, decision.connector_key, decision.target_location_key),
+            context.world_id, proposal,
         )
         return CognitionTurnResult(context, decision, validation)

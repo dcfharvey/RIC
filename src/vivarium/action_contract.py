@@ -14,14 +14,16 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Mapping
 
+from .activities import ActivityEngine, ActivityError
 from .registry import _KEY_RE
 from .traversal import TraversalEngine, TraversalError
 from .db import transaction
 from .util import Clock
 
 
-CONTRACT_SCHEMA_VERSION = 1
+CONTRACT_SCHEMA_VERSION = 2
 ACTION_TRAVERSE = "traverse"
+ACTION_START_ACTIVITY = "start_activity"
 ORIGIN_COGNITION = "cognition"
 ORIGIN_DETERMINISTIC_POLICY = "deterministic_policy"
 _ORIGINS = frozenset({ORIGIN_COGNITION, ORIGIN_DETERMINISTIC_POLICY})
@@ -47,13 +49,15 @@ def _world_id(value: Any) -> int:
     return value
 
 
-def _frozen_params(value: Any) -> Mapping[str, str]:
-    if not isinstance(value, Mapping) or set(value) != {"connector_key", "target_location_key"}:
+def _frozen_params(value: Any, action_kind: str = ACTION_TRAVERSE) -> Mapping[str, str]:
+    expected = (
+        {"connector_key", "target_location_key"}
+        if action_kind == ACTION_TRAVERSE
+        else {"activity_type", "target_location_key"}
+    )
+    if not isinstance(value, Mapping) or set(value) != expected:
         raise ActionContractError("paramètres d'intention invalides", code="invalid_action_contract")
-    params = {
-        "connector_key": _key(value["connector_key"], "cle de connecteur"),
-        "target_location_key": _key(value["target_location_key"], "destination"),
-    }
+    params = {name: _key(value[name], name) for name in sorted(expected)}
     return MappingProxyType(params)
 
 
@@ -70,9 +74,9 @@ def _deep_freeze(value: Any) -> Any:
 class IntentProposal:
     """Proposition structurée, sans accès d'écriture ni texte libre.
 
-    Le premier contrat ne contient volontairement qu'une traversée. Étendre le
-    vocabulaire implique une validation et un routeur explicitement ajoutés,
-    jamais une exécution dynamique d'un nom fourni par un LLM.
+    Le vocabulaire v2 contient une traversée et le démarrage d'une activité
+    déclarée. Toute extension exige une validation et un routeur explicites,
+    jamais l'exécution dynamique d'un nom fourni par un LLM.
     """
 
     proposal_id: str
@@ -110,6 +114,27 @@ class IntentProposal:
             }),
             origin=origin,
             budget_units=budget_units,
+        )
+
+    @classmethod
+    def start_activity(
+        cls, proposal_id: Any, actor_key: Any, activity_type: Any,
+        target_location_key: Any, *, origin: Any = ORIGIN_COGNITION,
+        budget_units: Any = 1,
+    ) -> "IntentProposal":
+        proposal_id = _key(proposal_id, "identifiant de proposition")
+        actor_key = _key(actor_key, "acteur")
+        if origin not in _ORIGINS:
+            raise ActionContractError("provenance d'intention invalide", code="invalid_action_contract")
+        if not isinstance(budget_units, int) or isinstance(budget_units, bool) or budget_units < 1:
+            raise ActionContractError("budget d'intention invalide", code="invalid_action_contract")
+        return cls(
+            proposal_id, actor_key, ACTION_START_ACTIVITY,
+            _frozen_params({
+                "activity_type": activity_type,
+                "target_location_key": target_location_key,
+            }, ACTION_START_ACTIVITY),
+            origin, budget_units,
         )
 
 
@@ -198,9 +223,9 @@ class ActionOrchestrator:
             raise ActionContractError("provenance d'intention invalide", code="invalid_action_contract")
         if not isinstance(proposal.budget_units, int) or isinstance(proposal.budget_units, bool) or proposal.budget_units < 1:
             raise ActionContractError("budget d'intention invalide", code="invalid_action_contract")
-        if proposal.action_kind != ACTION_TRAVERSE:
+        if proposal.action_kind not in {ACTION_TRAVERSE, ACTION_START_ACTIVITY}:
             raise ActionContractError("type d'action non supporté", code="unsupported_action")
-        _frozen_params(proposal.params)
+        _frozen_params(proposal.params, proposal.action_kind)
         return proposal
 
     @staticmethod
@@ -215,10 +240,10 @@ class ActionOrchestrator:
 
     def _existing_fact(self, world_id: int, proposal: IntentProposal) -> WorldFact | None:
         """Retrouve une acceptation antérieure et refuse le recyclage d'un identifiant."""
+        event_type = "character_moved" if proposal.action_kind == ACTION_TRAVERSE else "activity_started"
         event = self._conn.execute(
             "SELECT seq, event_type, occurred_at, payload FROM canonical_event "
-            "WHERE world_id = ? AND event_type = 'character_moved' "
-            "AND json_extract(payload, '$.action_provenance.proposal_id') = ? "
+            "WHERE world_id = ? AND json_extract(payload, '$.action_provenance.proposal_id') = ? "
             "ORDER BY seq DESC LIMIT 1",
             (world_id, proposal.proposal_id),
         ).fetchone()
@@ -226,12 +251,16 @@ class ActionOrchestrator:
             return None
         payload = json.loads(event["payload"])
         provenance = payload.get("action_provenance")
-        compatible = (
-            payload.get("character") == proposal.actor_key
-            and payload.get("connector") == proposal.params["connector_key"]
-            and payload.get("to") == proposal.params["target_location_key"]
-            and provenance == {"proposal_id": proposal.proposal_id, "origin": proposal.origin}
-        )
+        compatible = event["event_type"] == event_type \
+            and payload.get("character") == proposal.actor_key and provenance == {
+            "proposal_id": proposal.proposal_id, "origin": proposal.origin
+        }
+        if proposal.action_kind == ACTION_TRAVERSE:
+            compatible = compatible and payload.get("connector") == proposal.params["connector_key"] \
+                and payload.get("to") == proposal.params["target_location_key"]
+        else:
+            compatible = compatible and payload.get("activity") == proposal.params["activity_type"] \
+                and payload.get("location") == proposal.params["target_location_key"]
         if not compatible:
             raise ActionContractError(
                 "identifiant de proposition déjà utilisé par une autre intention",
@@ -245,22 +274,44 @@ class ActionOrchestrator:
         proposal = self._validate_proposal(proposal)
         # Le verrou transactionnel englobe recherche et exécution : deux retries
         # concurrents ne peuvent pas tous les deux conclure qu'ils sont premiers.
-        with transaction(self._conn):
-            existing = self._existing_fact(world_id, proposal)
-            if existing is not None:
-                return ValidationResult(proposal.proposal_id, "accepted", None, (existing,))
-            try:
-                TraversalEngine(self._conn, clock=self._clock).traverse_character(
-                    world_id,
-                    proposal.actor_key,
-                    proposal.params["connector_key"],
-                    proposal.params["target_location_key"],
-                    action_provenance={"proposal_id": proposal.proposal_id, "origin": proposal.origin},
-                )
-            except TraversalError as exc:
-                return ValidationResult(proposal.proposal_id, "refused", exc.code, ())
+        try:
+            with transaction(self._conn):
+                existing = self._existing_fact(world_id, proposal)
+                if existing is not None:
+                    return ValidationResult(proposal.proposal_id, "accepted", None, (existing,))
+                provenance = {"proposal_id": proposal.proposal_id, "origin": proposal.origin}
+                if proposal.action_kind == ACTION_TRAVERSE:
+                    TraversalEngine(self._conn, clock=self._clock).traverse_character(
+                        world_id,
+                        proposal.actor_key,
+                        proposal.params["connector_key"],
+                        proposal.params["target_location_key"],
+                        action_provenance=provenance,
+                    )
+                else:
+                    activities = ActivityEngine(self._conn, clock=self._clock)
+                    active = activities.activity_sheet(world_id, proposal.actor_key)
+                    if active is not None:
+                        if active["type"] != "idle":
+                            return ValidationResult(
+                                proposal.proposal_id, "refused", "activity_active", ()
+                            )
+                        activities.abort_activity(world_id, proposal.actor_key)
+                    activities.start_activity(
+                        world_id,
+                        proposal.actor_key,
+                        proposal.params["activity_type"],
+                        proposal.params["target_location_key"],
+                        action_provenance=provenance,
+                    )
 
-            fact = self._existing_fact(world_id, proposal)
-            if fact is None:  # Defensive: accepted state without attributable event is a hard invariant breach.
-                raise RuntimeError("action acceptée sans événement canonique attribuable")
-            return ValidationResult(proposal.proposal_id, "accepted", None, (fact,))
+                fact = self._existing_fact(world_id, proposal)
+                if fact is None:
+                    raise RuntimeError("action acceptée sans événement canonique attribuable")
+                return ValidationResult(proposal.proposal_id, "accepted", None, (fact,))
+        except TraversalError as exc:
+            return ValidationResult(proposal.proposal_id, "refused", exc.code, ())
+        except ActivityError:
+            # Le rollback externe annule aussi l'abandon de l'idle : aucun
+            # refus ne peut laisser le personnage sans activité.
+            return ValidationResult(proposal.proposal_id, "refused", "activity_refused", ())

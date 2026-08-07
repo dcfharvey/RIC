@@ -10,6 +10,7 @@ from typing import Any
 from .cognition import CognitionProvider
 from .cognition_policy import CognitionCallLimits, CALL_TRIGGER_DIRECT_EVENT
 from .cognition_router import CognitionCallRouter, CognitionCallRouterError
+from .character_capabilities import sapient_character_keys
 from .db import transaction
 from .util import Clock, new_uuid
 
@@ -24,7 +25,13 @@ class OrchestratorTick:
 
 class VivariumOrchestrator:
  def __init__(self,conn:sqlite3.Connection,provider:CognitionProvider,clock:Clock|None=None)->None:self._conn,self._provider,self._clock=conn,provider,clock or Clock()
- def _characters(self,wid:int):return self._conn.execute('SELECT id,key FROM character WHERE world_id=? ORDER BY key',(wid,)).fetchall()
+ def _characters(self,wid:int):
+  keys=sapient_character_keys(self._conn,wid)
+  if not keys:return ()
+  return self._conn.execute(
+   f'SELECT id,key FROM character WHERE world_id=? AND key IN ({",".join("?" for _ in keys)}) ORDER BY key',
+   (wid,*keys),
+  ).fetchall()
  def _cursor(self,wid:int,cid:int)->int:
   row=self._conn.execute('SELECT last_event_seq FROM orchestrator_cursor WHERE world_id=? AND character_id=?',(wid,cid)).fetchone();return 0 if row is None else row['last_event_seq']
  def _save(self,wid:int,cid:int,seq:int)->None:
