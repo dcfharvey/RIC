@@ -1,10 +1,11 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from vivarium.character import CharacterEngine
 from vivarium.activities import ActivityEngine
 from vivarium.cognition_policy import CognitionCallLimits
+from vivarium.cognition_call_ledger import CognitionCallLedgerService
 from vivarium.connectors import WorldConnectorService
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
@@ -22,6 +23,20 @@ class Clock:
 
     def now_iso(self):
         return to_iso(self.now())
+
+
+class AdvancingClock:
+    def __init__(self):
+        self.current = datetime(2026, 8, 6, 12, tzinfo=timezone.utc)
+
+    def now(self):
+        return self.current
+
+    def now_iso(self):
+        return to_iso(self.current)
+
+    def advance(self, seconds):
+        self.current += timedelta(seconds=seconds)
 
 
 class Provider:
@@ -170,3 +185,30 @@ def test_cycle_interrupts_when_a_participant_has_left_before_the_next_turn(setup
     assert conn.execute(
         "SELECT status, close_reason FROM social_scene WHERE world_id = ?", (world_id,)
     ).fetchone()["status"] == "interrupted"
+
+
+def test_budget_deferred_scene_turn_is_not_repolled_before_release():
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    clock = AdvancingClock()
+    world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
+    limits = CognitionCallLimits(0, 3600, 1)
+    CognitionCallLedgerService(conn, clock=clock).admit(
+        world_id, "chuu", "direct_event", "seed_event", limits
+    )
+    provider = Provider(SceneTurnDecision("no_action"))
+    cycle = SocialSceneCycle(conn, provider, clock=clock)
+
+    deferred = cycle.tick(world_id, limits)
+    skipped = cycle.tick(world_id, limits)
+
+    assert deferred.turn is not None
+    assert deferred.turn.deferred_reason_code == "budget_exhausted"
+    assert skipped.turn is None
+    assert provider.calls == 0
+
+    clock.advance(3600)
+    resumed = cycle.tick(world_id, limits)
+    assert resumed.turn is not None and resumed.turn.decision.action == "no_action"
+    assert provider.calls == 1
+    conn.close()

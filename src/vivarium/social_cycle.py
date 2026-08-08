@@ -17,12 +17,15 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
 from .cognition_policy import CognitionCallLimits
 from .scene_scheduler import SceneSchedulerError, SceneTurnScheduler
 from .scene_turn import SceneTurnProvider, SceneTurnResult, SceneTurnService
 from .scenes import SceneError, SocialSceneService
+from .util import Clock, parse_iso, to_iso
+from .world import WorldEngine
 
 
 MAX_SCENE_TURNS = 4
@@ -47,11 +50,46 @@ class SocialCycleOutcome:
 class SocialSceneCycle:
     """Raccorde rencontres canoniques et tours LLM, sans boucle non bornée."""
 
-    def __init__(self, conn: sqlite3.Connection, provider: SceneTurnProvider) -> None:
+    def __init__(
+        self, conn: sqlite3.Connection, provider: SceneTurnProvider,
+        clock: Clock | None = None,
+    ) -> None:
         self._conn = conn
         self._provider = provider
-        self._scenes = SocialSceneService(conn)
+        self._clock = clock or Clock()
+        self._scenes = SocialSceneService(conn, clock=self._clock)
         self._scheduler = SceneTurnScheduler(conn)
+        # Cache technique, reconstructible depuis le journal d'admissions.
+        # Il ne fait pas partie du canon et évite de repoller un même tour à
+        # chaque pulsation pendant que son budget est encore fermé.
+        self._deferred_until_by_turn: dict[str, str] = {}
+
+    def _budget_release_at(
+        self, world_id: int, character_key: str, limits: CognitionCallLimits,
+        reason_code: str,
+    ) -> str | None:
+        rows = self._conn.execute(
+            "SELECT a.admitted_at FROM cognition_call_admission a "
+            "JOIN character c ON c.id=a.character_id "
+            "WHERE a.world_id=? AND c.key=? ORDER BY a.admitted_at, a.id",
+            (world_id, character_key),
+        ).fetchall()
+        if not rows:
+            return None
+        now = parse_iso(WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id))
+        instants = [parse_iso(row["admitted_at"]) for row in rows]
+        if reason_code == "debounced":
+            return to_iso(instants[-1] + timedelta(seconds=limits.debounce_seconds))
+        if reason_code == "budget_exhausted":
+            inside = [
+                instant for instant in instants
+                if (now - instant).total_seconds() < limits.budget_window_seconds
+            ]
+            if len(inside) >= limits.max_calls_per_window:
+                return to_iso(
+                    inside[0] + timedelta(seconds=limits.budget_window_seconds)
+                )
+        return None
 
     @staticmethod
     def _world_id(value: Any) -> int:
@@ -310,8 +348,24 @@ class SocialSceneCycle:
                 self._scenes.close(world_id, scene_key, reason="turn_budget_complete")
                 closed.append(scene_key)
                 continue
-            result = SceneTurnService(self._conn, self._provider).run(
+            canonical_now = WorldEngine(
+                self._conn, clock=self._clock
+            ).read_canonical_time(world_id)
+            deferred_until = self._deferred_until_by_turn.get(opportunity.turn_key)
+            if deferred_until is not None and canonical_now < deferred_until:
+                continue
+            self._deferred_until_by_turn.pop(opportunity.turn_key, None)
+            result = SceneTurnService(
+                self._conn, self._provider, clock=self._clock
+            ).run(
                 world_id, scene_key, opportunity.speaker_key, opportunity.turn_key, limits
             )
+            if result.deferred_reason_code in {"debounced", "budget_exhausted"}:
+                release_at = self._budget_release_at(
+                    world_id, opportunity.speaker_key, limits,
+                    result.deferred_reason_code,
+                )
+                if release_at is not None and release_at > canonical_now:
+                    self._deferred_until_by_turn[opportunity.turn_key] = release_at
             return SocialCycleOutcome(tuple(opened), tuple(closed), tuple(interrupted), result)
         return SocialCycleOutcome(tuple(opened), tuple(closed), tuple(interrupted), None)

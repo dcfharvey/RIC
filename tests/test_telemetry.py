@@ -48,6 +48,29 @@ def test_rodage_snapshot_flags_activity_monoculture_only_after_evidence():
     conn.close()
 
 
+def test_rodage_snapshot_does_not_treat_cat0_waits_as_activity_monoculture():
+    conn, world_id = _world()
+    activities = ActivityEngine(conn, clock=Clock())
+    for number in range(8):
+        activities.start_activity(
+            world_id, "patoune", "idle", "entree_exterieure",
+            duration_seconds=1,
+            sim_now=f"2026-08-07T12:00:{number:02d}.000+00:00",
+        )
+        activities.abort_activity(
+            world_id, "patoune",
+            sim_now=f"2026-08-07T12:00:{number:02d}.500+00:00",
+        )
+
+    snapshot = inspect_rodage(conn, world_id)
+
+    assert not any(
+        warning.key == "activity_monoculture" and "patoune" in warning.detail
+        for warning in snapshot.warnings
+    )
+    conn.close()
+
+
 def test_runtime_outcome_log_is_append_only_jsonl(tmp_path):
     path = tmp_path / "runtime_outcomes.jsonl"
     log = RuntimeOutcomeLog(path)

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.0a14 — 7 août 2026
+
+- Une occasion sociale refusée par le budget est maintenant suspendue jusqu'à
+  son instant canonique de renouvellement, au lieu d'être repollée et
+  journalisée toutes les deux secondes. La suspension est technique,
+  reconstructible depuis les admissions et n'ajoute aucune vérité au monde.
+- Le runtime conserve son ordonnanceur social entre les ticks afin de suivre
+  ces échéances tout en laissant les autres scènes et le déterminisme avancer.
+- La télémétrie n'applique plus la taxonomie d'activités sapientes aux attentes
+  CAT-0 : leur variété se trouve dans les décisions et déplacements animaux.
+- L'enquête a aussi établi qu'une échéance simulée ne doit jamais être comparée
+  directement à l'heure murale : le temps de calcul LLM est volontairement
+  exclu du temps vécu par le monde.
+- Validation complète : **730 tests**.
+
 ## 0.1.0a13 — 7 août 2026
 
 - Première couche d'agence animale générique (`CAT-0`) : un personnage non

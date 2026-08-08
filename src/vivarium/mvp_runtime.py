@@ -78,6 +78,9 @@ class MVPRuntime:
         self._limits.validated()
         self._max_transitions = max_transitions
         self._clock = clock or Clock()
+        self._social_cycle = None if scene_provider is None else SocialSceneCycle(
+            conn, scene_provider, clock=self._clock
+        )
 
     def run_once(self) -> MVPRunReport:
         """Fait progresser un monde actif, sans jamais traiter une pause."""
@@ -115,7 +118,8 @@ class MVPRuntime:
             # Elle doit être observée avant que l'autonomie puisse remplacer
             # l'`idle` qui la source; sinon une décision d'activité valide
             # efface systématiquement l'occasion avant sa découverte.
-            social = SocialSceneCycle(self._conn, self._scene_provider).tick(
+            assert self._social_cycle is not None
+            social = self._social_cycle.tick(
                 self.world_id, self._limits
             )
             # L'attente d'une replique peut faire franchir une echeance du

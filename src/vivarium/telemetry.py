@@ -103,6 +103,22 @@ def inspect_rodage(conn: sqlite3.Connection, world_id: int) -> RodageSnapshot:
     activity_mix = {
         character: dict(sorted(counts.items())) for character, counts in sorted(mix.items())
     }
+    non_sapient: set[str] = set()
+    for row in conn.execute(
+        "SELECT c.key, o.resolved_initial_definition_json FROM character c "
+        "JOIN character_instance_origin o ON o.character_id=c.id "
+        "WHERE c.world_id=?",
+        (world_id,),
+    ):
+        try:
+            components = json.loads(row["resolved_initial_definition_json"])["components"]
+            if any(
+                item.get("key") == "behavior.non_sapient_agency"
+                for item in components if isinstance(item, dict)
+            ):
+                non_sapient.add(row["key"])
+        except (KeyError, TypeError, ValueError):
+            continue
 
     warnings: list[TelemetryWarning] = []
     if speech_acts >= 6 and distinct_utterances / speech_acts <= 0.5:
@@ -116,6 +132,11 @@ def inspect_rodage(conn: sqlite3.Connection, world_id: int) -> RodageSnapshot:
             f"{scenes_empty}/{scenes_total} scènes sans parole",
         ))
     for character, counts in activity_mix.items():
+        # CAT-0 emploie `idle` comme attente bornée entre deux décisions. Sa
+        # variété comportementale se mesure dans son journal de décisions et
+        # ses déplacements, pas avec la taxonomie des activités sapientes.
+        if character in non_sapient:
+            continue
         total = sum(counts.values())
         dominant, amount = max(counts.items(), key=lambda item: item[1])
         if total >= 8 and amount / total >= 0.8:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vivarium-social"
-version = "0.1.0a13"
+version = "0.1.0a14"
 description = "Vivarium social artificiel — bac à sable social persistant et textuel."
 requires-python = ">=3.12"
 authors = [{ name = "Propriétaire du vivarium" }]
