@@ -124,6 +124,13 @@ class WorldEngine:
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)
         ).fetchone() is not None
 
+    @staticmethod
+    def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+        return any(
+            row["name"] == column
+            for row in conn.execute(f"PRAGMA table_info({table})")
+        )
+
     def _create_empty_world_in_transaction(
         self, c: sqlite3.Connection, name: str, *, seeded: bool
     ) -> tuple[int, str]:
@@ -342,15 +349,21 @@ class WorldEngine:
         Monde en pause : `simulated_now` (gelée).
         Lève `ClockError` si l'horloge réelle serait antérieure à l'ancre.
         """
+        runtime_select = (
+            "c.runtime_state"
+            if self._has_column(self._conn, "canonical_clock", "runtime_state")
+            else "'running'"
+        )
         row = self._conn.execute(
-            "SELECT w.status AS status, c.simulated_now AS sim, c.real_updated_at AS real "
+            "SELECT w.status AS status, c.simulated_now AS sim, c.real_updated_at AS real, "
+            f"{runtime_select} AS runtime_state "
             "FROM worlds w JOIN canonical_clock c ON c.world_id = w.id "
             "WHERE w.id = ?",
             (world_id,),
         ).fetchone()
         if row is None:
             raise KeyError(f"monde introuvable : {world_id}")
-        if row["status"] == STATUS_PAUSED:
+        if row["status"] == STATUS_PAUSED or row["runtime_state"] == "stopped":
             return row["sim"]
         anchor_sim = parse_iso(row["sim"])
         anchor_real = parse_iso(row["real"])

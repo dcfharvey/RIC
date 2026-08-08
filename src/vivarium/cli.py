@@ -353,6 +353,7 @@ def _run_mvp_runtime(
     from .cognition import LMStudioProvider, LocalLLMSettings
     from .mvp_preflight import inspect_mvp_preflight
     from .mvp_runtime import MVPRuntime
+    from .runtime_session import RuntimeSessionService
     from .guardian import LocalGuardian
     from .scene_turn import LMStudioSceneTurnProvider
     from .simulation import SimulationLimitError
@@ -381,14 +382,28 @@ def _run_mvp_runtime(
     server = None
     thread = None
     runtime = None
+    session_service = None
+    session_id = None
     protective_stop = False
     try:
+        ensure_schema(conn)
         report = inspect_mvp_preflight(conn, world_id=world_id)
         if not report.healthy:
             print("Runtime MVP : prévol en échec; lancement refusé.", file=__import__("sys").stderr)
             for check in report.failures:
                 print(f"  {check.key} : {check.detail}", file=__import__("sys").stderr)
             return 1
+        # Le port est réservé avant de muter la session : deux runtimes locaux
+        # ne peuvent pas se déclarer propriétaires du même monde par accident.
+        server = create_server(db_path, host="127.0.0.1", port=port)
+        session_service = RuntimeSessionService(conn)
+        session_start = session_service.start(report.world_id)
+        session_id = session_start.session_id
+        if session_start.recovered_session_id is not None:
+            print(
+                "Session interrompue détectée : horloge récupérée à "
+                f"{session_start.canonical_at} sans rattrapage hors ligne."
+            )
         rules = WorldRuleService(conn).install_standard_residence_rules(report.world_id)
         if rules["changed"]:
             print(
@@ -415,7 +430,6 @@ def _run_mvp_runtime(
         outcome_log = RuntimeOutcomeLog(
             db_path.parent.parent / "logs" / "runtime_outcomes.jsonl"
         )
-        server = create_server(db_path, host="127.0.0.1", port=port)
         thread = threading.Thread(target=serve, args=(server,), daemon=True)
         thread.start()
         actual_port = server.server_address[1]
@@ -423,9 +437,13 @@ def _run_mvp_runtime(
         print("Ctrl+C arrête proprement le runtime et interrompt les scènes ouvertes.")
         print(f"LLM local : {'activé' if enable_local_llm else 'désactivé (routines déterministes seulement)'}")
         ticks = 0
+        last_session_heartbeat = time.monotonic()
         while max_ticks == 0 or ticks < max_ticks:
             tick = runtime.run_once()
             ticks += 1
+            if time.monotonic() - last_session_heartbeat >= 10.0:
+                session_service.heartbeat(session_id)
+                last_session_heartbeat = time.monotonic()
             arrival = tick.arrival
             if arrival and arrival.character_key:
                 if arrival.routed is None:
@@ -512,13 +530,19 @@ def _run_mvp_runtime(
         print(f"Runtime MVP : arrêt sur erreur explicite : {exc}", file=__import__("sys").stderr)
         return 2
     finally:
-        if runtime is not None and not protective_stop:
-            runtime.shutdown()
-        if server is not None:
-            shutdown(server)
-        if thread is not None:
-            thread.join(timeout=5)
-        conn.close()
+        try:
+            if runtime is not None and not protective_stop:
+                runtime.shutdown()
+        finally:
+            try:
+                if session_service is not None and session_id is not None:
+                    session_service.stop(session_id, protective=protective_stop)
+            finally:
+                if server is not None:
+                    shutdown(server)
+                if thread is not None:
+                    thread.join(timeout=5)
+                conn.close()
     print("Runtime MVP arrêté proprement.")
     return 0
 

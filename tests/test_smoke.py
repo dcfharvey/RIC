@@ -23,4 +23,4 @@ def test_version_package_coherente():
     metadata_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
     with metadata_path.open("rb") as source:
         metadata = tomllib.load(source)
-    assert __version__ == metadata["project"]["version"] == "0.1.0a14"
+    assert __version__ == metadata["project"]["version"] == "0.1.0a15"

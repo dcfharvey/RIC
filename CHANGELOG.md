@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.0a15 — 8 août 2026
+
+- L'horloge canonique distingue maintenant la pause administrative de l'arrêt
+  du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
+  suivant repart de ce point sans rattrapage hors ligne.
+- Les sessions runtime possèdent un battement persistant. Une session laissée
+  ouverte par un crash est fermée comme `crash_recovered`, puis l'horloge est
+  réancrée au dernier instant durable sans jamais précéder un événement canonique.
+- Les battements restent un registre opérationnel mutable et compact; seules
+  les transitions de cycle de vie sont recopiées dans un journal append-only.
+- Le schéma SQLite passe en version 35.
+- Validation complète : **734 tests**.
+
 ## 0.1.0a14 — 7 août 2026
 
 - Une occasion sociale refusée par le budget est maintenant suspendue jusqu'à

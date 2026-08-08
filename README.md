@@ -62,7 +62,9 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 - `status` inspecte l'état général (intégrité, version de schéma, horloge, compteurs).
 - `mvp-init` crée une résidence alpha sans jamais écraser une base existante;
   `mvp-run` lance son runtime et sa console locale. `Ctrl+C` ferme proprement
-  les scènes ouvertes. Ajouter `--enable-local-llm` pour employer le modèle
+  les scènes ouvertes et gèle l'heure simulée. Une fermeture brutale est
+  détectée au prochain lancement : le dernier point durable est restauré sans
+  faire vieillir le monde pendant l'arrêt. Ajouter `--enable-local-llm` pour employer le modèle
   chargé dans LM Studio; sans ce drapeau, seules les routines canoniques tournent.
 - `mvp-preflight --db <base>` inspecte en lecture seule une base candidate au MVP
   (intégrité, journal, casting et journaux subjectifs), sans LLM ni réparation.
