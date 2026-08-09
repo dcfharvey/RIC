@@ -95,9 +95,9 @@ Référence fonctionnelle actuelle :
 - version logicielle : **`0.1.0a15`**;
 - schéma SQLite : **39**;
 - migration la plus récente : `0039_scc1b_provider_provenance.sql`;
-- dernière validation complète connue : **761 tests réussis**;
-- dernier commit fonctionnel courant : livraison SCC-1B1 (SHA indiqué dans le rapport de work order);
-- le commit documentaire suivant `1cf8278` ajoute la spécification R&D SCC-1B; `01ff03e` est antérieur et ne modifie que `.gitignore`.
+- dernière validation complète connue : **766 tests réussis**;
+- dernier commit fonctionnel courant : durcissement SCC-1B1 livré après `1de1314`;
+- `1cf8278` est la photographie documentaire R&D SCC-1B; les commits `.gitignore` historiques ne font pas partie de l'état fonctionnel courant.
 
 Toujours revérifier localement avant d'agir :
 

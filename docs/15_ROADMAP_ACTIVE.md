@@ -25,7 +25,7 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a15` — schéma 39, migration `0039_scc1b_provider_provenance.sql`, SCC-1B1 livré.
+**Version logicielle actuelle :** `0.1.0a15` — schéma 39, migration `0039_scc1b_provider_provenance.sql`, SCC-1B1 durci, 766 tests validés.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;

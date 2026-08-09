@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from typing import Any, Iterable
 
@@ -14,6 +15,8 @@ from .util import Clock, new_uuid
 _STATUSES = frozenset({"clear", "ambiguous", "unresolved"})
 _MAX_HYPOTHESES = 3
 _MAX_HYPOTHESIS_LENGTH = 280
+_TECHNICAL_PROVENANCE_KEYS = frozenset(("origin_kind", "model_id", "provider_version", "snapshot_fingerprint", "provider_turn_id"))
+_FINGERPRINT_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class SocialInterpretationError(ValueError):
@@ -107,6 +110,30 @@ class SocialInterpretationService:
             ids.append(row["id"])
         return tuple(ids)
 
+    @staticmethod
+    def _provenance(value: Any) -> dict[str, Any]:
+        if value is None:
+            value = {"origin_kind": "direct_controlled", "model_id": None,
+                     "provider_version": None, "snapshot_fingerprint": None,
+                     "provider_turn_id": None}
+        if not isinstance(value, dict) or set(value) != _TECHNICAL_PROVENANCE_KEYS:
+            raise SocialInterpretationError("provenance technique invalide", code="invalid_interpretation")
+        origin = value["origin_kind"]
+        if origin not in {"llm", "direct_controlled"}:
+            raise SocialInterpretationError("provenance technique invalide", code="invalid_interpretation")
+        if origin == "direct_controlled":
+            if any(value[key] is not None for key in _TECHNICAL_PROVENANCE_KEYS - {"origin_kind"}):
+                raise SocialInterpretationError("provenance directe incohérente", code="invalid_interpretation")
+            return dict(value)
+        for key in ("model_id", "provider_version", "snapshot_fingerprint"):
+            if not isinstance(value[key], str) or not value[key].strip() or len(value[key]) > 256:
+                raise SocialInterpretationError("provenance LLM incomplète", code="invalid_interpretation")
+        if not _FINGERPRINT_RE.fullmatch(value["snapshot_fingerprint"]):
+            raise SocialInterpretationError("fingerprint de provenance invalide", code="invalid_interpretation")
+        if value["provider_turn_id"] is not None and (not isinstance(value["provider_turn_id"], str) or not 1 <= len(value["provider_turn_id"]) <= 120):
+            raise SocialInterpretationError("identifiant de tour invalide", code="invalid_interpretation")
+        return dict(value)
+
     def _row(self, interpretation_id: int) -> sqlite3.Row:
         row = self._conn.execute(
             "SELECT interpretation.*, source.request_key AS source_trace_request_key, "
@@ -186,11 +213,7 @@ class SocialInterpretationService:
                 raise SocialInterpretationError("une révision exige une preuve secondaire", code="revision_support_required")
             prior_id = prior["id"]
         support_ids = self._support_ids(world_id, character_id, support_keys, source["trace_id"])
-        provenance = technical_provenance or {"origin_kind": "direct_controlled", "model_id": None,
-                                               "provider_version": None, "snapshot_fingerprint": None,
-                                               "provider_turn_id": None}
-        if provenance.get("origin_kind") not in {"llm", "direct_controlled"}:
-            raise SocialInterpretationError("provenance technique invalide", code="invalid_interpretation")
+        provenance = self._provenance(technical_provenance)
         existing = self._conn.execute(
             "SELECT id, source_trace_id, interaction_role, understanding_status, "
             "meaning_hypotheses_json, motive_hypotheses_json, revision_of_id, origin_kind, model_id, "

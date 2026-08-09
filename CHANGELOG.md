@@ -13,6 +13,9 @@
 - SCC-1B1 ajoute un snapshot subjectif historique owner-scoped, un provider LLM
   borné, une provenance technique persistante, la révision explicite et le replay
   idempotent, sans raccordement runtime ni conséquence cognitive.
+- SCC-1B1 est durci avant calibration : snapshot profondément immuable, fingerprint
+  du wire exact, séparation de l'identité technique du contenu cognitif, prompt
+  contractuel explicite, provenance auditée et validations pré-provider.
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.

@@ -823,7 +823,9 @@ def social_interpretation_audit(conn: sqlite3.Connection, world_id: int) -> list
     findings: list[str] = []
     rows = conn.execute(
         "SELECT interpretation.id, interpretation.world_id, interpretation.character_id, "
-        "interpretation.source_trace_id, interpretation.revision_of_id, event.event_type, "
+        "interpretation.source_trace_id, interpretation.revision_of_id, interpretation.origin_kind, "
+        "interpretation.model_id, interpretation.provider_version, interpretation.snapshot_fingerprint, "
+        "interpretation.provider_turn_id, event.event_type, "
         "event.character_id AS event_character_id, event.payload_json "
         "FROM social_interpretation interpretation "
         "LEFT JOIN social_interpretation_event event ON event.interpretation_id = interpretation.id "
@@ -839,6 +841,18 @@ def social_interpretation_audit(conn: sqlite3.Connection, world_id: int) -> list
         if row["event_type"] != expected_event or row["event_character_id"] != row["character_id"]:
             findings.append(f"interpretation {row['id']}: missing or mismatched audit event")
             continue
+        if row["origin_kind"] == "llm":
+            import re
+            if (not isinstance(row["model_id"], str) or not row["model_id"].strip()
+                    or not isinstance(row["provider_version"], str) or not row["provider_version"].strip()
+                    or not isinstance(row["snapshot_fingerprint"], str)
+                    or re.fullmatch(r"[0-9a-f]{64}", row["snapshot_fingerprint"]) is None):
+                findings.append(f"interpretation {row['id']}: incoherent LLM provenance")
+        elif row["origin_kind"] == "direct_controlled":
+            if any(row[key] is not None for key in ("model_id", "provider_version", "snapshot_fingerprint", "provider_turn_id")):
+                findings.append(f"interpretation {row['id']}: direct provenance masks LLM fields")
+        else:
+            findings.append(f"interpretation {row['id']}: unknown provenance origin")
         payload = json.loads(row["payload_json"])
         if payload.get("interpretation_id") != row["id"] or payload.get("source_trace_id") != row["source_trace_id"]:
             findings.append(f"interpretation {row['id']}: audit payload mismatch")
