@@ -135,6 +135,11 @@ def test_lm_studio_request_uses_native_reasoning_off_endpoint(monkeypatch, setup
         def __exit__(self, *args): return False
 
     def fake_urlopen(request, timeout):
+        if request.full_url.endswith("/api/v1/models"):
+            class ModelsResponse(Response):
+                def read(self):
+                    return b'{"models":[{"key":"gemma-local","capabilities":{"reasoning":{"allowed_options":["off","on"]}}}]}'
+            return ModelsResponse()
         captured["url"], captured["body"], captured["timeout"] = request.full_url, request.data, timeout
         return Response()
 
@@ -145,6 +150,60 @@ def test_lm_studio_request_uses_native_reasoning_off_endpoint(monkeypatch, setup
     assert captured["url"].endswith("/api/v1/chat") and captured["timeout"] == 12
     assert sent["reasoning"] == "off" and sent["store"] is False
     assert "max_output_tokens" not in sent
+
+
+def test_lm_studio_request_omits_reasoning_when_capability_is_absent(monkeypatch):
+    captured = {}
+
+    class Response:
+        def __init__(self, payload): self.payload = payload
+        def read(self): return self.payload
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+
+    def fake_urlopen(request, timeout):
+        if request.full_url.endswith("/api/v1/models"):
+            return Response(b'{"models":[{"key":"ministral-local","capabilities":{"vision":false}}]}')
+        captured["body"] = json.loads(request.data)
+        return Response(b'{"output":[{"type":"message","content":"ok"}]}')
+
+    monkeypatch.setattr("vivarium.cognition.urlopen", fake_urlopen)
+    from vivarium.cognition import request_local_model
+    assert request_local_model(
+        LocalLLMSettings(DEFAULT_LM_STUDIO_BASE_URL, "ministral-local", None, 12),
+        system_prompt="system",
+        input_text="input",
+    ) == "ok"
+    assert "reasoning" not in captured["body"]
+    assert captured["body"] == {
+        "model": "ministral-local", "system_prompt": "system", "input": "input",
+        "temperature": 0.2, "store": False,
+    }
+
+
+def test_lm_studio_request_refuses_reasoning_when_off_is_not_allowed(monkeypatch):
+    calls = []
+
+    class Response:
+        def read(self):
+            return b'{"models":[{"key":"reasoning-local","capabilities":{"reasoning":{"allowed_options":["on"]}}}]}'
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+
+    def fake_urlopen(request, timeout):
+        calls.append(request.full_url)
+        return Response()
+
+    monkeypatch.setattr("vivarium.cognition.urlopen", fake_urlopen)
+    from vivarium.cognition import request_local_model
+    with pytest.raises(CognitionError) as raised:
+        request_local_model(
+            LocalLLMSettings(DEFAULT_LM_STUDIO_BASE_URL, "reasoning-local", None, 12),
+            system_prompt="system",
+            input_text="input",
+        )
+    assert raised.value.code == "reasoning_not_supported"
+    assert calls == [DEFAULT_LM_STUDIO_BASE_URL + "/api/v1/models"]
 
 
 def test_lm_studio_model_listing_is_read_only(monkeypatch):
@@ -188,7 +247,15 @@ def test_lm_studio_adapts_only_an_exact_available_activity_shorthand(monkeypatch
         def __enter__(self): return self
         def __exit__(self, *args): return False
 
-    monkeypatch.setattr("vivarium.cognition.urlopen", lambda request, timeout: Response())
+    def fake_urlopen(request, timeout):
+        if request.full_url.endswith("/api/v1/models"):
+            class ModelsResponse(Response):
+                def read(self):
+                    return b'{"models":[{"key":"gemma-local","capabilities":{"reasoning":{"allowed_options":["off","on"]}}}]}'
+            return ModelsResponse()
+        return Response()
+
+    monkeypatch.setattr("vivarium.cognition.urlopen", fake_urlopen)
     decision = LMStudioProvider(
         LocalLLMSettings(DEFAULT_LM_STUDIO_BASE_URL, "gemma-local", None, 12)
     ).decide(context)

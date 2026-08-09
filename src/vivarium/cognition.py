@@ -366,9 +366,11 @@ def request_local_model(
         "system_prompt": system_prompt,
         "input": input_text,
         "temperature": 0.2,
-        "reasoning": "off",
         "store": False,
     }
+    reasoning = _reasoning_parameter(settings)
+    if reasoning is not None:
+        body["reasoning"] = reasoning
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if settings.api_token:
         headers["Authorization"] = f"Bearer {settings.api_token}"
@@ -393,6 +395,37 @@ def request_local_model(
         return messages[0]
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
         raise CognitionError("réponse LM Studio illisible", code="invalid_llm_response") from exc
+
+
+def _reasoning_parameter(settings: LocalLLMSettings) -> str | None:
+    """Negotiate reasoning without silently enabling a configurable mode."""
+    request = Request(settings.api_root + "/api/v1/models", headers={"Accept": "application/json"})
+    try:
+        with urlopen(request, timeout=settings.timeout_seconds) as response:  # endpoint validated loopback
+            raw = response.read().decode("utf-8")
+    except HTTPError as exc:
+        raise CognitionError(f"LM Studio refused HTTP request {exc.code}", code="llm_http_error") from exc
+    except (URLError, TimeoutError, OSError) as exc:
+        raise CognitionError("LM Studio is inaccessible", code="llm_unavailable") from exc
+    try:
+        records = json.loads(raw)["models"]
+        record = next(
+            (item for item in records if isinstance(item, Mapping) and item.get("key") == settings.model_id),
+            None,
+        )
+    except (KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise CognitionError("LM Studio response is unreadable", code="invalid_llm_response") from exc
+    capabilities = record.get("capabilities") if isinstance(record, Mapping) else None
+    reasoning = capabilities.get("reasoning") if isinstance(capabilities, Mapping) else None
+    if not isinstance(reasoning, Mapping):
+        return None
+    allowed_options = reasoning.get("allowed_options")
+    if isinstance(allowed_options, (list, tuple)) and "off" in allowed_options:
+        return "off"
+    raise CognitionError(
+        "model does not authorize reasoning=off under the local recipe",
+        code="reasoning_not_supported",
+    )
 
 
 class LMStudioProvider:
