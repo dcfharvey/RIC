@@ -14,8 +14,7 @@ dist/
 htmlcov/
 
 # Données et journaux locaux (jamais versionnés)
-logs/*.log
-logs/*.jsonl
+logs/
 data/
 *.db
 *.sqlite
