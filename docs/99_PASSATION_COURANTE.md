@@ -1,290 +1,275 @@
-# Passation courante — Vivarium social
+# Passation courante — RIC
 
-**Mise à jour :** 8 août 2026
-**But :** point d'entrée opérationnel pour une nouvelle instance de Codex.
-Lire ensuite `README.md`, `docs/00_DOSSIER_MAITRE_IA.md`, les documents de lot
-cités et le diff Git avant toute écriture.
+**Mise à jour :** 8 août 2026  
+**But :** point d'entrée opérationnel obligatoire pour toute nouvelle instance de Codex.  
+**Projet :** RIC — Reality · Interaction · Cognition (anciennement Vivarium social).
 
-## Direction non négociable
+> Commencer ici. Ne pas reconstruire l'histoire du projet à partir des anciens lots.
+> Vérifier le dépôt réel avant toute écriture.
 
-> Exécution rigoureuse, création flexible.
+---
 
-Le moteur canonique est l'autorité unique sur les faits et leurs conséquences.
-Le LLM proposera plus tard intentions, interprétations et paroles, mais ne
-écrira jamais directement dans SQLite et ne créera pas de fait non validé.
+## 1. Philosophie et gouvernance
 
-**Méthode obligatoire :** avant tout nouveau système vivant, cognitif, social
-ou physique, consulter la littérature scientifique ou technique pertinente,
-séparer résultats robustes, débats ouverts et choix d'ingénierie, puis conserver
-sources et limites dans la documentation du lot. Voir DEC-036 dans
-`docs/01_REGISTRE_DECISIONS.md`.
+Deux maximes structurent le travail :
 
-## État vérifié
+> **Flexible creativity. Rigorous execution.**
+>
+> **Verify twice. Commit once.**
 
-- version logicielle : `0.1.0a15` (**MVP alpha, horloge gelée lorsque le runtime est absent et récupération de crash**). Les numéros de documents
-  et de commits ne sont pas des versions de produit; voir `docs/15_ROADMAP_ACTIVE.md` ;
-- gardien intégré au runtime : premier contrôle immédiat, puis toutes les
-  3600 secondes et après chaque progression canonique; journal local
-  `logs/guardian.jsonl`; **734 tests** réussis ;
-- migration courante : `0035_runtime_sessions.sql`; l'horloge porte un état
-  d'exécution distinct du statut administratif du monde. Les sessions ont un
-  battement technique mutable, tandis que leurs transitions sont append-only;
-- commencer par `git status --short` et `git log -1 --oneline` : un arbre propre
-  signifie que cette passation décrit l'état de `HEAD` ;
-- derniers lots : 4.2I (pipeline métier de changement préparé) puis 4.2J
-  (exposition HTTP locale du même pipeline) ;
-- migration courante : `0033_orchestrator_cursor.sql` ;
-- dernier test complet avant 4.2J : **469 passed** ;
-- tests HTTP ciblés après 4.2J : **112 passed** ;
-- test complet après 4.2J : **477 passed** ;
-- test complet après 4.2K : **486 passed** ;
-- test complet après le banc minimal : **495 passed** ;
-- test complet après fermeture sûre de passage : **502 passed** ;
-- test complet après politique topologique : **504 passed** ;
-- test complet après objets et contenance : **514 passed** ;
-- test complet après presets d'environnement : **520 passed** ;
-- test complet après blueprints d'environnement : **525 passed** ;
-- test complet après connecteurs à état : **528 passed** ;
-- test complet après traversée validée : **532 passed** ;
-- test complet après règles standard de monde : **535 passed** ;
-- test complet après calibration de Chuu et profils de ressource atomiques :
-  **541 passed** ;
-- test complet après catalogue et blueprint de résidence : **547 passed** ;
-- test complet après assemblage du monde d'intégration : **551 passed** ;
-- test complet après possession de personnage : **559 passed** ;
-- test complet après contrat d'action moteur–cognition v1 : **564 passed** ;
-- test complet après perception factuelle locale : **568 passed** ;
-- test complet après attention déterministe : **573 passed** ;
-- test complet après flux d'événements perceptibles : **576 passed** ;
-- test complet après première trace subjective : **578 passed** ;
-- test complet après rappel subjectif minimal : **579 passed** ;
-- test complet après audit subjectif séparé : **580 passed** ;
-- test complet après croyances sourcées et révisions auditées : **624 passed** ;
-- test complet après états affectifs subjectifs : **629 passed** ;
-- test complet après relations, limites et permissions : **634 passed** ;
-- test complet après cadre décisionnel initial : **636 passed** ;
-- test complet après scènes sociales structurées : **638 passed** ;
-- test complet après orchestrateur autonome initial : **640 passed** ;
-- test complet après banc vivant jetable : **642 passed** ;
-- test complet après console d'observation du banc vivant : **643 passed** ;
-- test complet après banc de calibration locale LLM : **650 passed** ;
-- test complet après premier tour social LLM : **658 passed** ;
-- test complet après banc social multi-tours : **664 passed** ;
-- test complet après porte de prévol MVP : **670 passed** ;
-- test complet de livraison alpha : **686 passed** ;
-- test complet après frontière LLM locale et banc de fumée : **592 passed** ;
-- test complet après politique pure d'admissibilité des appels LLM :
-  **599 passed** ;
-- test complet après journal append-only d'admission LLM : **602 passed** ;
-- test complet après routeur LLM événementiel et fumée intégrée :
-  **606 passed** ;
-- test complet après banc de calibration des appels LLM : **609 passed** ;
-- test complet après première projection de motifs physiologiques :
-  **613 passed** ;
-- test complet après première disposition canonique de personnalité :
-  **616 passed** ;
-- test complet après valeurs et préférences initiales : **618 passed** ;
-- test complet après objectifs et intentions persistantes : **620 passed** ;
-- test complet après activités autonomes événementielles : **704 passed** ;
-- test complet après correction de la latence temporelle LLM : **706 passed** ;
-- aucune modification de l'interface visuelle dans les lots 4.2I/4.2J.
+La première concerne la conception : exploration ouverte tant qu'aucune décision n'est engagée, puis spécification et exécution rigoureuses dès qu'une idée devient architecture, code ou canon.
 
-## Correctif alpha 0.1.0a2
+La seconde concerne le développement : avant une modification importante, vérifier hypothèses, dépendances, invariants, conséquences, migrations et tests; ne committer qu'après preuve suffisante.
 
-- le tableau d'observation se rafraîchit localement toutes les deux secondes
-  quand son onglet est visible; il n'exécute aucune commande ni écriture;
-- l'arrivée initiale déjà déclarée dans le contrat d'admission est maintenant
-  raccordée : chaque résidente sapiente reçoit une occasion unique, sourcée et
-  validée de traverser avant l'initialisation des activités automatiques;
-- Patoune reste hors des appels LLM; une arrivée déjà dépassée ou un retry est
-  refusé/dédupliqué explicitement, jamais rejoué silencieusement.
+Répartition des responsabilités :
 
-Voir `docs/59_CORRECTIF_ALPHA_0_1_0A2.md`.
+- **ChatGPT** : recherche scientifique/technique, conception fonctionnelle, cohérence conceptuelle, documentation R&D et préparation des work orders;
+- **Grok** : contre-audit scientifique adversarial indépendant;
+- **Codex** : autorité sur l'architecture réelle, le code, les migrations, les propriétaires persistants, les invariants techniques, les tests et l'ordre d'implantation;
+- **propriétaire** : autorité finale sur les choix de produit et de design.
 
-Validation de code : **692 passed**. Un lancement réel local a confirmé les
-quatre décisions d'arrivée Gemma, les traversées validées et le démarrage de
-scènes; l'inspection graphique reste à refaire si l'interface évolue encore.
+Codex ne doit pas suivre aveuglément une proposition R&D si le dépôt réel impose une autre implantation. Il doit signaler la divergence et l'expliquer. Inversement, une décision d'ingénierie ne doit jamais être présentée comme une loi scientifique.
 
-## Livraison alpha 0.1.0a1
+Pour tout modèle comportemental, cognitif, social ou physiologique, conserver explicitement la séparation suivante :
 
-- `ActionOptionService` ne propose une traversée visible qu'après une nouvelle
-  vérification du connecteur par le moteur;
-- `SocialSceneCycle` transforme une co-présence canonique en scène bornée,
-  sans jamais convertir une parole en fait. La première scène est ancrée dans
-  le contexte initial commun; Patoune est hors de la boucle sapiente;
-- `MVPRuntime` assemble simulation, orchestrateur et scène au plus une fois par
-  tick, respecte la pause et interrompt proprement les scènes à l'arrêt;
-- `mvp-init`, `mvp-preflight` et `mvp-run` constituent le parcours opérateur.
-  Le dernier expose la console locale et peut activer Gemma via LM Studio;
-- le tableau local affiche les scènes et leurs paroles en plus du journal;
-- l'adaptateur local normalise seulement la forme Gemma
-  `action: "greet"`/`act_kind: "greet"` en acte de parole contractuel;
-- documentation de portée : `docs/58_MVP_ALPHA_0_1_0A1.md`.
+1. résultats empiriques;
+2. conclusions raisonnables mais incertaines;
+3. hypothèses de modélisation;
+4. choix de design/ingénierie.
 
-Pour reproduire un lancement sans toucher une histoire existante :
+---
 
-```powershell
-.\.venv\Scripts\python.exe -m vivarium mvp-init --db data\vivarium-alpha.sqlite
-.\.venv\Scripts\python.exe -m vivarium mvp-run --db data\vivarium-alpha.sqlite --enable-local-llm
+## 2. Architecture conceptuelle RIC
+
+Les noms suivants sont **conceptuels**. Ils ne constituent pas une instruction de renommer des packages, classes ou services existants.
+
+- **Reality Engine** : ce qui est objectivement vrai, possible et causal dans la simulation;
+- **Interaction Engine** : ce qui rend agents et réalité mutuellement accessibles et structure leurs interactions;
+- **Cognitive Engine** : ce que chaque agent perçoit, interprète, mémorise, priorise et décide subjectivement.
+
+Le mapping de ces concepts sur le code réel doit être établi à partir du dépôt, pas supposé depuis les noms.
+
+### Invariants fondamentaux
+
+```text
+réalité/canon ≠ perception ≠ croyance
+parole ≠ fait
+relation ≠ permission ≠ consentement
+LLM propose, moteur valide
+aucun composant cognitif n'écrit directement la réalité canonique
+provenance d'audit ≠ source subjectivement mémorisée
+un seul propriétaire persistant par état
+pas d'omniscience implicite des agents
+mécanisme générique > script propre à un personnage
 ```
 
-Le test local réel de cette livraison a créé une résidence jetable, effectué
-quatre tours Gemma admis et enregistrés, fermé la scène à sa borne, puis passé
-le prévol. L'interface a aussi été inspectée avec une scène réellement
-enregistrée; pause/reprise et le panneau de scène ont répondu.
+Ces invariants priment sur les commodités d'implémentation.
 
-## Capacités récentes
+---
 
-- registre de composants versionnés, gabarits publiés et instances avec
-  provenance figée ;
-- cinq résidentes MVP : Sophie, Erika, Luna, Chuu et Patoune, instanciées
-  ensemble par le monde d'intégration atomique ;
-- ressources génériques à bandes et effets déclaratifs, sans imposer une
-  émotion ou narration ;
-- contrat fermé moteur–cognition v2 : une traversée ou une activité disponible
-  peut être acceptée ou refusée sans autorité du LLM, avec provenance sur le
-  fait canonique et rollback intégral ;
-- perception factuelle locale : candidates immuables, limitées à la présence,
-  objets visibles et connecteurs adjacents de l'observateur ;
-- attention déterministe minimale : besoins sous seuil, blessure et effets de
-  ressources propres à l'observateur, plus indices perceptibles, classés dans
-  une liste bornée sans mémoire ni émotion ;
-- flux d'événements perceptibles directs : curseur canonique en lecture seule,
-  faits propres à la résidente réduits avant export; aucune reconstruction
-  spéculative des événements passés d'autrui ;
-- première mémoire subjective : migration et service de trace encodée, rappel
-  privé borné et audit séparé sont livrés; consolidation, oubli, croyances et
-  mémoire narrative restent futurs. Voir `docs/38_PLAN_PREMIERE_MEMOIRE_SUBJECTIVE.md` ;
-- frontière LLM locale livrée : contexte borné, sortie JSON strictement vérifiée,
-  refus des actions non perceptibles et passage obligé par le contrat canonique;
-  une boucle autonome événementielle sur nouvel `idle`, sans écriture LLM
-  directe. Le diagnostic `llm-status` et l'essai
-  jetable `llm-smoke` utilisent désormais l'API native LM Studio avec raisonnement
-  désactivé pour Gemma. Voir `docs/40_ADAPTATEUR_LLM_LOCAL.md`.
-- porte d'appel LLM événementielle : première politique pure livrée;
-  déclencheurs fermés, déduplication, debounce et budget sont vérifiables sans
-  réseau ni écriture canonique. Ses admissions techniques sont append-only,
-  idempotentes et distinctes des traces subjectives. Le routeur ne laisse
-  actuellement passer qu'un événement direct réellement perceptible; les autres
-  motifs restent fermés jusqu'à leur contrat source. Voir
-  `docs/41_PLAN_PORTE_APPEL_LLM.md`.
-- banc de calibration des chronologies d'appels livré, sans réseau ni SQLite;
-  il compare des limites candidates avant toute décision de cadence produit.
-  Voir `docs/42_BANC_CALIBRATION_APPELS_LLM.md`.
-- calibration locale répétée livrée : chaque tour réel Gemma repart d'une
-  base mémoire et d'une horloge identiques, puis rapporte durée, contrat,
-  décision, validation et panne explicite. Voir
-  `docs/54_CALIBRATION_LOCALE_LLM.md`.
-- premier tour social LLM livré : scène active et co-localisée, contexte
-  subjectif borné, admission `scene_turn`, schéma de parole distinct,
-  validation de destinataire et idempotence. Le texte ne produit encore aucun
-  effet social automatique. Voir `docs/55_TOUR_SOCIAL_LLM.md`.
-- banc social multi-tours livré : des occasions alternées et bornées testent
-  une courte conversation sans créer d'histoire partagée. Voir
-  `docs/56_BANC_SCENE_SOCIALE.md`.
-- porte de prévol MVP livrée : `python -m vivarium mvp-preflight --db <base>`
-  inspecte strictement en lecture seule l'intégrité SQLite, le casting, le
-  contexte et les audits de journaux d'un monde candidat. Voir
-  `docs/57_STRATEGIE_QUALITE_MVP.md`.
-- première projection de candidats de motifs physiologiques livrée; pression,
-  urgence, importance et actions possibles sont bornées par le contexte
-  déterministe, sans inventer plaisir, coût ou personnalité. Voir
-  `docs/43_MOTIFS_PHYSIOLOGIQUES.md`.
-- première disposition de personnalité livrée : Big Five, attachement général,
-  distributions et signatures situationnelles issus des gabarits v2 immuables;
-  aucune action n'est imposée par les traits. Voir
-  `docs/44_PERSONNALITE_CANONIQUE.md`.
-- idées retenues de scénarios et de systèmes futurs : jeux à information privée,
-  effort physique et affrontements arbitrés; voir
-  `docs/39_BACKLOG_SCENARIOS_ET_SYSTEMES.md`.
-- objets portables, installations fixes et contenance objet‑dans‑objet,
-  avec lieu effectif matérialisé, capacité et refus des cycles ;
-- possession physique générique : un objet portable suit son personnage sans
-  être confondu avec un vêtement équipé; les quatre résidentes sapientes ont
-  chacune un téléphone initial ;
-- presets de lieux et connecteurs validés, publiés et immuables, prêts pour
-  le futur instanciateur de blueprint ;
-- blueprints versionnés et instanciation atomique d'un monde neuf, avec
-  provenance logique figée des lieux et des connecteurs ;
-- connecteurs de monde identifiés et journalisés, avec états `available`,
-  `closed` et `blocked` sans confusion avec le graphe brut ;
-- `TraversalEngine` valide le franchissement par connecteur; les déplacements
-  d'un monde blueprint respectent aussi ces états et journalisent la cause ;
-- les règles standard de résidence s'installent hors seed, avec vérification
-  stricte et idempotence, prêtes pour le monde d'intégration ;
-- les ressources peuvent recevoir d'un coup leurs bandes et effets déclaratifs;
-  Chuu dispose de sa calibration MVP, sans branche spécifique du moteur ;
-- le catalogue de la résidence initiale est publié, validé et instanciable;
-  voir `docs/31_BLUEPRINT_RESIDENCE_INITIALE.md` ;
-- plan admin pour `rename_world` : hash, expiration, version optimiste par
-  séquence canonique, audit séparé, application atomique et retry idempotent ;
-- plan admin pour `add_link` : passage entre deux lieux existants, une ou deux
-  arêtes, impact topologique explicite et même protocole de confirmation ;
-- routes HTTP locales livrées par 4.2J : prepare, validate,
-  impact, confirm; jeton local obligatoire y compris pour les deux lectures.
+## 3. Hiérarchie de vérité pour une reprise
 
-## Verrous de conception utiles
+Lorsqu'une documentation ancienne contredit le dépôt courant, utiliser cet ordre :
 
-- Casting MVP : Sophie et Erika (humaines sapientes), Luna (louve anthro
-  sapiente), Chuu (slime sapiente dont la cognition dépend de l'hydratation),
-  Patoune (chatte noire non sapiente). Voir `docs/08_CASTING_MVP.md`.
-- Les ressources servent à la fois aux capacités directes (munitions, mana,
-  hydratation) et aux signaux généraux (stress/nicotine, likes/influenceuse).
-- Les mutations profondes de personnage exigeront versions de cible, impact et
-  snapshot : ne pas les ajouter par la voie de renommage actuelle.
-- L'interface peut attendre; lorsque touchée, elle doit être inspectée
-  visuellement. Style : console sombre, dense et lisible, jamais dashboard SaaS
-  ou papier texturé.
-- Le monde d'intégration pré-MVP doit être une base propre, séparée des mondes
-  techniques et des exécutions de banc d'essai. Le MVP est le simulateur social
-  présentable atteint après les couches vivantes. Voir `docs/15_ROADMAP_ACTIVE.md`.
-- La trajectoire vers cognition est détaillée dans
-  `docs/21_TRAJECTOIRE_VERS_COGNITION.md`; commencer par le blueprint et son
-  instanciateur atomique, pas par un appel LLM.
+1. **HEAD réel + migrations + tests exécutés**;
+2. **documentation normative active** (`docs/00_DOSSIER_MAITRE_IA.md`, registre de décisions et changements approuvés postérieurs);
+3. **cette passation courante** pour l'état opérationnel et les priorités immédiates;
+4. **CHANGELOG et documents de version récents**;
+5. documents de lot historiques et `sources/` pour provenance seulement.
 
-## Prochaine action recommandée
+Ne jamais réconcilier silencieusement deux exigences incompatibles.
 
-Le dossier transmis est dans `docs/64_DOSSIER_CONTRE_AUDIT_R_D_0_1_0A9.md`;
-la réponse R&D intégrale reçue est archivée dans
-`docs/65_CONTRE_AUDIT_R_D_CHATGPT_0_1_0A9.md`. Son verdict est **aligné avec
-réserves**. La traduction architecturale et les décisions de séquençage sont
-dans `docs/66_MATRICE_ALIGNEMENT_CONTRE_AUDIT_0_1_0A9.md`.
+### Documents actuellement trompeurs si lus comme photographie courante
 
-Pendant le rodage, `vivarium.telemetry` fournit des métriques descriptives en
-lecture seule; le gardien signale les patterns suspects et le runtime conserve
-les résultats techniques LLM dans `logs/runtime_outcomes.jsonl`. Aucun de ces
-signaux n'est canonique. Le prochain gros lot candidat est le noyau de
-conséquences sociales situé avec mémoire minimale; ne pas coder de delta direct
-`speech_act -> relation`.
+- `README.md` affiche encore une ancienne version documentaire/logicielle dans son en-tête;
+- `docs/15_ROADMAP_ACTIVE.md` décrit encore `0.1.0a12` comme version actuelle;
+- `docs/00_DOSSIER_MAITRE_IA.md` conserve des références de commit/tests de fermeture de Phase 3.
 
-La photographie technique et comportementale post-rodage demandée par la R&D
-est dans `docs/67_REPONSE_TECHNIQUE_R_D_POST_RODAGE_0_1_0A10.md`. Elle distingue
-les composants actifs des services seulement présents, documente les défauts
-réellement découverts et formule les interfaces fonctionnelles souhaitables du
-futur `Social Consequence Core` sans prescrire son implantation.
+Ils restent utiles pour leurs contrats et invariants, mais **pas comme compteur de version ou photographie de HEAD**. Vérifier `pyproject.toml`, `CHANGELOG.md`, migrations, tests et `git log`.
 
-L'alpha est livré. La prochaine étape n'est pas une nouvelle grosse couche :
-faire tourner quelques sessions observées, conserver les bases qui comptent,
-et classer les défauts ou frictions mesurés avant de choisir le lot de bêta.
-Les conséquences sociales causales, la vie autonome générale et les systèmes
-futurs restent explicitement hors de la version actuelle. Pour l'historique
-antérieur, le banc d'essai minimal est maintenant livré (`vivarium.bench`) : scénarios
-isolés, actions déclaratives fermées, rapports/audits et comparaison de runs.
-Les objets, leur contenance, les presets et les blueprints d'environnement sont
-aussi livrés; voir `docs/19_OBJETS_ET_CONTENANCE.md`,
-`docs/20_PRESETS_ENVIRONNEMENT.md`, `docs/22_BLUEPRINTS_ENVIRONNEMENT.md` et
-`docs/23_CONNECTEURS_ETAT.md` et `docs/24_TRAVERSEE_VALIDEE.md`. Le prochain
-le monde d'intégration peut désormais être assemblé atomiquement; voir
-`docs/32_ASSEMBLAGE_MONDE_INTEGRATION.md`. Les cinq résidentes arrivent ensemble
-à l'entrée extérieure, à côté de la boîte aux lettres. Voir
-`docs/25_REGLES_MONDE_STANDARD.md` et
-`docs/26_CALIBRATION_CHUU.md` et `docs/27_CONTEXTE_INITIAL_RESIDENTES.md`.
-Elles savent uniquement qu'elles ont volontairement accepté cette colocation
-financée avec allocation; les relations initiales sont neutres. La résidence
-prévue comporte aussi une buanderie; sa gestion fonctionnelle de vêtements est
-un lot environnemental ultérieur, décrit dans `docs/28_VETEMENTS_ET_BUANDERIE.md`.
-L'inventaire concret de la résidence est dans
-`docs/29_INVENTAIRE_RESIDENCE_INITIALE.md`; le plan de ses connexions est suivi
-dans `docs/30_PLAN_SPATIAL_RESIDENCE.md` et sa recette publiée dans
-`docs/31_BLUEPRINT_RESIDENCE_INITIALE.md`. Ne pas créer le monde MVP sans le
-protocole renforcé correspondant.
+---
+
+## 4. État technique vérifié au dernier lot de code
+
+Référence fonctionnelle actuelle :
+
+- version logicielle : **`0.1.0a15`**;
+- schéma SQLite : **35**;
+- migration la plus récente : `0035_runtime_sessions.sql`;
+- dernière validation complète connue : **734 tests réussis**;
+- dernier commit de code avant publication GitHub : `82c6b53` — `fix(runtime): freeze canonical time while offline`;
+- le commit GitHub suivant `01ff03e` ne modifie que `.gitignore` (`logs/` désormais ignoré).
+
+Toujours revérifier localement avant d'agir :
+
+```bash
+git status --short
+git log -5 --oneline
+python -m pytest
+```
+
+Adapter la commande Python à l'environnement local (`.venv/Scripts/python.exe -m pytest` sous Windows si nécessaire).
+
+### Évolution récente réellement livrée
+
+- `0.1.0a11` : une occasion sociale factuelle est observée **avant** que l'autonomie sapiente ne remplace l'attente qui la source;
+- `0.1.0a12` : la latence LLM ne peut plus faire passer une proposition subjective devant une échéance déterministe déjà exigible;
+- `0.1.0a13` : première agence non sapiente générique **CAT-0**, sans LLM et sans branche codée au nom/à l'espèce de Patoune; intentions courtes, passages adjacents, attente et abandon après échecs bornés;
+- `0.1.0a14` : les tours sociaux bloqués par budget sont différés jusqu'à leur renouvellement au lieu d'être repollés à chaque tick; temps simulé et temps mural restent distincts;
+- `0.1.0a15` : l'horloge canonique ne progresse que pendant une session runtime; arrêt propre = gel, crash = récupération au dernier instant durable, sans rattrapage accidentel hors ligne.
+
+Documents récents associés :
+
+- `docs/67_REPONSE_TECHNIQUE_R_D_POST_RODAGE_0_1_0A10.md`;
+- `docs/68_CORRECTIF_ARBITRAGE_SOCIAL_0_1_0A11.md`;
+- `docs/69_CORRECTIF_LATENCE_CHRONOLOGIQUE_0_1_0A12.md`;
+- `docs/70_GEL_HORS_LIGNE_ET_RECUPERATION_CRASH_0_1_0A15.md`;
+- `CHANGELOG.md` pour `a13` et `a14`.
+
+---
+
+## 5. Ce qui est solide et ce qui ne l'est pas encore
+
+### Solide / réellement matérialisé
+
+- autorité canonique locale et transactions;
+- journal canonique append-only;
+- séparation temps simulé / temps mural / état runtime;
+- monde, graphe, connecteurs, traversée, objets, contenance, possession;
+- besoins, activités, ressources, blessures et transitions déterministes;
+- cinq résidentes MVP et monde d'intégration;
+- perception factuelle locale et attention technique bornée;
+- premières traces subjectives, croyances sourcées, affect, buts/intention, relations/limites/permissions comme services contrôlés;
+- frontière LLM locale structurée et validée;
+- scènes sociales alpha;
+- bancs d'essai, prévol, télémétrie et gardien local;
+- CAT-0 non sapient générique;
+- protection de chronologie contre latence LLM et arrêt hors ligne.
+
+### Présent mais encore mince / alpha
+
+Le rodage a montré que plusieurs services subjectifs existent sans encore participer causalement de façon riche à la vie courante. Ne pas confondre **API implémentée** et **mécanisme vivant raccordé**.
+
+Placeholders alpha à ne pas fossiliser :
+
+- hiérarchie globale `intention > physiologie > objectif`;
+- `idle` comme principal déclencheur cognitif;
+- attention surtout technique;
+- activités volontaires peu nombreuses et calibrations uniformes;
+- scène dyadique bornée à quatre tours;
+- co-présence/co-attente comme proxy social;
+- topologie sociale réduite essentiellement à la pièce;
+- petite taxonomie des actes de parole;
+- relation résumée par quelques dimensions scalaires;
+- mémoire essentiellement récente et exacte;
+- mouvement incompatible avec activité;
+- sommeil et motivation encore simplifiés.
+
+Le rodage a notamment montré : small talk circulaire, concentration de certaines activités, socialité pauvre malgré des phrases lexicalement variées, absence d'anticipation riche, topologie sociale trop grossière, et distinction insuffisante entre activité/attente/intention/engagement.
+
+---
+
+## 6. Direction R&D actuelle — ne pas coder sans work order
+
+La prochaine grosse étape conceptuelle n'est **pas** « générer davantage de texte ».
+
+La direction R&D est de donner aux événements une conséquence subjective située, incertaine, mémorisable et révisable, tout en préservant les frontières RIC.
+
+Les blocs actuellement préparés en amont sont notamment :
+
+1. **Social Consequence Core** : interprétation sociale située et conséquences candidates séparées, sans `speech_act -> relation_delta` mécanique;
+2. **mémoire minimale** : encodage, récupération, reconstruction, source monitoring, oubli/consolidation et mémoire prospective;
+3. **Cognitive Admission** : accessible ≠ remarqué; sélection événementielle sans omniscience;
+4. **topologie socio-spatiale** : visibilité, audibilité, orientation, distance qualitative, portes, privacité, participation et overhearing;
+5. **Conversation State** : conversation ≠ compteur de tours; séquences ouvertes, repair, participation, adressage, floor et clôture;
+6. **Behavioral Opportunity Layer** : remplacer la priorité globale fixe par un champ local de possibilités et de raisons structurées;
+7. **agence non sapiente** : étendre CAT-0 sans transformer l'animal en petit humain ni en script d'espèce;
+8. scénarios d'acceptation/falsification inter-systèmes.
+
+Ces blocs sont des **contrats fonctionnels en préparation**. Codex conserve l'autorité sur leur traduction dans l'architecture réelle. Ne pas créer de nouvelles tables/classes juste à partir de cette liste.
+
+---
+
+## 7. Politique de travail pour la nouvelle instance Codex Luna
+
+**Modèle de base recommandé : Luna.** Le but est de lui fournir des lots suffisamment spécifiés pour que le raisonnement scientifique et produit ait déjà été fait en amont.
+
+Luna peut normalement traiter :
+
+- inspection ciblée;
+- implémentation locale bien spécifiée;
+- tests définis;
+- correctifs et refactors bornés;
+- documentation technique liée au lot.
+
+### Critères d'escalade
+
+Arrêter et produire un rapport d'escalade au lieu de deviner si le travail rencontre :
+
+- propriétaire persistant ambigu ou multiple;
+- contradiction entre invariants;
+- migration risquée ou irréversible sur une histoire persistante;
+- changement architectural transversal important;
+- plusieurs implantations incompatibles sans critère produit/architecture clair;
+- bug non local dont la cause reste ambiguë après inspection et tests ciblés;
+- besoin de remettre en cause un contrat scientifique/fonctionnel plutôt que son implantation.
+
+Dans ces cas : **ne pas brute-force**. Expliquer les faits, options, risques et recommander Terra ou Sol si nécessaire.
+
+### Règle de sécurité dépôt
+
+Par défaut :
+
+- ne supprimer aucun fichier/dossier;
+- ne nettoyer aucun historique;
+- ne rebase/force-push rien;
+- ne lancer aucune reconstruction destructive (`init --force` ou équivalent) sur un monde qui compte;
+- ne modifier aucune base persistante pour « réparer » silencieusement un problème;
+- ne faire aucun ménage parce qu'un fichier « a l'air temporaire » sans vérifier ses références et sa provenance.
+
+Tout ménage doit d'abord être classé `KEEP / GENERATED / OBSOLETE? / REVIEW / SAFE TO REMOVE` et approuvé avant suppression.
+
+---
+
+## 8. Procédure de reprise obligatoire
+
+Pour une nouvelle conversation Codex :
+
+1. lire ce fichier en entier;
+2. exécuter `git status --short` et `git log -5 --oneline`;
+3. vérifier `pyproject.toml`, dernière migration et tête de `CHANGELOG.md`;
+4. lire les parties pertinentes de `docs/00_DOSSIER_MAITRE_IA.md`;
+5. lire `docs/67_REPONSE_TECHNIQUE_R_D_POST_RODAGE_0_1_0A10.md` et les correctifs `68` à `70`;
+6. inspecter le code réel uniquement là où nécessaire pour confirmer la photographie;
+7. exécuter la suite de tests avant une modification significative;
+8. signaler toute divergence entre cette passation et le dépôt;
+9. **au premier tour, ne modifier aucun fichier** : rendre une photographie de reprise concise et attendre le work order suivant.
+
+La première réponse attendue n'est pas un nouveau plan d'architecture. Elle doit confirmer que Codex comprend le système qu'il reprend et isoler toute divergence réelle.
+
+---
+
+## 9. Format de réponse de reprise attendu
+
+Répondre brièvement avec :
+
+```text
+HEAD / arbre de travail :
+Version / schéma / tests :
+État général :
+Invariants critiques compris :
+Écarts passation ↔ dépôt :
+Risques immédiats :
+Prêt pour work order Luna : OUI/NON
+Escalade nécessaire maintenant : OUI/NON + raison
+```
+
+Aucune écriture sur ce premier tour.
+
+---
+
+## 10. Rappel final
+
+Le but de RIC n'est pas de faire croire qu'un LLM est la réalité.
+
+Le moteur établit ce qui est vrai et possible. L'interaction établit ce qui est accessible. La cognition établit ce qui est subjectivement compris, mémorisé, priorisé et décidé. Les trois couches peuvent se répondre, mais aucune ne doit être silencieusement confondue avec une autre.
