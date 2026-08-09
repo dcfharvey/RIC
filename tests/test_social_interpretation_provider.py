@@ -18,6 +18,7 @@ from vivarium.social_interpretation_provider import (
     SocialInterpretationContextBuilder,
     SocialInterpretationLLMService,
     SocialInterpretationProviderError,
+    MAX_CONTEXT_TRACES,
     parse_provider_proposal,
 )
 from vivarium.subjective_memory import SubjectiveMemoryService
@@ -73,7 +74,7 @@ def test_llm_proposal_persists_provenance_and_has_no_consequences(setup):
     fake = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "clear", "meaning_hypotheses": ["Une lecture."], "motive_hypotheses": []})
     result = SocialInterpretationLLMService(conn, fake).run(world_id, "erika", "llm_reading", "erika_speech_1")
     assert result["origin_kind"] == "llm" and result["snapshot_fingerprint"]
-    assert result["model_id"] == "deterministic-test-model" and result["provider_version"] == "scc1b1-native-v1"
+    assert result["model_id"] == "deterministic-test-model" and result["provider_version"] == "scc1b1-native-v2"
     assert (canonical_state_digest(conn, world_id), max_seq(conn, world_id)) == before
 
 
@@ -117,8 +118,8 @@ def test_parser_rejects_non_object_and_unknown_fields():
 
 def test_provider_turn_id_is_technical_not_cognitive(setup):
     conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
-    a = SocialInterpretationContextBuilder(conn).build(world_id, "erika", "erika_speech_1", provider_turn_id="A")
-    b = SocialInterpretationContextBuilder(conn).build(world_id, "erika", "erika_speech_1", provider_turn_id="B")
+    a = SocialInterpretationContextBuilder(conn).build(world_id, "erika", "erika_speech_1")
+    b = SocialInterpretationContextBuilder(conn).build(world_id, "erika", "erika_speech_1")
     assert a.wire == b.wire and a.fingerprint == b.fingerprint
     assert "provider_turn_id" not in json.loads(a.wire)
     fake = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "unresolved", "meaning_hypotheses": [], "motive_hypotheses": []})
@@ -126,6 +127,22 @@ def test_provider_turn_id_is_technical_not_cognitive(setup):
     second = SocialInterpretationLLMService(conn, fake).run(world_id, "erika", "turn_b", "erika_speech_1", provider_turn_id="B")
     assert first["snapshot_fingerprint"] == second["snapshot_fingerprint"]
     assert first["provider_turn_id"] == "A" and second["provider_turn_id"] == "B"
+
+
+def test_context_trace_limit_is_explicit_and_pre_provider(setup):
+    conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
+    selected = []
+    for index in range(MAX_CONTEXT_TRACES + 1):
+        item = AttentionService(conn, clock=clock).snapshot(world_id, "erika").selected[0]
+        key = f"context_{index}"
+        memory.encode_attention(world_id, "erika", key, item)
+        selected.append(key)
+    accepted = SocialInterpretationContextBuilder(conn).build(world_id, "erika", "erika_speech_1", selected_trace_request_keys=tuple(selected[:MAX_CONTEXT_TRACES]))
+    assert len(accepted.data["selected_context_traces"]) == MAX_CONTEXT_TRACES
+    fake = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "unresolved", "meaning_hypotheses": [], "motive_hypotheses": []})
+    with pytest.raises(SocialInterpretationProviderError) as raised:
+        SocialInterpretationLLMService(conn, fake).run(world_id, "erika", "too_many", "erika_speech_1", selected_trace_request_keys=tuple(selected))
+    assert raised.value.code == "context_trace_limit_exceeded" and fake.calls == 0
 
 
 def test_invalid_key_is_rejected_before_provider_call(setup):

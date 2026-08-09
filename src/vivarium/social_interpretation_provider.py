@@ -14,7 +14,9 @@ from .cognition import LocalLLMSettings, request_local_model
 from .social_interpretation import SocialInterpretationError, SocialInterpretationService
 
 SCC1B_SCHEMA_VERSION = 1
-SCC1B_PROVIDER_VERSION = "scc1b1-native-v1"
+# Recipe identity: bump whenever the production system prompt changes.
+SCC1B_PROVIDER_VERSION = "scc1b1-native-v2"
+MAX_CONTEXT_TRACES = 3  # Limite d'ingénierie SCC-1B1, pas une loi psychologique.
 _STATUSES = frozenset(("clear", "ambiguous", "unresolved"))
 _ALLOWED_OUTPUT = frozenset(("schema_version", "understanding_status", "meaning_hypotheses", "motive_hypotheses"))
 
@@ -134,8 +136,7 @@ class SocialInterpretationContextBuilder:
         self._conn = conn
 
     def build(self, world_id: int, observer_key: str, source_trace_request_key: str, *,
-              selected_trace_request_keys: tuple[str, ...] = (), revision_of_key: str | None = None,
-              provider_turn_id: str | None = None) -> SocialInterpretationSnapshot:
+              selected_trace_request_keys: tuple[str, ...] = (), revision_of_key: str | None = None) -> SocialInterpretationSnapshot:
         owner = self._conn.execute("SELECT id FROM character WHERE world_id = ? AND key = ?", (world_id, observer_key)).fetchone()
         if owner is None:
             raise SocialInterpretationProviderError("observatrice introuvable", code="character_not_found")
@@ -149,6 +150,8 @@ class SocialInterpretationContextBuilder:
         role = "speaker" if primary["speaker_character_id"] == owner["id"] else ("addressee" if primary["recipient_character_id"] == owner["id"] else "side_participant")
         if len(set(selected_trace_request_keys)) != len(selected_trace_request_keys):
             raise SocialInterpretationProviderError("traces contextuelles dupliquées", code="duplicate_context_trace")
+        if len(selected_trace_request_keys) > MAX_CONTEXT_TRACES:
+            raise SocialInterpretationProviderError("trop de traces contextuelles", code="context_trace_limit_exceeded")
         context = []
         for key in selected_trace_request_keys:
             row = self._conn.execute("SELECT * FROM subjective_trace WHERE world_id = ? AND character_id = ? AND request_key = ?", (world_id, owner["id"], key)).fetchone()
@@ -191,7 +194,7 @@ class SocialInterpretationLLMService:
         selected_trace_request_keys = tuple(owner_service._key(key, "trace contextuelle") for key in selected_trace_request_keys)
         if provider_turn_id is not None and (not isinstance(provider_turn_id, str) or not 1 <= len(provider_turn_id) <= 120):
             raise SocialInterpretationProviderError("identifiant de tour invalide", code="invalid_provider_turn_id")
-        snapshot = SocialInterpretationContextBuilder(self._conn).build(world_id, observer_key, source_trace_request_key, selected_trace_request_keys=selected_trace_request_keys, revision_of_key=revision_of_key, provider_turn_id=provider_turn_id)
+        snapshot = SocialInterpretationContextBuilder(self._conn).build(world_id, observer_key, source_trace_request_key, selected_trace_request_keys=selected_trace_request_keys, revision_of_key=revision_of_key)
         config = {"origin_kind": "llm", "model_id": getattr(self._provider, "model_id", getattr(getattr(self._provider, "settings", None), "model_id", None)), "provider_version": getattr(self._provider, "provider_version", SCC1B_PROVIDER_VERSION)}
         if not isinstance(config["model_id"], str) or not config["model_id"].strip() or not isinstance(config["provider_version"], str) or not config["provider_version"].strip():
             raise SocialInterpretationProviderError("identité provider LLM incomplète", code="invalid_provider_provenance")

@@ -16,6 +16,8 @@
 - SCC-1B1 est durci avant calibration : snapshot profondément immuable, fingerprint
   du wire exact, séparation de l'identité technique du contenu cognitif, prompt
   contractuel explicite, provenance auditée et validations pré-provider.
+- Clôture SCC-1B1 : recette provider/prompt versionnée en `scc1b1-native-v2` et
+  contexte borné à trois traces supplémentaires explicitement sélectionnées.
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.
