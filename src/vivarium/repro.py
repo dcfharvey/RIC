@@ -576,6 +576,7 @@ def subjective_trace_digest(conn: sqlite3.Connection, world_id: int) -> dict[str
     """Projection vérifiable de la mémoire subjective, hors digest canonique."""
     rows = conn.execute(
         "SELECT ch.key AS character, st.request_key, st.source_kind, st.source_event_seq, "
+        "st.source_social_speech_act_id, "
         "st.fact_type, st.fact_occurred_at, st.access_kind, st.fidelity, st.payload_json "
         "FROM subjective_trace st JOIN character ch ON ch.id = st.character_id "
         "WHERE st.world_id = ? ORDER BY ch.key, st.encoded_at, st.id",
@@ -585,7 +586,9 @@ def subjective_trace_digest(conn: sqlite3.Connection, world_id: int) -> dict[str
     for row in rows:
         out.setdefault(row["character"], []).append({
             "request_key": row["request_key"], "source_kind": row["source_kind"],
-            "source_event_seq": row["source_event_seq"], "fact_type": row["fact_type"],
+            "source_event_seq": row["source_event_seq"],
+            "source_social_speech_act_id": row["source_social_speech_act_id"],
+            "fact_type": row["fact_type"],
             "fact_occurred_at": row["fact_occurred_at"], "access_kind": row["access_kind"],
             "fidelity": row["fidelity"], "payload": json.loads(row["payload_json"]),
         })
@@ -596,7 +599,8 @@ def subjective_trace_audit(conn: sqlite3.Connection, world_id: int) -> list[str]
     """Vérifie l'append-only subjectif sans lui attribuer le statut canonique."""
     findings: list[str] = []
     rows = conn.execute(
-        "SELECT st.id, st.character_id, st.source_kind, st.source_event_seq, st.fact_type, "
+        "SELECT st.id, st.character_id, st.source_kind, st.source_event_seq, "
+        "st.source_social_speech_act_id, st.fact_type, "
         "ste.character_id AS event_character_id, ste.event_type, ste.payload_json "
         "FROM subjective_trace st LEFT JOIN subjective_trace_event ste ON ste.trace_id = st.id "
         "WHERE st.world_id = ? ORDER BY st.id, ste.id",
@@ -616,6 +620,8 @@ def subjective_trace_audit(conn: sqlite3.Connection, world_id: int) -> list[str]
             findings.append(f"trace {row['id']}: audit payload mismatch")
         if (row["source_kind"] == "event") != (row["source_event_seq"] is not None):
             findings.append(f"trace {row['id']}: source kind mismatch")
+        if row["source_social_speech_act_id"] is not None and row["source_kind"] != "state":
+            findings.append(f"trace {row['id']}: social speech source kind mismatch")
     return findings
 
 

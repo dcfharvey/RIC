@@ -2,6 +2,9 @@
 
 ## 0.1.0a15 — 8 août 2026
 
+- SCC-0 ajoute l'encodage privé idempotent d'une parole sociale acceptée,
+  depuis sa source persistante et sa preuve d'appartenance historique à la scène,
+  sans interprétation ni conséquence cognitive automatique.
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.
@@ -10,8 +13,8 @@
   réancrée au dernier instant durable sans jamais précéder un événement canonique.
 - Les battements restent un registre opérationnel mutable et compact; seules
   les transitions de cycle de vie sont recopiées dans un journal append-only.
-- Le schéma SQLite passe en version 35.
-- Validation complète : **734 tests**.
+- Le schéma SQLite passe en version 36.
+- Validation complète : **739 tests**.
 
 ## 0.1.0a14 — 7 août 2026
 

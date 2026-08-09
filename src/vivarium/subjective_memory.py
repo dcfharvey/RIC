@@ -92,20 +92,24 @@ class SubjectiveMemoryService:
         return {
             "public_id": row["public_id"], "request_key": row["request_key"],
             "source_kind": row["source_kind"], "source_event_seq": row["source_event_seq"],
+            "source_social_speech_act_id": row["source_social_speech_act_id"],
             "fact_type": row["fact_type"], "fact_occurred_at": row["fact_occurred_at"],
             "access_kind": row["access_kind"], "fidelity": row["fidelity"],
             "payload": json.loads(row["payload_json"]), "encoded_at": row["encoded_at"],
         }
 
     def _record(self, world_id: int, character_key: str, request_key: str, source_kind: str,
-                access_kind: str, fact: WorldFact, fidelity: str) -> dict[str, Any]:
+                access_kind: str, fact: WorldFact, fidelity: str,
+                *, source_social_speech_act_id: int | None = None) -> dict[str, Any]:
         character_id = self._character_id(world_id, character_key)
         payload = _payload_json(fact.payload)
         existing = self._existing(world_id, character_id, request_key)
-        expected = (source_kind, fact.event_seq, fact.event_type, fact.occurred_at, access_kind, fidelity, payload)
+        expected = (source_kind, fact.event_seq, source_social_speech_act_id, fact.event_type,
+                    fact.occurred_at, access_kind, fidelity, payload)
         if existing is not None:
             actual = tuple(existing[key] for key in (
-                "source_kind", "source_event_seq", "fact_type", "fact_occurred_at", "access_kind", "fidelity", "payload_json"
+                "source_kind", "source_event_seq", "source_social_speech_act_id", "fact_type",
+                "fact_occurred_at", "access_kind", "fidelity", "payload_json"
             ))
             if actual != expected:
                 raise SubjectiveMemoryError("clé de demande déjà utilisée pour une autre trace", code="request_key_conflict")
@@ -113,10 +117,11 @@ class SubjectiveMemoryService:
         encoded_at = self._clock.now_iso()
         with transaction(self._conn) as conn:
             cur = conn.execute(
-                "INSERT INTO subjective_trace (public_id, world_id, character_id, request_key, source_kind, source_event_seq, fact_type, fact_occurred_at, access_kind, fidelity, payload_json, encoded_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO subjective_trace (public_id, world_id, character_id, request_key, source_kind, source_event_seq, source_social_speech_act_id, fact_type, fact_occurred_at, access_kind, fidelity, payload_json, encoded_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (new_uuid(), world_id, character_id, request_key, source_kind, fact.event_seq,
-                 fact.event_type, fact.occurred_at, access_kind, fidelity, payload, encoded_at),
+                 source_social_speech_act_id, fact.event_type, fact.occurred_at, access_kind,
+                 fidelity, payload, encoded_at),
             )
             trace_id = cur.lastrowid
             conn.execute(
@@ -145,6 +150,52 @@ class SubjectiveMemoryService:
         if candidate is None:
             raise SubjectiveMemoryError("événement non admissible", code="source_not_accessible")
         return self._record(world_id, character_key, request_key, "event", candidate.access_kind, candidate.fact, fidelity)
+
+    def encode_social_speech(
+        self, world_id: Any, observer_key: Any, request_key: Any,
+        scene_key: Any, act_key: Any, *, fidelity: Any = "complete",
+    ) -> dict[str, Any]:
+        """Encode une parole sociale dont l'accès historique est prouvé.
+
+        La source est relue depuis les tables de scène : aucun contenu ou
+        participant fourni par l'appelant ne peut devenir la trace. La scène
+        est une frontière d'accès alpha ; sa fermeture et les déplacements
+        ultérieurs ne modifient pas l'accès établi au moment de la parole.
+        """
+        world_id = self._world_id(world_id)
+        observer_key = self._key(observer_key, "observatrice")
+        request_key = self._key(request_key, "clé de demande")
+        scene_key = self._key(scene_key, "scène")
+        act_key = self._key(act_key, "acte")
+        fidelity = self._fidelity(fidelity)
+        row = self._conn.execute(
+            "SELECT act.id, act.act_kind, act.content_text, act.spoken_at, "
+            "sp.key AS speaker_key, rp.key AS recipient_key, scene.scene_key, "
+            "scene.world_id, participant.joined_at, observer.id AS observer_id "
+            "FROM social_speech_act act "
+            "JOIN social_scene scene ON scene.id = act.scene_id "
+            "JOIN character sp ON sp.id = act.speaker_character_id "
+            "LEFT JOIN character rp ON rp.id = act.recipient_character_id "
+            "JOIN social_scene_participant participant ON participant.scene_id = scene.id "
+            "JOIN character observer ON observer.id = participant.character_id "
+            "WHERE scene.world_id = ? AND scene.scene_key = ? AND act.act_key = ? "
+            "AND observer.world_id = ? AND observer.key = ?",
+            (world_id, scene_key, act_key, world_id, observer_key),
+        ).fetchone()
+        if row is None or row["joined_at"] > row["spoken_at"]:
+            raise SubjectiveMemoryError("parole sociale non accessible", code="source_not_accessible")
+        payload = {
+            "scene_key": row["scene_key"], "act_key": act_key,
+            "act_kind": row["act_kind"], "content": row["content_text"],
+            "speaker_key": row["speaker_key"], "recipient_key": row["recipient_key"],
+            "spoken_at": row["spoken_at"],
+            "access_rule": "social_scene_participant_at_spoken_at",
+        }
+        fact = WorldFact.state(world_id, "social_speech_act", row["spoken_at"], payload)
+        return self._record(
+            world_id, observer_key, request_key, "state", "social_scene_participant",
+            fact, fidelity, source_social_speech_act_id=row["id"],
+        )
 
     def recall_recent(self, world_id: Any, character_key: Any, *, limit: Any = 5) -> tuple[dict[str, Any], ...]:
         """Rappel minimal : propriétaire seul, ordre stable, sans reconsolidation."""
