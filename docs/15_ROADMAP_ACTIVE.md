@@ -1,7 +1,7 @@
 # Roadmap active — du moteur au Vivarium MVP
 
 **Version :** 1.4
-**Mise à jour :** 6 août 2026
+**Mise à jour :** 8 août 2026
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
 
@@ -25,7 +25,7 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a12` — priorité chronologique absolue des échéances déterministes malgré la latence LLM.
+**Version logicielle actuelle :** `0.1.0a15` — schéma 37, migration `0037_social_interpretations.sql`, 751 tests validés, commit fonctionnel `16e3b78`.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
@@ -46,6 +46,9 @@ tests et documentation après un lot à conséquences étendues.
 - contrat fermé moteur–cognition v2, perception factuelle locale, attention
   déterministe et première trace subjective : livrés; relations et décision
   sociale restent futures ;
+- SCC-0 : encodage privé idempotent des paroles sociales depuis leur source
+  persistante; SCC-1A : interprétations sociales privées, bornées et révisables,
+  sans LLM ni raccordement runtime ;
 - première frontière LLM locale LM Studio : livrée, avec contexte borné,
   réponse JSON validée, admission événementielle append-only et routeur de
   source perceptible; l'action reste soumise au moteur. La première boucle

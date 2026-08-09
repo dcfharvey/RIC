@@ -79,13 +79,12 @@ Lorsqu'une documentation ancienne contredit le dépôt courant, utiliser cet ord
 
 Ne jamais réconcilier silencieusement deux exigences incompatibles.
 
-### Documents actuellement trompeurs si lus comme photographie courante
+### Documents à lire avec leur portée documentaire
 
-- `README.md` affiche encore une ancienne version documentaire/logicielle dans son en-tête;
-- `docs/15_ROADMAP_ACTIVE.md` décrit encore `0.1.0a12` comme version actuelle;
-- `docs/00_DOSSIER_MAITRE_IA.md` conserve des références de commit/tests de fermeture de Phase 3.
+- `docs/00_DOSSIER_MAITRE_IA.md` conserve des références historiques de commit/tests de fermeture de Phase 3;
+- `README.md` et `docs/15_ROADMAP_ACTIVE.md` portent maintenant une photographie opérationnelle synchronisée, mais leurs sections historiques restent contextuelles.
 
-Ils restent utiles pour leurs contrats et invariants, mais **pas comme compteur de version ou photographie de HEAD**. Vérifier `pyproject.toml`, `CHANGELOG.md`, migrations, tests et `git log`.
+Pour les compteurs de version ou la photographie de HEAD, vérifier toujours `pyproject.toml`, `CHANGELOG.md`, les migrations, les tests et `git log`.
 
 ---
 
@@ -97,7 +96,7 @@ Référence fonctionnelle actuelle :
 - schéma SQLite : **37**;
 - migration la plus récente : `0037_social_interpretations.sql`;
 - dernière validation complète connue : **751 tests réussis**;
-- dernier commit fonctionnel SCC-0 : `be1cc2a` — `feat(memory): encode accessible social speech traces`;
+- dernier commit fonctionnel courant : `16e3b78` — `feat(social): add private social interpretations`;
 - le commit GitHub suivant `01ff03e` ne modifie que `.gitignore` (`logs/` désormais ignoré).
 
 Toujours revérifier localement avant d'agir :
