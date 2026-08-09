@@ -14,6 +14,7 @@ from time import perf_counter
 from typing import Any, Callable, Mapping
 
 from .attention import AttentionService
+from .cognition import LMStudioProvider, LocalLLMSettings
 from .db import connect_database
 from .integration_world import IntegrationWorldService
 from .migrations import ensure_schema
@@ -41,6 +42,11 @@ from .util import Clock, to_iso
 BENCH_SCHEMA_VERSION = 2
 BENCH_MAX_TRIALS = 20
 _CALIBRATION_TIME = datetime(2026, 8, 6, 21, tzinfo=timezone.utc)
+
+
+def _safe_model_id(model_id: str) -> str:
+    safe = "".join(char.lower() if char.isalnum() else "_" for char in model_id).strip("_")
+    return safe or "unknown_model"
 
 
 class BenchError(ValueError):
@@ -834,8 +840,9 @@ class BenchT2aCampaignReport:
         b19 = by_key.get("B19:contradictory", {})
         blockers = sorted({blocker for item in all_trials for blocker in item.hard_blockers})
         return {
-            "campaign_schema_version": 1, "level": "T2a", "model_id": "google/gemma-4-12b-qat",
-            "provider_version": SCC1B_PROVIDER_VERSION, "reasoning": "off", "structured_output": False,
+            "campaign_schema_version": 1, "level": "T2a", "model_id": next((item.model_id for item in all_trials if item.model_id), None),
+            "provider_version": next((item.provider_version for item in all_trials if item.provider_version), SCC1B_PROVIDER_VERSION),
+            "reasoning": "off", "structured_output": False,
             "requested_trials_per_variant": self.requested_trials, "generic_variant_count": len(T2_CHARACTERIZATION_SET),
             "generic_call_count": len(generic_trials), "paired_count": len(self.paired),
             "paired_call_count": len(pair_trials), "total_calls_attempted": len(all_trials),
@@ -897,16 +904,131 @@ def write_t2a_campaign(report: BenchT2aCampaignReport, path: str | Path, review_
     review_target.write_text(json.dumps(review, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def write_t2a_paired_report(pairs: tuple[BenchPairedRevisionReport, ...], path: str | Path) -> None:
+def write_t2a_paired_report(pairs: tuple[BenchPairedRevisionReport, ...], path: str | Path,
+                            *, generic_artifact: str | None = None) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
+    trials = [trial for pair in pairs for trial in (pair.initial, pair.revision)]
+    model_id = next((trial.model_id for trial in trials if trial.model_id), None)
+    provider_version = next((trial.provider_version for trial in trials if trial.provider_version), SCC1B_PROVIDER_VERSION)
     payload = {
         "campaign_schema_version": 1, "level": "T2a-paired",
-        "baseline": {"model_id": "google/gemma-4-12b-qat", "provider_version": SCC1B_PROVIDER_VERSION,
-                     "reasoning": "off", "structured_output": False, "generic_artifact": "scc1b2_t2a_gemma4_12b.json"},
+        "baseline": {"model_id": model_id, "provider_version": provider_version,
+                     "reasoning": "off", "structured_output": False, "generic_artifact": generic_artifact},
         "pair_count": len(pairs), "call_count": 2 * len(pairs),
         "lineages_valides": sum(pair.lineage_valid for pair in pairs),
         "hard_blockers": sorted({blocker for pair in pairs for trial in (pair.initial, pair.revision) for blocker in trial.hard_blockers}),
         "pairs": [pair.as_dict() for pair in pairs],
     }
     target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+SCREEN47_P1_KEYS: tuple[tuple[str, str], ...] = (
+    ("B01", "base"), ("B02", "underspecified"), ("B03", "positive"), ("B04", "negative"),
+    ("B11", "addressee"), ("B11", "side_participant"), ("B13", "accusation"),
+    ("B19", "contradictory"), ("B24", "dialogue_injection"), ("B25", "pseudo_json_injection"),
+    ("B30", "repeat"),
+)
+SCREEN47_THREE_OBSERVATION_KEYS: tuple[tuple[str, str], ...] = (
+    ("B02", "underspecified"), ("B03", "positive"), ("B04", "negative"),
+    ("B05", "base"), ("B06", "distractor"), ("B09", "indirect"), ("B10", "supported"),
+    ("B11", "addressee"), ("B11", "side_participant"), ("B19", "contradictory"),
+    ("B24", "dialogue_injection"), ("B25", "pseudo_json_injection"), ("B30", "repeat"),
+)
+
+
+def screen47_call_plan() -> tuple[tuple[str, str, int], ...]:
+    plan = [(scenario_id, variant_id, 1) for scenario_id, variant_id in SCREEN47_P1_KEYS]
+    present = set(SCREEN47_P1_KEYS)
+    for key in SCREEN47_THREE_OBSERVATION_KEYS:
+        start = 2 if key in present else 1
+        for number in range(start, 4):
+            plan.append((*key, number))
+    return tuple(plan)
+
+
+@dataclass(frozen=True)
+class BenchScreen47Report:
+    generic: BenchAggregateReport
+    paired: tuple[BenchPairedRevisionReport, ...]
+    stopped_on_hard_blocker: bool = False
+    experimental_identity: Mapping[str, Any] | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        trials = list(self.generic.trials) + [trial for pair in self.paired for trial in (pair.initial, pair.revision)]
+        blockers = sorted({blocker for trial in trials for blocker in trial.hard_blockers})
+        return {
+            "screen_schema_version": 1, "level": "Screen-47",
+            "model_id": next((trial.model_id for trial in trials if trial.model_id), None),
+            "provider_version": next((trial.provider_version for trial in trials if trial.provider_version), SCC1B_PROVIDER_VERSION),
+            "experimental_identity": dict(self.experimental_identity or {}),
+            "configuration": {"target_context_length": 8192, "temperature": 0.2,
+                              "reasoning": "off", "store": False, "structured_output": False},
+            "calls_attempted": len(trials), "calls_completed": sum(trial.outcome != "setup_error" for trial in trials),
+            "generic_calls": len(self.generic.trials), "paired_calls": 2 * len(self.paired),
+            "stopped_on_hard_blocker": self.stopped_on_hard_blocker, "hard_blockers": blockers,
+            "generic": self.generic.as_dict(), "paired": [pair.as_dict() for pair in self.paired],
+        }
+
+
+def run_screen47(provider: LMStudioSocialInterpretationProvider, *,
+                 timer: Callable[[], float] = perf_counter,
+                 experimental_identity: Mapping[str, Any] | None = None) -> BenchScreen47Report:
+    if not isinstance(provider, LMStudioSocialInterpretationProvider):
+        raise BenchError("Screen-47 exige le provider LM Studio réel", code="screen_requires_real_provider")
+    reports: list[BenchTrialReport] = []
+    for scenario_id, variant_id, number in screen47_call_plan():
+        scenario = get_scenario_variants(((scenario_id, variant_id),))[0]
+        report = run_trial(scenario, provider, number, timer=timer)
+        reports.append(report)
+        if report.hard_blockers:
+            return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS), (), True, experimental_identity)
+    pairs: list[BenchPairedRevisionReport] = []
+    for number in range(1, 4):
+        pair = run_paired_revision_trial(provider, pair_id="screen47_b15_b16", trial_number=number, timer=timer)
+        pairs.append(pair)
+        if pair.initial.hard_blockers or pair.revision.hard_blockers:
+            return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS), tuple(pairs), True, experimental_identity)
+    aggregate = BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS)
+    return BenchScreen47Report(aggregate, tuple(pairs), False, experimental_identity)
+
+
+def write_screen47_report(report: BenchScreen47Report, path: str | Path, review_path: str | Path,
+                          *, paired_path: str | Path | None = None) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = report.as_dict()
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    review_target = Path(review_path)
+    review_target.parent.mkdir(parents=True, exist_ok=True)
+    review_target.write_text(json.dumps({"screen_schema_version": 1, "model_id": payload["model_id"],
+                                         "generic": payload["generic"], "paired": payload["paired"],
+                                         "experimental_identity": payload["experimental_identity"],
+                                         "hard_blockers": payload["hard_blockers"]},
+                                        ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if paired_path is not None:
+        write_t2a_paired_report(report.paired, paired_path, generic_artifact=target.name)
+
+
+def build_model_inventory(settings: LocalLLMSettings, *, timer: Callable[[], float] = perf_counter) -> dict[str, Any]:
+    started = timer()
+    records = LMStudioProvider(settings).list_model_records()
+    models = []
+    for record in records:
+        models.append({
+            "model_id": record.get("key"), "display_name": record.get("display_name"),
+            "quantization": record.get("quantization"), "architecture": record.get("architecture", record.get("arch")),
+            "format": record.get("format"), "backend": record.get("backend"),
+            "parameter_count": record.get("parameter_count", record.get("params")),
+            "context_length": record.get("context_length", record.get("max_context_length")),
+            "state": record.get("state"), "loaded_instances": record.get("loaded_instances"),
+        })
+    return {"inventory_schema_version": 1, "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            "endpoint": settings.base_url, "query_elapsed_ms": max(0, round((timer() - started) * 1000)),
+            "models": models, "load_unload_automation": "not_implemented_operator_controlled"}
+
+
+def write_model_inventory(inventory: Mapping[str, Any], path: str | Path) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(dict(inventory), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

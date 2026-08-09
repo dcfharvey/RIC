@@ -158,6 +158,20 @@ def test_lm_studio_model_listing_is_read_only(monkeypatch):
     assert provider.list_models() == ("gemma-local",)
 
 
+def test_lm_studio_model_records_preserve_unknown_identity_as_none(monkeypatch):
+    class Response:
+        def read(self): return b'{"models":[{"key":"model_B","quantization":"Q4_K_M"}]}'
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+
+    monkeypatch.setattr("vivarium.cognition.urlopen", lambda request, timeout: Response())
+    provider = LMStudioProvider(LocalLLMSettings(DEFAULT_LM_STUDIO_BASE_URL, "model_B", None, 12))
+    record = provider.list_model_records()[0]
+    assert record["key"] == "model_B"
+    assert record["quantization"] == "Q4_K_M"
+    assert "display_name" not in record
+
+
 def test_lm_studio_adapts_only_an_exact_available_activity_shorthand(monkeypatch, setup):
     conn, wid, clock = setup
     from vivarium.activities import ActivityEngine

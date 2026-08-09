@@ -75,6 +75,10 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
   `--level T1` lance un smoke LM Studio borné et `--report <fichier>` écrit un
   rapport JSON technique. `--level T2 --trials 5` lance la campagne T2a réelle
   bornée; T2b et l'admission cognitive restent désactivés.
+- `llm-inventory` exporte les model keys et métadonnées réellement exposées par
+  LM Studio; `social-interpretation-screen --model-id <key>` est l'opération
+  Screen-47 model-specific, limitée aux modèles déjà chargés et sans
+  chargement/déchargement automatique.
 - `upgrade-dev` ajoute, de façon **non destructive et idempotente**, les 4 identités
   provisoires `character_1..4` au monde local (aucun personnage existant modifié ;
   n'insère que les manquants). `init --force` reste un dernier recours manuel.

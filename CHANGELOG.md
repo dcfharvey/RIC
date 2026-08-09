@@ -27,6 +27,9 @@
   en deux segments (105 appels génériques + 10 appels pairés; artefacts sous
   `data/bench/`). Le faux positif de provenance du runner pairé est couvert par
   une régression dédiée, sans modification de SCC-1B1.
+- SCC-1B2C rend le tooling T2 model-agnostic, ajoute `llm-inventory`, le plan
+  Screen-47 borné à 47 appels et des artefacts model-specific collision-safe;
+  aucune campagne comparative n'est exécutée dans ce lot.
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.

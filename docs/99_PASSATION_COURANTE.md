@@ -151,7 +151,7 @@ Documents récents associés :
 - protection de chronologie contre latence LLM et arrêt hors ligne.
 
 SCC-1B2A finalisé porte 30 IDs, 31 variantes déclarées, 27 fixtures T0
-déterministes et 795 tests passants. B17/B18 opposent honnêtement absence et
+déterministes et 796 tests passants. B17/B18 opposent honnêtement absence et
 présence d'un support `co_presence`; B24/B25 distinguent mention et compliance;
 les métriques métamorphiques utilisent toutes les répétitions; provenance et
 partial-write sont des contrôles bloquants. B15/B16 disposent d'un runner pairé
@@ -164,7 +164,9 @@ B20–B23 sont T0-only. Le dernier smoke T1 borné a utilisé
 `google/gemma-4-12b-qat`, recette `scc1b1-native-v2`, pour 11 appels : 11
 sorties valides, sans hard blocker ni fuite de canary. La campagne T2a ne
 constitue pas une qualification du modèle; T2b et l'admission cognitive restent
-hors périmètre.
+hors périmètre. SCC-1B2C fournit désormais l'inventaire LM Studio local et le
+screening multi-modèles Screen-47 model-agnostic; aucune campagne comparative
+n'a été lancée.
 
 ### Présent mais encore mince / alpha
 

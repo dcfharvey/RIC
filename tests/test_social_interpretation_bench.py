@@ -4,10 +4,18 @@ import pytest
 
 from vivarium.social_interpretation_provider import (
     DeterministicInterpretationProvider,
+    LMStudioSocialInterpretationProvider,
     SocialInterpretationContextBuilder,
     SocialInterpretationLLMService,
 )
+from vivarium.cognition import LocalLLMSettings
 from vivarium.social_interpretation_bench import (
+    BenchAggregateReport,
+    BenchT2aCampaignReport,
+    BenchScreen47Report,
+    BenchTrialReport,
+    SCREEN47_P1_KEYS,
+    SCREEN47_THREE_OBSERVATION_KEYS,
     T2_CHARACTERIZATION_SET,
     T1_SMOKE_SET,
     BenchError,
@@ -17,6 +25,8 @@ from vivarium.social_interpretation_bench import (
     run_bench,
     run_paired_revision_trial,
     run_trial,
+    screen47_call_plan,
+    write_t2a_paired_report,
 )
 
 
@@ -56,6 +66,42 @@ def test_invalid_scenario_trial_count_and_t2_requires_real_provider():
 def test_t2_characterization_matrix_is_exactly_bounded():
     assert len(T2_CHARACTERIZATION_SET) == 21
     assert not {scenario_id for scenario_id, _ in T2_CHARACTERIZATION_SET} & {"B15", "B16", "B20", "B21", "B22", "B23"}
+
+
+def test_screen47_plan_is_exactly_41_generic_calls_plus_three_pairs():
+    plan = screen47_call_plan()
+    assert len(plan) == 41
+    assert len(SCREEN47_P1_KEYS) == 11
+    assert len(SCREEN47_THREE_OBSERVATION_KEYS) == 13
+    assert sum(number == 1 for _, _, number in plan) == 15
+
+
+def test_t2_accepts_non_gemma_provider_identity_without_scoring(monkeypatch):
+    provider = LMStudioSocialInterpretationProvider(
+        LocalLLMSettings("http://127.0.0.1:1234", "model_B", None, 12))
+    expected = BenchTrialReport(2, "B01", "base", 1, "model_B", "scc1b1-native-v2", "b" * 64, 1,
+                                "valid_interpretation", "real_provider_ready")
+    monkeypatch.setattr("vivarium.social_interpretation_bench.run_trial", lambda *args, **kwargs: expected)
+    report = run_bench(provider, level="T2", trials=1, scenario_ids=("B01",))
+    assert report.trials[0].model_id == "model_B"
+    campaign = BenchT2aCampaignReport(report, (), 1)
+    assert campaign.as_dict()["model_id"] == "model_B"
+
+
+def test_paired_writer_uses_real_model_identity_and_no_gemma_label(tmp_path):
+    trial = BenchTrialReport(2, "B15_B16", "initial", 1, "model_A", "scc1b1-native-v2", "a" * 64, 1,
+                             "valid_interpretation", "real_provider_ready",
+                             provenance_expected={"model_id": "model_A"}, provenance_actual={"model_id": "model_A"})
+    pair = type("Pair", (), {"pair_id": "p", "trial_number": 1, "initial": trial,
+                              "revision": trial, "lineage_valid": True,
+                              "as_dict": lambda self: {"pair_id": self.pair_id, "trial_number": self.trial_number,
+                                                        "lineage_valid": self.lineage_valid,
+                                                        "initial": self.initial.as_dict(), "revision": self.revision.as_dict()}})()
+    path = tmp_path / "paired_model_a.json"
+    write_t2a_paired_report((pair,), path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["baseline"]["model_id"] == "model_A"
+    assert "gemma" not in path.read_text(encoding="utf-8").lower()
 
 
 def test_b07_b08_keep_act_kind_constant_while_content_differs():

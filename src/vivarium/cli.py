@@ -238,7 +238,7 @@ def _run_llm_calibration(trials: int, character: str) -> int:
 
 def _run_social_interpretation_bench(level: str, trials: int | None, model_id: str | None,
                                      scenario_ids: list[str], report_path: str | None) -> int:
-    from .social_interpretation_bench import BenchError, run_bench, run_t2a_campaign, write_report, write_t2a_campaign
+    from .social_interpretation_bench import BenchError, _safe_model_id, run_bench, run_t2a_campaign, write_report, write_t2a_campaign
     from .social_interpretation_provider import DeterministicInterpretationProvider, LMStudioSocialInterpretationProvider
 
     try:
@@ -253,16 +253,16 @@ def _run_social_interpretation_bench(level: str, trials: int | None, model_id: s
             settings = LocalLLMSettings.from_environment(require_model=level == "T2")
             if model_id:
                 settings = LocalLLMSettings(settings.base_url, model_id, settings.api_token, settings.timeout_seconds)
-            if level == "T2" and settings.model_id != "google/gemma-4-12b-qat":
-                raise BenchError("T2a exige google/gemma-4-12b-qat", code="t2_model_mismatch")
             provider = LMStudioSocialInterpretationProvider(settings)
         effective_trials = trials if trials is not None else (5 if level == "T2" else 1)
         if level == "T2":
             if scenario_ids:
                 raise BenchError("T2a exécute la matrice complète", code="t2_scenario_override_forbidden")
             report = run_t2a_campaign(provider, trials=effective_trials)
-            principal = report_path or "data/bench/scc1b2_t2a_gemma4_12b.json"
-            write_t2a_campaign(report, principal, Path(principal).with_name("scc1b2_t2a_review.json"))
+            safe_model = _safe_model_id(settings.model_id)
+            principal = report_path or f"data/bench/t2a_{safe_model}.json"
+            review = Path(principal).with_name(f"t2a_{safe_model}_review.json")
+            write_t2a_campaign(report, principal, review)
             payload = report.as_dict()
         else:
             report = run_bench(provider, level=level, trials=effective_trials,
@@ -274,6 +274,52 @@ def _run_social_interpretation_bench(level: str, trials: int | None, model_id: s
         print(f"Banc SCC-1B2 : {getattr(exc, 'code', 'invalid_request')} — {exc}", file=__import__('sys').stderr)
         return 2
     print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0 if not payload["hard_blockers"] else 1
+
+
+def _run_llm_inventory(report_path: str | None) -> int:
+    from .cognition import CognitionError, LocalLLMSettings
+    from .social_interpretation_bench import build_model_inventory, write_model_inventory
+    try:
+        settings = LocalLLMSettings.from_environment(require_model=False)
+        inventory = build_model_inventory(settings)
+        path = report_path or "data/bench/model_inventory.json"
+        write_model_inventory(inventory, path)
+    except (CognitionError, ValueError) as exc:
+        print(f"Inventaire LM Studio : {getattr(exc, 'code', 'invalid_request')} — {exc}", file=__import__('sys').stderr)
+        return 2
+    print(json.dumps(inventory, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _run_social_interpretation_screen(model_id: str, report_path: str | None) -> int:
+    from .cognition import CognitionError, LMStudioProvider, LocalLLMSettings
+    from .social_interpretation_bench import (
+        BenchError, _safe_model_id, run_screen47, write_screen47_report,
+    )
+    try:
+        settings = LocalLLMSettings.from_environment(require_model=False)
+        settings = LocalLLMSettings(settings.base_url, model_id, settings.api_token, settings.timeout_seconds)
+        lm = LMStudioProvider(settings)
+        records = lm.list_model_records()
+        identity = next((record for record in records if record["key"] == model_id), None)
+        instances = () if identity is None else identity.get("loaded_instances") or ()
+        loaded_ids = {item.get("id") for item in instances if isinstance(item, dict)}
+        if identity is None or not instances or (loaded_ids and model_id not in loaded_ids):
+            raise BenchError("modèle demandé non chargé; aucun appel scoré", code="deployment_failed")
+        provider = LMStudioSocialInterpretationProvider(settings)
+        report = run_screen47(provider, experimental_identity=identity)
+        safe = _safe_model_id(model_id)
+        principal = report_path or f"data/bench/screen_{safe}.json"
+        write_screen47_report(report, principal, Path(principal).with_name(f"screen_{safe}_review.json"),
+                              paired_path=Path(principal).with_name(f"screen_{safe}_paired.json"))
+        payload = report.as_dict()
+    except (BenchError, CognitionError, ValueError) as exc:
+        print(f"Screen-47 : {getattr(exc, 'code', 'invalid_request')} — {exc}", file=__import__('sys').stderr)
+        return 2
+    print(json.dumps({key: payload[key] for key in (
+        "screen_schema_version", "model_id", "calls_attempted", "calls_completed", "hard_blockers")},
+        ensure_ascii=False, indent=2))
     return 0 if not payload["hard_blockers"] else 1
 
 
@@ -626,6 +672,11 @@ def main(argv: list[str] | None = None) -> int:
     p_social_bench.add_argument("--model-id", default=None, help="Modèle T1 configuré; aucun secret n'est enregistré.")
     p_social_bench.add_argument("--scenario", action="append", default=[], help="ID B01 à B30; répétable.")
     p_social_bench.add_argument("--report", default=None, help="Chemin JSON du rapport technique jetable.")
+    p_inventory = sub.add_parser("llm-inventory", help="Inventorie les modèles locaux LM Studio, sans les charger ni les scorer.")
+    p_inventory.add_argument("--report", default=None, help="Chemin JSON (défaut : data/bench/model_inventory.json).")
+    p_screen = sub.add_parser("social-interpretation-screen", help="Prépare/exécute Screen-47 sur un modèle déjà chargé.")
+    p_screen.add_argument("--model-id", required=True, help="Model key exact déjà chargé dans LM Studio.")
+    p_screen.add_argument("--report", default=None, help="Chemin JSON principal model-specific.")
     sub.add_parser("scene-smoke", help="Teste un tour de parole LLM dans une scène mémoire jetable.")
     p_scene_bench = sub.add_parser("scene-bench", help="Joue quelques tours sociaux LLM dans une scène jetable.")
     p_scene_bench.add_argument("--max-turns", type=int, default=4, help="Occasions de parole (1 à 20, défaut : 4).")
@@ -668,6 +719,10 @@ def main(argv: list[str] | None = None) -> int:
         return _run_llm_calibration(args.trials, args.character)
     if args.command == "social-interpretation-bench":
         return _run_social_interpretation_bench(args.level, args.trials, args.model_id, args.scenario, args.report)
+    if args.command == "llm-inventory":
+        return _run_llm_inventory(args.report)
+    if args.command == "social-interpretation-screen":
+        return _run_social_interpretation_screen(args.model_id, args.report)
     if args.command == "scene-smoke":
         return _run_scene_smoke()
     if args.command == "scene-bench":

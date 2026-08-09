@@ -52,7 +52,9 @@ tests et documentation après un lot à conséquences étendues.
 - SCC-1B2A : banc de calibration/falsification jetable livré avec 30 IDs,
   31 variantes déclarées, 27 fixtures T0 vérifiées, cas deferred explicites et
   smoke T1 borné; campagne T2a réelle exécutée en deux segments (105 appels
-  génériques + 10 appels pairés B15/B16), sans admission cognitive ;
+  génériques + 10 appels pairés B15/B16), sans admission cognitive ; SCC-1B2C
+  ajoute l'outillage d'inventaire et Screen-47 multi-modèles, sans campagne
+  comparative exécutée ;
 - première frontière LLM locale LM Studio : livrée, avec contexte borné,
   réponse JSON validée, admission événementielle append-only et routeur de
   source perceptible; l'action reste soumise au moteur. La première boucle

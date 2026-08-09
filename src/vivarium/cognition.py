@@ -471,6 +471,10 @@ class LMStudioProvider:
 
     def list_models(self) -> tuple[str, ...]:
         """Diagnostic en lecture seule des identifiants chargés par LM Studio."""
+        return tuple(record["key"] for record in self.list_model_records())
+
+    def list_model_records(self) -> tuple[dict[str, Any], ...]:
+        """Retourne les enregistrements locaux disponibles sans secrets ni inférence."""
         request = Request(self._settings.api_root + "/api/v1/models", headers={"Accept": "application/json"})
         try:
             with urlopen(request, timeout=self._settings.timeout_seconds) as response:  # endpoint validated loopback
@@ -481,10 +485,10 @@ class LMStudioProvider:
             raise CognitionError("LM Studio est inaccessible", code="llm_unavailable") from exc
         try:
             data = json.loads(raw)["models"]
-            model_ids = tuple(item["key"] for item in data if isinstance(item, Mapping) and isinstance(item.get("key"), str))
+            records = tuple(dict(item) for item in data if isinstance(item, Mapping) and isinstance(item.get("key"), str))
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
             raise CognitionError("réponse LM Studio illisible", code="invalid_llm_response") from exc
-        return model_ids
+        return records
 
 
 @dataclass(frozen=True)
