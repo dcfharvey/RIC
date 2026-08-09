@@ -18,9 +18,9 @@
   contractuel explicite, provenance auditée et validations pré-provider.
 - Clôture SCC-1B1 : recette provider/prompt versionnée en `scc1b1-native-v2` et
   contexte borné à trois traces supplémentaires explicitement sélectionnées.
-- SCC-1B2A ajoute le banc jetable `social-interpretation-bench` : matrice
-  déclarative B01–B30, trials T0 sans vrai LLM, rapports JSON agrégés et
-  infrastructure T1 sans raccordement au runtime; T2 reste désactivé.
+- SCC-1B2A durcit le banc jetable `social-interpretation-bench` : 30 IDs,
+  31 variantes déclarées, fixtures T0 déterministes, cas deferred explicites,
+  smoke T1 borné et diagnostics JSON bruts; T2 reste désactivé.
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.
