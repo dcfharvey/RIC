@@ -49,6 +49,9 @@ tests et documentation après un lot à conséquences étendues.
 - SCC-0 : encodage privé idempotent des paroles sociales depuis leur source
   persistante; SCC-1A : interprétations sociales privées, bornées et révisables,
   sans LLM ni raccordement runtime ;
+- SCC-1B2A : banc de calibration/falsification jetable B01–B30 livré pour T0,
+  avec rapports structurés et infrastructure T1; aucune admission cognitive ni
+  campagne T2 n'est activée ;
 - première frontière LLM locale LM Studio : livrée, avec contexte borné,
   réponse JSON validée, admission événementielle append-only et routeur de
   source perceptible; l'action reste soumise au moteur. La première boucle

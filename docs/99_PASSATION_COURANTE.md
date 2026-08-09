@@ -125,6 +125,9 @@ Documents récents associés :
 - `docs/70_GEL_HORS_LIGNE_ET_RECUPERATION_CRASH_0_1_0A15.md`;
 - `docs/71_R_D_SOCIAL_CONSEQUENCE_CORE.md`;
 - `docs/72_R_D_SCC1_INTERPRETATION_SOCIALE.md`;
+- `docs/73_R_D_SCC1B_PROVIDER_ET_CALIBRATION.md` décrit le banc SCC-1B2A;
+  son implantation est `vivarium.social_interpretation_bench` et sa commande
+  opérateur est `python -m vivarium social-interpretation-bench --level T0`;
 - `CHANGELOG.md` pour `a13` et `a14`.
 
 ---
@@ -146,6 +149,12 @@ Documents récents associés :
 - bancs d'essai, prévol, télémétrie et gardien local;
 - CAT-0 non sapient générique;
 - protection de chronologie contre latence LLM et arrêt hors ligne.
+
+SCC-1B2A a été livré avec 30 scénarios déclaratifs et 773 tests passent. Le
+smoke T1 du 9 août 2026 a utilisé `google/gemma-4-12b-qat`, recette
+`scc1b1-native-v2`, pour 7 appels : 6 sorties valides et 1 `parse_error` sur
+B24, sans hard blocker. Cela mesure le transport et le contrat; cela ne
+qualifie pas le modèle et T2 reste interdit jusqu'à audit.
 
 ### Présent mais encore mince / alpha
 

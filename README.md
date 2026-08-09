@@ -58,6 +58,7 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 .venv/Scripts/python -m vivarium upgrade-dev
 .venv/Scripts/python -m vivarium mvp-init --db data/vivarium-alpha.sqlite
 .venv/Scripts/python -m vivarium mvp-run --db data/vivarium-alpha.sqlite --enable-local-llm
+.venv/Scripts/python -m vivarium social-interpretation-bench --level T0
 ```
 
 - `init` initialise un monde de développement.
@@ -70,6 +71,9 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
   chargé dans LM Studio; sans ce drapeau, seules les routines canoniques tournent.
 - `mvp-preflight --db <base>` inspecte en lecture seule une base candidate au MVP
   (intégrité, journal, casting et journaux subjectifs), sans LLM ni réparation.
+- `social-interpretation-bench --level T0` exécute le banc SCC-1B2A déterministe;
+  `--level T1` lance un smoke LM Studio borné et `--report <fichier>` écrit un
+  rapport JSON technique. T2 reste désactivé.
 - `upgrade-dev` ajoute, de façon **non destructive et idempotente**, les 4 identités
   provisoires `character_1..4` au monde local (aucun personnage existant modifié ;
   n'insère que les manquants). `init --force` reste un dernier recours manuel.

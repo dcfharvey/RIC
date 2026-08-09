@@ -8,6 +8,7 @@ Commandes :
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import sqlite3
 import threading
@@ -233,6 +234,35 @@ def _run_llm_calibration(trials: int, character: str) -> int:
     print(f"Médiane : {report.median_elapsed_ms} ms — issues : {report.outcome_counts} — décisions : {report.decision_counts}")
     print(f"Verdict : {'sain' if report.healthy else 'anomalie explicite'} (bases mémoire jetables)")
     return 0 if report.healthy else 1
+
+
+def _run_social_interpretation_bench(level: str, trials: int, model_id: str | None,
+                                     scenario_ids: list[str], report_path: str | None) -> int:
+    from .social_interpretation_bench import BenchError, run_bench, write_report
+    from .social_interpretation_provider import DeterministicInterpretationProvider, LMStudioSocialInterpretationProvider
+
+    try:
+        if level == "T0":
+            provider = DeterministicInterpretationProvider(
+                {"schema_version": 1, "understanding_status": "ambiguous",
+                 "meaning_hypotheses": ["Lecture A", "Lecture B"], "motive_hypotheses": []},
+                model_id=model_id or "deterministic-bench-model",
+            )
+        else:
+            from .cognition import LocalLLMSettings
+            settings = LocalLLMSettings.from_environment(require_model=False)
+            if model_id:
+                settings = LocalLLMSettings(settings.base_url, model_id, settings.api_token, settings.timeout_seconds)
+            provider = LMStudioSocialInterpretationProvider(settings)
+        report = run_bench(provider, level=level, trials=trials,
+                           scenario_ids=tuple(scenario_ids) or None)
+        if report_path:
+            write_report(report, report_path)
+    except (BenchError, ValueError) as exc:
+        print(f"Banc SCC-1B2 : {getattr(exc, 'code', 'invalid_request')} — {exc}", file=__import__('sys').stderr)
+        return 2
+    print(json.dumps(report.as_dict(), ensure_ascii=False, indent=2))
+    return 0 if not report.as_dict()["hard_blockers"] else 1
 
 
 def _run_scene_smoke() -> int:
@@ -578,6 +608,12 @@ def main(argv: list[str] | None = None) -> int:
     p_calibration = sub.add_parser("llm-calibrate", help="Répète un tour LLM jetable pour mesurer le contrat et la latence.")
     p_calibration.add_argument("--trials", type=int, default=3, help="Nombre d'essais isolés (1 à 20, défaut : 3).")
     p_calibration.add_argument("--character", default="sophie", help="Résidente à utiliser (défaut : sophie).")
+    p_social_bench = sub.add_parser("social-interpretation-bench", help="Banc SCC-1B2 jetable, sans runtime vivant.")
+    p_social_bench.add_argument("--level", choices=("T0", "T1", "T2"), default="T0")
+    p_social_bench.add_argument("--trials", type=int, default=1, help="Trials par scénario (1 à 20).")
+    p_social_bench.add_argument("--model-id", default=None, help="Modèle T1 configuré; aucun secret n'est enregistré.")
+    p_social_bench.add_argument("--scenario", action="append", default=[], help="ID B01 à B30; répétable.")
+    p_social_bench.add_argument("--report", default=None, help="Chemin JSON du rapport technique jetable.")
     sub.add_parser("scene-smoke", help="Teste un tour de parole LLM dans une scène mémoire jetable.")
     p_scene_bench = sub.add_parser("scene-bench", help="Joue quelques tours sociaux LLM dans une scène jetable.")
     p_scene_bench.add_argument("--max-turns", type=int, default=4, help="Occasions de parole (1 à 20, défaut : 4).")
@@ -618,6 +654,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_living_bench(args.max_ticks, args.verbose)
     if args.command == "llm-calibrate":
         return _run_llm_calibration(args.trials, args.character)
+    if args.command == "social-interpretation-bench":
+        return _run_social_interpretation_bench(args.level, args.trials, args.model_id, args.scenario, args.report)
     if args.command == "scene-smoke":
         return _run_scene_smoke()
     if args.command == "scene-bench":
