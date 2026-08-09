@@ -30,6 +30,9 @@
 - SCC-1B2C rend le tooling T2 model-agnostic, ajoute `llm-inventory`, le plan
   Screen-47 borné à 47 appels et des artefacts model-specific collision-safe;
   aucune campagne comparative n'est exécutée dans ce lot.
+- SCC-1B2C1 durcit la validation de déploiement (instance id, configuration
+  réelle, multiplicité, mismatch de contexte), l'état d'échec du warm-up et
+  l'agrégation des métriques scored-only; inventaire final LM Studio réécrit.
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.

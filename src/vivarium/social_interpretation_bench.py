@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 from statistics import median
@@ -45,8 +46,36 @@ _CALIBRATION_TIME = datetime(2026, 8, 6, 21, tzinfo=timezone.utc)
 
 
 def _safe_model_id(model_id: str) -> str:
-    safe = "".join(char.lower() if char.isalnum() else "_" for char in model_id).strip("_")
-    return safe or "unknown_model"
+    slug = "".join(char.lower() if char.isalnum() else "_" for char in model_id).strip("_") or "unknown_model"
+    digest = hashlib.sha256(model_id.encode("utf-8")).hexdigest()[:8]
+    return f"{slug}_{digest}"
+
+
+def inspect_screen_deployment(record: Mapping[str, Any], *, target_context_length: int = 8192) -> dict[str, Any]:
+    """Validate one LM Studio model record without conflating key and instance id."""
+    model_key = record.get("key")
+    instances = record.get("loaded_instances") or ()
+    base = {"requested_model_key": model_key, "target_configuration": {
+        "target_context_length": target_context_length, "temperature": 0.2,
+        "reasoning": "off", "store": False, "structured_output": False}}
+    if not isinstance(instances, (list, tuple)) or len(instances) == 0:
+        return {**base, "screen_status": "deployment_failed", "error_code": "deployment_failed",
+                "loaded_model_instance_id": None, "actual_load_config": {}}
+    if len(instances) > 1:
+        return {**base, "screen_status": "deployment_ambiguous", "error_code": "multiple_loaded_instances",
+                "loaded_model_instance_id": None, "actual_load_config": {}}
+    instance = instances[0] if isinstance(instances[0], Mapping) else {}
+    config = instance.get("config") if isinstance(instance.get("config"), Mapping) else {}
+    actual = {"instance_id": instance.get("id"),
+              "actual_context_length": config.get("context_length"),
+              "flash_attention": config.get("flash_attention"),
+              "eval_batch_size": config.get("eval_batch_size"),
+              "offload_kv_cache_to_gpu": config.get("offload_kv_cache_to_gpu"),
+              "num_experts": config.get("num_experts")}
+    result = {**base, "loaded_model_instance_id": actual["instance_id"], "actual_load_config": actual}
+    if actual["actual_context_length"] is not None and actual["actual_context_length"] != target_context_length:
+        return {**result, "screen_status": "deployment_config_mismatch", "error_code": "deployment_config_mismatch"}
+    return {**result, "screen_status": "ready", "error_code": None}
 
 
 class BenchError(ValueError):
@@ -954,28 +983,69 @@ class BenchScreen47Report:
     stopped_on_hard_blocker: bool = False
     experimental_identity: Mapping[str, Any] | None = None
     warmup: Mapping[str, Any] = field(default_factory=dict)
+    deployment: Mapping[str, Any] = field(default_factory=dict)
+    screen_status: str = "completed"
 
     def as_dict(self) -> dict[str, Any]:
         trials = list(self.generic.trials) + [trial for pair in self.paired for trial in (pair.initial, pair.revision)]
         blockers = sorted({blocker for trial in trials for blocker in trial.hard_blockers})
+        valid = [trial for trial in trials if trial.outcome == "valid_interpretation"]
+        elapsed = sorted(trial.elapsed_ms for trial in trials)
+        percentile = lambda q: elapsed[max(0, round((len(elapsed) - 1) * q))] if elapsed else 0
+        outcomes = {name: sum(trial.outcome == name for trial in trials) for name in (
+            "valid_interpretation", "provider_error", "parse_error", "semantic_validation_reject", "setup_error")}
+        status_counts = _status_distribution(trials)
+        b02 = [trial for trial in self.generic.trials if trial.scenario_id == "B02"]
+        b19 = [trial for trial in self.generic.trials if trial.scenario_id == "B19"]
+        pair_valid = [pair for pair in self.paired if pair.initial.outcome == pair.revision.outcome == "valid_interpretation"]
         return {
             "screen_schema_version": 1, "level": "Screen-47",
             "model_id": next((trial.model_id for trial in trials if trial.model_id), None),
             "provider_version": next((trial.provider_version for trial in trials if trial.provider_version), SCC1B_PROVIDER_VERSION),
+            "requested_model_key": self.deployment.get("requested_model_key"),
+            "loaded_model_instance_id": self.deployment.get("loaded_model_instance_id"),
             "experimental_identity": dict(self.experimental_identity or {}),
+            "actual_load_config": dict(self.deployment.get("actual_load_config", {})),
+            "screen_status": self.screen_status,
+            "deployment": dict(self.deployment),
             "configuration": {"target_context_length": 8192, "temperature": 0.2,
                               "reasoning": "off", "store": False, "structured_output": False},
             "warmup": dict(self.warmup),
             "calls_attempted": len(trials), "calls_completed": sum(trial.outcome != "setup_error" for trial in trials),
             "generic_calls": len(self.generic.trials), "paired_calls": 2 * len(self.paired),
             "stopped_on_hard_blocker": self.stopped_on_hard_blocker, "hard_blockers": blockers,
+            "outcome_counts": outcomes, "structural_valid_rate": outcomes["valid_interpretation"] / len(trials) if trials else 0.0,
+            "median_scored_latency_ms": median(elapsed) if elapsed else 0,
+            "p90_scored_latency_ms": percentile(.90), "p95_scored_latency_ms": percentile(.95),
+            "status_counts_valid": status_counts,
+            "status_rates_valid": {key: value / len(valid) if valid else 0.0 for key, value in status_counts.items()},
+            "uncertainty_preserving_rate_valid": sum(trial.understanding_status in {"ambiguous", "unresolved"} for trial in valid) / len(valid) if valid else 0.0,
+            "b02": {"status_distribution": _status_distribution(b02), "forced_clear_rate": sum(trial.understanding_status == "clear" for trial in b02) / len(b02) if b02 else 0.0},
+            "b19": {"status_distribution": _status_distribution(b19), "forced_clear_rate": sum(trial.understanding_status == "clear" for trial in b19) / len(b19) if b19 else 0.0},
+            "meaning_hypothesis_count_distribution": {str(number): sum(len(trial.meaning_hypotheses) == number for trial in valid) for number in range(4)},
+            "motive_hypothesis_count_distribution": {str(number): sum(len(trial.motive_hypotheses) == number for trial in valid) for number in range(4)},
+            "motive_hypothesis_rate": sum(bool(trial.motive_hypotheses) for trial in valid) / len(valid) if valid else 0.0,
+            "metamorphic_metrics": self.generic.metamorphic_metrics or _aggregate_metamorphic_metrics(self.generic.trials),
+            "grouped_review_metrics": {"B09_B10": {"B09": _status_distribution([trial for trial in self.generic.trials if trial.scenario_id == "B09"]),
+                                                      "B10": _status_distribution([trial for trial in self.generic.trials if trial.scenario_id == "B10"])},
+                                        "B11": {"addressee": _status_distribution([trial for trial in self.generic.trials if trial.scenario_id == "B11" and trial.variant_id == "addressee"]),
+                                                "side_participant": _status_distribution([trial for trial in self.generic.trials if trial.scenario_id == "B11" and trial.variant_id == "side_participant"])}},
+            "revision": {"pairs_attempted": len(self.paired), "valid_pairs": len(pair_valid),
+                          "lineages_valid": sum(pair.lineage_valid for pair in self.paired),
+                          "changed_exact_output": sum(_normalized_output(pair.initial) != _normalized_output(pair.revision) for pair in pair_valid),
+                          "pairs": [pair.as_dict() for pair in self.paired]},
+            "injection": {"B24_compliance_probable": sum(trial.diagnostic_category == "compliance_probable" for trial in self.generic.trials if trial.scenario_id == "B24"),
+                          "B25_compliance_probable": sum(trial.diagnostic_category == "compliance_probable" for trial in self.generic.trials if trial.scenario_id == "B25"),
+                          "injection_echo": sum(trial.diagnostic_category == "injection_echo" for trial in self.generic.trials if trial.scenario_id in {"B24", "B25"}),
+                          "parse_errors": sum(trial.outcome == "parse_error" for trial in self.generic.trials if trial.scenario_id in {"B24", "B25"})},
             "generic": self.generic.as_dict(), "paired": [pair.as_dict() for pair in self.paired],
         }
 
 
 def run_screen47(provider: LMStudioSocialInterpretationProvider, *,
                  timer: Callable[[], float] = perf_counter,
-                 experimental_identity: Mapping[str, Any] | None = None) -> BenchScreen47Report:
+                 experimental_identity: Mapping[str, Any] | None = None,
+                 deployment: Mapping[str, Any] | None = None) -> BenchScreen47Report:
     if not isinstance(provider, LMStudioSocialInterpretationProvider):
         raise BenchError("Screen-47 exige le provider LM Studio réel", code="screen_requires_real_provider")
     warmup_started = timer()
@@ -990,7 +1060,7 @@ def run_screen47(provider: LMStudioSocialInterpretationProvider, *,
         warmup = {"attempted": True, "scored": False, "outcome": "provider_error",
                   "error_code": getattr(exc, "code", "warmup_failed"),
                   "elapsed_ms": max(0, round((timer() - warmup_started) * 1000))}
-        return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", (), SCENARIOS), (), False, experimental_identity, warmup)
+        return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", (), SCENARIOS), (), False, experimental_identity, warmup, deployment or {}, "warmup_failed")
     finally:
         warmup_fixture.conn.close()
     reports: list[BenchTrialReport] = []
@@ -999,15 +1069,15 @@ def run_screen47(provider: LMStudioSocialInterpretationProvider, *,
         report = run_trial(scenario, provider, number, timer=timer)
         reports.append(report)
         if report.hard_blockers:
-            return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS), (), True, experimental_identity, warmup)
+            return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS), (), True, experimental_identity, warmup, deployment or {}, "completed")
     pairs: list[BenchPairedRevisionReport] = []
     for number in range(1, 4):
         pair = run_paired_revision_trial(provider, pair_id="screen47_b15_b16", trial_number=number, timer=timer)
         pairs.append(pair)
         if pair.initial.hard_blockers or pair.revision.hard_blockers:
-            return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS), tuple(pairs), True, experimental_identity, warmup)
+            return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS), tuple(pairs), True, experimental_identity, warmup, deployment or {}, "completed")
     aggregate = BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS)
-    return BenchScreen47Report(aggregate, tuple(pairs), False, experimental_identity, warmup)
+    return BenchScreen47Report(aggregate, tuple(pairs), False, experimental_identity, warmup, deployment or {}, "completed")
 
 
 def write_screen47_report(report: BenchScreen47Report, path: str | Path, review_path: str | Path,
@@ -1034,11 +1104,12 @@ def build_model_inventory(settings: LocalLLMSettings, *, timer: Callable[[], flo
     models = []
     for record in records:
         models.append({
+            "type": record.get("type"), "publisher": record.get("publisher"),
             "model_id": record.get("key"), "display_name": record.get("display_name"),
-            "quantization": record.get("quantization"), "architecture": record.get("architecture", record.get("arch")),
-            "format": record.get("format"), "backend": record.get("backend"),
-            "parameter_count": record.get("parameter_count", record.get("params")),
-            "context_length": record.get("context_length", record.get("max_context_length")),
+            "architecture": record.get("architecture"), "quantization": record.get("quantization"),
+            "size_bytes": record.get("size_bytes"), "params_string": record.get("params_string"),
+            "max_context_length": record.get("max_context_length"), "format": record.get("format"),
+            "capabilities": record.get("capabilities"), "backend": record.get("backend"),
             "state": record.get("state"), "loaded_instances": record.get("loaded_instances"),
         })
     return {"inventory_schema_version": 1, "retrieved_at": datetime.now(timezone.utc).isoformat(),

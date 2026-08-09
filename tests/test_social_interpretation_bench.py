@@ -13,6 +13,7 @@ from vivarium.social_interpretation_bench import (
     BenchAggregateReport,
     BenchT2aCampaignReport,
     BenchScreen47Report,
+    BenchPairedRevisionReport,
     BenchTrialReport,
     SCREEN47_P1_KEYS,
     SCREEN47_THREE_OBSERVATION_KEYS,
@@ -21,12 +22,16 @@ from vivarium.social_interpretation_bench import (
     BenchError,
     _BenchClock,
     _build_fixture,
+    _safe_model_id,
     get_scenarios,
+    inspect_screen_deployment,
     run_bench,
     run_paired_revision_trial,
+    run_screen47,
     run_trial,
     screen47_call_plan,
     write_t2a_paired_report,
+    build_model_inventory,
 )
 
 
@@ -86,6 +91,65 @@ def test_t2_accepts_non_gemma_provider_identity_without_scoring(monkeypatch):
     assert report.trials[0].model_id == "model_B"
     campaign = BenchT2aCampaignReport(report, (), 1)
     assert campaign.as_dict()["model_id"] == "model_B"
+
+
+def test_screen_deployment_distinguishes_model_key_and_instance_id():
+    base = {"key": "model_A", "loaded_instances": [{"id": "instance-17", "config": {"context_length": 8192}}]}
+    deployment = inspect_screen_deployment(base)
+    assert deployment["screen_status"] == "ready"
+    assert deployment["requested_model_key"] == "model_A"
+    assert deployment["loaded_model_instance_id"] == "instance-17"
+    assert inspect_screen_deployment({"key": "model_A", "loaded_instances": []})["error_code"] == "deployment_failed"
+    assert inspect_screen_deployment({"key": "model_A", "loaded_instances": [base["loaded_instances"][0], base["loaded_instances"][0]]})["error_code"] == "multiple_loaded_instances"
+    mismatch = inspect_screen_deployment({"key": "model_A", "loaded_instances": [{"id": "i", "config": {"context_length": 16384}}]})
+    assert mismatch["screen_status"] == "deployment_config_mismatch"
+    assert mismatch["actual_load_config"]["actual_context_length"] == 16384
+
+
+def test_safe_model_id_is_collision_resistant():
+    assert _safe_model_id("a/b") != _safe_model_id("a-b")
+
+
+def test_inventory_preserves_official_identity_fields_without_invention(monkeypatch):
+    record = {"type": "llm", "publisher": "vendor", "key": "model_A", "display_name": "A",
+              "architecture": "arch", "quantization": {"name": "Q4"}, "size_bytes": 123,
+              "params_string": "8B", "max_context_length": 8192, "format": "gguf",
+              "capabilities": ["vision"], "loaded_instances": [{"id": "instance-1", "config": {"context_length": 8192}}]}
+    monkeypatch.setattr("vivarium.social_interpretation_bench.LMStudioProvider.list_model_records", lambda self: (record,))
+    inventory = build_model_inventory(LocalLLMSettings("http://127.0.0.1:1234", "model_A", None, 12))
+    model = inventory["models"][0]
+    assert model["size_bytes"] == 123 and model["params_string"] == "8B"
+    assert model["quantization"] == {"name": "Q4"} and model["max_context_length"] == 8192
+    assert model["loaded_instances"][0]["id"] == "instance-1"
+
+
+def test_screen_warmup_failure_is_non_success_and_not_cognitive_blocker(monkeypatch):
+    provider = LMStudioSocialInterpretationProvider(LocalLLMSettings("http://127.0.0.1:1234", "model_A", None, 12))
+    def fail(_snapshot):
+        raise RuntimeError("warmup")
+    monkeypatch.setattr(provider, "propose", fail)
+    report = run_screen47(provider)
+    payload = report.as_dict()
+    assert payload["screen_status"] == "warmup_failed"
+    assert payload["warmup"]["scored"] is False
+    assert payload["calls_attempted"] == 0
+    assert payload["hard_blockers"] == []
+
+
+def test_screen47_aggregate_excludes_warmup_and_contains_promised_sections(monkeypatch):
+    provider = LMStudioSocialInterpretationProvider(LocalLLMSettings("http://127.0.0.1:1234", "model_A", None, 12))
+    monkeypatch.setattr(provider, "propose", lambda _snapshot: VALID)
+    trial = BenchTrialReport(2, "B01", "base", 1, "model_A", "scc1b1-native-v2", "b" * 64, 1,
+                             "valid_interpretation", "real_provider_ready", understanding_status="ambiguous")
+    pair = BenchPairedRevisionReport("screen", 1, trial, trial, True)
+    monkeypatch.setattr("vivarium.social_interpretation_bench.run_trial", lambda *args, **kwargs: trial)
+    monkeypatch.setattr("vivarium.social_interpretation_bench.run_paired_revision_trial", lambda *args, **kwargs: pair)
+    payload = run_screen47(provider).as_dict()
+    assert payload["calls_attempted"] == 47
+    assert payload["generic_calls"] == 41 and payload["paired_calls"] == 6
+    assert payload["warmup"]["scored"] is False
+    assert payload["median_scored_latency_ms"] == 1
+    assert "metamorphic_metrics" in payload and "revision" in payload and "injection" in payload
 
 
 def test_paired_writer_uses_real_model_identity_and_no_gemma_label(tmp_path):

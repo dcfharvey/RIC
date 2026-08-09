@@ -295,7 +295,7 @@ def _run_llm_inventory(report_path: str | None) -> int:
 def _run_social_interpretation_screen(model_id: str, report_path: str | None) -> int:
     from .cognition import CognitionError, LMStudioProvider, LocalLLMSettings
     from .social_interpretation_bench import (
-        BenchError, _safe_model_id, run_screen47, write_screen47_report,
+        BenchError, _safe_model_id, inspect_screen_deployment, run_screen47, write_screen47_report,
     )
     try:
         settings = LocalLLMSettings.from_environment(require_model=False)
@@ -303,14 +303,26 @@ def _run_social_interpretation_screen(model_id: str, report_path: str | None) ->
         lm = LMStudioProvider(settings)
         records = lm.list_model_records()
         identity = next((record for record in records if record["key"] == model_id), None)
-        instances = () if identity is None else identity.get("loaded_instances") or ()
-        loaded_ids = {item.get("id") for item in instances if isinstance(item, dict)}
-        if identity is None or not instances or (loaded_ids and model_id not in loaded_ids):
-            raise BenchError("modèle demandé non chargé; aucun appel scoré", code="deployment_failed")
-        provider = LMStudioSocialInterpretationProvider(settings)
-        report = run_screen47(provider, experimental_identity=identity)
+        if identity is None:
+            raise BenchError("model key inconnu dans l'inventaire local", code="deployment_failed")
+        deployment = inspect_screen_deployment(identity)
         safe = _safe_model_id(model_id)
         principal = report_path or f"data/bench/screen_{safe}.json"
+        if deployment["screen_status"] != "ready":
+            payload = {"screen_schema_version": 1, "level": "Screen-47", "model_id": model_id,
+                       "requested_model_key": model_id, "experimental_identity": identity,
+                       "deployment": deployment, "actual_load_config": deployment.get("actual_load_config", {}),
+                       "screen_status": deployment["screen_status"], "warmup": {"attempted": False},
+                       "calls_attempted": 0, "calls_completed": 0, "generic_calls": 0, "paired_calls": 0,
+                       "hard_blockers": []}
+            target = Path(principal)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            target.with_name(f"screen_{safe}_review.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            print(json.dumps({key: payload[key] for key in ("screen_status", "model_id", "calls_attempted")}, ensure_ascii=False, indent=2))
+            return 2
+        provider = LMStudioSocialInterpretationProvider(settings)
+        report = run_screen47(provider, experimental_identity=identity, deployment=deployment)
         write_screen47_report(report, principal, Path(principal).with_name(f"screen_{safe}_review.json"),
                               paired_path=Path(principal).with_name(f"screen_{safe}_paired.json"))
         payload = report.as_dict()
@@ -318,9 +330,9 @@ def _run_social_interpretation_screen(model_id: str, report_path: str | None) ->
         print(f"Screen-47 : {getattr(exc, 'code', 'invalid_request')} — {exc}", file=__import__('sys').stderr)
         return 2
     print(json.dumps({key: payload[key] for key in (
-        "screen_schema_version", "model_id", "calls_attempted", "calls_completed", "hard_blockers")},
+        "screen_schema_version", "screen_status", "model_id", "calls_attempted", "calls_completed", "hard_blockers")},
         ensure_ascii=False, indent=2))
-    return 0 if not payload["hard_blockers"] else 1
+    return 0 if payload["screen_status"] in {"ready", "completed"} and not payload["hard_blockers"] else 1
 
 
 def _run_scene_smoke() -> int:
