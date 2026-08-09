@@ -5,6 +5,8 @@
 - SCC-0 ajoute l'encodage privé idempotent d'une parole sociale acceptée,
   depuis sa source persistante et sa preuve d'appartenance historique à la scène,
   sans interprétation ni conséquence cognitive automatique.
+- SCC-1A ajoute des interprétations sociales privées, bornées, owner-scoped et
+  révisables, sans LLM ni conséquence causale.
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.
@@ -13,8 +15,8 @@
   réancrée au dernier instant durable sans jamais précéder un événement canonique.
 - Les battements restent un registre opérationnel mutable et compact; seules
   les transitions de cycle de vie sont recopiées dans un journal append-only.
-- Le schéma SQLite passe en version 36.
-- Validation complète : **739 tests**.
+- Le schéma SQLite passe en version 37 avec les interprétations sociales privées et révisables de SCC-1A.
+- Validation complète : **751 tests**.
 
 ## 0.1.0a14 — 7 août 2026
 

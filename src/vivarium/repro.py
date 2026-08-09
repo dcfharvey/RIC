@@ -782,6 +782,89 @@ def subjective_social_audit(conn: sqlite3.Connection, world_id: int) -> list[str
     return findings
 
 
+def social_interpretation_digest(conn: sqlite3.Connection, world_id: int) -> dict[str, list[dict[str, Any]]]:
+    """Projection vÃ©rifiable des interprÃ©tations, sÃ©parÃ©e du canon."""
+    rows = conn.execute(
+        "SELECT interpretation.id AS interpretation_id, ch.key AS character, interpretation.interpretation_key, "
+        "interpretation.source_trace_id, source.request_key AS source_trace_request_key, "
+        "interpretation.interaction_role, interpretation.understanding_status, "
+        "interpretation.meaning_hypotheses_json, interpretation.motive_hypotheses_json, "
+        "prior.interpretation_key AS revision_of_key, interpretation.created_at "
+        "FROM social_interpretation interpretation "
+        "JOIN character ch ON ch.id = interpretation.character_id "
+        "JOIN subjective_trace source ON source.id = interpretation.source_trace_id "
+        "LEFT JOIN social_interpretation prior ON prior.id = interpretation.revision_of_id "
+        "WHERE interpretation.world_id = ? ORDER BY ch.key, interpretation.created_at, interpretation.id",
+        (world_id,),
+    ).fetchall()
+    out: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        support = conn.execute(
+            "SELECT trace.request_key FROM social_interpretation_support support "
+            "JOIN subjective_trace trace ON trace.id = support.trace_id "
+            "JOIN social_interpretation interpretation ON interpretation.id = support.interpretation_id "
+            "WHERE support.interpretation_id = ? ORDER BY support.id", (row["interpretation_id"],)
+        ).fetchall()
+        out.setdefault(row["character"], []).append({
+            "interpretation_key": row["interpretation_key"], "source_trace_id": row["source_trace_id"],
+            "source_trace_request_key": row["source_trace_request_key"],
+            "interaction_role": row["interaction_role"], "understanding_status": row["understanding_status"],
+            "meaning_hypotheses": json.loads(row["meaning_hypotheses_json"]),
+            "motive_hypotheses": json.loads(row["motive_hypotheses_json"]),
+            "revision_of_key": row["revision_of_key"],
+            "supporting_trace_request_keys": tuple(item["request_key"] for item in support),
+            "created_at": row["created_at"],
+        })
+    return out
+
+
+def social_interpretation_audit(conn: sqlite3.Connection, world_id: int) -> list[str]:
+    """VÃ©rifie la provenance, l'ownership et l'audit append-only SCC-1A."""
+    findings: list[str] = []
+    rows = conn.execute(
+        "SELECT interpretation.id, interpretation.world_id, interpretation.character_id, "
+        "interpretation.source_trace_id, interpretation.revision_of_id, event.event_type, "
+        "event.character_id AS event_character_id, event.payload_json "
+        "FROM social_interpretation interpretation "
+        "LEFT JOIN social_interpretation_event event ON event.interpretation_id = interpretation.id "
+        "WHERE interpretation.world_id = ? ORDER BY interpretation.id, event.id", (world_id,)
+    ).fetchall()
+    seen: set[int] = set()
+    for row in rows:
+        if row["id"] in seen:
+            findings.append(f"interpretation {row['id']}: multiple audit events")
+            continue
+        seen.add(row["id"])
+        expected_event = "interpretation_revised" if row["revision_of_id"] is not None else "interpretation_created"
+        if row["event_type"] != expected_event or row["event_character_id"] != row["character_id"]:
+            findings.append(f"interpretation {row['id']}: missing or mismatched audit event")
+            continue
+        payload = json.loads(row["payload_json"])
+        if payload.get("interpretation_id") != row["id"] or payload.get("source_trace_id") != row["source_trace_id"]:
+            findings.append(f"interpretation {row['id']}: audit payload mismatch")
+        if payload.get("revision_of_id") != row["revision_of_id"]:
+            findings.append(f"interpretation {row['id']}: revision audit mismatch")
+        support_ids = [item["trace_id"] for item in conn.execute(
+            "SELECT trace_id FROM social_interpretation_support WHERE interpretation_id = ? ORDER BY id",
+            (row["id"],),
+        ).fetchall()]
+        if payload.get("support_trace_ids") != support_ids:
+            findings.append(f"interpretation {row['id']}: support audit mismatch")
+    support = conn.execute(
+        "SELECT support.id, interpretation.world_id, interpretation.character_id, trace.world_id AS trace_world_id, "
+        "trace.character_id AS trace_character_id, trace.fact_type, trace.source_social_speech_act_id "
+        "FROM social_interpretation_support support "
+        "JOIN social_interpretation interpretation ON interpretation.id = support.interpretation_id "
+        "JOIN subjective_trace trace ON trace.id = support.trace_id "
+        "WHERE interpretation.world_id = ?", (world_id,)
+    ).fetchall()
+    for row in support:
+        if (row["world_id"], row["character_id"]) != (row["trace_world_id"], row["trace_character_id"]) \
+                or row["fact_type"] != "social_speech_act" or row["source_social_speech_act_id"] is None:
+            findings.append(f"support {row['id']}: inaccessible or non-social source")
+    return findings
+
+
 @dataclass
 class SimulationRunReport:
     """Rapport stable de simulation (outil de test/diagnostic, non canonique)."""

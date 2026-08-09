@@ -94,10 +94,10 @@ Ils restent utiles pour leurs contrats et invariants, mais **pas comme compteur 
 Référence fonctionnelle actuelle :
 
 - version logicielle : **`0.1.0a15`**;
-- schéma SQLite : **36**;
-- migration la plus récente : `0036_subjective_social_speech.sql`;
-- dernière validation complète connue : **739 tests réussis**;
-- dernier commit de code avant publication GitHub : `82c6b53` — `fix(runtime): freeze canonical time while offline`;
+- schéma SQLite : **37**;
+- migration la plus récente : `0037_social_interpretations.sql`;
+- dernière validation complète connue : **751 tests réussis**;
+- dernier commit fonctionnel SCC-0 : `be1cc2a` — `feat(memory): encode accessible social speech traces`;
 - le commit GitHub suivant `01ff03e` ne modifie que `.gitignore` (`logs/` désormais ignoré).
 
 Toujours revérifier localement avant d'agir :
@@ -125,6 +125,7 @@ Documents récents associés :
 - `docs/69_CORRECTIF_LATENCE_CHRONOLOGIQUE_0_1_0A12.md`;
 - `docs/70_GEL_HORS_LIGNE_ET_RECUPERATION_CRASH_0_1_0A15.md`;
 - `docs/71_R_D_SOCIAL_CONSEQUENCE_CORE.md`;
+- `docs/72_R_D_SCC1_INTERPRETATION_SOCIALE.md`;
 - `CHANGELOG.md` pour `a13` et `a14`.
 
 ---
