@@ -236,9 +236,9 @@ def _run_llm_calibration(trials: int, character: str) -> int:
     return 0 if report.healthy else 1
 
 
-def _run_social_interpretation_bench(level: str, trials: int, model_id: str | None,
+def _run_social_interpretation_bench(level: str, trials: int | None, model_id: str | None,
                                      scenario_ids: list[str], report_path: str | None) -> int:
-    from .social_interpretation_bench import BenchError, run_bench, write_report
+    from .social_interpretation_bench import BenchError, run_bench, run_t2a_campaign, write_report, write_t2a_campaign
     from .social_interpretation_provider import DeterministicInterpretationProvider, LMStudioSocialInterpretationProvider
 
     try:
@@ -250,19 +250,31 @@ def _run_social_interpretation_bench(level: str, trials: int, model_id: str | No
             )
         else:
             from .cognition import LocalLLMSettings
-            settings = LocalLLMSettings.from_environment(require_model=False)
+            settings = LocalLLMSettings.from_environment(require_model=level == "T2")
             if model_id:
                 settings = LocalLLMSettings(settings.base_url, model_id, settings.api_token, settings.timeout_seconds)
+            if level == "T2" and settings.model_id != "google/gemma-4-12b-qat":
+                raise BenchError("T2a exige google/gemma-4-12b-qat", code="t2_model_mismatch")
             provider = LMStudioSocialInterpretationProvider(settings)
-        report = run_bench(provider, level=level, trials=trials,
-                           scenario_ids=tuple(scenario_ids) or None)
-        if report_path:
-            write_report(report, report_path)
+        effective_trials = trials if trials is not None else (5 if level == "T2" else 1)
+        if level == "T2":
+            if scenario_ids:
+                raise BenchError("T2a exécute la matrice complète", code="t2_scenario_override_forbidden")
+            report = run_t2a_campaign(provider, trials=effective_trials)
+            principal = report_path or "data/bench/scc1b2_t2a_gemma4_12b.json"
+            write_t2a_campaign(report, principal, Path(principal).with_name("scc1b2_t2a_review.json"))
+            payload = report.as_dict()
+        else:
+            report = run_bench(provider, level=level, trials=effective_trials,
+                               scenario_ids=tuple(scenario_ids) or None)
+            if report_path:
+                write_report(report, report_path)
+            payload = report.as_dict()
     except (BenchError, ValueError) as exc:
         print(f"Banc SCC-1B2 : {getattr(exc, 'code', 'invalid_request')} — {exc}", file=__import__('sys').stderr)
         return 2
-    print(json.dumps(report.as_dict(), ensure_ascii=False, indent=2))
-    return 0 if not report.as_dict()["hard_blockers"] else 1
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0 if not payload["hard_blockers"] else 1
 
 
 def _run_scene_smoke() -> int:
@@ -610,7 +622,7 @@ def main(argv: list[str] | None = None) -> int:
     p_calibration.add_argument("--character", default="sophie", help="Résidente à utiliser (défaut : sophie).")
     p_social_bench = sub.add_parser("social-interpretation-bench", help="Banc SCC-1B2 jetable, sans runtime vivant.")
     p_social_bench.add_argument("--level", choices=("T0", "T1", "T2"), default="T0")
-    p_social_bench.add_argument("--trials", type=int, default=1, help="Trials par scénario (1 à 20).")
+    p_social_bench.add_argument("--trials", type=int, default=None, help="Trials par scénario (T2a : 5 par défaut; sinon 1).")
     p_social_bench.add_argument("--model-id", default=None, help="Modèle T1 configuré; aucun secret n'est enregistré.")
     p_social_bench.add_argument("--scenario", action="append", default=[], help="ID B01 à B30; répétable.")
     p_social_bench.add_argument("--report", default=None, help="Chemin JSON du rapport technique jetable.")

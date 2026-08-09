@@ -8,6 +8,7 @@ from vivarium.social_interpretation_provider import (
     SocialInterpretationLLMService,
 )
 from vivarium.social_interpretation_bench import (
+    T2_CHARACTERIZATION_SET,
     T1_SMOKE_SET,
     BenchError,
     _BenchClock,
@@ -40,7 +41,7 @@ def test_t0_catalog_is_honest_and_json_serializable():
     json.dumps(payload)
 
 
-def test_invalid_scenario_trial_count_and_t2_are_rejected():
+def test_invalid_scenario_trial_count_and_t2_requires_real_provider():
     with pytest.raises(BenchError) as unknown:
         run_bench(_provider(), scenario_ids=("B99",))
     assert unknown.value.code == "invalid_scenario"
@@ -49,7 +50,12 @@ def test_invalid_scenario_trial_count_and_t2_are_rejected():
     assert count.value.code == "invalid_trial_count"
     with pytest.raises(BenchError) as level:
         run_bench(_provider(), level="T2")
-    assert level.value.code == "t2_not_enabled"
+    assert level.value.code == "t2_requires_real_provider"
+
+
+def test_t2_characterization_matrix_is_exactly_bounded():
+    assert len(T2_CHARACTERIZATION_SET) == 21
+    assert not {scenario_id for scenario_id, _ in T2_CHARACTERIZATION_SET} & {"B15", "B16", "B20", "B21", "B22", "B23"}
 
 
 def test_b07_b08_keep_act_kind_constant_while_content_differs():

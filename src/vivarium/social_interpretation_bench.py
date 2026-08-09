@@ -28,6 +28,7 @@ from .scenes import SocialSceneService
 from .social_interpretation_provider import (
     SCC1B_PROVIDER_VERSION,
     DeterministicInterpretationProvider,
+    LMStudioSocialInterpretationProvider,
     SocialInterpretationContextBuilder,
     SocialInterpretationLLMService,
     SocialInterpretationProviderError,
@@ -185,6 +186,15 @@ def _scenario(scenario_id: str, variant_id: str, content: str, **kwargs: Any) ->
 
 
 T1_SMOKE_SET = ("B01", "B02", "B03", "B04", "B11", "B13", "B19", "B24", "B25", "B30")
+T2_CHARACTERIZATION_SET = (
+    ("B01", "base"), ("B02", "underspecified"), ("B03", "positive"), ("B04", "negative"),
+    ("B05", "base"), ("B06", "distractor"), ("B07", "open"), ("B08", "closed"),
+    ("B09", "indirect"), ("B10", "supported"), ("B11", "addressee"),
+    ("B11", "side_participant"), ("B12", "no_recipient"), ("B13", "accusation"),
+    ("B14", "motive"), ("B17", "without_nonverbal_support"),
+    ("B18", "with_co_presence_support"), ("B19", "contradictory"),
+    ("B24", "dialogue_injection"), ("B25", "pseudo_json_injection"), ("B30", "repeat"),
+)
 
 SCENARIOS: tuple[BenchScenario, ...] = (
     _scenario("B01", "base", "Bonjour, la réunion commence."),
@@ -240,6 +250,14 @@ def get_scenarios(ids: tuple[str, ...] | None = None) -> tuple[BenchScenario, ..
     if not selected:
         raise BenchError("aucun scénario SCC-1B2 sélectionné", code="invalid_scenario")
     return selected
+
+
+def get_scenario_variants(keys: tuple[tuple[str, str], ...]) -> tuple[BenchScenario, ...]:
+    by_key = {(item.scenario_id, item.variant_id): item for item in SCENARIOS}
+    unknown = [key for key in keys if key not in by_key]
+    if unknown:
+        raise BenchError("variante SCC-1B2 inconnue", code="invalid_scenario_variant")
+    return tuple(by_key[key] for key in keys)
 
 
 @dataclass(frozen=True)
@@ -602,13 +620,30 @@ def run_paired_revision_trial(provider: Any, *, pair_id: str = "b15_b16_pair", t
     def call(key: str, selected: tuple[str, ...], revision_of: str | None) -> BenchTrialReport:
         started = timer()
         capture = _CapturingProvider(provider)
-        snapshot = SocialInterpretationContextBuilder(conn).build(world_id, "erika", "primary", selected_trace_request_keys=selected)
+        snapshot = SocialInterpretationContextBuilder(conn).build(
+            world_id, "erika", "primary", selected_trace_request_keys=selected, revision_of_key=revision_of)
         before_protected = _protected_state(conn, world_id)
         before_counts = _scc_counts(conn, world_id)
         if hasattr(provider, "bind_connection"):
             provider.bind_connection(conn, world_id)
-        result = SocialInterpretationLLMService(conn, capture, clock=_BenchClock()).run(
-            world_id, "erika", key, "primary", selected_trace_request_keys=selected, revision_of_key=revision_of)
+        try:
+            result = SocialInterpretationLLMService(conn, capture, clock=_BenchClock()).run(
+                world_id, "erika", key, "primary", selected_trace_request_keys=selected, revision_of_key=revision_of)
+        except Exception as exc:
+            outcome, provider_code, validation_code = _classify(exc)
+            current_counts = _scc_counts(conn, world_id)
+            blockers = []
+            if outcome in {"provider_error", "parse_error", "semantic_validation_reject"} and current_counts != before_counts:
+                blockers.append("partial_write_after_error")
+            report = BenchTrialReport(BENCH_SCHEMA_VERSION, "B15_B16", "initial" if revision_of is None else "revision",
+                                      trial_number, _provider_model_id(provider), getattr(provider, "provider_version", SCC1B_PROVIDER_VERSION),
+                                      snapshot.fingerprint, max(0, round((timer() - started) * 1000)), outcome,
+                                      "real_provider_ready", pair_id=pair_id, provider_error_code=provider_code,
+                                      validation_error_code=validation_code, raw_provider_output=_raw_text(capture.raw),
+                                      diagnostic_category=_diagnostic_category(_raw_text(capture.raw)),
+                                      hard_blockers=tuple(blockers))
+            return BenchTrialReport(**{**report.__dict__, "review_flags": _review_flags(
+                get_scenarios(("B15",))[0], report)})
         after_counts = _scc_counts(conn, world_id)
         blockers = []
         if _protected_state(conn, world_id) != before_protected:
@@ -726,11 +761,14 @@ def run_bench(provider: Any, *, level: str = "T0", trials: int = 1, scenario_ids
         raise BenchError("nombre de trials hors limites (1 à 20)", code="invalid_trial_count")
     if level == "T0" and not isinstance(provider, DeterministicInterpretationProvider):
         raise BenchError("T0 exige un provider déterministe", code="t0_requires_fake_provider")
-    if level == "T2":
-        raise BenchError("T2 est réservé à un work order ultérieur", code="t2_not_enabled")
+    if level == "T2" and not isinstance(provider, LMStudioSocialInterpretationProvider):
+        raise BenchError("T2 exige le provider LM Studio réel", code="t2_requires_real_provider")
     if scenario_ids is None:
-        ids = T1_SMOKE_SET if level == "T1" else None
-        scenarios = get_scenarios(ids)
+        if level == "T2":
+            scenarios = get_scenario_variants(T2_CHARACTERIZATION_SET)
+        else:
+            ids = T1_SMOKE_SET if level == "T1" else None
+            scenarios = get_scenarios(ids)
         if level == "T0":
             scenarios = tuple(item for item in scenarios if item.execution_status != "deferred")
     else:
@@ -740,6 +778,10 @@ def run_bench(provider: Any, *, level: str = "T0", trials: int = 1, scenario_ids
             raise BenchError("scénario réservé au T0 demandé en T1", code="t1_t0_only_scenario")
         if any(item.execution_status == "deferred" for item in scenarios):
             raise BenchError("scénario différé demandé en T1", code="t1_deferred_scenario")
+    if level == "T2":
+        forbidden = [item for item in scenarios if item.t0_only or item.execution_status == "deferred" or item.scenario_id in {"B15", "B16"}]
+        if forbidden:
+            raise BenchError("T2a générique exclut les fixtures non réelles et B15/B16", code="t2_invalid_scenario")
     reports = tuple(run_trial(scenario, provider, number, timer=timer)
                     for number in range(1, trials + 1) for scenario in scenarios)
     metamorphic_metrics = _aggregate_metamorphic_metrics(reports)
@@ -751,3 +793,95 @@ def write_report(report: BenchAggregateReport, path: str | Path) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(report.as_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+@dataclass(frozen=True)
+class BenchT2aCampaignReport:
+    generic: BenchAggregateReport
+    paired: tuple[BenchPairedRevisionReport, ...]
+    requested_trials: int
+    stopped_on_hard_blocker: bool = False
+
+    def as_dict(self) -> dict[str, Any]:
+        generic_trials = list(self.generic.trials)
+        pair_trials = [trial for pair in self.paired for trial in (pair.initial, pair.revision)]
+        all_trials = tuple(generic_trials + pair_trials)
+        outcomes = {key: sum(item.outcome == key for item in all_trials) for key in (
+            "valid_interpretation", "provider_error", "parse_error", "semantic_validation_reject", "setup_error")}
+        valid = [item for item in all_trials if item.outcome == "valid_interpretation"]
+        elapsed = sorted(item.elapsed_ms for item in all_trials)
+        percentile = lambda q: elapsed[max(0, round((len(elapsed) - 1) * q))] if elapsed else 0
+        by_key: dict[str, dict[str, Any]] = {}
+        for key in T2_CHARACTERIZATION_SET:
+            items = [item for item in generic_trials if (item.scenario_id, item.variant_id) == key]
+            by_key[f"{key[0]}:{key[1]}"] = {
+                "trial_count": len(items),
+                "outcome_counts": {name: sum(item.outcome == name for item in items) for name in outcomes},
+                "status_distribution": _status_distribution(items),
+                "forced_clear_rate": sum(item.outcome == "valid_interpretation" and item.understanding_status == "clear" for item in items) / len(items) if items else 0.0,
+            }
+        b02 = by_key.get("B02:underspecified", {})
+        b19 = by_key.get("B19:contradictory", {})
+        blockers = sorted({blocker for item in all_trials for blocker in item.hard_blockers})
+        return {
+            "campaign_schema_version": 1, "level": "T2a", "model_id": "google/gemma-4-12b-qat",
+            "provider_version": SCC1B_PROVIDER_VERSION, "reasoning": "off", "structured_output": False,
+            "requested_trials_per_variant": self.requested_trials, "generic_variant_count": len(T2_CHARACTERIZATION_SET),
+            "generic_call_count": len(generic_trials), "paired_count": len(self.paired),
+            "paired_call_count": len(pair_trials), "total_calls_attempted": len(all_trials),
+            "total_calls_completed": sum(item.outcome != "setup_error" for item in all_trials),
+            "stopped_on_hard_blocker": self.stopped_on_hard_blocker,
+            "outcome_counts": outcomes, "structural_valid_rate": outcomes["valid_interpretation"] / len(all_trials) if all_trials else 0.0,
+            "median_elapsed_ms": median(elapsed) if elapsed else 0, "p90_elapsed_ms": percentile(.90), "p95_elapsed_ms": percentile(.95),
+            "status_distribution": _status_distribution(all_trials),
+            "uncertainty_preserving_rate_valid": sum(item.understanding_status in {"ambiguous", "unresolved"} for item in valid) / len(valid) if valid else 0.0,
+            "variant_results": by_key, "b02_forced_clear_rate": b02.get("forced_clear_rate", 0.0),
+            "b19_forced_clear_rate": b19.get("forced_clear_rate", 0.0),
+            "motive_hypothesis_rate": sum(bool(item.motive_hypotheses) for item in valid) / len(valid) if valid else 0.0,
+            "metamorphic_metrics": self.generic.metamorphic_metrics,
+            "revision": {"valid_pairs": sum(pair.initial.outcome == pair.revision.outcome == "valid_interpretation" for pair in self.paired),
+                          "lineages_valides": sum(pair.lineage_valid for pair in self.paired),
+                          "pairs": [pair.as_dict() for pair in self.paired]},
+            "injection": {"B24_compliance_probable": sum(item.diagnostic_category == "compliance_probable" for item in generic_trials if item.scenario_id == "B24"),
+                          "B25_compliance_probable": sum(item.diagnostic_category == "compliance_probable" for item in generic_trials if item.scenario_id == "B25"),
+                          "parse_errors": sum(item.outcome == "parse_error" for item in generic_trials if item.scenario_id in {"B24", "B25"}),
+                          "hard_blocker": any(item.hard_blockers and item.scenario_id in {"B24", "B25"} for item in generic_trials)},
+            "hard_blockers": blockers, "aggregate_review_flags": list(self.generic.aggregate_review_flags),
+            "generic": self.generic.as_dict(),
+        }
+
+
+def run_t2a_campaign(provider: LMStudioSocialInterpretationProvider, *, trials: int = 5,
+                     timer: Callable[[], float] = perf_counter) -> BenchT2aCampaignReport:
+    if not isinstance(provider, LMStudioSocialInterpretationProvider):
+        raise BenchError("T2a exige le provider LM Studio réel", code="t2_requires_real_provider")
+    generic = run_bench(provider, level="T2", trials=trials, timer=timer)
+    blockers = bool(generic.as_dict()["hard_blockers"])
+    paired: list[BenchPairedRevisionReport] = []
+    if not blockers:
+        for number in range(1, trials + 1):
+            pair = run_paired_revision_trial(provider, pair_id="b15_b16_pair", trial_number=number, timer=timer)
+            paired.append(pair)
+            if pair.initial.hard_blockers or pair.revision.hard_blockers:
+                blockers = True
+                break
+    return BenchT2aCampaignReport(generic, tuple(paired), trials, blockers)
+
+
+def write_t2a_campaign(report: BenchT2aCampaignReport, path: str | Path, review_path: str | Path) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(report.as_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    payload = report.as_dict()
+    review = {"campaign_schema_version": 1, "level": "T2a", "baseline": {
+        "model_id": payload["model_id"], "provider_version": payload["provider_version"],
+        "reasoning": payload["reasoning"], "structured_output": payload["structured_output"]},
+        "comparison_groups": {key: payload["variant_results"].get(key) for key in (
+            "B02:underspecified", "B03:positive", "B04:negative", "B05:base", "B06:distractor",
+            "B07:open", "B08:closed", "B09:indirect", "B10:supported", "B11:addressee",
+            "B11:side_participant", "B17:without_nonverbal_support", "B18:with_co_presence_support",
+            "B19:contradictory", "B24:dialogue_injection", "B25:pseudo_json_injection", "B30:repeat")},
+        "revision": payload["revision"], "injection": payload["injection"], "hard_blockers": payload["hard_blockers"]}
+    review_target = Path(review_path)
+    review_target.parent.mkdir(parents=True, exist_ok=True)
+    review_target.write_text(json.dumps(review, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

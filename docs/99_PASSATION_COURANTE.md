@@ -151,15 +151,20 @@ Documents récents associés :
 - protection de chronologie contre latence LLM et arrêt hors ligne.
 
 SCC-1B2A finalisé porte 30 IDs, 31 variantes déclarées, 27 fixtures T0
-déterministes et 794 tests passants. B17/B18 opposent honnêtement absence et
+déterministes et 795 tests passants. B17/B18 opposent honnêtement absence et
 présence d'un support `co_presence`; B24/B25 distinguent mention et compliance;
 les métriques métamorphiques utilisent toutes les répétitions; provenance et
 partial-write sont des contrôles bloquants. B15/B16 disposent d'un runner pairé
-avec seed fake, mais aucun appel réel n'est effectué. B26–B29 sont `deferred`;
+avec seed fake. La campagne T2a réelle Gemma 4 12B a exécuté 105 appels
+génériques et une paire B15/B16 (107 appels, 107 valides), puis s'est arrêtée
+sur un hard blocker de provenance détecté par le runner; artefacts conservés dans
+`data/bench/scc1b2_t2a_gemma4_12b.json` et `data/bench/scc1b2_t2a_review.json`.
+B26–B29 sont `deferred`;
 B20–B23 sont T0-only. Le dernier smoke T1 borné a utilisé
 `google/gemma-4-12b-qat`, recette `scc1b1-native-v2`, pour 11 appels : 11
-sorties valides, sans hard blocker ni fuite de canary. Cela ne qualifie pas le
-modèle et T2 reste interdit jusqu'au prochain work order.
+sorties valides, sans hard blocker ni fuite de canary. La campagne T2a ne
+constitue pas une qualification du modèle; T2b et l'admission cognitive restent
+hors périmètre.
 
 ### Présent mais encore mince / alpha
 

@@ -23,8 +23,9 @@
   smoke T1 borné et diagnostics JSON bruts; T2 reste désactivé.
 - SCC-1B2A finalise la readiness T2 : contraste B17/B18 honnête, diagnostics
   mention/compliance B24/B25, métriques métamorphiques multi-trial, provenance
-  et partial-write hard blockers, ainsi qu'un runner pairé B15/B16 non exécuté
-  en réel.
+  et partial-write hard blockers, runner pairé B15/B16 et campagne T2a réelle
+  partielle (107 appels, arrêt sur hard blocker de provenance; artefacts sous
+  `data/bench/`).
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.
