@@ -1,8 +1,8 @@
 # Vivarium social artificiel — paquet destiné à une IA programmeuse
 
 Version documentaire 1.8, 6 août 2026. État logiciel courant : `0.1.0a15`,
-schéma SQLite 37, migration `0037_social_interpretations.sql`, 751 tests
-validés, dernier commit fonctionnel `16e3b78`.
+schéma SQLite 38, migration `0038_scc1_support_traces.sql`, 753 tests
+validés, dernier commit fonctionnel `5099f7a`.
 
 ## Reprise d'un travail existant
 

@@ -7,6 +7,9 @@
   sans interprétation ni conséquence cognitive automatique.
 - SCC-1A ajoute des interprétations sociales privées, bornées, owner-scoped et
   révisables, sans LLM ni conséquence causale.
+- SCC-1A durcit la révision : toute trace subjective privée du même propriétaire
+  peut servir de preuve secondaire; les hypothèses sont trimées et dédupliquées
+  exactement, avec persistance et invariants append-only vérifiés.
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.
@@ -15,8 +18,8 @@
   réancrée au dernier instant durable sans jamais précéder un événement canonique.
 - Les battements restent un registre opérationnel mutable et compact; seules
   les transitions de cycle de vie sont recopiées dans un journal append-only.
-- Le schéma SQLite passe en version 37 avec les interprétations sociales privées et révisables de SCC-1A.
-- Validation complète : **751 tests**.
+- Le schéma SQLite passe en version 38 avec le durcissement des preuves secondaires SCC-1A.
+- Validation complète : **753 tests**.
 
 ## 0.1.0a14 — 7 août 2026
 

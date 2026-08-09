@@ -93,10 +93,10 @@ Pour les compteurs de version ou la photographie de HEAD, vérifier toujours `py
 Référence fonctionnelle actuelle :
 
 - version logicielle : **`0.1.0a15`**;
-- schéma SQLite : **37**;
-- migration la plus récente : `0037_social_interpretations.sql`;
-- dernière validation complète connue : **751 tests réussis**;
-- dernier commit fonctionnel courant : `16e3b78` — `feat(social): add private social interpretations`;
+- schéma SQLite : **38**;
+- migration la plus récente : `0038_scc1_support_traces.sql`;
+- dernière validation complète connue : **753 tests réussis**;
+- dernier commit fonctionnel courant : `5099f7a` — `fix(social): harden SCC-1A interpretation evidence`;
 - le commit GitHub suivant `01ff03e` ne modifie que `.gitignore` (`logs/` désormais ignoré).
 
 Toujours revérifier localement avant d'agir :

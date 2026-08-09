@@ -25,7 +25,7 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a15` — schéma 37, migration `0037_social_interpretations.sql`, 751 tests validés, commit fonctionnel `16e3b78`.
+**Version logicielle actuelle :** `0.1.0a15` — schéma 38, migration `0038_scc1_support_traces.sql`, 753 tests validés, commit fonctionnel `5099f7a`.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
