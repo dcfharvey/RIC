@@ -150,12 +150,16 @@ Documents récents associés :
 - CAT-0 non sapient générique;
 - protection de chronologie contre latence LLM et arrêt hors ligne.
 
-SCC-1B2A a été durci avec 30 IDs, 31 variantes déclarées, 27 fixtures T0
-déterministes et 788 tests passants. B26–B29 sont explicitement `deferred`;
-B20–B23 sont T0-only. Le smoke T1 borné du 9 août 2026 utilise
+SCC-1B2A finalisé porte 30 IDs, 31 variantes déclarées, 27 fixtures T0
+déterministes et 794 tests passants. B17/B18 opposent honnêtement absence et
+présence d'un support `co_presence`; B24/B25 distinguent mention et compliance;
+les métriques métamorphiques utilisent toutes les répétitions; provenance et
+partial-write sont des contrôles bloquants. B15/B16 disposent d'un runner pairé
+avec seed fake, mais aucun appel réel n'est effectué. B26–B29 sont `deferred`;
+B20–B23 sont T0-only. Le dernier smoke T1 borné a utilisé
 `google/gemma-4-12b-qat`, recette `scc1b1-native-v2`, pour 11 appels : 11
-sorties valides, sans hard blocker ni fuite de canary. Cela mesure le transport
-et le contrat; cela ne qualifie pas le modèle et T2 reste interdit jusqu'à audit.
+sorties valides, sans hard blocker ni fuite de canary. Cela ne qualifie pas le
+modèle et T2 reste interdit jusqu'au prochain work order.
 
 ### Présent mais encore mince / alpha
 

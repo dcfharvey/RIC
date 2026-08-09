@@ -21,6 +21,10 @@
 - SCC-1B2A durcit le banc jetable `social-interpretation-bench` : 30 IDs,
   31 variantes déclarées, fixtures T0 déterministes, cas deferred explicites,
   smoke T1 borné et diagnostics JSON bruts; T2 reste désactivé.
+- SCC-1B2A finalise la readiness T2 : contraste B17/B18 honnête, diagnostics
+  mention/compliance B24/B25, métriques métamorphiques multi-trial, provenance
+  et partial-write hard blockers, ainsi qu'un runner pairé B15/B16 non exécuté
+  en réel.
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.

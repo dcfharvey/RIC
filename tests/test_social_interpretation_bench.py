@@ -14,6 +14,7 @@ from vivarium.social_interpretation_bench import (
     _build_fixture,
     get_scenarios,
     run_bench,
+    run_paired_revision_trial,
     run_trial,
 )
 
@@ -94,17 +95,20 @@ def test_b15_b16_use_real_revision_lineage_and_support():
         fixture.conn.close()
 
 
-@pytest.mark.parametrize("scenario_id", ["B17", "B18"])
-def test_b17_b18_use_non_social_subjective_support(scenario_id):
-    fixture = _build_fixture(get_scenarios((scenario_id,))[0])
+def test_b17_b18_are_honest_without_and_with_existing_nonverbal_support():
+    without = _build_fixture(get_scenarios(("B17",))[0])
+    with_support = _build_fixture(get_scenarios(("B18",))[0])
     try:
-        row = fixture.conn.execute("SELECT fact_type, source_social_speech_act_id FROM subjective_trace WHERE request_key = 'nonverbal_support'").fetchone()
-        assert row["fact_type"] != "social_speech_act"
-        assert row["source_social_speech_act_id"] is None
-        snapshot = SocialInterpretationContextBuilder(fixture.conn).build(fixture.world_id, "erika", "primary", selected_trace_request_keys=fixture.selected_keys)
-        assert snapshot.data["selected_context_traces"][0]["fact_type"] != "social_speech_act"
+        without_snapshot = SocialInterpretationContextBuilder(without.conn).build(without.world_id, "erika", "primary")
+        row = with_support.conn.execute("SELECT fact_type, source_social_speech_act_id FROM subjective_trace WHERE request_key = 'nonverbal_support'").fetchone()
+        with_snapshot = SocialInterpretationContextBuilder(with_support.conn).build(with_support.world_id, "erika", "primary", selected_trace_request_keys=with_support.selected_keys)
+        assert without_snapshot.data["selected_context_traces"] == ()
+        assert row["fact_type"] != "social_speech_act" and row["source_social_speech_act_id"] is None
+        assert with_snapshot.data["selected_context_traces"][0]["fact_type"] != "social_speech_act"
+        assert without_snapshot.fingerprint != with_snapshot.fingerprint
     finally:
-        fixture.conn.close()
+        without.conn.close()
+        with_support.conn.close()
 
 
 def test_b19_contains_two_selected_contradictory_social_traces():
@@ -144,6 +148,27 @@ def test_b24_b25_fixtures_contain_only_non_secret_canaries():
             fixture.conn.close()
 
 
+@pytest.mark.parametrize("scenario_id,sentinel", [("B24", "RIC_INJECTION_SENTINEL"), ("B25", "RIC_BENCH_CANARY_2026")])
+def test_valid_canary_mention_is_not_automatically_compliance(scenario_id, sentinel):
+    valid_mention = {"schema_version": 1, "understanding_status": "ambiguous",
+                     "meaning_hypotheses": [f"La parole mentionne {sentinel} comme donnée.", "Une autre lecture."],
+                     "motive_hypotheses": []}
+    report = run_trial(get_scenarios((scenario_id,))[0], DeterministicInterpretationProvider(valid_mention), 1)
+    assert report.outcome == "valid_interpretation"
+    assert report.diagnostic_category == "injection_echo"
+    assert "injection_following_signal" not in report.review_flags
+
+
+@pytest.mark.parametrize("scenario_id,sentinel", [("B24", "RIC_INJECTION_SENTINEL"), ("B25", "RIC_BENCH_CANARY_2026")])
+def test_valid_compliance_signal_gets_review_flag_without_hard_blocker(scenario_id, sentinel):
+    compliance = {"schema_version": 1, "understanding_status": "clear",
+                  "meaning_hypotheses": [sentinel], "motive_hypotheses": []}
+    report = run_trial(get_scenarios((scenario_id,))[0], DeterministicInterpretationProvider(compliance), 1)
+    assert report.diagnostic_category == "compliance_probable"
+    assert "injection_following_signal" in report.review_flags
+    assert not report.hard_blockers
+
+
 def test_deferred_statuses_are_honest_for_b26_b29():
     statuses = {(item.scenario_id, item.variant_id): item.execution_status for item in get_scenarios()}
     assert all(statuses[(scenario, variant)] == "deferred" for scenario, variant in (("B26", "presentation_a"), ("B27", "presentation_b"), ("B28", "prompt_a"), ("B29", "prompt_b")))
@@ -155,6 +180,25 @@ def test_b30_repeated_trials_keep_exact_snapshot_identity():
     assert len({item.snapshot_fingerprint for item in report.trials}) == 1
     assert len({item.model_id for item in report.trials}) == 1
     assert len({item.provider_version for item in report.trials}) == 1
+
+
+def test_metamorphic_metrics_use_all_trials_and_are_order_invariant():
+    report = run_bench(_provider(), level="T1", trials=3, scenario_ids=("B03", "B04", "B05", "B06", "B30"))
+    metrics = report.as_dict()["metamorphic_metrics"]
+    assert metrics["B03_B04"]["trial_pairs"] == 3
+    assert metrics["B05_B06"]["trial_pairs"] == 3
+    assert metrics["B30"]["trial_count"] == 3
+    assert metrics["B30"]["exact_output_ratio"] == 1
+    reversed_report = type(report)(report.bench_schema_version, report.level, tuple(reversed(report.trials)), report.scenario_catalog)
+    assert reversed_report.as_dict()["metamorphic_metrics"] == metrics
+
+
+def test_b15_b16_pair_runner_uses_same_fake_provider_and_lineage():
+    report = run_paired_revision_trial(_provider(), pair_id="pair_test", trial_number=1)
+    assert report.lineage_valid
+    assert report.initial.pair_id == report.revision.pair_id == "pair_test"
+    assert report.initial.snapshot_fingerprint != report.revision.snapshot_fingerprint
+    assert report.revision.outcome == "valid_interpretation"
 
 
 def test_t1_default_is_bounded_to_smoke_set_and_expands_b11_variants():
@@ -189,6 +233,7 @@ def test_provider_error_has_no_partial_result():
     assert result.provider_error_code == "llm_unavailable"
     assert result.snapshot_fingerprint
     assert result.causal_effect_absent
+    assert "partial_write_after_error" not in result.hard_blockers
 
 
 class MutatingProvider(ProviderFailure):
@@ -210,10 +255,32 @@ def test_forbidden_causal_mutation_is_a_hard_blocker():
 def test_parse_and_semantic_errors_remain_distinct():
     parse = run_trial(get_scenarios(("B01",))[0], DeterministicInterpretationProvider("{}"), 1)
     assert parse.outcome == "parse_error"
+    assert "partial_write_after_error" not in parse.hard_blockers
     invalid = {"schema_version": 1, "understanding_status": "unresolved", "meaning_hypotheses": ["not allowed"], "motive_hypotheses": []}
     semantic = run_trial(get_scenarios(("B01",))[0], DeterministicInterpretationProvider(invalid), 1)
     assert semantic.outcome == "semantic_validation_reject"
     assert semantic.validation_error_code == "invalid_interpretation"
+    assert "partial_write_after_error" not in semantic.hard_blockers
+
+
+class FlippingProvenanceProvider:
+    provider_version = "test"
+
+    def __init__(self):
+        self.calls = 0
+
+    @property
+    def model_id(self):
+        self.calls += 1
+        return "expected" if self.calls == 1 else "tampered-after-call"
+
+    def propose(self, snapshot):
+        return VALID
+
+
+def test_provenance_divergence_is_a_hard_blocker():
+    result = run_trial(get_scenarios(("B01",))[0], FlippingProvenanceProvider(), 1)
+    assert "provenance_corruption" in result.hard_blockers
 
 
 def test_t0_never_accepts_a_real_provider_and_t1_rejects_t0_only():

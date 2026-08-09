@@ -51,7 +51,8 @@ tests et documentation après un lot à conséquences étendues.
   sans LLM ni raccordement runtime ;
 - SCC-1B2A : banc de calibration/falsification jetable livré avec 30 IDs,
   31 variantes déclarées, 27 fixtures T0 vérifiées, cas deferred explicites et
-  smoke T1 borné; aucune admission cognitive ni campagne T2 n'est activée ;
+  smoke T1 borné; readiness T2 instrumentée sans campagne réelle ni admission
+  cognitive ;
 - première frontière LLM locale LM Studio : livrée, avec contexte borné,
   réponse JSON validée, admission événementielle append-only et routeur de
   source perceptible; l'action reste soumise au moteur. La première boucle
