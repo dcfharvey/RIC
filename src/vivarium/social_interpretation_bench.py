@@ -953,6 +953,7 @@ class BenchScreen47Report:
     paired: tuple[BenchPairedRevisionReport, ...]
     stopped_on_hard_blocker: bool = False
     experimental_identity: Mapping[str, Any] | None = None
+    warmup: Mapping[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         trials = list(self.generic.trials) + [trial for pair in self.paired for trial in (pair.initial, pair.revision)]
@@ -964,6 +965,7 @@ class BenchScreen47Report:
             "experimental_identity": dict(self.experimental_identity or {}),
             "configuration": {"target_context_length": 8192, "temperature": 0.2,
                               "reasoning": "off", "store": False, "structured_output": False},
+            "warmup": dict(self.warmup),
             "calls_attempted": len(trials), "calls_completed": sum(trial.outcome != "setup_error" for trial in trials),
             "generic_calls": len(self.generic.trials), "paired_calls": 2 * len(self.paired),
             "stopped_on_hard_blocker": self.stopped_on_hard_blocker, "hard_blockers": blockers,
@@ -976,21 +978,36 @@ def run_screen47(provider: LMStudioSocialInterpretationProvider, *,
                  experimental_identity: Mapping[str, Any] | None = None) -> BenchScreen47Report:
     if not isinstance(provider, LMStudioSocialInterpretationProvider):
         raise BenchError("Screen-47 exige le provider LM Studio réel", code="screen_requires_real_provider")
+    warmup_started = timer()
+    warmup_fixture = _build_fixture(get_scenarios(("B01",))[0])
+    try:
+        warmup_snapshot = SocialInterpretationContextBuilder(warmup_fixture.conn).build(
+            warmup_fixture.world_id, "erika", "primary")
+        provider.propose(warmup_snapshot)
+        warmup = {"attempted": True, "scored": False, "outcome": "ok",
+                   "elapsed_ms": max(0, round((timer() - warmup_started) * 1000))}
+    except Exception as exc:
+        warmup = {"attempted": True, "scored": False, "outcome": "provider_error",
+                  "error_code": getattr(exc, "code", "warmup_failed"),
+                  "elapsed_ms": max(0, round((timer() - warmup_started) * 1000))}
+        return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", (), SCENARIOS), (), False, experimental_identity, warmup)
+    finally:
+        warmup_fixture.conn.close()
     reports: list[BenchTrialReport] = []
     for scenario_id, variant_id, number in screen47_call_plan():
         scenario = get_scenario_variants(((scenario_id, variant_id),))[0]
         report = run_trial(scenario, provider, number, timer=timer)
         reports.append(report)
         if report.hard_blockers:
-            return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS), (), True, experimental_identity)
+            return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS), (), True, experimental_identity, warmup)
     pairs: list[BenchPairedRevisionReport] = []
     for number in range(1, 4):
         pair = run_paired_revision_trial(provider, pair_id="screen47_b15_b16", trial_number=number, timer=timer)
         pairs.append(pair)
         if pair.initial.hard_blockers or pair.revision.hard_blockers:
-            return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS), tuple(pairs), True, experimental_identity)
+            return BenchScreen47Report(BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS), tuple(pairs), True, experimental_identity, warmup)
     aggregate = BenchAggregateReport(BENCH_SCHEMA_VERSION, "Screen-47", tuple(reports), SCENARIOS)
-    return BenchScreen47Report(aggregate, tuple(pairs), False, experimental_identity)
+    return BenchScreen47Report(aggregate, tuple(pairs), False, experimental_identity, warmup)
 
 
 def write_screen47_report(report: BenchScreen47Report, path: str | Path, review_path: str | Path,
@@ -1004,6 +1021,7 @@ def write_screen47_report(report: BenchScreen47Report, path: str | Path, review_
     review_target.write_text(json.dumps({"screen_schema_version": 1, "model_id": payload["model_id"],
                                          "generic": payload["generic"], "paired": payload["paired"],
                                          "experimental_identity": payload["experimental_identity"],
+                                         "warmup": payload["warmup"],
                                          "hard_blockers": payload["hard_blockers"]},
                                         ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if paired_path is not None:
