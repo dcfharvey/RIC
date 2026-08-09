@@ -294,6 +294,7 @@ def _run_llm_inventory(report_path: str | None) -> int:
 
 def _run_social_interpretation_screen(model_id: str, report_path: str | None) -> int:
     from .cognition import CognitionError, LMStudioProvider, LocalLLMSettings
+    from .social_interpretation_provider import LMStudioSocialInterpretationProvider
     from .social_interpretation_bench import (
         BenchError, _safe_model_id, inspect_screen_deployment, run_screen47, write_screen47_report,
     )

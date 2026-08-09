@@ -3,6 +3,8 @@
 import pytest
 
 from vivarium.cli import main
+from vivarium.cognition import LocalLLMSettings
+from vivarium.social_interpretation_provider import LMStudioSocialInterpretationProvider
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
@@ -68,6 +70,42 @@ def test_cli_llm_status_lists_models_before_a_model_is_configured(monkeypatch, c
     assert main(["llm-status"]) == 1
     captured = capsys.readouterr()
     assert "gemma-local" in captured.out and "VIVARIUM_LLM_MODEL" in captured.err
+
+
+def test_cli_screen_instantiates_real_scc_provider_without_network(monkeypatch, capsys, tmp_path):
+    settings = LocalLLMSettings("http://127.0.0.1:1234", "model_A", None, 12)
+
+    class InventoryProvider:
+        def __init__(self, received):
+            assert received.model_id == "model_A"
+
+        def list_model_records(self):
+            return ({"key": "model_A", "display_name": "A", "loaded_instances": [
+                {"id": "instance-1", "config": {"context_length": 8192}}
+            ]},)
+
+    class Report:
+        def as_dict(self):
+            return {"screen_schema_version": 1, "screen_status": "completed", "model_id": "model_A", "calls_attempted": 0,
+                    "calls_completed": 0, "hard_blockers": []}
+
+    captured = {}
+    def fake_runner(provider, **kwargs):
+        assert isinstance(provider, LMStudioSocialInterpretationProvider)
+        assert provider.settings.model_id == "model_A"
+        assert kwargs["deployment"]["loaded_model_instance_id"] == "instance-1"
+        captured["provider"] = provider
+        return Report()
+
+    monkeypatch.setattr("vivarium.cognition.LocalLLMSettings.from_environment", classmethod(lambda cls, require_model=False: settings))
+    monkeypatch.setattr("vivarium.cognition.LMStudioProvider", InventoryProvider)
+    monkeypatch.setattr("vivarium.social_interpretation_bench.run_screen47", fake_runner)
+    monkeypatch.setattr("vivarium.social_interpretation_bench.write_screen47_report", lambda *args, **kwargs: None)
+
+    assert main(["social-interpretation-screen", "--model-id", "model_A",
+                 "--report", str(tmp_path / "screen.json")]) == 0
+    assert isinstance(captured["provider"], LMStudioSocialInterpretationProvider)
+    assert "model_A" in capsys.readouterr().out
 
 
 def test_cli_llm_smoke_reports_a_healthy_ephemeral_run(monkeypatch, capsys):
