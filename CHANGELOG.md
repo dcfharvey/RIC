@@ -10,6 +10,9 @@
 - SCC-1A durcit la révision : toute trace subjective privée du même propriétaire
   peut servir de preuve secondaire; les hypothèses sont trimées et dédupliquées
   exactement, avec persistance et invariants append-only vérifiés.
+- SCC-1B1 ajoute un snapshot subjectif historique owner-scoped, un provider LLM
+  borné, une provenance technique persistante, la révision explicite et le replay
+  idempotent, sans raccordement runtime ni conséquence cognitive.
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.

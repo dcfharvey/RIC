@@ -93,11 +93,11 @@ Pour les compteurs de version ou la photographie de HEAD, vérifier toujours `py
 Référence fonctionnelle actuelle :
 
 - version logicielle : **`0.1.0a15`**;
-- schéma SQLite : **38**;
-- migration la plus récente : `0038_scc1_support_traces.sql`;
-- dernière validation complète connue : **753 tests réussis**;
-- dernier commit fonctionnel courant : `5099f7a` — `fix(social): harden SCC-1A interpretation evidence`;
-- le commit GitHub suivant `01ff03e` ne modifie que `.gitignore` (`logs/` désormais ignoré).
+- schéma SQLite : **39**;
+- migration la plus récente : `0039_scc1b_provider_provenance.sql`;
+- dernière validation complète connue : **761 tests réussis**;
+- dernier commit fonctionnel courant : livraison SCC-1B1 (SHA indiqué dans le rapport de work order);
+- le commit documentaire suivant `1cf8278` ajoute la spécification R&D SCC-1B; `01ff03e` est antérieur et ne modifie que `.gitignore`.
 
 Toujours revérifier localement avant d'agir :
 

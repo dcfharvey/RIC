@@ -137,6 +137,9 @@ class SocialInterpretationService:
             "motive_hypotheses": json.loads(row["motive_hypotheses_json"]),
             "revision_of_key": row["revision_of_key"],
             "supporting_trace_request_keys": tuple(item["request_key"] for item in support),
+            "origin_kind": row["origin_kind"], "model_id": row["model_id"],
+            "provider_version": row["provider_version"], "snapshot_fingerprint": row["snapshot_fingerprint"],
+            "provider_turn_id": row["provider_turn_id"],
             "created_at": row["created_at"],
         }
 
@@ -145,6 +148,7 @@ class SocialInterpretationService:
         source_trace_request_key: Any, *, understanding_status: Any,
         meaning_hypotheses: Any = (), motive_hypotheses: Any = (),
         revision_of_key: Any = None, supporting_trace_request_keys: Any = (),
+        technical_provenance: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         world_id = self._world_id(world_id)
         character_key = self._key(character_key, "propriétaire")
@@ -182,17 +186,27 @@ class SocialInterpretationService:
                 raise SocialInterpretationError("une révision exige une preuve secondaire", code="revision_support_required")
             prior_id = prior["id"]
         support_ids = self._support_ids(world_id, character_id, support_keys, source["trace_id"])
+        provenance = technical_provenance or {"origin_kind": "direct_controlled", "model_id": None,
+                                               "provider_version": None, "snapshot_fingerprint": None,
+                                               "provider_turn_id": None}
+        if provenance.get("origin_kind") not in {"llm", "direct_controlled"}:
+            raise SocialInterpretationError("provenance technique invalide", code="invalid_interpretation")
         existing = self._conn.execute(
             "SELECT id, source_trace_id, interaction_role, understanding_status, "
-            "meaning_hypotheses_json, motive_hypotheses_json, revision_of_id "
+            "meaning_hypotheses_json, motive_hypotheses_json, revision_of_id, origin_kind, model_id, "
+            "provider_version, snapshot_fingerprint, provider_turn_id "
             "FROM social_interpretation WHERE world_id = ? AND character_id = ? AND interpretation_key = ?",
             (world_id, character_id, interpretation_key),
         ).fetchone()
         expected = (source["trace_id"], role, understanding_status, _json(list(meaning)),
-                    _json(list(motive)), prior_id)
+                    _json(list(motive)), prior_id, provenance.get("origin_kind"), provenance.get("model_id"),
+                    provenance.get("provider_version"), provenance.get("snapshot_fingerprint"),
+                    provenance.get("provider_turn_id"))
         if existing is not None:
             actual = (existing["source_trace_id"], existing["interaction_role"], existing["understanding_status"],
-                      existing["meaning_hypotheses_json"], existing["motive_hypotheses_json"], existing["revision_of_id"])
+                      existing["meaning_hypotheses_json"], existing["motive_hypotheses_json"], existing["revision_of_id"],
+                      existing["origin_kind"], existing["model_id"], existing["provider_version"],
+                      existing["snapshot_fingerprint"], existing["provider_turn_id"])
             current_support = tuple(row["trace_id"] for row in self._conn.execute(
                 "SELECT trace_id FROM social_interpretation_support WHERE interpretation_id = ? ORDER BY id",
                 (existing["id"],)
@@ -205,10 +219,13 @@ class SocialInterpretationService:
             cur = conn.execute(
                 "INSERT INTO social_interpretation "
                 "(public_id, world_id, character_id, interpretation_key, source_trace_id, interaction_role, "
-                "understanding_status, meaning_hypotheses_json, motive_hypotheses_json, revision_of_id, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "understanding_status, meaning_hypotheses_json, motive_hypotheses_json, revision_of_id, created_at, "
+                "origin_kind, model_id, provider_version, snapshot_fingerprint, provider_turn_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (new_uuid(), world_id, character_id, interpretation_key, source["trace_id"], role,
-                 understanding_status, _json(list(meaning)), _json(list(motive)), prior_id, now),
+                 understanding_status, _json(list(meaning)), _json(list(motive)), prior_id, now,
+                 provenance.get("origin_kind"), provenance.get("model_id"), provenance.get("provider_version"),
+                 provenance.get("snapshot_fingerprint"), provenance.get("provider_turn_id")),
             )
             interpretation_id = cur.lastrowid
             for trace_id in support_ids:
