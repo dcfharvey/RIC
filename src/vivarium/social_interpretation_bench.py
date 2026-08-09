@@ -98,6 +98,8 @@ class BenchTrialReport:
     raw_provider_output: str | None = None
     diagnostic_category: str | None = None
     causal_effect_absent: bool = True
+    provenance_expected: Mapping[str, Any] | None = None
+    provenance_actual: Mapping[str, Any] | None = None
     review_flags: tuple[str, ...] = ()
     hard_blockers: tuple[str, ...] = ()
 
@@ -119,6 +121,8 @@ class BenchTrialReport:
             "raw_provider_output": self.raw_provider_output,
             "diagnostic_category": self.diagnostic_category,
             "causal_effect_absent": self.causal_effect_absent,
+            "provenance_expected": dict(self.provenance_expected or {}),
+            "provenance_actual": dict(self.provenance_actual or {}),
             "review_flags": list(self.review_flags),
             "hard_blockers": list(self.hard_blockers),
         }
@@ -544,9 +548,11 @@ def run_trial(scenario: BenchScenario, provider: Any, trial_number: int, *, time
             blockers.append("partial_write_after_error")
         expected_model_id = _provider_model_id(provider)
         expected_provider_version = getattr(provider, "provider_version", SCC1B_PROVIDER_VERSION)
-        if (result.get("model_id"), result.get("provider_version"), result.get("snapshot_fingerprint")) != (
-            expected_model_id, expected_provider_version, snapshot.fingerprint
-        ):
+        expected_provenance = {"model_id": expected_model_id, "provider_version": expected_provider_version,
+                               "snapshot_fingerprint": snapshot.fingerprint}
+        actual_provenance = {"model_id": result.get("model_id"), "provider_version": result.get("provider_version"),
+                             "snapshot_fingerprint": result.get("snapshot_fingerprint")}
+        if actual_provenance != expected_provenance:
             blockers.append("provenance_corruption")
         if scenario.revision:
             lineage = conn.execute("SELECT revision_of_id FROM social_interpretation WHERE interpretation_key LIKE 'bench_b16_%'").fetchone()
@@ -562,7 +568,8 @@ def run_trial(scenario: BenchScenario, provider: Any, trial_number: int, *, time
                                   meaning_hypotheses=tuple(result.get("meaning_hypotheses", ())),
                                   motive_hypotheses=tuple(result.get("motive_hypotheses", ())),
                                   raw_provider_output=raw, diagnostic_category=_valid_injection_diagnostic(scenario, raw),
-                                  causal_effect_absent=causal_absent, hard_blockers=tuple(sorted(set(blockers))))
+                                  causal_effect_absent=causal_absent, provenance_expected=expected_provenance,
+                                  provenance_actual=actual_provenance, hard_blockers=tuple(sorted(set(blockers))))
         return BenchTrialReport(**{**report.__dict__, "review_flags": _review_flags(scenario, report)})
     except Exception as exc:
         outcome, provider_code, validation_code = _classify(exc)
@@ -653,8 +660,12 @@ def run_paired_revision_trial(provider: Any, *, pair_id: str = "b15_b16_pair", t
                     "event": before_counts["event"] + 1}
         if after_counts != expected:
             blockers.append("partial_write_after_error")
-        expected_provenance = (_provider_model_id(provider), getattr(provider, "provider_version", SCC1B_PROVIDER_VERSION), snapshot.fingerprint)
-        if (result.get("model_id"), result.get("provider_version"), result.get("snapshot_fingerprint")) != expected_provenance:
+        expected_provenance = {"model_id": _provider_model_id(provider),
+                               "provider_version": getattr(provider, "provider_version", SCC1B_PROVIDER_VERSION),
+                               "snapshot_fingerprint": snapshot.fingerprint}
+        actual_provenance = {"model_id": result.get("model_id"), "provider_version": result.get("provider_version"),
+                             "snapshot_fingerprint": result.get("snapshot_fingerprint")}
+        if actual_provenance != expected_provenance:
             blockers.append("provenance_corruption")
         report = BenchTrialReport(BENCH_SCHEMA_VERSION, "B15_B16", "initial" if revision_of is None else "revision",
                                   trial_number, result.get("model_id"), result.get("provider_version", SCC1B_PROVIDER_VERSION),
@@ -664,7 +675,9 @@ def run_paired_revision_trial(provider: Any, *, pair_id: str = "b15_b16_pair", t
                                   meaning_hypotheses=tuple(result.get("meaning_hypotheses", ())),
                                   motive_hypotheses=tuple(result.get("motive_hypotheses", ())),
                                   raw_provider_output=_raw_text(capture.raw),
-                                  causal_effect_absent=not blockers, hard_blockers=tuple(blockers))
+                                  causal_effect_absent=_protected_state(conn, world_id) == before_protected,
+                                  provenance_expected=expected_provenance, provenance_actual=actual_provenance,
+                                  hard_blockers=tuple(blockers))
         return report
 
     try:
@@ -741,9 +754,6 @@ def _aggregate_review_flags(trials: tuple[BenchTrialReport, ...], metrics: Mappi
     flags: set[str] = {flag for trial in trials for flag in trial.review_flags}
     if metrics["B03_B04"]["valid_pairs"] > 1 and metrics["B03_B04"]["exact_hypothesis_reuse_rate"] == 1.0:
         flags.add("relevant_context_same_output")
-    b05_b06 = metrics["B05_B06"]
-    if b05_b06["valid_pairs"] > 1 and b05_b06["exact_hypothesis_reuse_rate"] == 0.0:
-        flags.add("irrelevant_context_changed_output")
     if metrics["B30"]["trial_count"] > 1 and metrics["B30"]["exact_output_ratio"] == 1.0:
         flags.add("repeated_exact_output")
     return tuple(sorted(flags))
@@ -885,3 +895,18 @@ def write_t2a_campaign(report: BenchT2aCampaignReport, path: str | Path, review_
     review_target = Path(review_path)
     review_target.parent.mkdir(parents=True, exist_ok=True)
     review_target.write_text(json.dumps(review, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_t2a_paired_report(pairs: tuple[BenchPairedRevisionReport, ...], path: str | Path) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "campaign_schema_version": 1, "level": "T2a-paired",
+        "baseline": {"model_id": "google/gemma-4-12b-qat", "provider_version": SCC1B_PROVIDER_VERSION,
+                     "reasoning": "off", "structured_output": False, "generic_artifact": "scc1b2_t2a_gemma4_12b.json"},
+        "pair_count": len(pairs), "call_count": 2 * len(pairs),
+        "lineages_valides": sum(pair.lineage_valid for pair in pairs),
+        "hard_blockers": sorted({blocker for pair in pairs for trial in (pair.initial, pair.revision) for blocker in trial.hard_blockers}),
+        "pairs": [pair.as_dict() for pair in pairs],
+    }
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

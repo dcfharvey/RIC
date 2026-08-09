@@ -155,10 +155,10 @@ déterministes et 795 tests passants. B17/B18 opposent honnêtement absence et
 présence d'un support `co_presence`; B24/B25 distinguent mention et compliance;
 les métriques métamorphiques utilisent toutes les répétitions; provenance et
 partial-write sont des contrôles bloquants. B15/B16 disposent d'un runner pairé
-avec seed fake. La campagne T2a réelle Gemma 4 12B a exécuté 105 appels
-génériques et une paire B15/B16 (107 appels, 107 valides), puis s'est arrêtée
-sur un hard blocker de provenance détecté par le runner; artefacts conservés dans
-`data/bench/scc1b2_t2a_gemma4_12b.json` et `data/bench/scc1b2_t2a_review.json`.
+avec seed fake. La campagne T2a réelle Gemma 4 12B conserve ses 105 appels
+génériques dans `data/bench/scc1b2_t2a_gemma4_12b.json`; après fermeture du faux
+positif de provenance, cinq paires B15/B16 (10 appels, 10 valides, 5 lignées)
+sont conservées séparément dans `data/bench/scc1b2_t2a_paired_gemma4_12b.json`.
 B26–B29 sont `deferred`;
 B20–B23 sont T0-only. Le dernier smoke T1 borné a utilisé
 `google/gemma-4-12b-qat`, recette `scc1b1-native-v2`, pour 11 appels : 11

@@ -205,6 +205,17 @@ def test_b15_b16_pair_runner_uses_same_fake_provider_and_lineage():
     assert report.initial.pair_id == report.revision.pair_id == "pair_test"
     assert report.initial.snapshot_fingerprint != report.revision.snapshot_fingerprint
     assert report.revision.outcome == "valid_interpretation"
+    assert report.initial.hard_blockers == ()
+    assert report.revision.hard_blockers == ()
+    assert report.initial.provenance_expected == report.initial.provenance_actual
+    assert report.revision.provenance_expected == report.revision.provenance_actual
+    assert report.initial.causal_effect_absent is True
+    assert report.revision.causal_effect_absent is True
+
+
+def test_b05_b06_different_stochastic_wording_keeps_raw_metric_without_review_flag():
+    report = run_bench(_provider(), level="T0", trials=2, scenario_ids=("B05", "B06"))
+    assert "irrelevant_context_changed_output" not in report.as_dict()["review_flags"]
 
 
 def test_t1_default_is_bounded_to_smoke_set_and_expands_b11_variants():

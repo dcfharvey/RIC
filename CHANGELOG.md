@@ -24,8 +24,9 @@
 - SCC-1B2A finalise la readiness T2 : contraste B17/B18 honnête, diagnostics
   mention/compliance B24/B25, métriques métamorphiques multi-trial, provenance
   et partial-write hard blockers, runner pairé B15/B16 et campagne T2a réelle
-  partielle (107 appels, arrêt sur hard blocker de provenance; artefacts sous
-  `data/bench/`).
+  en deux segments (105 appels génériques + 10 appels pairés; artefacts sous
+  `data/bench/`). Le faux positif de provenance du runner pairé est couvert par
+  une régression dédiée, sans modification de SCC-1B1.
 - L'horloge canonique distingue maintenant la pause administrative de l'arrêt
   du runtime. Un arrêt propre gèle immédiatement le temps simulé; le lancement
   suivant repart de ce point sans rattrapage hors ligne.
