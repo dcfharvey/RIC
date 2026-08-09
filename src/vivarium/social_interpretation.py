@@ -12,7 +12,6 @@ from .util import Clock, new_uuid
 
 
 _STATUSES = frozenset({"clear", "ambiguous", "unresolved"})
-_ROLES = frozenset({"speaker", "addressee", "side_participant"})
 _MAX_HYPOTHESES = 3
 _MAX_HYPOTHESIS_LENGTH = 280
 
@@ -54,9 +53,13 @@ class SocialInterpretationService:
             raise SocialInterpretationError(f"{label} invalides", code="invalid_interpretation")
         result: list[str] = []
         for item in value:
-            if not isinstance(item, str) or not 1 <= len(item) <= _MAX_HYPOTHESIS_LENGTH:
+            if not isinstance(item, str):
                 raise SocialInterpretationError(f"{label} invalides", code="invalid_interpretation")
-            result.append(item)
+            normalized = item.strip()
+            if not 1 <= len(normalized) <= _MAX_HYPOTHESIS_LENGTH:
+                raise SocialInterpretationError(f"{label} invalides", code="invalid_interpretation")
+            if normalized not in result:
+                result.append(normalized)
         return tuple(result)
 
     def _character_id(self, world_id: int, character_key: str) -> int:
@@ -94,8 +97,7 @@ class SocialInterpretationService:
         for request_key in keys:
             row = self._conn.execute(
                 "SELECT trace.id FROM subjective_trace trace "
-                "WHERE trace.world_id = ? AND trace.character_id = ? AND trace.request_key = ? "
-                "AND trace.fact_type = 'social_speech_act' AND trace.source_social_speech_act_id IS NOT NULL",
+                "WHERE trace.world_id = ? AND trace.character_id = ? AND trace.request_key = ?",
                 (world_id, character_id, request_key),
             ).fetchone()
             if row is None:

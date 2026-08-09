@@ -783,7 +783,7 @@ def subjective_social_audit(conn: sqlite3.Connection, world_id: int) -> list[str
 
 
 def social_interpretation_digest(conn: sqlite3.Connection, world_id: int) -> dict[str, list[dict[str, Any]]]:
-    """Projection vÃ©rifiable des interprÃ©tations, sÃ©parÃ©e du canon."""
+    """Projection vérifiable des interprétations, séparée du canon."""
     rows = conn.execute(
         "SELECT interpretation.id AS interpretation_id, ch.key AS character, interpretation.interpretation_key, "
         "interpretation.source_trace_id, source.request_key AS source_trace_request_key, "
@@ -819,7 +819,7 @@ def social_interpretation_digest(conn: sqlite3.Connection, world_id: int) -> dic
 
 
 def social_interpretation_audit(conn: sqlite3.Connection, world_id: int) -> list[str]:
-    """VÃ©rifie la provenance, l'ownership et l'audit append-only SCC-1A."""
+    """Vérifie la provenance, l'ownership et l'audit append-only SCC-1A."""
     findings: list[str] = []
     rows = conn.execute(
         "SELECT interpretation.id, interpretation.world_id, interpretation.character_id, "
@@ -851,7 +851,8 @@ def social_interpretation_audit(conn: sqlite3.Connection, world_id: int) -> list
         if payload.get("support_trace_ids") != support_ids:
             findings.append(f"interpretation {row['id']}: support audit mismatch")
     support = conn.execute(
-        "SELECT support.id, interpretation.world_id, interpretation.character_id, trace.world_id AS trace_world_id, "
+        "SELECT support.id, interpretation.world_id, interpretation.character_id, interpretation.source_trace_id, "
+        "trace.id AS trace_id, trace.world_id AS trace_world_id, "
         "trace.character_id AS trace_character_id, trace.fact_type, trace.source_social_speech_act_id "
         "FROM social_interpretation_support support "
         "JOIN social_interpretation interpretation ON interpretation.id = support.interpretation_id "
@@ -859,9 +860,10 @@ def social_interpretation_audit(conn: sqlite3.Connection, world_id: int) -> list
         "WHERE interpretation.world_id = ?", (world_id,)
     ).fetchall()
     for row in support:
-        if (row["world_id"], row["character_id"]) != (row["trace_world_id"], row["trace_character_id"]) \
-                or row["fact_type"] != "social_speech_act" or row["source_social_speech_act_id"] is None:
-            findings.append(f"support {row['id']}: inaccessible or non-social source")
+        if (row["world_id"], row["character_id"]) != (row["trace_world_id"], row["trace_character_id"]):
+            findings.append(f"support {row['id']}: inaccessible or wrong owner")
+        elif row["trace_id"] == row["source_trace_id"]:
+            findings.append(f"support {row['id']}: duplicates primary source")
     return findings
 
 

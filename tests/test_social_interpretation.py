@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -37,7 +38,7 @@ class FakeClock:
 @pytest.fixture
 def setup():
     conn = connect_database(":memory:")
-    assert ensure_schema(conn) == 37
+    assert ensure_schema(conn) == 38
     clock = FakeClock()
     world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
     yield conn, world_id, clock
@@ -110,6 +111,28 @@ def test_ambiguous_and_unresolved_are_valid_without_forced_selection(setup):
     assert unresolved["meaning_hypotheses"] == [] and unresolved["motive_hypotheses"] == []
 
 
+def test_hypotheses_are_trimmed_and_duplicates_do_not_satisfy_ambiguity(setup):
+    conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
+    service = SocialInterpretationService(conn, clock=clock)
+    with pytest.raises(SocialInterpretationError) as raised:
+        service.create(
+            world_id, "erika", "blank", "erika_speech_1", understanding_status="clear",
+            meaning_hypotheses=["   "],
+        )
+    assert raised.value.code == "invalid_interpretation"
+    with pytest.raises(SocialInterpretationError) as raised:
+        service.create(
+            world_id, "erika", "duplicate", "erika_speech_1", understanding_status="ambiguous",
+            meaning_hypotheses=[" elle plaisante ", "elle plaisante"],
+        )
+    assert raised.value.code == "invalid_interpretation"
+    normalized = service.create(
+        world_id, "erika", "normalized", "erika_speech_1", understanding_status="clear",
+        meaning_hypotheses=["  elle plaisante  "],
+    )
+    assert normalized["meaning_hypotheses"] == ["elle plaisante"]
+
+
 def test_assertion_and_attributed_motive_do_not_become_belief_or_actual_intent(setup):
     conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
     service = SocialInterpretationService(conn, clock=clock)
@@ -144,19 +167,31 @@ def test_revision_preserves_prior_entry_and_records_supporting_trace(setup):
         meaning_hypotheses=["Une accusation.", "Une plaisanterie."],
     )
     clock.advance(2)
-    scenes.speak(world_id, "interpretation_scene", "speech_2", "sophie", act_kind="inform", content="Je plaisantais.", recipient_key="erika")
-    clarification = memory.encode_social_speech(
-        world_id, "erika", "erika_speech_2", "interpretation_scene", "speech_2"
-    )
+    state_item = AttentionService(conn, clock=clock).snapshot(world_id, "erika").selected[0]
+    observation = memory.encode_attention(world_id, "erika", "erika_observation", state_item)
     revised = service.create(
         world_id, "erika", "second", "erika_speech_1", understanding_status="clear",
         meaning_hypotheses=["Sophie plaisante."], revision_of_key="first",
-        supporting_trace_request_keys=["erika_speech_2"],
+        supporting_trace_request_keys=["erika_observation"],
     )
     assert revised["revision_of_key"] == "first"
-    assert revised["supporting_trace_request_keys"] == ("erika_speech_2",)
+    assert revised["source_trace_request_key"] == "erika_speech_1"
+    assert revised["supporting_trace_request_keys"] == ("erika_observation",)
     assert service.get(world_id, "erika", "first")["revision_of_key"] is None
-    assert clarification["source_social_speech_act_id"] != first["source_trace_id"]
+    primary = conn.execute(
+        "SELECT fact_type, source_social_speech_act_id FROM subjective_trace WHERE id = ?",
+        (first["source_trace_id"],),
+    ).fetchone()
+    support = conn.execute(
+        "SELECT trace.fact_type, trace.source_social_speech_act_id "
+        "FROM social_interpretation_support support JOIN subjective_trace trace ON trace.id = support.trace_id "
+        "JOIN social_interpretation interpretation ON interpretation.id = support.interpretation_id "
+        "WHERE interpretation.world_id = ? AND interpretation.interpretation_key = ?",
+        (world_id, "second"),
+    ).fetchone()
+    assert primary["fact_type"] == "social_speech_act" and primary["source_social_speech_act_id"] is not None
+    assert support["fact_type"] != "social_speech_act" and support["source_social_speech_act_id"] is None
+    assert observation["source_event_seq"] is None
 
 
 def test_revision_requires_same_source_and_additional_evidence(setup):
@@ -218,3 +253,44 @@ def test_trace_does_not_trigger_interpretation_automatically_and_audit_preflight
     assert SocialInterpretationService(conn, clock=clock).list(world_id, "erika") == ()
     assert social_interpretation_audit(conn, world_id) == []
     assert inspect_mvp_preflight(conn).healthy
+
+
+def test_interpretation_persists_across_reopen_and_remains_append_only(tmp_path):
+    db_path = tmp_path / "scc1a.sqlite"
+    conn = connect_database(str(db_path))
+    assert ensure_schema(conn) == 38
+    clock = FakeClock()
+    world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
+    _at_salon(conn, world_id, "sophie", "erika", clock=clock)
+    scenes = SocialSceneService(conn, clock=clock)
+    scenes.open(world_id, "persistence_scene", ("sophie", "erika"))
+    scenes.speak(
+        world_id, "persistence_scene", "speech_1", "sophie", act_kind="inform",
+        content="Sophie exprime une accusation.", recipient_key="erika",
+    )
+    memory = SubjectiveMemoryService(conn, clock=clock)
+    memory.encode_social_speech(world_id, "erika", "erika_speech_1", "persistence_scene", "speech_1")
+    state_item = AttentionService(conn, clock=clock).snapshot(world_id, "erika").selected[0]
+    memory.encode_attention(world_id, "erika", "erika_observation", state_item)
+    service = SocialInterpretationService(conn, clock=clock)
+    created = service.create(
+        world_id, "erika", "persistent", "erika_speech_1", understanding_status="clear",
+        meaning_hypotheses=["Une accusation."], supporting_trace_request_keys=["erika_observation"],
+    )
+    conn.close()
+
+    reopened = connect_database(str(db_path))
+    assert ensure_schema(reopened) == 38
+    persisted = SocialInterpretationService(reopened, clock=clock).get(world_id, "erika", "persistent")
+    assert persisted == created
+    assert social_interpretation_audit(reopened, world_id) == []
+    assert inspect_mvp_preflight(reopened).healthy
+    with pytest.raises(sqlite3.DatabaseError, match="immutable"):
+        reopened.execute("UPDATE social_interpretation SET understanding_status = 'unresolved' WHERE id = 1")
+    with pytest.raises(sqlite3.DatabaseError, match="append-only"):
+        reopened.execute("DELETE FROM social_interpretation WHERE id = 1")
+    with pytest.raises(sqlite3.DatabaseError, match="append-only"):
+        reopened.execute("UPDATE social_interpretation_support SET created_at = 'changed' WHERE id = 1")
+    with pytest.raises(sqlite3.DatabaseError, match="append-only"):
+        reopened.execute("DELETE FROM social_interpretation_support WHERE id = 1")
+    reopened.close()
