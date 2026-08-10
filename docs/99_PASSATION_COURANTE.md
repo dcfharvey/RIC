@@ -327,3 +327,13 @@ SCC-0 puis SCC-1C et, si sélectionné, la porte technique et SCC-1B. La migrati
 tentatives différées/indisponibles sont reprises explicitement et au plus une
 par pulsation, sans nouvelle admission cognitive ni scan exhaustif. Aucun effet
 SCC-2/SCC-3 n'est raccordé.
+
+## Addendum opérationnel — SCC-2A appraisal situé (10 août 2026)
+
+`main` porte la migration forward-only `0043_scc2a_appraisal.sql` et le
+schéma 43. Après une `social_interpretation` SCC-1B persistée, le runtime peut
+ouvrir une appraisal SCC-2A dans un snapshot owner-scoped fermé. Le provider
+retourne un statut qualitatif et zéro ou plusieurs candidates génériques;
+`social_appraisal` reste le propriétaire de cet état et aucune candidate n'est
+appliquée à l'affect, aux croyances, aux relations, aux buts, aux actions ou au
+canon. SCC-3 reste hors lot.

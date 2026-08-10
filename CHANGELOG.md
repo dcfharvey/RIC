@@ -1,5 +1,13 @@
 # Changelog
 
+## SCC-2A — appraisal social situé (10 août 2026)
+
+- Ajoute `social_appraisal`, les candidates génériques et le journal technique
+  SCC-2A via la migration forward-only 0043.
+- Raccorde optionnellement le runtime après SCC-1B avec snapshot fermé,
+  validation stricte et arrêt avant SCC-3.
+- Aucun effet d'affect, croyance, relation, but, action ou canon n'est produit.
+
 ## SCC-1C — admission cognitive sélective (10 août 2026)
 
 - Ajoute une admission SCC-1C bornée depuis une `subjective_trace` sociale

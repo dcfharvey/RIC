@@ -55,12 +55,13 @@ class SocialSceneCycle:
     def __init__(
         self, conn: sqlite3.Connection, provider: SceneTurnProvider,
         clock: Clock | None = None, interpretation_provider: Any | None = None,
-        admission_policy: Any = None,
+        admission_policy: Any = None, appraisal_provider: Any | None = None,
     ) -> None:
         self._conn = conn
         self._provider = provider
         self._interpretation_provider = interpretation_provider
         self._admission_policy = admission_policy
+        self._appraisal_provider = appraisal_provider
         self._clock = clock or Clock()
         self._scenes = SocialSceneService(conn, clock=self._clock)
         self._scheduler = SceneTurnScheduler(conn)
@@ -340,6 +341,7 @@ class SocialSceneCycle:
             pending = LiveSocialCognitionService(
                 self._conn, self._interpretation_provider, clock=self._clock,
                 admission_policy=self._admission_policy,
+                appraisal_provider=self._appraisal_provider,
             ).retry_one_pending(world_id, limits)
             if pending is not None:
                 cognition.append(pending)
@@ -384,6 +386,7 @@ class SocialSceneCycle:
                 cognition.extend(LiveSocialCognitionService(
                     self._conn, self._interpretation_provider, clock=self._clock,
                     admission_policy=self._admission_policy,
+                    appraisal_provider=self._appraisal_provider,
                 ).process_speech(self._world_id(world_id), scene_key, opportunity.turn_key, limits))
             return SocialCycleOutcome(tuple(opened), tuple(closed), tuple(interrupted), result, tuple(cognition))
         return SocialCycleOutcome(tuple(opened), tuple(closed), tuple(interrupted), None, tuple(cognition))

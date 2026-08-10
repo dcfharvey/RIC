@@ -948,6 +948,21 @@ def social_interpretation_audit(conn: sqlite3.Connection, world_id: int) -> list
             findings.append(f"support {row['id']}: duplicates primary source")
     return findings
 
+def social_appraisal_audit(conn: sqlite3.Connection, world_id: int) -> list[str]:
+    """Vérifie owner, source, provenance et candidates SCC-2A."""
+    findings=[]
+    rows=conn.execute("SELECT a.*,i.world_id AS source_world,i.character_id AS source_character,e.event_type,e.character_id AS event_character FROM social_appraisal a JOIN social_interpretation i ON i.id=a.source_interpretation_id LEFT JOIN social_appraisal_event e ON e.appraisal_id=a.id WHERE a.world_id=? ORDER BY a.id,e.id",(world_id,)).fetchall()
+    seen=set()
+    for r in rows:
+        if r['id'] in seen: findings.append(f"appraisal {r['id']}: multiple audit events"); continue
+        seen.add(r['id'])
+        if (r['source_world'],r['source_character'])!=(r['world_id'],r['character_id']) or r['event_type']!='appraisal_created' or r['event_character']!=r['character_id']: findings.append(f"appraisal {r['id']}: source or audit owner mismatch")
+        if r['origin_kind']=='llm' and (not r['model_id'] or not r['provider_version'] or __import__('re').fullmatch(r'[0-9a-f]{64}',r['snapshot_fingerprint']) is None): findings.append(f"appraisal {r['id']}: invalid LLM provenance")
+        bases=json.loads(r['bases_json']); cs=conn.execute('SELECT basis_refs_json FROM social_appraisal_candidate WHERE appraisal_id=?',(r['id'],)).fetchall()
+        for c in cs:
+            if not set(json.loads(c['basis_refs_json'])<=set(bases)): findings.append(f"appraisal {r['id']}: candidate support outside snapshot")
+    return findings
+
 
 @dataclass
 class SimulationRunReport:

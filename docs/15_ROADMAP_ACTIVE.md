@@ -177,8 +177,10 @@ correspond à `0.1.0a1`, pas à une date arbitraire.
 La migration `0040_scc1b_interpretation_only.sql` porte le schéma SCC-1B à 40. Le provider actif produit uniquement `schema_version`, `understanding_status` et `meaning_hypotheses`. Le raccordement SCC-1C vivant est décrit par l'état courant ci-dessous.
 
 État courant vérifié après ce jalon : les migrations forward-only
-`0041_scc1c_admission.sql` et `0042_social_interpretation_call_trigger.sql`
+`0041_scc1c_admission.sql`, `0042_social_interpretation_call_trigger.sql` et
+`0043_scc2a_appraisal.sql`
 portent le schéma à 42. Le raccordement événementiel SCC-0 -> SCC-1C -> SCC-1B
-est livré dans le runtime social, avec arrêt explicite avant SCC-2. Les retries
+est livré dans le runtime social; SCC-2A ajoute un appraisal privé et des
+candidates non appliquées, avec arrêt explicite avant SCC-3. Les retries
 techniques restent bornés et l'attribution imbriquée reste explicitement
 reportée après son échec structurel en R&D.

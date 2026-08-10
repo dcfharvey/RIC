@@ -513,16 +513,19 @@ def _run_mvp_runtime(
                 f"+{rules['activities_added']} activités, "
                 f"+{rules['activity_locations_added']} autorisations."
             )
-        cognition_provider = scene_provider = interpretation_provider = None
+        cognition_provider = scene_provider = interpretation_provider = appraisal_provider = None
         if enable_local_llm:
             settings = LocalLLMSettings.from_environment()
             cognition_provider = LMStudioProvider(settings)
             scene_provider = LMStudioSceneTurnProvider(settings)
             from .social_interpretation_provider import LMStudioSocialInterpretationProvider
             interpretation_provider = LMStudioSocialInterpretationProvider(settings)
+            from .social_appraisal_provider import LMStudioSocialAppraisalProvider
+            appraisal_provider = LMStudioSocialAppraisalProvider(settings)
         runtime = MVPRuntime(
             conn, report.world_id, cognition_provider=cognition_provider, scene_provider=scene_provider,
             interpretation_provider=interpretation_provider,
+            appraisal_provider=appraisal_provider,
         )
         guardian = LocalGuardian(
             conn,

@@ -379,6 +379,22 @@ Ne pas ajouter dans le premier lot :
 
 ---
 
+## Addendum normatif — SCC-2A (10 août 2026)
+
+SCC-0, SCC-1C et SCC-1B sont maintenant vivants. SCC-2A est limité à un
+appraisal social situé, privé, owner-scoped et append-only, suivi de zéro ou
+plusieurs candidates génériques. Une candidate invite un futur propriétaire à
+examiner un domaine; elle ne contient aucune mutation.
+
+Le provider ne produit ni motif, ni intention cachée, ni émotion réelle, ni
+vérité sur autrui. Le snapshot est fermé et construit par le moteur à partir
+de l'interprétation SCC-1B et d'états propres explicitement disponibles. La
+mémoire riche, l'attribution imbriquée et SCC-3 restent différés. Aucune
+candidate n'est appliquée dans SCC-2A.
+
+Les statuts, échelles qualitatives, cardinalités, cadence et stockage sont des
+choix d'ingénierie falsifiables, pas des lois psychologiques.
+
 ## 15. Verdict
 
 **SCC : ALIGNÉ AVEC RÉSERVES, prêt à entrer en implantation par tranches.**

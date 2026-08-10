@@ -10,6 +10,7 @@ from typing import Any
 from .cognition_call_ledger import CognitionCallLedgerService
 from .cognition import CognitionError
 from .cognition_policy import CALL_TRIGGER_SOCIAL_INTERPRETATION, CognitionCallLimits
+from .social_appraisal_runtime import LiveSocialAppraisalService
 from .scenes import SceneError, SocialSceneService
 from .scc1c import SCC1CAdmission, SCC1CAdmissionService, SCC1CError
 from .social_interpretation import SocialInterpretationError
@@ -33,6 +34,9 @@ class LiveSocialCognitionOutcome:
     technical_status: str | None
     detail_code: str | None
     interpretation_key: str | None
+    appraisal_status: str | None = None
+    appraisal_candidate_count: int = 0
+    appraisal_technical_status: str | None = None
 
 
 class LiveSocialCognitionError(ValueError):
@@ -44,7 +48,7 @@ class LiveSocialCognitionError(ValueError):
 class LiveSocialCognitionService:
     """Ne possède ni le canon, ni SCC-1B; il ne fait que chaîner les owners."""
 
-    def __init__(self, conn: sqlite3.Connection, provider: Any, clock: Clock | None = None, admission_policy: Any = None) -> None:
+    def __init__(self, conn: sqlite3.Connection, provider: Any, clock: Clock | None = None, admission_policy: Any = None, appraisal_provider: Any = None) -> None:
         self._conn = conn
         self._provider = provider
         self._clock = clock or Clock()
@@ -52,6 +56,8 @@ class LiveSocialCognitionService:
         self._admissions = SCC1CAdmissionService(conn, clock=self._clock, policy=admission_policy)
         self._ledger = CognitionCallLedgerService(conn, clock=self._clock)
         self._interpretations = SocialInterpretationLLMService(conn, provider, clock=self._clock)
+        self._appraisal_provider = appraisal_provider
+        self._appraisals = None if appraisal_provider is None else LiveSocialAppraisalService(conn, appraisal_provider, clock=self._clock)
 
     def _scene_participants(self, world_id: int, scene_key: str, act_key: str) -> tuple[str, ...]:
         try:
@@ -118,9 +124,15 @@ class LiveSocialCognitionService:
                 attempt.outcome, attempt.detail_code, None,
             )
         attempt = self._admissions.record_attempt(admission, attempt_key, "interpreted")
+        appraisal = None
+        if self._appraisals is not None:
+            appraisal = self._appraisals.process(world_id, character_key, interpretation_key, limits)
         return LiveSocialCognitionOutcome(
             character_key, trace_request_key, admission.decision,
             attempt.outcome, attempt.detail_code, interpretation_key,
+            None if appraisal is None else appraisal.appraisal_status,
+            0 if appraisal is None else appraisal.candidate_count,
+            None if appraisal is None else appraisal.technical_status,
         )
 
     def process_speech(self, world_id: int, scene_key: str, act_key: str,
@@ -181,6 +193,15 @@ class LiveSocialCognitionService:
 
     def retry_one_pending(self, world_id: int, limits: CognitionCallLimits) -> LiveSocialCognitionOutcome | None:
         """Reprend au plus une tentative explicitement persistée et échouée."""
+        if self._appraisals is not None:
+            pending_appraisal = self._appraisals.retry_one_pending(world_id, limits)
+            if pending_appraisal is not None:
+                return LiveSocialCognitionOutcome(
+                    pending_appraisal.character_key, None, "already_interpreted",
+                    pending_appraisal.technical_status, pending_appraisal.detail_code,
+                    pending_appraisal.interpretation_key, pending_appraisal.appraisal_status,
+                    pending_appraisal.candidate_count, pending_appraisal.technical_status,
+                )
         row = self._conn.execute(
             "SELECT ch.key AS character_key, trace.request_key "
             "FROM scc1c_attempt attempt JOIN scc1c_admission admission ON admission.id = attempt.admission_id "
