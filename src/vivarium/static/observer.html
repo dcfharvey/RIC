@@ -39,7 +39,12 @@
   </main>
   <script>
     const $=id=>document.getElementById(id);
+    const clearResponse=()=>{
+      $('narrative').textContent='—'; $('claims').textContent='—';
+      $('evidence').textContent='—'; $('fingerprint').textContent='—';
+    };
     $('run').onclick=async()=>{
+      clearResponse();
       $('status').textContent='Lecture en cours…';
       const q=$('question').value.trim();
       const body=q?{question:q}:{mode:$('mode').value,focus:$('focus').value,relative_time_scope:$('period').value,

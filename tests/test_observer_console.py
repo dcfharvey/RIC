@@ -101,6 +101,25 @@ def test_observer_route_is_read_only_and_manual_fallback_works(db):
         after_conn.close()
 
 
+def test_observer_page_clears_a_previous_response_before_a_new_request(db):
+    path, _ = db
+    server = create_server(path, port=0)
+    thread = threading.Thread(target=serve, args=(server,), daemon=True)
+    thread.start()
+    try:
+        port = server.server_address[1]
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("GET", "/observer", headers={"Host": f"127.0.0.1:{port}"})
+        page = conn.getresponse().read().decode("utf-8")
+        assert "const clearResponse=()=>" in page
+        assert "clearResponse();" in page
+        assert page.index("clearResponse();") < page.index("const r=await fetch(")
+        conn.close()
+    finally:
+        shutdown(server)
+        thread.join(timeout=5)
+
+
 def test_observer_route_rejects_unknown_plan_fields(db):
     path, wid = db
     server = create_server(path, port=0)
