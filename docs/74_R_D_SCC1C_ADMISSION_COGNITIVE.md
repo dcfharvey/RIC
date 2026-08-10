@@ -3,7 +3,7 @@
 **Version R&D :** 0.1  
 **Date :** 9 août 2026  
 **État logiciel de référence :** commit `8f16c67`, version `0.1.0a15`, schéma 39; SCC-1B1 `scc1b1-native-v2` inchangé; campagne T2a Gemma exécutée en 105 appels génériques + 10 appels pairés.  
-**Statut :** contrat scientifique et fonctionnel préparatoire. **SCC-1C n'est pas autorisé à l'implantation dans ce lot** : SCC-1B2 est fermé, mais la migration `interpretation-only` et l'étude structurelle de provenance imbriquée doivent précéder tout raccordement vivant. Codex demeure l'autorité sur l'architecture réelle, le stockage, l'ordre runtime, les migrations et les tests.
+**Statut historique :** contrat scientifique et fonctionnel préparatoire. **État courant :** la migration `interpretation-only` et l'étude structurelle d'attribution imbriquée sont terminées. SCC-1C est autorisé pour une implantation bornée et testable hors runtime vivant; le raccordement événementiel reste hors lot. Codex demeure l'autorité sur l'architecture réelle, le stockage, l'ordre runtime, les migrations et les tests.
 
 ---
 
@@ -469,6 +469,28 @@ RIC a déjà correctement séparé l'expression, l'accès, la trace et l'interpr
 SCC-1C doit au contraire préserver une propriété centrale d'un agent non omniscient : **une chose peut lui être arrivée, avoir été encodée, et pourtant ne jamais devenir l'objet d'une interprétation explicite.**
 
 La porte d'admission est donc justifiée comme abstraction fonctionnelle. Sa politique exacte doit rester minimale, falsifiable et calibrée; aucun mécanisme neurobiologique particulier n'est imposé à l'architecture RIC.
+
+## Addendum d'implantation bornée — 10 août 2026
+
+La migration SCC-1B `interpretation-only` et l'étude structurelle d'attribution
+imbriquée sont terminées. Le résultat négatif de cette étude interdit une
+persistance libre de l'attribution imbriquée; ce sujet reste au backlog R&D.
+
+SCC-1C est maintenant autorisé pour une implantation bornée et testable hors
+runtime vivant. Le service `scc1c-structural-v1` ne possède qu'une décision
+immuable `selected`/`not_selected` pour une trace SCC-0 sociale explicitement
+fournie et dont le rôle est dérivé par le moteur. Les participantes latérales
+restent admissibles; aucun rôle ne garantit une sélection.
+
+Les tentatives techniques sont séparées (`deferred`, `provider_unavailable`,
+`interpreted`). `CognitionCallPolicy` et son ledger restent la porte de budget
+et de déduplication technique; leur verdict ne change pas la décision cognitive.
+Une tentative `interpreted` exige une interprétation déjà persistée par
+`SocialInterpretationService`, unique propriétaire de `social_interpretation`.
+
+Il n'y a ni raccordement runtime, ni rattrapage historique au redémarrage, ni
+révision automatique, ni attribution imbriquée, ni effet canonique, croyance,
+affect, relation, permission, but, action ou SCC-2/SCC-3.
 ---
 
 ## Addendum du lot SCC-1B interpretation-only — 10 août 2026

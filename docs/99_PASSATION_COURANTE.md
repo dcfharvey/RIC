@@ -292,6 +292,16 @@ Aucune écriture sur ce premier tour.
 
 ---
 
+## Addendum opérationnel — SCC-1C borné (10 août 2026)
+
+`main` est sur `cc161555`; la migration `0041_scc1c_admission.sql` porte le
+schéma à 41. L'étude d'attribution imbriquée est négative pour une persistance
+libre. SCC-1C est implanté et testé hors runtime via une admission append-only
+owner-scoped depuis une trace SCC-0 explicitement fournie, avec tentatives
+techniques séparées. Aucun rattrapage au redémarrage, aucun effet causal et
+aucun raccordement vivant ne sont autorisés dans ce lot. Prochain work order :
+raccordement événementiel SCC-0 -> SCC-1C -> SCC-1B.
+
 ## 10. Rappel final
 
 Le but de RIC n'est pas de faire croire qu'un LLM est la réalité.
@@ -300,3 +310,11 @@ Le moteur établit ce qui est vrai et possible. L'interaction établit ce qui es
 ## Addendum technique — SCC-1B interpretation-only (10 août 2026)
 
 Le dépôt réel doit être relu sur HEAD avant toute suite. Le lot ajoute la migration forward-only `0040_scc1b_interpretation_only.sql` (schéma 40); les anciennes valeurs de motif sont conservées sous colonne legacy non projetée. SCC-1C reste hors runtime.
+
+État opérationnel courant : `main` est sur `cc161555`; `0041_scc1c_admission.sql`
+porte le schéma à 41. L'étude d'attribution imbriquée est négative pour une
+persistance libre. SCC-1C est implanté/testé hors runtime via une admission
+append-only owner-scoped depuis une trace SCC-0 explicitement fournie, avec
+tentatives techniques séparées. Aucun rattrapage au redémarrage, aucun effet
+causal et aucun raccordement vivant ne sont autorisés dans ce lot. Prochain
+work order : raccordement événementiel SCC-0 -> SCC-1C -> SCC-1B.

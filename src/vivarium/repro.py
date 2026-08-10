@@ -625,6 +625,75 @@ def subjective_trace_audit(conn: sqlite3.Connection, world_id: int) -> list[str]
     return findings
 
 
+def scc1c_admission_digest(conn: sqlite3.Connection, world_id: int) -> dict[str, list[dict[str, Any]]]:
+    """Projection technique SCC-1C, séparée de la mémoire et de SCC-1B."""
+    rows = conn.execute(
+        "SELECT ch.key AS character, trace.request_key, admission.trace_id, admission.interaction_role, "
+        "admission.decision, admission.policy_version, admission.decided_at "
+        "FROM scc1c_admission admission JOIN character ch ON ch.id = admission.character_id "
+        "JOIN subjective_trace trace ON trace.id = admission.trace_id "
+        "WHERE admission.world_id = ? ORDER BY ch.key, admission.decided_at, admission.id", (world_id,)
+    ).fetchall()
+    out: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        attempts = conn.execute(
+            "SELECT attempt.attempt_key, attempt.outcome, attempt.detail_code, attempt.recorded_at "
+            "FROM scc1c_attempt attempt JOIN scc1c_admission admission ON admission.id = attempt.admission_id "
+            "WHERE attempt.world_id = ? AND admission.trace_id = ? ORDER BY attempt.id",
+            (world_id, row["trace_id"])
+        ).fetchall()
+        out.setdefault(row["character"], []).append({
+            "trace_request_key": row["request_key"], "trace_id": row["trace_id"],
+            "interaction_role": row["interaction_role"], "decision": row["decision"],
+            "policy_version": row["policy_version"], "decided_at": row["decided_at"],
+            "attempts": [dict(item) for item in attempts],
+        })
+    return out
+
+
+def scc1c_admission_audit(conn: sqlite3.Connection, world_id: int) -> list[str]:
+    """Vérifie ownership, rôle dérivé et monotonie append-only de SCC-1C."""
+    findings: list[str] = []
+    rows = conn.execute(
+        "SELECT admission.id, admission.world_id, admission.character_id, admission.trace_id, "
+        "admission.interaction_role, admission.decision, trace.world_id AS trace_world_id, "
+        "trace.character_id AS trace_character_id, trace.fact_type, trace.source_social_speech_act_id, "
+        "act.speaker_character_id, act.recipient_character_id "
+        "FROM scc1c_admission admission JOIN subjective_trace trace ON trace.id = admission.trace_id "
+        "JOIN social_speech_act act ON act.id = trace.source_social_speech_act_id "
+        "WHERE admission.world_id = ? ORDER BY admission.id", (world_id,)
+    ).fetchall()
+    for row in rows:
+        if (row["world_id"], row["character_id"]) != (row["trace_world_id"], row["trace_character_id"]):
+            findings.append(f"admission {row['id']}: wrong owner")
+        expected = "speaker" if row["speaker_character_id"] == row["character_id"] else (
+            "addressee" if row["recipient_character_id"] == row["character_id"] else "side_participant"
+        )
+        if row["fact_type"] != "social_speech_act" or row["source_social_speech_act_id"] is None or row["interaction_role"] != expected:
+            findings.append(f"admission {row['id']}: invalid source or derived role")
+        if row["decision"] not in {"selected", "not_selected"}:
+            findings.append(f"admission {row['id']}: invalid decision")
+    attempt_rows = conn.execute(
+        "SELECT attempt.id, attempt.world_id, attempt.character_id, attempt.outcome, admission.decision, "
+        "admission.world_id AS admission_world_id, admission.character_id AS admission_character_id, "
+        "admission.trace_id, "
+        "(SELECT COUNT(*) FROM social_interpretation interpretation WHERE interpretation.world_id = admission.world_id "
+        "AND interpretation.character_id = admission.character_id AND interpretation.source_trace_id = admission.trace_id) AS interpretation_count "
+        "FROM scc1c_attempt attempt JOIN scc1c_admission admission ON admission.id = attempt.admission_id "
+        "WHERE attempt.world_id = ? ORDER BY attempt.id", (world_id,)
+    ).fetchall()
+    for row in attempt_rows:
+        if row["decision"] != "selected":
+            findings.append(f"attempt {row['id']}: non-selected admission")
+        if (row["world_id"], row["character_id"]) != (row["admission_world_id"], row["admission_character_id"]):
+            findings.append(f"attempt {row['id']}: wrong owner")
+        if row["outcome"] == "interpreted" and row["interpretation_count"] < 1:
+            findings.append(f"attempt {row['id']}: interpreted without SCC-1B entry")
+        if row["outcome"] not in {"deferred", "provider_unavailable", "interpreted"}:
+            findings.append(f"attempt {row['id']}: invalid outcome")
+    return findings
+
+
 def subjective_belief_digest(conn: sqlite3.Connection, world_id: int) -> dict[str, list[dict[str, Any]]]:
     """Projection vérifiable des croyances privées, hors du digest canonique."""
     rows = conn.execute(

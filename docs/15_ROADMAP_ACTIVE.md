@@ -175,3 +175,9 @@ correspond à `0.1.0a1`, pas à une date arbitraire.
 ## État à vérifier après le lot SCC-1B
 
 La migration `0040_scc1b_interpretation_only.sql` porte le schéma à 40. Le provider actif produit uniquement `schema_version`, `understanding_status` et `meaning_hypotheses`; SCC-1C reste hors runtime.
+
+État courant vérifié après ce jalon : la migration forward-only
+`0041_scc1c_admission.sql` porte le schéma à 41. SCC-1C est implanté et
+qualifié hors runtime vivant; son prochain lot est le raccordement événementiel
+SCC-0 -> SCC-1C -> SCC-1B. L'attribution imbriquée reste explicitement
+reportée après son échec structurel en R&D.

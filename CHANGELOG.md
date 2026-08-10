@@ -1,5 +1,15 @@
 # Changelog
 
+## SCC-1C — admission cognitive sélective (10 août 2026)
+
+- Ajoute une admission SCC-1C bornée depuis une `subjective_trace` sociale
+  SCC-0 explicitement fournie, avec sélection ou non-sélection immuable.
+- Sépare les tentatives techniques différées/indisponibles des décisions
+  cognitives; `SocialInterpretationService` reste l'unique propriétaire SCC-1B.
+- Ajoute la migration forward-only `0041_scc1c_admission.sql`, les audits,
+  projections et tests déterministes. Aucun raccordement runtime, rattrapage
+  historique ou effet causal n'est ajouté.
+
 ## SCC-1B2D4 — namespace atomique des artefacts Screen-47
 
 - Les chemins review/paired sont désormais dérivés du principal fourni par
