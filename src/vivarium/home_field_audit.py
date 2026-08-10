@@ -107,7 +107,7 @@ def _one_call(provider: LMStudioSocialInterpretationProvider, item: HomeFieldSce
         raw_value = provider.propose(snapshot)
         raw = raw_value if isinstance(raw_value, str) else json.dumps(raw_value, ensure_ascii=False)
         normalized, applied, kind = normalize_outer_json_fence(raw) if condition == HOME_FIELD_CONDITIONS[1] else (raw, False, None)
-        parsed = _validate_without_persistence(json.loads(normalized))
+        parsed = _validate_without_persistence(normalized)
     except SocialInterpretationProviderError as exc:
         outcome = "parse_error" if exc.code == "invalid_provider_output" else "semantic_validation_reject"
         error_code = exc.code

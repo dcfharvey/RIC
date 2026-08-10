@@ -49,6 +49,13 @@ def test_condition_b_never_repairs_invalid_json_and_raw_is_independent():
     assert raw != normalized
 
 
+def test_strict_fenced_json_is_a_parse_error_in_c1():
+    fenced = "```json\\n" + json.dumps(VALID) + "\\n```"
+    with pytest.raises(ValueError) as exc:
+        _validate_without_persistence(fenced)
+    assert getattr(exc.value, "code", None) == "invalid_provider_output"
+
+
 def test_strict_parser_and_semantic_contract_are_unchanged():
     assert _validate_without_persistence(VALID)["understanding_status"] == "ambiguous"
     with pytest.raises(ValueError):
