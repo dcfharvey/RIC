@@ -193,6 +193,15 @@ Le rodage a notamment montré : small talk circulaire, concentration de certaine
 
 ---
 
+### Clôture SCC-1B2J
+
+La qualification SCC-1B est **CLOSED** pour la prochaine étape R&D, sans appel
+LLM et sans modification de production. Le choix opérationnel borné est
+`qwen3-14b` en `FR/FR`, avec contrat futur conceptuel `interpretation-only`.
+La limite `source/provenance collapse` est confirmée et `motive_hypotheses`
+reste encore présent dans le provider/parser/persistance actuels; toute
+migration exige un work order technique séparé.
+
 ## 6. Direction R&D actuelle — ne pas coder sans work order
 
 La prochaine grosse étape conceptuelle n'est **pas** « générer davantage de texte ».

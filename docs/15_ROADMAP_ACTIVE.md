@@ -165,6 +165,14 @@ le simulateur social est suffisamment cohérent, stable et lisible pour être
 présenté : il ne se confond pas avec le simple monde d'intégration. Ce jalon
 correspond à `0.1.0a1`, pas à une date arbitraire.
 
+### Clôture SCC-1B2J — qualification R&D
+
+SCC-1B est qualifié pour la suite R&D avec `qwen3-14b`, configuration `FR/FR`
+et contrat conceptuel `interpretation-only`. Cette décision est empirique et
+bornée aux campagnes; elle ne modifie ni le provider de production, ni le
+parser, ni le runtime, ni SCC-1C. La limite structurelle de provenance reste
+ouverte et aucun nouveau benchmark linguistique n'est requis.
+
 ## Frontières explicites
 
 - Les tests unitaires actuels restent la preuve des règles locales.

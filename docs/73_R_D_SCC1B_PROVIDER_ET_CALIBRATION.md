@@ -662,6 +662,62 @@ SCC-1B2 doit être livré et exécuté sur le modèle/prompt réel avant d’aut
 
 ---
 
+## 25. Clôture de qualification SCC-1B2J
+
+**Statut :** qualification SCC-1B **CLOSED** pour la prochaine étape R&D; aucun appel LLM supplémentaire n'est requis.
+
+**Décision fonctionnelle :** retenir `qwen3-14b`, configuration `FR/FR` (prompt système français + contenu social français), pour le contrat futur `interpretation-only`. Le contrat visé conserve `schema_version`, `understanding_status` et `meaning_hypotheses`, et retire l'obligation de `motive_hypotheses`.
+
+Ce choix est un choix de design R&D borné aux campagnes réalisées, pas une loi scientifique ni une modification silencieuse de production. Le LLM ne devient pas propriétaire de la vérité, de la provenance, de la croyance ou du canon.
+
+### Conclusions empiriques
+
+Gemma4-12B conserve une psychologisation et un `hidden-state overclaim` trop fréquents malgré l'`interpretation-only` et les variantes linguistiques. Qwen3-8B est très concis et stable, mais fragile sur source, référents et pragmatique. Qwen3-14B fournit le meilleur compromis observé entre compréhension pragmatique et retenue, avec des limites persistantes sur la hiérarchie de source, les assertions rapportées, certains référents et l'usage naturel d'`unresolved`.
+
+La limite `source/provenance collapse` est confirmée :
+
+```text
+Sophie rapporte qu'Erika a affirmé : « Luna a cassé la tasse. »
+!=
+Luna a cassé la tasse comme fait canonique non attribué
+```
+
+Elle persiste entre modèles, prompts et langues; elle ne doit plus être traitée comme une simple faiblesse de prompt. Un prochain lot devra examiner une représentation structurelle où la hiérarchie de provenance est conservée explicitement. Aucune telle architecture n'est implémentée ici.
+
+Les modèles qualifiés ont très rarement, voire jamais, produit naturellement `unresolved`; les statuts auto-déclarés ne sont donc pas une mesure objective fiable de l'incertitude. Une étude de convergence/désaccord reste un backlog séparé.
+
+### Conclusion linguistique
+
+Dans la configuration française RIC testée, `FR/FR` est le choix opérationnel le plus sûr. `EN prompt + FR content` et `EN/EN` n'ont montré aucun avantage global. Il ne faut pas conclure que le français est intrinsèquement supérieur aux LLM; G09 reste limité par l'équivalence pronominale et ne soutient pas seul une conclusion.
+
+### Principe fonctionnel futur
+
+SCC-1B2G a montré que l'obligation de `motive_hypotheses` pousse à produire une psychologie lorsque les preuves sont insuffisantes :
+
+> SCC-1B interprets communicative meaning. It is not required to explain speaker psychology.
+
+Cette conclusion ne constitue pas encore une migration ni une adoption du contrat `interpretation-only` dans le code réel.
+
+### Production inspectée — inchangée
+
+- provider actuel : `LMStudioSocialInterpretationProvider`;
+- prompt actuel : prompt système français SCC-1B1 demandant encore `meaning_hypotheses` et `motive_hypotheses`;
+- parser actuel : `parse_provider_proposal`, contrat strict à quatre clés;
+- schéma actuel : SQLite schema 39; `motive_hypotheses_json` reste obligatoire dans `social_interpretation` (migration 0037), avec provenance durcie par 0039;
+- runtime wiring : instanciation explicite par les chemins CLI smoke/screen et utilisation par `SocialInterpretationLLMService`; aucun raccordement SCC-1C ajouté;
+- dépendances downstream : service de création/lecture/révision, projections de reproductibilité, migration 0037, tests provider/service, fixtures et sorties CLI.
+
+La suppression future de `motive_hypotheses` exige donc un lot technique borné identifiant migration et consommateurs. Elle n'est pas effectuée ici.
+
+### Qualification documentaire et prochaine porte
+
+- empirique : résultats observés, bornés aux campagnes réalisées;
+- conclusion raisonnable mais incertaine : `qwen3-14b` en `FR/FR` est le choix opérationnel soutenu;
+- hypothèse de modélisation : SCC-1B doit centrer la sortie sur le sens communicatif, non sur la psychologie cachée;
+- choix de design : retenir Qwen3-14B `FR/FR` `interpretation-only` pour la prochaine qualification R&D.
+
+Le prochain work order recommandé est une inspection/migration technique bornée du contrat `interpretation-only` et une étude structurelle de la provenance. Il ne doit pas être lancé sans instruction dédiée. Aucun nouveau benchmark linguistique n'est requis.
+
 ## 24. Statut pour implantation
 
 La R&D autorise maintenant **SCC-1B1**.
