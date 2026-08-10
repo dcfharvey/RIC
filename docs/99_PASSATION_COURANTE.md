@@ -312,6 +312,16 @@ nulle et une tendance d'action neutre. Humeur, croyances, relations, buts,
 mémoire, actions et canon restent inchangés. Les autres domaines de candidates
 restent en attente de work orders dédiés.
 
+## Addendum opérationnel — Hugin / Munin V0
+
+Le HEAD opérationnel porte maintenant le read-model Hugin/Munin V0, sans
+migration supplémentaire (schéma 44 inchangé). Le service est lecture seule et
+non persistant: Hugin rapporte le canon et les paroles comme paroles; Munin
+rapporte, par propriétaires explicitement demandés, les traces, interprétations,
+appraisals, candidates, décisions et états subjectifs réellement présents.
+Les claims référencent les preuves moteur et l’audit est déterministe. Il n’y a
+ni planificateur LLM, ni UI complète, ni rattrapage, ni nouvelle conséquence.
+
 ## 10. Rappel final
 
 Le but de RIC n'est pas de faire croire qu'un LLM est la réalité.

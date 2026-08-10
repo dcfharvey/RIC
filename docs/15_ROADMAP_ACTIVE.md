@@ -165,6 +165,15 @@ le simulateur social est suffisamment cohérent, stable et lisible pour être
 présenté : il ne se confond pas avec le simple monde d'intégration. Ce jalon
 correspond à `0.1.0a1`, pas à une date arbitraire.
 
+### Addendum opérationnel — Hugin / Munin V0
+
+Le read-model lecture seule Hugin/Munin est livré sur le schéma 44. Il expose
+des rapports structurés bornés: Hugin pour les faits canoniques établis et les
+actes de parole, Munin pour les états subjectifs explicitement demandés et
+effectivement persistés. Aucun rapport n’est persisté, aucun LLM n’accède à la
+base, et aucune requête ne produit de conséquence. Une interface narrative LLM,
+une UI complète et les extensions de mémoire restent différées.
+
 ## Frontières explicites
 
 - Les tests unitaires actuels restent la preuve des règles locales.

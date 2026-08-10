@@ -946,3 +946,9 @@
 - Consolidation des cinq parties.
 - Arbitrage des anciennes formulations sur population, habitat, temps, technicien et machine hôte.
 - Ajout du contrat de lecture, du prompt de démarrage et des matrices séparées.
+## Unreleased
+
+- **Hugin/Munin V0** : ajout d’un read-model d’observation humaine borné,
+  structuré et strictement lecture seule. Hugin sépare actes de parole et faits;
+  Munin conserve l’ownership des états subjectifs et la chaîne de provenance.
+  Aucun schéma, état persistant ou comportement runtime n’est ajouté.
