@@ -117,7 +117,7 @@ def _one_call(provider: LMStudioSocialInterpretationProvider, item: HomeFieldSce
     finally:
         fixture.conn.close()
     return {"scenario_id": item.scenario_id, "condition": condition, "repeat": repeat,
-            "snapshot_fingerprint": snapshot.fingerprint, "snapshot": snapshot.data,
+            "snapshot_fingerprint": snapshot.fingerprint, "snapshot": json.loads(snapshot.wire),
             "raw_provider_output": raw, "normalized_provider_output": normalized,
             "normalization_applied": applied, "normalization_kind": kind,
             "outcome": outcome, "error_code": error_code, **parsed,
