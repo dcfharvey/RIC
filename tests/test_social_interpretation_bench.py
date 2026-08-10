@@ -323,6 +323,16 @@ def test_b15_b16_pair_runner_uses_same_fake_provider_and_lineage():
     assert report.revision.causal_effect_absent is True
 
 
+def test_b15_b16_pair_runner_preserves_initial_provider_failure_without_fake_revision():
+    report = run_paired_revision_trial(ProviderFailure(), pair_id="pair_failure", trial_number=1)
+    assert report.initial.outcome == "provider_error"
+    assert report.initial.provider_error_code == "llm_unavailable"
+    assert report.revision.outcome == "setup_error"
+    assert report.revision.provider_error_code == "revision_not_accessible"
+    assert report.lineage_valid is False
+    assert report.initial.hard_blockers == report.revision.hard_blockers == ()
+
+
 def test_b05_b06_different_stochastic_wording_keeps_raw_metric_without_review_flag():
     report = run_bench(_provider(), level="T0", trials=2, scenario_ids=("B05", "B06"))
     assert "irrelevant_context_changed_output" not in report.as_dict()["review_flags"]

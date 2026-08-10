@@ -1,5 +1,16 @@
 # Changelog
 
+## SCC-1B2D1 — correctif runner pairé et validation bornée
+
+- Le runner B15/B16 conserve désormais une erreur initiale provider/parse/semantic
+  comme donnée et n'essaie plus de construire une révision inaccessible; le faux
+  `revision_not_accessible` consécutif à une initiale non persistée est fermé.
+- Cause établie : quatre modèles récupérés produisaient une initiale B15 non JSON
+  (Markdown autour du JSON), tandis que la paire réelle Qwen3 14B traversait le
+  même chemin avec owner, supports, provenance et fingerprints valides.
+- Validation réelle bornée : une paire B15/B16 Qwen3 14B, deux appels, valide;
+  aucun Screen-47 complet, T2a ou T2b relancé.
+
 ## 0.1.0a15 — 8 août 2026
 
 - SCC-0 ajoute l'encodage privé idempotent d'une parole sociale acceptée,

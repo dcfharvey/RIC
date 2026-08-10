@@ -662,13 +662,14 @@ def run_paired_revision_trial(provider: Any, *, pair_id: str = "b15_b16_pair", t
     def call(key: str, selected: tuple[str, ...], revision_of: str | None) -> BenchTrialReport:
         started = timer()
         capture = _CapturingProvider(provider)
-        snapshot = SocialInterpretationContextBuilder(conn).build(
-            world_id, "erika", "primary", selected_trace_request_keys=selected, revision_of_key=revision_of)
+        snapshot = None
         before_protected = _protected_state(conn, world_id)
         before_counts = _scc_counts(conn, world_id)
-        if hasattr(provider, "bind_connection"):
-            provider.bind_connection(conn, world_id)
         try:
+            snapshot = SocialInterpretationContextBuilder(conn).build(
+                world_id, "erika", "primary", selected_trace_request_keys=selected, revision_of_key=revision_of)
+            if hasattr(provider, "bind_connection"):
+                provider.bind_connection(conn, world_id)
             result = SocialInterpretationLLMService(conn, capture, clock=_BenchClock()).run(
                 world_id, "erika", key, "primary", selected_trace_request_keys=selected, revision_of_key=revision_of)
         except Exception as exc:
@@ -679,7 +680,8 @@ def run_paired_revision_trial(provider: Any, *, pair_id: str = "b15_b16_pair", t
                 blockers.append("partial_write_after_error")
             report = BenchTrialReport(BENCH_SCHEMA_VERSION, "B15_B16", "initial" if revision_of is None else "revision",
                                       trial_number, _provider_model_id(provider), getattr(provider, "provider_version", SCC1B_PROVIDER_VERSION),
-                                      snapshot.fingerprint, max(0, round((timer() - started) * 1000)), outcome,
+                                      None if snapshot is None else snapshot.fingerprint,
+                                      max(0, round((timer() - started) * 1000)), outcome,
                                       "real_provider_ready", pair_id=pair_id, provider_error_code=provider_code,
                                       validation_error_code=validation_code, raw_provider_output=_raw_text(capture.raw),
                                       diagnostic_category=_diagnostic_category(_raw_text(capture.raw)),
