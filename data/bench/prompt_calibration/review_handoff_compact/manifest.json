@@ -1,0 +1,22 @@
+{
+  "protocol": "SCC-1B2F",
+  "comparison_count": 84,
+  "result_count_per_condition": 93,
+  "models": [
+    "google/gemma-4-12b-qat",
+    "qwen3-14b",
+    "qwen3-8b"
+  ],
+  "conditions": [
+    "A_BASELINE",
+    "B_CALIBRATED"
+  ],
+  "parts": [
+    "review_01_google_gemma_4_12b_qat.jsonl",
+    "review_02_qwen3_14b.jsonl",
+    "review_03_qwen3_8b.jsonl"
+  ],
+  "snapshots_included": false,
+  "semantic_judgments_included": false,
+  "source_results_modified": false
+}

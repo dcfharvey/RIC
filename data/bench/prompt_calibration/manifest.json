@@ -1,0 +1,33 @@
+{
+  "protocol": "SCC-1B2F",
+  "preregistration": "preregistration.json",
+  "models": [
+    "google/gemma-4-12b-qat",
+    "qwen3-14b",
+    "qwen3-8b"
+  ],
+  "conditions": [
+    "A_BASELINE",
+    "B_CALIBRATED"
+  ],
+  "calls_planned": 186,
+  "calls_attempted": 186,
+  "calls_completed": 186,
+  "warmups_non_scored": 0,
+  "principal_artifacts": [
+    "principal_google_gemma_4_12b_qat_f36199f6_a_baseline.json",
+    "principal_google_gemma_4_12b_qat_f36199f6_b_calibrated.json",
+    "principal_qwen3_14b_f04eedc3_a_baseline.json",
+    "principal_qwen3_14b_f04eedc3_b_calibrated.json",
+    "principal_qwen3_8b_f9b30c0d_a_baseline.json",
+    "principal_qwen3_8b_f9b30c0d_b_calibrated.json"
+  ],
+  "derived_artifacts": [
+    "summary.json",
+    "paired_comparison.json",
+    "review_handoff_compact/manifest.json"
+  ],
+  "hard_blockers": [],
+  "production_changes": false,
+  "semantic_review_status": "PENDING_SOL"
+}

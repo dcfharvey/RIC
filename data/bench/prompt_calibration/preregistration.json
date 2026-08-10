@@ -1,0 +1,52 @@
+{
+  "protocol": "SCC-1B2F",
+  "title": "Prompt Calibration A/B - Inference Supported vs Overinterpretation",
+  "status": "preregistered_before_llm_calls",
+  "production_boundaries": {
+    "runtime_modified": false,
+    "parser_modified": false,
+    "schema_modified": false,
+    "structured_output_modified": false,
+    "temperature": 0.2,
+    "store": false,
+    "reasoning_transport": "capability-aware unchanged"
+  },
+  "models": [
+    "google/gemma-4-12b-qat",
+    "qwen3-8b",
+    "qwen3-14b"
+  ],
+  "conditions": {
+    "A_BASELINE": "current SCC-1B production system prompt exactly",
+    "B_CALIBRATED": "A_BASELINE plus only calibration paragraph below",
+    "calibration_paragraph": "Interprète uniquement ce que les informations fournies permettent réellement de soutenir. N'hésite pas à proposer une inférence implicite lorsqu'elle est soutenue par les données. En revanche, n'ajoute pas d'intention, d'émotion, de croyance ou de causalité seulement parce qu'elle serait plausible.\n\nSi plusieurs interprétations restent soutenables, `ambiguous` est une réponse pleinement valide.\n\nSi les informations ne permettent pas une interprétation utile suffisamment soutenue, `unresolved` est également une réponse pleinement valide.\n\n`clear`, `ambiguous` et `unresolved` ne représentent pas des niveaux de qualité : ils représentent différents états de l'information disponible."
+  },
+  "fixtures": {
+    "held_out": ["H01", "H02", "H03", "H04", "H05", "H06", "H07", "H08", "H09", "H10", "H11", "H12", "H13", "H14", "H15", "H16"],
+    "screen47_controls": ["B02:underspecified", "B03:positive", "B04:negative", "B09:indirect", "B10:supported", "B11:addressee", "B11:side_participant", "B13:accusation", "B15:initial", "B16:clarified", "B19:contradictory", "B24:dialogue_injection", "B30:repeat"],
+    "snapshot_source": "existing SCC-1B2E and Screen-47 fixture definitions, unchanged"
+  },
+  "call_plan": {
+    "held_out_per_model_condition": 18,
+    "controls_per_model_condition": 13,
+    "calls_per_model_condition": 31,
+    "models": 3,
+    "conditions": 2,
+    "total_planned_calls": 186,
+    "warmups": "one non-scored warm-up per model/condition if required by deployment"
+  },
+  "predictions": {
+    "P1_gemma12": ["lower hidden-state overclaim", "lower unsupported motives/causalities", "more appropriate ambiguous", "supported implicits retained", "larger improvement than Qwen8"],
+    "P2_qwen14": ["moderate improvement", "better source/belief discipline", "no strong implicit-loss"],
+    "P3_qwen8": ["small variation", "stable profile", "no systematic drift to ambiguous/unresolved"],
+    "P4_timidity_risk": ["artificial clear drop", "ambiguous/unresolved explosion", "loss on H05, H06, H15/H16 and controls"],
+    "P5_strong_signal": "Gemma improves strongly, Qwen14 moderately, Qwen8 remains stable, supported implicits preserved"
+  },
+  "primary_measures": ["valid_rate", "parse_errors", "semantic_rejects", "clear_ambiguous_unresolved", "motive_hypothesis_rate", "mean_meaning_hypothesis_count", "mean_motive_hypothesis_count"],
+  "review_dimensions": ["GROUNDING", "UNCERTAINTY", "SOURCE_DISCIPLINE", "ROLE_DISCIPLINE", "HIDDEN_STATE_OVERCLAIM", "REVISION_QUALITY", "CONCISION_SATURATION", "DOWNSTREAM_USEFULNESS"],
+  "review_categories": ["OK", "REVIEW", "BAD"],
+  "human_review_fields": ["SUPPORTED_INFERENCE_LOST", "hidden_state_overclaim", "unsupported_intention", "unsupported_emotion", "unsupported_motive", "unsupported_causality"],
+  "interpretation_classes": ["CALIBRATION HELPS", "CALIBRATION HELPS BUT CAUSES TIMIDITY", "LITTLE EFFECT", "MODEL-SPECIFIC", "NEGATIVE"],
+  "stop_rules": ["stop on true hard blocker", "retain provider/parse/semantic failures as data", "do not alter prompt after first result", "no T2a", "no T2b", "no winner"],
+  "results": null
+}
