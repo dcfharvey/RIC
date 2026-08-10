@@ -73,6 +73,11 @@ class InterpretationOnlyProvider:
         return request_local_model(self.settings, system_prompt=B_SYSTEM_PROMPT, input_text=snapshot.wire)
 
 
+def resolve_control_scenarios() -> dict[tuple[str, str], BenchScenario]:
+    """Resolve the preregistered Screen-47 keys through the shared variant API."""
+    return {(item.scenario_id, item.variant_id): item for item in get_scenario_variants(CONTROL_KEYS)}
+
+
 def parse_interpretation_only(value: Mapping[str, Any] | str) -> dict[str, Any]:
     try:
         payload = json.loads(value) if isinstance(value, str) else dict(value)
@@ -142,9 +147,9 @@ def run_model_condition(model_id: str, condition: str, output_dir: str | Path) -
     items: list[HomeFieldScenario | BenchScenario] = list(VALID_HELD_OUT) + list(CORRECTED_SCENARIOS)
     results = [_call(provider, item, 1, condition) for item in items]
     controls = []
-    for scenario_id, variant in CONTROL_KEYS:
-        scenario = next(x for x in get_scenario_variants((scenario_id,)) if x.variant_id == variant)
-        controls.append(_call(provider, scenario, 1, condition))
+    resolved_controls = resolve_control_scenarios()
+    for key in CONTROL_KEYS:
+        controls.append(_call(provider, resolved_controls[key], 1, condition))
     payload = {"audit_schema_version": 1, "model_id": model_id, "condition": condition, "provider_version": provider.provider_version, "calls_attempted": len(results)+len(controls), "results": results, "controls": controls, "hard_blockers": []}
     target=Path(output_dir); target.mkdir(parents=True, exist_ok=True)
     target.joinpath(f"principal_{_safe_model_id(model_id)}_{condition.lower()}.json").write_text(json.dumps(payload,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")

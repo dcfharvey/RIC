@@ -1,7 +1,9 @@
 import pytest
 
 from vivarium.interpretation_only import (
-    B_SYSTEM_PROMPT, CONDITIONS, PLANNED_CALLS, parse_interpretation_only,
+    B_SYSTEM_PROMPT, CONDITIONS, CONTROL_KEYS, CORRECTED_SCENARIOS, HISTORIC_EXCLUDED,
+    PLANNED_CALLS, VALID_HELD_OUT, _fixture_for, parse_interpretation_only,
+    resolve_control_scenarios,
 )
 from vivarium.social_interpretation_provider import LMStudioSocialInterpretationProvider, parse_provider_proposal
 
@@ -30,3 +32,27 @@ def test_a_uses_production_parser_and_b_prompt_is_bench_only():
 
 def test_preregistered_call_count():
     assert PLANNED_CALLS == 174
+
+
+def test_all_control_variants_resolve_and_preserve_distinct_roles():
+    resolved = resolve_control_scenarios()
+    assert set(resolved) == set(CONTROL_KEYS)
+    assert resolved[("B02", "underspecified")].scenario_id == "B02"
+    assert resolved[("B02", "underspecified")].variant_id == "underspecified"
+    assert resolved[("B11", "addressee")].variant_id != resolved[("B11", "side_participant")].variant_id
+    assert resolved[("B15", "initial")].revision is False
+    assert resolved[("B16", "clarified")].revision is True
+
+
+def test_experimental_fixture_sets_and_a_b_snapshot_identity_are_unchanged():
+    assert {item.scenario_id for item in VALID_HELD_OUT}.isdisjoint(HISTORIC_EXCLUDED)
+    assert [item.scenario_id for item in CORRECTED_SCENARIOS] == ["G01", "G02", "G04", "G05", "G09"]
+    scenario = resolved = resolve_control_scenarios()[("B02", "underspecified")]
+    fixture_a, snapshot_a = _fixture_for(scenario)
+    fixture_b, snapshot_b = _fixture_for(scenario)
+    try:
+        assert snapshot_a.fingerprint == snapshot_b.fingerprint
+        assert snapshot_a.wire == snapshot_b.wire
+    finally:
+        fixture_a.conn.close()
+        fixture_b.conn.close()
