@@ -1,0 +1,16 @@
+{
+  "compact_handoff_schema_version": 1,
+  "purpose": "compact anonymous semantic review only",
+  "review_item_count": 160,
+  "individual_review_item_count": 140,
+  "paired_review_item_count": 20,
+  "technical_metadata_published": false,
+  "order_preserved_from_response_blind_handoff": true,
+  "parts": [
+    "review_compact_01.jsonl",
+    "review_compact_02.jsonl",
+    "review_compact_03.jsonl",
+    "review_compact_04.jsonl"
+  ],
+  "source_identity_published": false
+}
