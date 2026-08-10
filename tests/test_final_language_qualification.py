@@ -5,7 +5,7 @@ import pytest
 
 from vivarium.final_language_qualification import (
     CONDITIONS, CONTROL_KEYS, PLANNED_CALLS, SCENARIO_IDS, TRANSLATION_AUDIT,
-    TRANSLATIONS, _units,
+    TRANSLATIONS, _snapshot, _translated_snapshot, _units,
 )
 from vivarium.social_interpretation_provider import SocialInterpretationProviderError
 from vivarium.system_prompt_language import EN_SYSTEM_PROMPT, FR_SYSTEM_PROMPT, validate_interpretation_only
@@ -43,3 +43,31 @@ def test_interpretation_only_parser_remains_strict():
 def test_preregistration_call_count_is_explicit():
     p = Path("data/bench/final_language_qualification/preregistration.json")
     assert json.loads(p.read_text(encoding="utf-8"))["planned_calls"] == 102
+
+
+def test_mappingproxy_translation_is_non_mutating_and_structurally_safe():
+    _, _, item = _units()[0]
+    fixture, fr = _snapshot(item)
+    try:
+        fr_wire_before = fr.wire
+        en = _translated_snapshot(fr)
+        assert fr.wire == fr_wire_before
+        assert en.data.keys() == fr.data.keys()
+        assert en.data["observer"] == fr.data["observer"]
+        assert en.data["primary_trace"]["request_key"] == fr.data["primary_trace"]["request_key"]
+        assert en.data["primary_trace"]["payload"]["content"] == "Yes, that works for me."
+        assert en.fingerprint != fr.fingerprint
+    finally:
+        fixture.conn.close()
+
+
+def test_translated_snapshot_keeps_h07_h08_and_b13_lexical_contracts():
+    by_id = {x[0]: x[2] for x in _units()}
+    for sid, expected in (("H07", "Erika told me: \"Luna broke the cup.\""), ("H08", "Erika thinks the door is locked, but I don't know."), ("B13", "X stole my phone.")):
+        fixture, fr = _snapshot(by_id[sid])
+        try:
+            en = _translated_snapshot(fr)
+            content = en.data["primary_trace"]["payload"]["content"]
+            assert content == expected
+        finally:
+            fixture.conn.close()

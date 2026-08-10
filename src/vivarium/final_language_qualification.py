@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -93,12 +93,18 @@ def _snapshot(item: Any):
 
 def _translated_snapshot(snapshot: SocialInterpretationSnapshot) -> SocialInterpretationSnapshot:
     def convert(value: Any) -> Any:
-        if isinstance(value, dict):
+        if isinstance(value, Mapping):
             return {key: convert(item) for key, item in value.items()}
         if isinstance(value, list):
             return [convert(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(convert(item) for item in value)
         return TRANSLATIONS.get(value, value) if isinstance(value, str) else value
-    return SocialInterpretationSnapshot(data=convert(copy.deepcopy(dict(snapshot.data))))
+    # SocialInterpretationSnapshot freezes nested mappings as mappingproxy.  A
+    # controlled recursive projection is sufficient and avoids mutating or
+    # deep-copying proxy objects; only pre-registered linguistic string values
+    # are translated.
+    return SocialInterpretationSnapshot(data=convert(snapshot.data))
 
 
 def run_model_condition(model_id: str, condition: str, output_dir: str | Path) -> dict[str, Any]:
