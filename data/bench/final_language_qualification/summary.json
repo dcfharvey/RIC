@@ -1,0 +1,180 @@
+{
+  "protocol": "SCC-1B2I",
+  "semantic_review_status": "PENDING_SOL",
+  "planned_calls": 102,
+  "attempted_calls": 102,
+  "valid_calls": 102,
+  "models": {
+    "google/gemma-4-12b-qat": {
+      "FR_FR": {
+        "calls": 17,
+        "valid": 17,
+        "parse": 0,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 1,
+        "ambiguous": 16,
+        "unresolved": 0,
+        "mean_meaning": 3.0,
+        "mean_chars": 357.471
+      },
+      "EN_EN": {
+        "calls": 17,
+        "valid": 17,
+        "parse": 0,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 4,
+        "ambiguous": 13,
+        "unresolved": 0,
+        "mean_meaning": 2.882,
+        "mean_chars": 355.882
+      }
+    },
+    "qwen3-8b": {
+      "FR_FR": {
+        "calls": 17,
+        "valid": 17,
+        "parse": 0,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 8,
+        "ambiguous": 9,
+        "unresolved": 0,
+        "mean_meaning": 1.647,
+        "mean_chars": 126.824
+      },
+      "EN_EN": {
+        "calls": 17,
+        "valid": 17,
+        "parse": 0,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 9,
+        "ambiguous": 8,
+        "unresolved": 0,
+        "mean_meaning": 1.471,
+        "mean_chars": 86.824
+      }
+    },
+    "qwen3-14b": {
+      "FR_FR": {
+        "calls": 17,
+        "valid": 17,
+        "parse": 0,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 10,
+        "ambiguous": 7,
+        "unresolved": 0,
+        "mean_meaning": 1.706,
+        "mean_chars": 172.588
+      },
+      "EN_EN": {
+        "calls": 17,
+        "valid": 17,
+        "parse": 0,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 8,
+        "ambiguous": 9,
+        "unresolved": 0,
+        "mean_meaning": 1.588,
+        "mean_chars": 145.824
+      }
+    }
+  },
+  "comparison_1b2h_summary": {
+    "protocol": "SCC-1B2H",
+    "semantic_review_status": "PENDING_SOL",
+    "models": {
+      "google/gemma-4-12b-qat": {
+        "FR_SYSTEM_PROMPT": {
+          "calls": 27,
+          "valid": 27,
+          "parse": 0,
+          "semantic": 0,
+          "provider": 0,
+          "clear": 3,
+          "ambiguous": 24,
+          "unresolved": 0,
+          "mean_meaning": 2.926,
+          "mean_chars": 347.519,
+          "valid_rate": 1.0
+        },
+        "EN_SYSTEM_PROMPT": {
+          "calls": 27,
+          "valid": 27,
+          "parse": 0,
+          "semantic": 0,
+          "provider": 0,
+          "clear": 12,
+          "ambiguous": 15,
+          "unresolved": 0,
+          "mean_meaning": 2.889,
+          "mean_chars": 350.37,
+          "valid_rate": 1.0
+        }
+      },
+      "qwen3-8b": {
+        "FR_SYSTEM_PROMPT": {
+          "calls": 27,
+          "valid": 27,
+          "parse": 0,
+          "semantic": 0,
+          "provider": 0,
+          "clear": 16,
+          "ambiguous": 11,
+          "unresolved": 0,
+          "mean_meaning": 1.481,
+          "mean_chars": 109.852,
+          "valid_rate": 1.0
+        },
+        "EN_SYSTEM_PROMPT": {
+          "calls": 27,
+          "valid": 27,
+          "parse": 0,
+          "semantic": 0,
+          "provider": 0,
+          "clear": 18,
+          "ambiguous": 9,
+          "unresolved": 0,
+          "mean_meaning": 1.333,
+          "mean_chars": 75.778,
+          "valid_rate": 1.0
+        }
+      },
+      "qwen3-14b": {
+        "FR_SYSTEM_PROMPT": {
+          "calls": 27,
+          "valid": 26,
+          "parse": 1,
+          "semantic": 0,
+          "provider": 0,
+          "clear": 19,
+          "ambiguous": 7,
+          "unresolved": 0,
+          "mean_meaning": 1.538,
+          "mean_chars": 153.231,
+          "valid_rate": 0.963
+        },
+        "EN_SYSTEM_PROMPT": {
+          "calls": 27,
+          "valid": 27,
+          "parse": 0,
+          "semantic": 0,
+          "provider": 0,
+          "clear": 20,
+          "ambiguous": 7,
+          "unresolved": 0,
+          "mean_meaning": 1.259,
+          "mean_chars": 102.259,
+          "valid_rate": 1.0
+        }
+      }
+    },
+    "planned_calls": 162,
+    "attempted_calls": 162,
+    "completed_calls": 161
+  }
+}

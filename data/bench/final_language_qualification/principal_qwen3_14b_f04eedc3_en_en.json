@@ -1,0 +1,308 @@
+{
+  "bench_schema_version": 1,
+  "model_id": "qwen3-14b",
+  "condition": "EN_EN",
+  "calls_attempted": 17,
+  "results": [
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "G01",
+      "variant_id": "corrected",
+      "repeat": 1,
+      "snapshot_fingerprint": "1c3e737fa5447b807bb17c27aa111c71235b97d69613855b3a375ec547e34a46",
+      "source_snapshot_fingerprint": "33ec7861d740de48a34f439c7641dbbfa7f1565560d46c6cd49cf795e888b48d",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie is confirming that the blue room booking and postponing the meeting until Tuesday works for her."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie is confirming that the blue room booking and postponing the meeting until Tuesday works for her.\"]}",
+      "elapsed_ms": 1657
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "G05",
+      "variant_id": "corrected",
+      "repeat": 1,
+      "snapshot_fingerprint": "30ab23805dc8c177c31e3daf2dfd77cad4e2bdb6a1d959aa4de51c98d2e90542",
+      "source_snapshot_fingerprint": "bbafcf6ca1fc50832e64e16bfebbdc0f115cc869e528e516f4fcfb6f576b5c08",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie is informing Erika that she has an early commitment the next day, which may imply she cannot stay out late or participate in activities that night."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie is informing Erika that she has an early commitment the next day, which may imply she cannot stay out late or participate in activities that night.\"]}",
+      "elapsed_ms": 1306
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "G09",
+      "variant_id": "corrected",
+      "repeat": 1,
+      "snapshot_fingerprint": "c385b48f12938f98a1c2e5b884c9411eb31be7df77046e27d9ca0ddc8fdf06bc",
+      "source_snapshot_fingerprint": "3451beca16c2de783dc3e3295edff601de88ffef0479aed0a82b0c39aeb74f4c",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie informed Erika that someone else (referred to as 'she') will arrive later."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie informed Erika that someone else (referred to as 'she') will arrive later.\"]}",
+      "elapsed_ms": 1082
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "H03",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "04e139b4853d8cd19d1770d5b3b691cd498c9b429ee219e6862e0c451a53ac80",
+      "source_snapshot_fingerprint": "d32f353a1e01d5c165a74a5fa6080800a6cea077ad173120b97290036da7bf35",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie is expressing regret about an event that occurred, addressing Erika directly."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie is expressing regret about an event that occurred, addressing Erika directly.\"]}",
+      "elapsed_ms": 811
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "H07",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "1b36e31d6470947f3c928bb0920111c81efb2985ed63da77fd9731e48783d8e9",
+      "source_snapshot_fingerprint": "0b1a317d8ce3eb6c31293939746e27f43f8e989aa44e3d51af91e5f785d2d4f0",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Luna accidentally broke the cup.",
+        "Luna intentionally broke the cup."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Luna accidentally broke the cup.\",\"Luna intentionally broke the cup.\"]}",
+      "elapsed_ms": 746
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "H08",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "c9889ce86933bb4bf5f11df21e3de538331ed5ce0a188a01784dfd73be244f5e",
+      "source_snapshot_fingerprint": "8e1655679bfbc191face4cb8f652391351e786e38b5cccea9708f007b4c94df1",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Erika believes the door is locked, but Sophie does not have enough information to confirm this.",
+        "Sophie is informing Erika that she herself does not know whether the door is locked, though Erika thinks it is."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Erika believes the door is locked, but Sophie does not have enough information to confirm this.\",\"Sophie is informing Erika that she herself does not know whether the door is locked, though Erika thinks it is.\"]}",
+      "elapsed_ms": 1283
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "H10",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "7ada1ede44704c1bfbcdc4b8d163268a398a64b43611ccc95e848d5088fd6787",
+      "source_snapshot_fingerprint": "1ecc9449140b1bcb4777b7021ac7ed87835cfda6601b2bf2175cbac7c014d998",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie is complimenting Erika by calling her an angel, implying she is kind or beautiful.",
+        "Sophie is using metaphorical language to suggest that Erika has a divine or supernatural quality."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie is complimenting Erika by calling her an angel, implying she is kind or beautiful.\",\"Sophie is using metaphorical language to suggest that Erika has a divine or supernatural quality.\"]}",
+      "elapsed_ms": 1199
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "H12",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "38b14ce354c0f74df7b9aadff77252a649c0bce80f08951033b5f3d1643a9dc7",
+      "source_snapshot_fingerprint": "4f85e5b04debfd0ee279ad528cd42f0110683e69a76318515cdc63fb45a05a83",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie is trying to clarify that she is not currently angry, but the situation may still bother her.",
+        "Sophie is downplaying her feelings, suggesting that while she is not overtly angry, there might be underlying irritation."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie is trying to clarify that she is not currently angry, but the situation may still bother her.\",\"Sophie is downplaying her feelings, suggesting that while she is not overtly angry, there might be underlying irritation.\"]}",
+      "elapsed_ms": 1501
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "H13",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "54f33886918c9237666f9cffd42f1017c3d61a5dc9e2613da917455b2e7a3918",
+      "source_snapshot_fingerprint": "6e2f35c2341b96dc94ea3852d960e9d4a40d0b8978810393155c9518efedb9f2",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie is making a joke about selling Erika's computer, possibly to lighten the mood or express frustration.",
+        "Sophie might be threatening to sell the computer, using humor as a way to mask her true intentions."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie is making a joke about selling Erika's computer, possibly to lighten the mood or express frustration.\",\"Sophie might be threatening to sell the computer, using humor as a way to mask her true intentions.\"]}",
+      "elapsed_ms": 1296
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "H15",
+      "variant_id": "initial",
+      "repeat": 1,
+      "snapshot_fingerprint": "dad37e5974b098fa91f4f5449578894aaa3388eacc3d6b209ab28a2081a79207",
+      "source_snapshot_fingerprint": "43ae6259bb7435e3800fd1f032f98f4d3ab9f2a8d78be86ba51906e2033074ad",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie is commenting on the originality of a gift, possibly in response to Erika's reaction.",
+        "Sophie is expressing surprise or admiration at something being original, which could relate to a previous conversation or context."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie is commenting on the originality of a gift, possibly in response to Erika's reaction.\",\"Sophie is expressing surprise or admiration at something being original, which could relate to a previous conversation or context.\"]}",
+      "elapsed_ms": 1458
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "H16",
+      "variant_id": "revision",
+      "repeat": 1,
+      "snapshot_fingerprint": "453bc4302cba5305e3a5ef547b9375e96dc9b2e00249fde26444e12a8700baba",
+      "source_snapshot_fingerprint": "7a130c9644e3aa9971ea345a7296f9ca860a71831e3061e4f532214f9db503f1",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie is politely declining something that was suggested to her, while acknowledging the thoughtfulness of the suggestion.",
+        "Sophie is expressing hesitation about an idea or item, but appreciating the effort made by someone else."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie is politely declining something that was suggested to her, while acknowledging the thoughtfulness of the suggestion.\",\"Sophie is expressing hesitation about an idea or item, but appreciating the effort made by someone else.\"]}",
+      "elapsed_ms": 1503
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "B04",
+      "variant_id": "negative",
+      "repeat": 1,
+      "snapshot_fingerprint": "37a0f1227564f5914753f6126ff881970e226d47d26130a9f2d5e1c7a09588c4",
+      "source_snapshot_fingerprint": "76bf7c4c288ca5447a8fd7cdab3b8f0ff2f05fea354084ab04682f35b6964565",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie is expressing approval or satisfaction with something related to the project being rejected.",
+        "Sophie's 'Great.' might be sarcastic, indicating disappointment about the project being rejected."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie is expressing approval or satisfaction with something related to the project being rejected.\",\"Sophie's 'Great.' might be sarcastic, indicating disappointment about the project being rejected.\"]}",
+      "elapsed_ms": 1350
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "B10",
+      "variant_id": "supported",
+      "repeat": 1,
+      "snapshot_fingerprint": "9d40fc64c7583d82cffaff95ee4a7392511cf9b4fe0404484fa2281e80853cd2",
+      "source_snapshot_fingerprint": "18eb082549fe9198a3ca02ff2d3132c8b262613a3d4aa41fbb8919b97db2d73c",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie is informing Erika that it is cold in the room, possibly due to the open window."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie is informing Erika that it is cold in the room, possibly due to the open window.\"]}",
+      "elapsed_ms": 1108
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "B13",
+      "variant_id": "accusation",
+      "repeat": 1,
+      "snapshot_fingerprint": "a1e224bea7be0c408e9596d468ad7b055560a3333a14c4e852a83037e81def51",
+      "source_snapshot_fingerprint": "86efdbdcba5c0e01e34344d863da00b79c7962201d924032170cd9390f9dfc91",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie is informing Erika that someone named X stole her phone."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie is informing Erika that someone named X stole her phone.\"]}",
+      "elapsed_ms": 788
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "B15",
+      "variant_id": "initial",
+      "repeat": 1,
+      "snapshot_fingerprint": "cbc1913717ffa3500bdc330380cebff63d79388694b6f95bdd065828d0c8e860",
+      "source_snapshot_fingerprint": "c3704ad29722ccf468e32b3070ae7f97bd60a7b02b5216c8692609f282ce66ca",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie is informing Erika that everything is fine in the current situation."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie is informing Erika that everything is fine in the current situation.\"]}",
+      "elapsed_ms": 767
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "B16",
+      "variant_id": "clarified",
+      "repeat": 1,
+      "snapshot_fingerprint": "2f194db387128e970ea339dc403fcc49fe58af1eda7135c3d99a3291d3499670",
+      "source_snapshot_fingerprint": "031a2efa165aae6e974cab81aaed972d39e28104fd3d9457feea4b18f1558ef5",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie is trying to reassure Erika that everything is fine, possibly in response to a previous concern.",
+        "Sophie's statement may be dismissive or insincere, suggesting she is not fully addressing the underlying issue."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie is trying to reassure Erika that everything is fine, possibly in response to a previous concern.\",\"Sophie's statement may be dismissive or insincere, suggesting she is not fully addressing the underlying issue.\"]}",
+      "elapsed_ms": 1422
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "EN_EN",
+      "scenario_id": "B19",
+      "variant_id": "contradictory",
+      "repeat": 1,
+      "snapshot_fingerprint": "42e4418eeedbc1aea6cfe902e3adc95f9ceb9c9e00e8e4f3d0fb67fc6076c6a5",
+      "source_snapshot_fingerprint": "4ace57222c7fd5df79e3713b6ed673e264a62688063f539c965ca8738f8e3c2b",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie is confirming that the door is open.",
+        "Sophie is confirming that the door is closed."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie is confirming that the door is open.\",\"Sophie is confirming that the door is closed.\"]}",
+      "elapsed_ms": 1298
+    }
+  ],
+  "hard_blockers": []
+}

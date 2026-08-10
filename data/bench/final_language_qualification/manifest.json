@@ -1,0 +1,31 @@
+{
+  "protocol": "SCC-1B2I",
+  "preregistration_commit": "a87672f70017265c7d9f828de280313271ebe63d",
+  "tooling_fix_commit": "f333b1d141391ecbb2109864539e7415a5fc3cff",
+  "planned_calls": 102,
+  "attempted_calls": 102,
+  "valid_calls": 102,
+  "campaign_restart_from_zero": true,
+  "aborted_pre_fix_calls": {
+    "gemma_fr_fr": 17,
+    "gemma_en_en": 0,
+    "qwen3_8b": 0,
+    "qwen3_14b": 0,
+    "retained_as_results": false
+  },
+  "models": [
+    "google/gemma-4-12b-qat",
+    "qwen3-8b",
+    "qwen3-14b"
+  ],
+  "conditions": [
+    "FR_FR",
+    "EN_EN"
+  ],
+  "hard_blockers": [],
+  "semantic_review": "pending_sol",
+  "production_modified": false,
+  "t2a": false,
+  "t2b": false,
+  "winner": null
+}

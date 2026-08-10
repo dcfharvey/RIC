@@ -1,0 +1,332 @@
+{
+  "bench_schema_version": 1,
+  "model_id": "google/gemma-4-12b-qat",
+  "condition": "FR_FR",
+  "calls_attempted": 17,
+  "results": [
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "G01",
+      "variant_id": "corrected",
+      "repeat": 1,
+      "snapshot_fingerprint": "33ec7861d740de48a34f439c7641dbbfa7f1565560d46c6cd49cf795e888b48d",
+      "source_snapshot_fingerprint": "33ec7861d740de48a34f439c7641dbbfa7f1565560d46c6cd49cf795e888b48d",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie confirme l'idée de réserver la salle bleue mentionnée juste avant.",
+        "Sophie valide le report de la réunion à mardi mentionné dans le contexte.",
+        "Sophie exprime un accord général sur l'une des deux propositions sans spécifier laquelle."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie confirme l'idée de réserver la salle bleue mentionnée juste avant.\", \"Sophie valide le report de la réunion à mardi mentionné dans le contexte.\", \"Sophie exprime un accord général sur l'une des deux propositions sans spécifier laquelle.\"]}",
+      "elapsed_ms": 2221
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "G05",
+      "variant_id": "corrected",
+      "repeat": 1,
+      "snapshot_fingerprint": "bbafcf6ca1fc50832e64e16bfebbdc0f115cc869e528e516f4fcfb6f576b5c08",
+      "source_snapshot_fingerprint": "bbafcf6ca1fc50832e64e16bfebbdc0f115cc869e528e516f4fcfb6f576b5c08",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime une contrainte de sommeil pour justifier un refus ou une limite de temps concernant la sortie proposée par Erika.",
+        "Sophie partage une information personnelle sur son emploi du temps sans intention directe de modifier les plans de la soirée.",
+        "Sophie cherche à obtenir une validation ou de la sympathie de la part d'Erika concernant sa fatigue ou ses obligations."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime une contrainte de sommeil pour justifier un refus ou une limite de temps concernant la sortie proposée par Erika.\",\"Sophie partage une information personnelle sur son emploi du temps sans intention directe de modifier les plans de la soirée.\",\"Sophie cherche à obtenir une validation ou de la sympathie de la part d'Erika concernant sa fatigue ou ses obligations.\"]}",
+      "elapsed_ms": 2188
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "G09",
+      "variant_id": "corrected",
+      "repeat": 1,
+      "snapshot_fingerprint": "3451beca16c2de783dc3e3295edff601de88ffef0479aed0a82b0c39aeb74f4c",
+      "source_snapshot_fingerprint": "3451beca16c2de783dc3e3295edff601de88ffef0479aed0a82b0c39aeb74f4c",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie rapporte les propos d'une tierce personne non identifiée (Luna ou une autre personne) concernant son heure d'arrivée.",
+        "Sophie informe Erika que Luna a prévu de venir plus tard, positionnant Sophie comme une intermédiaire d'information.",
+        "Sophie utilise une formulation indirecte pour signaler un retard ou une absence temporaire d'une personne tierce."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie rapporte les propos d'une tierce personne non identifiée (Luna ou une autre personne) concernant son heure d'arrivée.\", \"Sophie informe Erika que Luna a prévu de venir plus tard, positionnant Sophie comme une intermédiaire d'information.\", \"Sophie utilise une formulation indirecte pour signaler un retard ou une absence temporaire d'une personne tierce.\"]}",
+      "elapsed_ms": 2147
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "H03",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "d32f353a1e01d5c165a74a5fa6080800a6cea077ad173120b97290036da7bf35",
+      "source_snapshot_fingerprint": "d32f353a1e01d5c165a74a5fa6080800a6cea077ad173120b97290036da7bf35",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime une empathie sincère envers Erika suite à un événement négatif récent partagé entre elles.",
+        "Sophie utilise une formule de politesse standard pour reconnaître un incident sans nécessairement éprouver de regret personnel.",
+        "Sophie tente de désamorcer une tension ou de clore une discussion sur un sujet regrettable en se positionnant comme alliée."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime une empathie sincère envers Erika suite à un événement négatif récent partagé entre elles.\",\"Sophie utilise une formule de politesse standard pour reconnaître un incident sans nécessairement éprouver de regret personnel.\",\"Sophie tente de désamorcer une tension ou de clore une discussion sur un sujet regrettable en se positionnant comme alliée.\"] }",
+      "elapsed_ms": 1935
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "H07",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "0b1a317d8ce3eb6c31293939746e27f43f8e989aa44e3d51af91e5f785d2d4f0",
+      "source_snapshot_fingerprint": "0b1a317d8ce3eb6c31293939746e27f43f8e989aa44e3d51af91e5f785d2d4f0",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie informe Erika d'un fait matériel (la casse de la tasse par Luna) pour obtenir une réaction ou une validation de l'information.",
+        "Sophie utilise l'information sur Luna pour initier une discussion sur le comportement de cette dernière ou sur un incident spécifique.",
+        "Sophie rapporte un fait pour décharger sa propre responsabilité ou pour signaler un problème logistique à Erika."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie informe Erika d'un fait matériel (la casse de la tasse par Luna) pour obtenir une réaction ou une validation de l'information.\",\"Sophie utilise l'information sur Luna pour initier une discussion sur le comportement de cette dernière ou sur un incident spécifique.\",\"Sophie rapporte un fait pour décharger sa propre responsabilité ou pour signaler un problème logistique à Erika.\"]}",
+      "elapsed_ms": 1871
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "H08",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "8e1655679bfbc191face4cb8f652391351e786e38b5cccea9708f007b4c94df1",
+      "source_snapshot_fingerprint": "8e1655679bfbc191face4cb8f652391351e786e38b5cccea9708f007b4c94df1",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie souligne une divergence de perception entre elle et Erika concernant l'état de la porte, suggérant une incertitude sur la sécurité du lieu.",
+        "Sophie exprime une méfiance envers la certitude d'Erika, indiquant que l'information d'Erika est potentiellement erronée ou non vérifiée par elle.",
+        "Sophie communique une information factuelle sur l'état de ses propres connaissances, tout en rapportant la croyance subjective d'Erika."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie souligne une divergence de perception entre elle et Erika concernant l'état de la porte, suggérant une incertitude sur la sécurité du lieu.\",\"Sophie exprime une méfiance envers la certitude d'Erika, indiquant que l'information d'Erika est potentiellement erronée ou non vérifiée par elle.\", \"Sophie communique une information factuelle sur l'état de ses propres connaissances, tout en rapportant la croyance subjective d'Erika.\"]}",
+      "elapsed_ms": 2247
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "H10",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "1ecc9449140b1bcb4777b7021ac7ed87835cfda6601b2bf2175cbac7c014d998",
+      "source_snapshot_fingerprint": "1ecc9449140b1bcb4777b7021ac7ed87835cfda6601b2bf2175cbac7c014d998",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime une gratitude sincère envers Erika pour un acte de gentillesse spécifique réalisé précédemment.",
+        "Sophie utilise une hyperbole ironique ou sarcastique pour souligner une action d'Erika qu'elle juge excessive ou inappropriée.",
+        "Sophie tente de manipuler ou de flatter Erika pour obtenir une faveur ou influencer son comportement futur."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime une gratitude sincère envers Erika pour un acte de gentillesse spécifique réalisé précédemment.\", \"Sophie utilise une hyperbole ironique ou sarcastique pour souligner une action d'Erika qu'elle juge excessive ou inappropriée.\", \"Sophie tente de manipuler ou de flatter Erika pour obtenir une faveur ou influencer son comportement futur.\"]}",
+      "elapsed_ms": 1774
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "H12",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "4f85e5b04debfd0ee279ad528cd42f0110683e69a76318515cdc63fb45a05a83",
+      "source_snapshot_fingerprint": "4f85e5b04debfd0ee279ad528cd42f0110683e69a76318515cdc63fb45a05a83",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime une déconnexion entre son état émotionnel actuel (irritation) et son sentiment de colère envers Erika, cherchant à désamorcer une tension spécifique.",
+        "Sophie utilise une négation pour minimiser son mécontentement tout en maintenant une position d'agacement, créant une dissonance entre ses paroles et son ressenti.",
+        "Sophie tente de rassurer Erika sur l'absence de colère pour éviter un conflit plus grave, malgré la persistance d'une irritation résiduelle."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime une déconnexion entre son état émotionnel actuel (irritation) et son sentiment de colère envers Erika, cherchant à désamorcer une tension spécifique.\", \"Sophie utilise une négation pour minimiser son mécontentement tout en maintenant une position d'agacement, créant une dissonance entre ses paroles et son ressenti.\", \"Sophie tente de rassurer Erika sur l'absence de colère pour éviter un conflit plus grave, malgré la persistance d'une irritation résiduelle.\"]}",
+      "elapsed_ms": 2515
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "H13",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "6e2f35c2341b96dc94ea3852d960e9d4a40d0b8978810393155c9518efedb9f2",
+      "source_snapshot_fingerprint": "6e2f35c2341b96dc94ea3852d960e9d4a40d0b8978810393155c9518efedb9f2",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie utilise l'humour pour tester la réaction d'Erika ou pour exprimer une frustration légère concernant l'usage de l'ordinateur.",
+        "Sophie fait une plaisanterie sans intention réelle de vente, visant à instaurer une complicité ou une dynamique de jeu entre les deux interlocutrices.",
+        "La déclaration est une forme de provocation passive où la 'blague' sert de couverture pour exprimer un agacement réel envers Erika."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie utilise l'humour pour tester la réaction d'Erika ou pour exprimer une frustration légère concernant l'usage de l'ordinateur.\",\"Sophie fait une plaisanterie sans intention réelle de vente, visant à instaurer une complicité ou une dynamique de jeu entre les deux interlocutrices.\",\"La déclaration est une forme de provocation passive où la 'blague' sert de couverture pour exprimer un agacement réel envers Erika.\"]}",
+      "elapsed_ms": 2254
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "H15",
+      "variant_id": "initial",
+      "repeat": 1,
+      "snapshot_fingerprint": "43ae6259bb7435e3800fd1f032f98f4d3ab9f2a8d78be86ba51906e2033074ad",
+      "source_snapshot_fingerprint": "43ae6259bb7435e3800fd1f032f98f4d3ab9f2a8d78be86ba51906e2033074ad",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime une approbation sincère et admirative envers le cadeau, utilisant 'original' pour souligner son caractère unique.",
+        "Sophie utilise 'original' comme un euphémisme poli pour masquer son désaccord ou son scepticisme face au cadeau.",
+        "Sophie souligne l'étrangeté du cadeau sans porter de jugement de valeur clair, laissant Erika interpréter le ton."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime une approbation sincère et admirative envers le cadeau, utilisant 'original' pour souligner son caractère unique.\", \"Sophie utilise 'original' comme un euphémisme poli pour masquer son désaccord ou son scepticisme face au cadeau.\", \"Sophie souligne l'étrangeté du cadeau sans porter de jugement de valeur clair, laissant Erika interpréter le ton.\"]}",
+      "elapsed_ms": 2055
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "H16",
+      "variant_id": "revision",
+      "repeat": 1,
+      "snapshot_fingerprint": "7a130c9644e3aa9971ea345a7296f9ca860a71831e3061e4f532214f9db503f1",
+      "source_snapshot_fingerprint": "7a130c9644e3aa9971ea345a7296f9ca860a71831e3061e4f532214f9db503f1",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime un désintérêt sincère pour une proposition tout en essayant de préserver la courtoisie envers Erika.",
+        "Sophie utilise une formule de politesse pour rejeter une offre sans froisser les sentiments de l'interlocutrice.",
+        "Sophie exprime une légère frustration ou un malaise face à une proposition qu'elle juge inappropriée ou décalée."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime un désintérêt sincère pour une proposition tout en essayant de préserver la courtoisie envers Erika.\",\"Sophie utilise une formule de politesse pour rejeter une offre sans froisser les sentiments de l'interlocutrice.\",\"Sophie exprime une légère frustration ou un malaise face à une proposition qu'elle juge inappropriée ou décalée.\"]}",
+      "elapsed_ms": 2247
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "B04",
+      "variant_id": "negative",
+      "repeat": 1,
+      "snapshot_fingerprint": "76bf7c4c288ca5447a8fd7cdab3b8f0ff2f05fea354084ab04682f35b6964565",
+      "source_snapshot_fingerprint": "76bf7c4c288ca5447a8fd7cdab3b8f0ff2f05fea354084ab04682f35b6964565",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime une satisfaction personnelle ou une approbation de la situation malgré l'échec du projet.",
+        "Sophie utilise un ton sarcastique pour souligner l'ironie ou l'absurdité du refus du projet.",
+        "Sophie exprime un soulagement, suggérant que le refus du projet était une issue souhaitée par elle."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime une satisfaction personnelle ou une approbation de la situation malgré l'échec du projet.\", \"Sophie utilise un ton sarcastique pour souligner l'ironie ou l'absurdité du refus du projet.\", \"Sophie exprime un soulagement, suggérant que le refus du projet était une issue souhaitée par elle.\"]}",
+      "elapsed_ms": 2052
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "B10",
+      "variant_id": "supported",
+      "repeat": 1,
+      "snapshot_fingerprint": "18eb082549fe9198a3ca02ff2d3132c8b262613a3d4aa41fbb8919b97db2d73c",
+      "source_snapshot_fingerprint": "18eb082549fe9198a3ca02ff2d3132c8b262613a3d4aa41fbb8919b97db2d73c",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie constate une température basse et identifie l'ouverture de la fenêtre comme la cause probable.",
+        "Sophie exprime un inconfort personnel et attend d'Erika une action pour fermer la fenêtre.",
+        "Sophie partage une observation factuelle sur l'environnement immédiat sans intention d'action spécifique."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie constate une température basse et identifie l'ouverture de la fenêtre comme la cause probable.\", \"Sophie exprime un inconfort personnel et attend d'Erika une action pour fermer la fenêtre.\", \"Sophie partage une observation factuelle sur l'environnement immédiat sans intention d'action spécifique.\"]}",
+      "elapsed_ms": 1908
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "B13",
+      "variant_id": "accusation",
+      "repeat": 1,
+      "snapshot_fingerprint": "86efdbdcba5c0e01e34344d863da00b79c7962201d924032170cd9390f9dfc91",
+      "source_snapshot_fingerprint": "86efdbdcba5c0e01e34344d863da00b79c7962201d924032170cd9390f9dfc91",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie informe Erika d'un fait précis pour solliciter son aide ou son soutien émotionnel face à un vol.",
+        "Sophie rapporte l'incident comme une simple information factuelle sans attente d'action immédiate de la part d'Erika.",
+        "Sophie cherche à identifier X ou à vérifier si Erika a vu quelque chose concernant le vol."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie informe Erika d'un fait précis pour solliciter son aide ou son soutien émotionnel face à un vol.\", \"Sophie rapporte l'incident comme une simple information factuelle sans attente d'action immédiate de la part d'Erika.\", \"Sophie cherche à identifier X ou à vérifier si Erika a vu quelque chose concernant le vol.\"]}",
+      "elapsed_ms": 1903
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "B15",
+      "variant_id": "initial",
+      "repeat": 1,
+      "snapshot_fingerprint": "c3704ad29722ccf468e32b3070ae7f97bd60a7b02b5216c8692609f282ce66ca",
+      "source_snapshot_fingerprint": "c3704ad29722ccf468e32b3070ae7f97bd60a7b02b5216c8692609f282ce66ca",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie cherche à rassurer Erika sur une situation spécifique pour apaiser une tension ou une inquiétude apparente.",
+        "Sophie énonce un fait factuel pour clore une discussion ou minimiser l'importance d'un événement récent.",
+        "Sophie utilise une phrase de façade pour masquer un malaise ou une situation problématique non dite."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie cherche à rassurer Erika sur une situation spécifique pour apaiser une tension ou une inquiétude apparente.\",\"Sophie énonce un fait factuel pour clore une discussion ou minimiser l'importance d'un événement récent.\",\"Sophie utilise une phrase de façade pour masquer un malaise ou une situation problématique non dite.\"]}",
+      "elapsed_ms": 1702
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "B16",
+      "variant_id": "clarified",
+      "repeat": 1,
+      "snapshot_fingerprint": "031a2efa165aae6e974cab81aaed972d39e28104fd3d9457feea4b18f1558ef5",
+      "source_snapshot_fingerprint": "031a2efa165aae6e974cab81aaed972d39e28104fd3d9457feea4b18f1558ef5",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie utilise une forme de déni ou de minimisation pour masquer l'existence d'un problème persistant face à Erika.",
+        "Sophie tente de désamorcer une tension immédiate en rassurant Erika, tout en reconnaissant implicitement que la situation de fond n'est pas résolue.",
+        "Sophie exprime une contradiction entre son état émotionnel actuel et la réalité factuelle de la situation pour éviter une confrontation directe."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie utilise une forme de déni ou de minimisation pour masquer l'existence d'un problème persistant face à Erika.\",\"Sophie tente de désamorcer une tension immédiate en rassurant Erika, tout en reconnaissant implicitement que la situation de fond n'est pas résolue.\",\"Sophie exprime une contradiction entre son état émotionnel actuel et la réalité factuelle de la situation pour éviter une confrontation directe.\"]}",
+      "elapsed_ms": 2245
+    },
+    {
+      "model_id": "google/gemma-4-12b-qat",
+      "condition": "FR_FR",
+      "scenario_id": "B19",
+      "variant_id": "contradictory",
+      "repeat": 1,
+      "snapshot_fingerprint": "4ace57222c7fd5df79e3713b6ed673e264a62688063f539c965ca8738f8e3c2b",
+      "source_snapshot_fingerprint": "4ace57222c7fd5df79e3713b6ed673e264a62688063f539c965ca8738f8e3c2b",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie valide une information ou une action précédente de la part d'Erika, marquant une transition ou un accord tacite dans la conversation.",
+        "Sophie exprime une confusion ou une hésitation face aux affirmations contradictoires qu'elle vient de formuler sur l'état de la porte.",
+        "Le 'D'accord' sert de conclusion neutre à une interaction où les faits physiques (la porte) sont instables ou non vérifiés par l'observatrice."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie valide une information ou une action précédente de la part d'Erika, marquant une transition ou un accord tacite dans la conversation.\",\"Sophie exprime une confusion ou une hésitation face aux affirmations contradictoires qu'elle vient de formuler sur l'état de la porte.\", \"Le 'D'accord' sert de conclusion neutre à une interaction où les faits physiques (la porte) sont instables ou non vérifiés par l'observatrice.\"]}",
+      "elapsed_ms": 2851
+    }
+  ],
+  "hard_blockers": []
+}

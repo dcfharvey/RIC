@@ -1,0 +1,310 @@
+{
+  "bench_schema_version": 1,
+  "model_id": "qwen3-14b",
+  "condition": "FR_FR",
+  "calls_attempted": 17,
+  "results": [
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "G01",
+      "variant_id": "corrected",
+      "repeat": 1,
+      "snapshot_fingerprint": "33ec7861d740de48a34f439c7641dbbfa7f1565560d46c6cd49cf795e888b48d",
+      "source_snapshot_fingerprint": "33ec7861d740de48a34f439c7641dbbfa7f1565560d46c6cd49cf795e888b48d",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie accepte la proposition de réserver la salle bleue et de reporter la réunion à mardi.",
+        "Erika confirme qu'elle est d'accord avec les décisions prises par Sophie concernant la réservation de la salle bleue et le report de la réunion à mardi."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie accepte la proposition de réserver la salle bleue et de reporter la réunion à mardi.\",\"Erika confirme qu'elle est d'accord avec les décisions prises par Sophie concernant la réservation de la salle bleue et le report de la réunion à mardi.\"]}",
+      "elapsed_ms": 2479
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "G05",
+      "variant_id": "corrected",
+      "repeat": 1,
+      "snapshot_fingerprint": "bbafcf6ca1fc50832e64e16bfebbdc0f115cc869e528e516f4fcfb6f576b5c08",
+      "source_snapshot_fingerprint": "bbafcf6ca1fc50832e64e16bfebbdc0f115cc869e528e516f4fcfb6f576b5c08",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie informe Erika qu'elle doit se lever à cinq heures demain, probablement en lien avec un engagement ou une activité planifiée.",
+        "Sophie mentionne son horaire matinal pour indiquer à Erika qu'elle aura besoin de réveil tôt, ce qui pourrait influencer leur arrangement du soir."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie informe Erika qu'elle doit se lever à cinq heures demain, probablement en lien avec un engagement ou une activité planifiée.\",\"Sophie mentionne son horaire matinal pour indiquer à Erika qu'elle aura besoin de réveil tôt, ce qui pourrait influencer leur arrangement du soir.\"]}",
+      "elapsed_ms": 1981
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "G09",
+      "variant_id": "corrected",
+      "repeat": 1,
+      "snapshot_fingerprint": "3451beca16c2de783dc3e3295edff601de88ffef0479aed0a82b0c39aeb74f4c",
+      "source_snapshot_fingerprint": "3451beca16c2de783dc3e3295edff601de88ffef0479aed0a82b0c39aeb74f4c",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie informe Erika que Luna viendra plus tard.",
+        "Sophie dit à Erika que Luna est présente dans la scène et qu'elle viendra plus tard."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie informe Erika que Luna viendra plus tard.\",\"Sophie dit à Erika que Luna est présente dans la scène et qu'elle viendra plus tard.\"]}",
+      "elapsed_ms": 1336
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "H03",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "d32f353a1e01d5c165a74a5fa6080800a6cea077ad173120b97290036da7bf35",
+      "source_snapshot_fingerprint": "d32f353a1e01d5c165a74a5fa6080800a6cea077ad173120b97290036da7bf35",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie exprime de la compassion envers Erika pour un événement qui s'est produit."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie exprime de la compassion envers Erika pour un événement qui s'est produit.\"]}",
+      "elapsed_ms": 881
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "H07",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "0b1a317d8ce3eb6c31293939746e27f43f8e989aa44e3d51af91e5f785d2d4f0",
+      "source_snapshot_fingerprint": "0b1a317d8ce3eb6c31293939746e27f43f8e989aa44e3d51af91e5f785d2d4f0",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Luna a accidentellement cassé la tasse, selon le récit d'Erika.",
+        "Erika rapporte ce que Sophie a dit à propos de Luna ayant cassé la tasse.",
+        "Sophie informe Erika que Luna a cassé la tasse."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Luna a accidentellement cassé la tasse, selon le récit d'Erika.\",\"Erika rapporte ce que Sophie a dit à propos de Luna ayant cassé la tasse.\",\"Sophie informe Erika que Luna a cassé la tasse.\"]}",
+      "elapsed_ms": 1492
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "H08",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "8e1655679bfbc191face4cb8f652391351e786e38b5cccea9708f007b4c94df1",
+      "source_snapshot_fingerprint": "8e1655679bfbc191face4cb8f652391351e786e38b5cccea9708f007b4c94df1",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime son incertitude quant à l'état de la porte, tout en mentionnant que Erika pense qu'elle est verrouillée.",
+        "Erika pourrait être informée de l'incertitude de Sophie concernant le verrouillage de la porte, ce qui pourrait influencer sa propre perception ou action."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime son incertitude quant à l'état de la porte, tout en mentionnant que Erika pense qu'elle est verrouillée.\",\"Erika pourrait être informée de l'incertitude de Sophie concernant le verrouillage de la porte, ce qui pourrait influencer sa propre perception ou action.\"]}",
+      "elapsed_ms": 1710
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "H10",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "1ecc9449140b1bcb4777b7021ac7ed87835cfda6601b2bf2175cbac7c014d998",
+      "source_snapshot_fingerprint": "1ecc9449140b1bcb4777b7021ac7ed87835cfda6601b2bf2175cbac7c014d998",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie exprime un compliment envers Erika en disant qu'elle est un ange, ce qui peut indiquer admiration ou affection."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie exprime un compliment envers Erika en disant qu'elle est un ange, ce qui peut indiquer admiration ou affection.\"]}",
+      "elapsed_ms": 1012
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "H12",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "4f85e5b04debfd0ee279ad528cd42f0110683e69a76318515cdc63fb45a05a83",
+      "source_snapshot_fingerprint": "4f85e5b04debfd0ee279ad528cd42f0110683e69a76318515cdc63fb45a05a83",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime qu'elle n'est pas fâchée, mais que quelque chose continue à l'irriter.",
+        "Sophie affirme ne pas être en colère, ce qui pourrait indiquer une tension sous-jacente ou un malentendu non résolu."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime qu'elle n'est pas fâchée, mais que quelque chose continue à l'irriter.\",\"Sophie affirme ne pas être en colère, ce qui pourrait indiquer une tension sous-jacente ou un malentendu non résolu.\"]}",
+      "elapsed_ms": 1712
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "H13",
+      "variant_id": "default",
+      "repeat": 1,
+      "snapshot_fingerprint": "6e2f35c2341b96dc94ea3852d960e9d4a40d0b8978810393155c9518efedb9f2",
+      "source_snapshot_fingerprint": "6e2f35c2341b96dc94ea3852d960e9d4a40d0b8978810393155c9518efedb9f2",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie dit à Erika qu'elle va vendre son ordinateur, mais c'est une blague."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie dit à Erika qu'elle va vendre son ordinateur, mais c'est une blague.\"]}",
+      "elapsed_ms": 918
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "H15",
+      "variant_id": "initial",
+      "repeat": 1,
+      "snapshot_fingerprint": "43ae6259bb7435e3800fd1f032f98f4d3ab9f2a8d78be86ba51906e2033074ad",
+      "source_snapshot_fingerprint": "43ae6259bb7435e3800fd1f032f98f4d3ab9f2a8d78be86ba51906e2033074ad",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime une surprise ou un étonnement face à l'originalité du cadeau que pourrait être le sujet de la conversation.",
+        "Sophie fait référence à quelque chose qui a été dit ou fait précédemment, jugeant cette action ou ce propos comme étant original."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime une surprise ou un étonnement face à l'originalité du cadeau que pourrait être le sujet de la conversation.\",\"Sophie fait référence à quelque chose qui a été dit ou fait précédemment, jugeant cette action ou ce propos comme étant original.\"]}",
+      "elapsed_ms": 1744
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "H16",
+      "variant_id": "revision",
+      "repeat": 1,
+      "snapshot_fingerprint": "7a130c9644e3aa9971ea345a7296f9ca860a71831e3061e4f532214f9db503f1",
+      "source_snapshot_fingerprint": "7a130c9644e3aa9971ea345a7296f9ca860a71831e3061e4f532214f9db503f1",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime un refus poli de quelque chose que Erika a proposé, tout en reconnaissant l'initiative.",
+        "Sophie est surprise ou perplexe par une suggestion d'Erika et exprime son incompréhension sans rejeter directement l'idée."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime un refus poli de quelque chose que Erika a proposé, tout en reconnaissant l'initiative.\", \"Sophie est surprise ou perplexe par une suggestion d'Erika et exprime son incompréhension sans rejeter directement l'idée.\"]}",
+      "elapsed_ms": 1779
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "B04",
+      "variant_id": "negative",
+      "repeat": 1,
+      "snapshot_fingerprint": "76bf7c4c288ca5447a8fd7cdab3b8f0ff2f05fea354084ab04682f35b6964565",
+      "source_snapshot_fingerprint": "76bf7c4c288ca5447a8fd7cdab3b8f0ff2f05fea354084ab04682f35b6964565",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie exprime un sentiment de surprise ou d'incrédulité face à la nouvelle du refus du projet.",
+        "Sophie pourrait utiliser 'Super.' comme une réaction sarcastique ou ironique au refus du projet."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie exprime un sentiment de surprise ou d'incrédulité face à la nouvelle du refus du projet.\",\"Sophie pourrait utiliser 'Super.' comme une réaction sarcastique ou ironique au refus du projet.\"]}",
+      "elapsed_ms": 1530
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "B10",
+      "variant_id": "supported",
+      "repeat": 1,
+      "snapshot_fingerprint": "18eb082549fe9198a3ca02ff2d3132c8b262613a3d4aa41fbb8919b97db2d73c",
+      "source_snapshot_fingerprint": "18eb082549fe9198a3ca02ff2d3132c8b262613a3d4aa41fbb8919b97db2d73c",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie informe Erika qu'il fait froid dans la pièce, probablement en lien avec la fenêtre ouverte mentionnée précédemment."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie informe Erika qu'il fait froid dans la pièce, probablement en lien avec la fenêtre ouverte mentionnée précédemment.\"]}",
+      "elapsed_ms": 1246
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "B13",
+      "variant_id": "accusation",
+      "repeat": 1,
+      "snapshot_fingerprint": "86efdbdcba5c0e01e34344d863da00b79c7962201d924032170cd9390f9dfc91",
+      "source_snapshot_fingerprint": "86efdbdcba5c0e01e34344d863da00b79c7962201d924032170cd9390f9dfc91",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie informe Erika que X a volé son téléphone."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie informe Erika que X a volé son téléphone.\"]}",
+      "elapsed_ms": 757
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "B15",
+      "variant_id": "initial",
+      "repeat": 1,
+      "snapshot_fingerprint": "c3704ad29722ccf468e32b3070ae7f97bd60a7b02b5216c8692609f282ce66ca",
+      "source_snapshot_fingerprint": "c3704ad29722ccf468e32b3070ae7f97bd60a7b02b5216c8692609f282ce66ca",
+      "schema_version": 1,
+      "understanding_status": "clear",
+      "meaning_hypotheses": [
+        "Sophie informe Erika que tout va bien dans la scène sociale."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"clear\",\"meaning_hypotheses\":[\"Sophie informe Erika que tout va bien dans la scène sociale.\"]}",
+      "elapsed_ms": 767
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "B16",
+      "variant_id": "clarified",
+      "repeat": 1,
+      "snapshot_fingerprint": "031a2efa165aae6e974cab81aaed972d39e28104fd3d9457feea4b18f1558ef5",
+      "source_snapshot_fingerprint": "031a2efa165aae6e974cab81aaed972d39e28104fd3d9457feea4b18f1558ef5",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie dit \"Tout va bien.\" pour rassurer Erika, mais son précédent commentaire suggère que le problème persiste.",
+        "Sophie affirme \"Tout va bien.\" de manière ironique ou sarcastique, en contradiction avec sa propre déclaration précédente."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie dit \\\"Tout va bien.\\\" pour rassurer Erika, mais son précédent commentaire suggère que le problème persiste.\",\"Sophie affirme \\\"Tout va bien.\\\" de manière ironique ou sarcastique, en contradiction avec sa propre déclaration précédente.\"]}",
+      "elapsed_ms": 1676
+    },
+    {
+      "model_id": "qwen3-14b",
+      "condition": "FR_FR",
+      "scenario_id": "B19",
+      "variant_id": "contradictory",
+      "repeat": 1,
+      "snapshot_fingerprint": "4ace57222c7fd5df79e3713b6ed673e264a62688063f539c965ca8738f8e3c2b",
+      "source_snapshot_fingerprint": "4ace57222c7fd5df79e3713b6ed673e264a62688063f539c965ca8738f8e3c2b",
+      "schema_version": 1,
+      "understanding_status": "ambiguous",
+      "meaning_hypotheses": [
+        "Sophie confirme une information précédente en disant 'D'accord.' après avoir mentionné que la porte est ouverte.",
+        "Sophie exprime un accord général sans nécessairement valider l'affirmation spécifique sur l'état de la porte."
+      ],
+      "outcome": "valid_interpretation",
+      "raw_provider_output": "{\"schema_version\":1,\"understanding_status\":\"ambiguous\",\"meaning_hypotheses\":[\"Sophie confirme une information précédente en disant 'D'accord.' après avoir mentionné que la porte est ouverte.\",\"Sophie exprime un accord général sans nécessairement valider l'affirmation spécifique sur l'état de la porte.\"]}",
+      "elapsed_ms": 1863
+    }
+  ],
+  "hard_blockers": []
+}
