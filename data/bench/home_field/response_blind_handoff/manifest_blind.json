@@ -1,0 +1,22 @@
+{
+  "handoff_schema_version": 1,
+  "purpose": "anonymous semantic review only",
+  "review_item_count": 160,
+  "paired_review_item_count": 20,
+  "individual_review_item_count": 140,
+  "parts": [
+    "review_items_01.jsonl",
+    "review_items_02.jsonl",
+    "review_items_03.jsonl",
+    "review_items_04.jsonl"
+  ],
+  "opaque_ids": true,
+  "source_mapping_published": false,
+  "technical_metadata_published": false,
+  "randomized_order": true,
+  "review_categories": [
+    "OK",
+    "REVIEW",
+    "BAD"
+  ]
+}
