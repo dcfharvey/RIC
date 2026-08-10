@@ -1,0 +1,48 @@
+{
+  "experiment_id": "scc1b-attribution-mini-2026-08-10",
+  "status": "preregistered",
+  "purpose": "Small falsification test of nested communicative attribution; not a production contract.",
+  "model_id": "qwen3-14b",
+  "language": "FR/FR",
+  "provider_transport": "LM Studio native /api/v1/chat",
+  "temperature": 0.2,
+  "reasoning": "off when authorized by the loaded model recipe",
+  "store": false,
+  "repetitions_per_case": 1,
+  "prompt_passes": 1,
+  "no_production_persistence": true,
+  "engine_owned_facts": ["immediate_speaker", "scene", "time", "recipient", "subjective_trace", "provider_provenance"],
+  "experimental_contract": {
+    "schema_version": 1,
+    "required_fields": ["schema_version", "interpretation_status", "propositions"],
+    "allowed_fields": ["schema_version", "interpretation_status", "propositions"],
+    "interpretation_status": ["clear", "ambiguous", "unresolved"],
+    "proposition_fields": ["content", "modality", "attribution_status", "attribution_chain"],
+    "modalities": ["assertion", "negation", "question", "correction", "mental_state_report"],
+    "attribution_statuses": ["direct", "reported", "unknown", "ambiguous", "multiple"],
+    "source_fields": ["source_kind", "source_name"],
+    "source_kinds": ["named_person", "unknown", "ambiguous"],
+    "chain_order": "outer reported source first, inner reported source last",
+    "limits": {"max_propositions": 4, "max_chain_depth": 4, "max_content_length": 280}
+  },
+  "evaluation_rules": [
+    "The observed immediate speaker is never inferred from model output.",
+    "A reported proposition must retain its attribution chain and must not be scored as a bare fact.",
+    "Unknown or ambiguous sources receive credit only when not invented or silently resolved.",
+    "Negation, question, correction and mental-state reports must not be scored as affirmative direct facts.",
+    "Raw output, normalized output, parser outcome and evaluator notes are retained separately.",
+    "No model output is promoted to canon, belief, memory, relation, permission, goal or production schema."
+  ],
+  "cases": [
+    {"case_id": "A", "label": "direct_assertion", "text": "Luna a cassé la tasse."},
+    {"case_id": "B", "label": "simple_report", "text": "Erika m'a dit que Luna avait cassé la tasse."},
+    {"case_id": "C", "label": "double_nesting", "text": "Erika dit que Luna lui a raconté que Nora avait cassé la tasse."},
+    {"case_id": "D", "label": "unknown_source", "text": "On m'a dit que Luna avait cassé la tasse."},
+    {"case_id": "E", "label": "ambiguous_pronouns", "text": "Elle m'a dit qu'elle l'avait cassée."},
+    {"case_id": "F", "label": "negated_report", "text": "Erika n'a jamais dit que Luna avait cassé la tasse."},
+    {"case_id": "G", "label": "questioned_report", "text": "Erika t'a vraiment dit que Luna avait cassé la tasse ?"},
+    {"case_id": "H", "label": "source_correction", "text": "Je croyais qu'Erika me l'avait dit, mais en fait c'était Nora."},
+    {"case_id": "I", "label": "competing_attributions", "text": "Erika dit que Luna l'a cassée, mais Nora affirme que c'était moi."},
+    {"case_id": "J", "label": "mental_state_report", "text": "Erika pense que Luna exagère."}
+  ]
+}
