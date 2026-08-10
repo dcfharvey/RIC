@@ -1,0 +1,42 @@
+{
+  "protocol": "SCC-1B2G",
+  "preregistration_commit": "24f5bddc34639137be9dadf0111078050be2b1fe",
+  "tooling_fix_commit": "9ab41c2c40d622507d64e873cbb5e887bf6ba891",
+  "aborted_pre_campaign_calls": {
+    "approximate_count": 16,
+    "model": "google/gemma-4-12b-qat",
+    "condition": "A_CURRENT_CONTRACT",
+    "scored": false,
+    "retained_as_results": false
+  },
+  "campaign_restart_from_zero": true,
+  "planned_calls": 174,
+  "attempted_calls": 174,
+  "completed_calls": 174,
+  "result_count_per_condition": 87,
+  "comparison_count": 81,
+  "models": [
+    "google/gemma-4-12b-qat",
+    "qwen3-14b",
+    "qwen3-8b"
+  ],
+  "conditions": [
+    "A_CURRENT_CONTRACT",
+    "B_INTERPRETATION_ONLY"
+  ],
+  "parts": [
+    "review_01_google_gemma_4_12b_qat.jsonl",
+    "review_02_qwen3_14b.jsonl",
+    "review_03_qwen3_8b.jsonl"
+  ],
+  "source_results_modified": false,
+  "semantic_judgments_included": false,
+  "fixture_audit": "fixture_audit.json",
+  "corrected_fixtures": "corrected_fixtures.json",
+  "summary": "summary.json",
+  "paired_comparison": "paired_comparison.json",
+  "review_handoff_compact": "review_handoff_compact/",
+  "production_modified": false,
+  "parser_production_modified": false,
+  "final_commit": "9ab41c2c40d622507d64e873cbb5e887bf6ba891"
+}

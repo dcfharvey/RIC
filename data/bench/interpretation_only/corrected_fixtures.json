@@ -1,0 +1,47 @@
+{
+  "protocol": "SCC-1B2G",
+  "fixtures": [
+    {
+      "scenario_id": "G01",
+      "replaces_historical": "H01",
+      "primary": "Oui, ?a me va.",
+      "selected_context": [
+        "On r?serve la salle bleue.",
+        "On reporte la r?union ? mardi."
+      ]
+    },
+    {
+      "scenario_id": "G02",
+      "replaces_historical": "H02",
+      "primary": "Elle s'appelle Julie.",
+      "selected_context": [
+        "Erika a appel? cette personne Marie."
+      ]
+    },
+    {
+      "scenario_id": "G04",
+      "replaces_historical": "H04",
+      "primary": "Ta pr?sentation ?tait vraiment bonne.",
+      "selected_context": [
+        "Nous n'?tions pas d'accord hier."
+      ]
+    },
+    {
+      "scenario_id": "G05",
+      "replaces_historical": "H05",
+      "primary": "Je dois me lever ? cinq heures demain.",
+      "selected_context": [
+        "Tu veux venir avec nous ce soir ?"
+      ]
+    },
+    {
+      "scenario_id": "G09",
+      "replaces_historical": "H09",
+      "primary": "Elle m'a dit qu'elle viendrait plus tard.",
+      "selected_context": [
+        "Sophie et Luna sont toutes deux dans la sc?ne."
+      ]
+    }
+  ],
+  "historical_fixtures_unchanged": true
+}

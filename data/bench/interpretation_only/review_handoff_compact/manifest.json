@@ -1,0 +1,33 @@
+{
+  "protocol": "SCC-1B2G",
+  "comparison_count": 81,
+  "result_count_per_condition": 87,
+  "models": [
+    "google/gemma-4-12b-qat",
+    "qwen3-14b",
+    "qwen3-8b"
+  ],
+  "conditions": [
+    "A_CURRENT_CONTRACT",
+    "B_INTERPRETATION_ONLY"
+  ],
+  "parts": [
+    "review_01_google_gemma_4_12b_qat.jsonl",
+    "review_02_qwen3_14b.jsonl",
+    "review_03_qwen3_8b.jsonl"
+  ],
+  "snapshots_included": false,
+  "semantic_judgments_included": false,
+  "source_results_modified": false,
+  "corrected_fixture_ids": [
+    "G01",
+    "G02",
+    "G04",
+    "G05",
+    "G09"
+  ],
+  "lineage_pairs": [
+    "H15_H16",
+    "B15_B16"
+  ]
+}
