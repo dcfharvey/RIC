@@ -1,0 +1,93 @@
+{
+  "protocol": "SCC-1B2H",
+  "semantic_review_status": "PENDING_SOL",
+  "models": {
+    "google/gemma-4-12b-qat": {
+      "FR_SYSTEM_PROMPT": {
+        "calls": 27,
+        "valid": 27,
+        "parse": 0,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 3,
+        "ambiguous": 24,
+        "unresolved": 0,
+        "mean_meaning": 2.926,
+        "mean_chars": 347.519,
+        "valid_rate": 1.0
+      },
+      "EN_SYSTEM_PROMPT": {
+        "calls": 27,
+        "valid": 27,
+        "parse": 0,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 12,
+        "ambiguous": 15,
+        "unresolved": 0,
+        "mean_meaning": 2.889,
+        "mean_chars": 350.37,
+        "valid_rate": 1.0
+      }
+    },
+    "qwen3-8b": {
+      "FR_SYSTEM_PROMPT": {
+        "calls": 27,
+        "valid": 27,
+        "parse": 0,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 16,
+        "ambiguous": 11,
+        "unresolved": 0,
+        "mean_meaning": 1.481,
+        "mean_chars": 109.852,
+        "valid_rate": 1.0
+      },
+      "EN_SYSTEM_PROMPT": {
+        "calls": 27,
+        "valid": 27,
+        "parse": 0,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 18,
+        "ambiguous": 9,
+        "unresolved": 0,
+        "mean_meaning": 1.333,
+        "mean_chars": 75.778,
+        "valid_rate": 1.0
+      }
+    },
+    "qwen3-14b": {
+      "FR_SYSTEM_PROMPT": {
+        "calls": 27,
+        "valid": 26,
+        "parse": 1,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 19,
+        "ambiguous": 7,
+        "unresolved": 0,
+        "mean_meaning": 1.538,
+        "mean_chars": 153.231,
+        "valid_rate": 0.963
+      },
+      "EN_SYSTEM_PROMPT": {
+        "calls": 27,
+        "valid": 27,
+        "parse": 0,
+        "semantic": 0,
+        "provider": 0,
+        "clear": 20,
+        "ambiguous": 7,
+        "unresolved": 0,
+        "mean_meaning": 1.259,
+        "mean_chars": 102.259,
+        "valid_rate": 1.0
+      }
+    }
+  },
+  "planned_calls": 162,
+  "attempted_calls": 162,
+  "completed_calls": 161
+}

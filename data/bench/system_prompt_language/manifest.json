@@ -1,0 +1,30 @@
+{
+  "protocol": "SCC-1B2H",
+  "preregistration_commit": "3535d09a45203cf3b1e8e3397dc9050b4c650487",
+  "planned_calls": 162,
+  "attempted_calls": 162,
+  "completed_valid_calls": 161,
+  "models": [
+    "google/gemma-4-12b-qat",
+    "qwen3-8b",
+    "qwen3-14b"
+  ],
+  "conditions": [
+    "FR_SYSTEM_PROMPT",
+    "EN_SYSTEM_PROMPT"
+  ],
+  "hard_blockers": [],
+  "production_modified": false,
+  "t2a": false,
+  "t2b": false,
+  "winner": null,
+  "semantic_review": "pending_sol",
+  "result_files": [
+    "principal_google_gemma_4_12b_qat_f36199f6_en_system_prompt.json",
+    "principal_google_gemma_4_12b_qat_f36199f6_fr_system_prompt.json",
+    "principal_qwen3_14b_f04eedc3_en_system_prompt.json",
+    "principal_qwen3_14b_f04eedc3_fr_system_prompt.json",
+    "principal_qwen3_8b_f9b30c0d_en_system_prompt.json",
+    "principal_qwen3_8b_f9b30c0d_fr_system_prompt.json"
+  ]
+}
