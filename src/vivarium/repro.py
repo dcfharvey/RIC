@@ -960,7 +960,7 @@ def social_appraisal_audit(conn: sqlite3.Connection, world_id: int) -> list[str]
         if r['origin_kind']=='llm' and (not r['model_id'] or not r['provider_version'] or __import__('re').fullmatch(r'[0-9a-f]{64}',r['snapshot_fingerprint']) is None): findings.append(f"appraisal {r['id']}: invalid LLM provenance")
         bases=json.loads(r['bases_json']); cs=conn.execute('SELECT basis_refs_json FROM social_appraisal_candidate WHERE appraisal_id=?',(r['id'],)).fetchall()
         for c in cs:
-            if not set(json.loads(c['basis_refs_json'])<=set(bases)): findings.append(f"appraisal {r['id']}: candidate support outside snapshot")
+            if not set(json.loads(c['basis_refs_json'])) <= set(bases): findings.append(f"appraisal {r['id']}: candidate support outside snapshot")
     return findings
 
 def scc3a_affect_audit(conn: sqlite3.Connection, world_id: int) -> list[str]:

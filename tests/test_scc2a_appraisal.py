@@ -5,6 +5,7 @@ from vivarium.cognition_policy import CognitionCallLimits
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
+from vivarium.repro import social_appraisal_audit
 from vivarium.scenes import SocialSceneService
 from vivarium.scc1c import FixedAdmissionPolicy
 from vivarium.social_appraisal import SocialAppraisalError
@@ -46,6 +47,7 @@ def test_valid_candidates_are_independent_and_no_mutation_fields(setup):
     candidates=[{'candidate_key':'affect_review','domain':'affect','basis_refs':['interpretation:primary'],'justification':'Le domaine affectif pourrait examiner cet episode.'},{'candidate_key':'relation_review','domain':'relationship','basis_refs':['interpretation:primary'],'justification':'Le domaine relationnel pourrait examiner cet episode.'}]
     sheet=SocialAppraisalLLMService(c,DeterministicAppraisalProvider(_proposal(bases=['interpretation:primary'],candidates=candidates)),clock=clock).run(w,'erika','a_candidates','live_scc1b_2',provider_turn_id='t3')
     assert len(sheet['candidates'])==2
+    assert social_appraisal_audit(c,w) == []
     for table in ('mood_state','emotion_episode','subjective_belief','relationship_view','subjective_goal'):
         assert c.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0]==0
 
