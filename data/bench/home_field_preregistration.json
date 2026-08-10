@@ -1,0 +1,20 @@
+{
+  "audit": "SCC-1B2E Home-Field Bias Audit",
+  "protocol_version": 1,
+  "status": "preregistered_before_real_calls",
+  "baseline_head": "a0995c2b02a84ba088ad8b757b0f895424ca8cf8",
+  "models": ["google/gemma-4-12b-qat", "qwen3-8b", "qwen3-14b", "ministral-3-8b-instruct-2512", "ministral-3-14b-instruct-2512-k-m"],
+  "conditions": {
+    "C1_NATIVE_STRICT": "Production system prompt, capability-aware reasoning, temperature 0.2, store false, strict parser, no normalization or retry.",
+    "C2_OUTER_FENCE_NORMALIZED": "Exactly C1, except one complete outer JSON Markdown fence may be removed before the unchanged parser.",
+    "C3_STRUCTURED_OUTPUT": "Not primary; executed only if universally comparable across all five models."
+  },
+  "held_out_fixtures": ["H01", "H02", "H03", "H04", "H05", "H06", "H07", "H08", "H09", "H10", "H11", "H12", "H13", "H14", "H15", "H16"],
+  "properties": ["grounding", "uncertainty", "source_discipline", "role_discipline", "hidden_state_overclaim", "revision_quality", "concision", "downstream_usefulness"],
+  "review_categories": ["OK", "REVIEW", "BAD"],
+  "blind_review": {"model_codes": "M01..M05", "condition_codes": ["C1", "C2"], "mapping_excluded_from_blind_bundle": true},
+  "planned_calls": {"per_model_per_condition": 18, "models": 5, "conditions": 2, "maximum_total": 180},
+  "stop_rules": ["stop on true invariant hard blocker", "do not change fixtures, prompt, parser, or production provider after first real call", "provider/parse/semantic errors remain data"],
+  "planned_analyses": ["validity and parse deltas A/B", "normalization-only recoveries", "status and hypothesis distributions", "H15/H16 lineage", "descriptive latency", "held-out qualitative review"],
+  "production_changes": "none"
+}
