@@ -29,7 +29,7 @@ from test_social_interpretation import FakeClock, _social_source
 @pytest.fixture
 def setup():
     conn = connect_database(":memory:")
-    assert ensure_schema(conn) == 39
+    assert ensure_schema(conn) == 40
     clock = FakeClock()
     world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
     yield conn, world_id, clock
@@ -62,7 +62,7 @@ def test_snapshot_owner_scope_and_explicit_selection(setup):
 
 def test_provider_output_is_strict_and_service_validates(setup):
     conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
-    bad = DeterministicInterpretationProvider(json.dumps({"schema_version": 1, "understanding_status": "clear", "meaning_hypotheses": ["x"], "motive_hypotheses": [], "actual_intent": "x"}))
+    bad = DeterministicInterpretationProvider(json.dumps({"schema_version": 2, "understanding_status": "clear", "meaning_hypotheses": ["x"], "motive_hypotheses": []}))
     with pytest.raises(SocialInterpretationProviderError):
         SocialInterpretationLLMService(conn, bad).run(world_id, "erika", "bad", "erika_speech_1")
     assert conn.execute("SELECT COUNT(*) FROM social_interpretation").fetchone()[0] == 0
@@ -71,16 +71,16 @@ def test_provider_output_is_strict_and_service_validates(setup):
 def test_llm_proposal_persists_provenance_and_has_no_consequences(setup):
     conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
     before = canonical_state_digest(conn, world_id), max_seq(conn, world_id)
-    fake = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "clear", "meaning_hypotheses": ["Une lecture."], "motive_hypotheses": []})
+    fake = DeterministicInterpretationProvider({"schema_version": 2, "understanding_status": "clear", "meaning_hypotheses": ["Une lecture."]})
     result = SocialInterpretationLLMService(conn, fake).run(world_id, "erika", "llm_reading", "erika_speech_1")
     assert result["origin_kind"] == "llm" and result["snapshot_fingerprint"]
-    assert result["model_id"] == "deterministic-test-model" and result["provider_version"] == "scc1b1-native-v2"
+    assert result["model_id"] == "deterministic-test-model" and result["provider_version"] == "scc1b1-interpretation-only-v1"
     assert (canonical_state_digest(conn, world_id), max_seq(conn, world_id)) == before
 
 
 def test_llm_replay_and_conflict_do_not_call_provider(setup):
     conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
-    fake = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "unresolved", "meaning_hypotheses": [], "motive_hypotheses": []})
+    fake = DeterministicInterpretationProvider({"schema_version": 2, "understanding_status": "unresolved", "meaning_hypotheses": []})
     service = SocialInterpretationLLMService(conn, fake)
     service.run(world_id, "erika", "same", "erika_speech_1")
     service.run(world_id, "erika", "same", "erika_speech_1")
@@ -94,9 +94,9 @@ def test_llm_revision_keeps_lineage_and_support_audited(setup):
     conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
     item = AttentionService(conn, clock=clock).snapshot(world_id, "erika").selected[0]
     memory.encode_attention(world_id, "erika", "clarification", item)
-    first_provider = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "ambiguous", "meaning_hypotheses": ["A", "B"], "motive_hypotheses": []})
+    first_provider = DeterministicInterpretationProvider({"schema_version": 2, "understanding_status": "ambiguous", "meaning_hypotheses": ["A", "B"]})
     SocialInterpretationLLMService(conn, first_provider).run(world_id, "erika", "first", "erika_speech_1")
-    second_provider = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "clear", "meaning_hypotheses": ["B"], "motive_hypotheses": []})
+    second_provider = DeterministicInterpretationProvider({"schema_version": 2, "understanding_status": "clear", "meaning_hypotheses": ["B"]})
     revised = SocialInterpretationLLMService(conn, second_provider).run(world_id, "erika", "second", "erika_speech_1", revision_of_key="first", selected_trace_request_keys=("clarification",))
     assert revised["revision_of_key"] == "first"
     assert revised["supporting_trace_request_keys"] == ("clarification",)
@@ -104,7 +104,7 @@ def test_llm_revision_keeps_lineage_and_support_audited(setup):
 
 def test_invalid_semantic_combination_is_not_repaired_or_persisted(setup):
     conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
-    fake = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "unresolved", "meaning_hypotheses": ["invented"], "motive_hypotheses": []})
+    fake = DeterministicInterpretationProvider({"schema_version": 2, "understanding_status": "unresolved", "meaning_hypotheses": ["invented"]})
     with pytest.raises(SocialInterpretationError) as raised:
         SocialInterpretationLLMService(conn, fake).run(world_id, "erika", "invalid", "erika_speech_1")
     assert raised.value.code == "invalid_interpretation"
@@ -122,7 +122,7 @@ def test_provider_turn_id_is_technical_not_cognitive(setup):
     b = SocialInterpretationContextBuilder(conn).build(world_id, "erika", "erika_speech_1")
     assert a.wire == b.wire and a.fingerprint == b.fingerprint
     assert "provider_turn_id" not in json.loads(a.wire)
-    fake = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "unresolved", "meaning_hypotheses": [], "motive_hypotheses": []})
+    fake = DeterministicInterpretationProvider({"schema_version": 2, "understanding_status": "unresolved", "meaning_hypotheses": []})
     first = SocialInterpretationLLMService(conn, fake).run(world_id, "erika", "turn_a", "erika_speech_1", provider_turn_id="A")
     second = SocialInterpretationLLMService(conn, fake).run(world_id, "erika", "turn_b", "erika_speech_1", provider_turn_id="B")
     assert first["snapshot_fingerprint"] == second["snapshot_fingerprint"]
@@ -139,7 +139,7 @@ def test_context_trace_limit_is_explicit_and_pre_provider(setup):
         selected.append(key)
     accepted = SocialInterpretationContextBuilder(conn).build(world_id, "erika", "erika_speech_1", selected_trace_request_keys=tuple(selected[:MAX_CONTEXT_TRACES]))
     assert len(accepted.data["selected_context_traces"]) == MAX_CONTEXT_TRACES
-    fake = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "unresolved", "meaning_hypotheses": [], "motive_hypotheses": []})
+    fake = DeterministicInterpretationProvider({"schema_version": 2, "understanding_status": "unresolved", "meaning_hypotheses": []})
     with pytest.raises(SocialInterpretationProviderError) as raised:
         SocialInterpretationLLMService(conn, fake).run(world_id, "erika", "too_many", "erika_speech_1", selected_trace_request_keys=tuple(selected))
     assert raised.value.code == "context_trace_limit_exceeded" and fake.calls == 0
@@ -147,7 +147,7 @@ def test_context_trace_limit_is_explicit_and_pre_provider(setup):
 
 def test_invalid_key_is_rejected_before_provider_call(setup):
     conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
-    fake = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "unresolved", "meaning_hypotheses": [], "motive_hypotheses": []})
+    fake = DeterministicInterpretationProvider({"schema_version": 2, "understanding_status": "unresolved", "meaning_hypotheses": []})
     with pytest.raises(SocialInterpretationError):
         SocialInterpretationLLMService(conn, fake).run(world_id, "erika", "not valid", "erika_speech_1")
     assert fake.calls == 0
@@ -160,7 +160,7 @@ def test_production_prompt_separates_world_data_from_system(monkeypatch, setup):
     captured = {}
     def fake_request(settings, *, system_prompt, input_text):
         captured.update(system_prompt=system_prompt, input_text=input_text)
-        return json.dumps({"schema_version": 1, "understanding_status": "unresolved", "meaning_hypotheses": [], "motive_hypotheses": [], "admin": True})
+        return json.dumps({"schema_version": 2, "understanding_status": "unresolved", "meaning_hypotheses": [], "admin": True})
     monkeypatch.setattr("vivarium.social_interpretation_provider.request_local_model", fake_request)
     from vivarium.social_interpretation_provider import LMStudioSocialInterpretationProvider
     provider = LMStudioSocialInterpretationProvider(LocalLLMSettings("http://127.0.0.1:1234", "test-model", None, 5))
@@ -174,7 +174,7 @@ def test_production_prompt_separates_world_data_from_system(monkeypatch, setup):
 
 def test_corrupt_llm_provenance_breaks_audit_and_preflight(setup):
     conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
-    fake = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "unresolved", "meaning_hypotheses": [], "motive_hypotheses": []})
+    fake = DeterministicInterpretationProvider({"schema_version": 2, "understanding_status": "unresolved", "meaning_hypotheses": []})
     SocialInterpretationLLMService(conn, fake).run(world_id, "erika", "audit", "erika_speech_1")
     conn.execute("DROP TRIGGER social_interpretation_no_update")
     conn.execute("UPDATE social_interpretation SET model_id = NULL WHERE interpretation_key = 'audit'")
@@ -185,7 +185,7 @@ def test_corrupt_llm_provenance_breaks_audit_and_preflight(setup):
 def test_llm_provenance_survives_restart(tmp_path):
     db_path = tmp_path / "scc1b.sqlite"
     conn = connect_database(str(db_path))
-    assert ensure_schema(conn) == 39
+    assert ensure_schema(conn) == 40
     clock = FakeClock()
     world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
     from test_social_interpretation import _at_salon
@@ -196,11 +196,11 @@ def test_llm_provenance_survives_restart(tmp_path):
     scenes.speak(world_id, "restart_scene", "speech", "sophie", act_kind="inform", content="Une phrase.", recipient_key="erika")
     memory = SubjectiveMemoryService(conn, clock=clock)
     memory.encode_social_speech(world_id, "erika", "speech_trace", "restart_scene", "speech")
-    provider = DeterministicInterpretationProvider({"schema_version": 1, "understanding_status": "clear", "meaning_hypotheses": ["Une phrase."], "motive_hypotheses": []})
+    provider = DeterministicInterpretationProvider({"schema_version": 2, "understanding_status": "clear", "meaning_hypotheses": ["Une phrase."]})
     created = SocialInterpretationLLMService(conn, provider, clock=clock).run(world_id, "erika", "restart", "speech_trace", provider_turn_id="restart-turn")
     conn.close()
     reopened = connect_database(str(db_path))
-    assert ensure_schema(reopened) == 39
+    assert ensure_schema(reopened) == 40
     persisted = SocialInterpretationService(reopened, clock=clock).get(world_id, "erika", "restart")
     assert persisted == created
     assert social_interpretation_audit(reopened, world_id) == []

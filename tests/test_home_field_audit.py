@@ -12,8 +12,8 @@ from vivarium.home_field_audit import (
 )
 
 
-VALID = {"schema_version": 1, "understanding_status": "ambiguous",
-         "meaning_hypotheses": ["A", "B"], "motive_hypotheses": []}
+VALID = {"schema_version": 2, "understanding_status": "ambiguous",
+         "meaning_hypotheses": ["A", "B"]}
 
 
 def test_preregistered_plan_is_held_out_and_has_180_calls():
@@ -24,7 +24,7 @@ def test_preregistered_plan_is_held_out_and_has_180_calls():
 
 
 def test_condition_b_removes_only_one_complete_outer_fence():
-    raw = '```json\n{"schema_version":1,"understanding_status":"clear","meaning_hypotheses":["A"],"motive_hypotheses":[]}\n```'
+    raw = '```json\n{"schema_version":2,"understanding_status":"clear","meaning_hypotheses":["A"]}\n```'
     normalized, applied, kind = normalize_outer_json_fence(raw)
     assert applied is True and kind == "single_outer_code_fence"
     assert normalized.startswith('{"schema_version"')

@@ -788,7 +788,7 @@ def social_interpretation_digest(conn: sqlite3.Connection, world_id: int) -> dic
         "SELECT interpretation.id AS interpretation_id, ch.key AS character, interpretation.interpretation_key, "
         "interpretation.source_trace_id, source.request_key AS source_trace_request_key, "
         "interpretation.interaction_role, interpretation.understanding_status, "
-        "interpretation.meaning_hypotheses_json, interpretation.motive_hypotheses_json, "
+        "interpretation.meaning_hypotheses_json, "
         "prior.interpretation_key AS revision_of_key, interpretation.created_at "
         "FROM social_interpretation interpretation "
         "JOIN character ch ON ch.id = interpretation.character_id "
@@ -810,7 +810,6 @@ def social_interpretation_digest(conn: sqlite3.Connection, world_id: int) -> dic
             "source_trace_request_key": row["source_trace_request_key"],
             "interaction_role": row["interaction_role"], "understanding_status": row["understanding_status"],
             "meaning_hypotheses": json.loads(row["meaning_hypotheses_json"]),
-            "motive_hypotheses": json.loads(row["motive_hypotheses_json"]),
             "revision_of_key": row["revision_of_key"],
             "supporting_trace_request_keys": tuple(item["request_key"] for item in support),
             "created_at": row["created_at"],

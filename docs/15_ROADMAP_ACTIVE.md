@@ -172,3 +172,6 @@ correspond à `0.1.0a1`, pas à une date arbitraire.
 - Le monde MVP est une histoire persistante, jamais une poubelle de test.
 - Un test emergent intéressant n'est pas une règle : il doit être reproduit,
   expliqué et décidé avant de devenir du canon.
+## État à vérifier après le lot SCC-1B
+
+La migration `0040_scc1b_interpretation_only.sql` porte le schéma à 40. Le provider actif produit uniquement `schema_version`, `understanding_status` et `meaning_hypotheses`; SCC-1C reste hors runtime.

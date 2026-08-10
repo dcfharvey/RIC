@@ -244,8 +244,8 @@ def _run_social_interpretation_bench(level: str, trials: int | None, model_id: s
     try:
         if level == "T0":
             provider = DeterministicInterpretationProvider(
-                {"schema_version": 1, "understanding_status": "ambiguous",
-                 "meaning_hypotheses": ["Lecture A", "Lecture B"], "motive_hypotheses": []},
+                {"schema_version": 2, "understanding_status": "ambiguous",
+                 "meaning_hypotheses": ["Lecture A", "Lecture B"]},
                 model_id=model_id or "deterministic-bench-model",
             )
         else:

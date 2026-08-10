@@ -59,6 +59,15 @@ def test_ensure_schema_applique_et_est_idempotent(conn):
     assert current_version(conn) == v1
 
 
+def test_scc1b_interpretation_only_renomme_lancienne_colonne_et_reste_idempotente(conn):
+    assert ensure_schema(conn) == 40
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(social_interpretation)")}
+    assert "meaning_hypotheses_json" in columns
+    assert "legacy_motive_hypotheses_json" in columns
+    assert "motive_hypotheses_json" not in columns
+    assert ensure_schema(conn) == 40
+
+
 def test_migrations_enregistre_ledger(conn):
     ensure_schema(conn)
     rows = conn.execute("SELECT version, name, checksum FROM migrations").fetchall()

@@ -556,8 +556,8 @@ def run_trial(scenario: BenchScenario, provider: Any, trial_number: int, *, time
 
         if scenario.revision:
             seed = DeterministicInterpretationProvider(
-                {"schema_version": 1, "understanding_status": "ambiguous",
-                 "meaning_hypotheses": ["Lecture initiale A", "Lecture initiale B"], "motive_hypotheses": []},
+                {"schema_version": 2, "understanding_status": "ambiguous",
+                 "meaning_hypotheses": ["Lecture initiale A", "Lecture initiale B"]},
                 model_id="bench-revision-seed", provider_version="scc1b2a-fixture-seed",
             )
             SocialInterpretationLLMService(conn, seed, clock=_BenchClock()).run(world_id, "erika", "b15_initial", "primary")

@@ -72,15 +72,14 @@ def normalize_outer_json_fence(raw: str) -> tuple[str, bool, str | None]:
 def _validate_without_persistence(value: Mapping[str, Any]) -> dict[str, Any]:
     parsed = parse_provider_proposal(value)
     meaning = SocialInterpretationService._hypotheses(parsed["meaning_hypotheses"], "meaning")
-    motive = SocialInterpretationService._hypotheses(parsed["motive_hypotheses"], "motive")
     status = parsed["understanding_status"]
-    if status == "unresolved" and (meaning or motive):
+    if status == "unresolved" and meaning:
         raise SocialInterpretationProviderError("unresolved has hypotheses", code="semantic_validation_reject")
     if status == "clear" and not meaning:
         raise SocialInterpretationProviderError("clear has no meaning hypothesis", code="semantic_validation_reject")
     if status == "ambiguous" and len(meaning) < 2:
         raise SocialInterpretationProviderError("ambiguous has fewer than two meanings", code="semantic_validation_reject")
-    return {"understanding_status": status, "meaning_hypotheses": list(meaning), "motive_hypotheses": list(motive)}
+    return {"understanding_status": status, "meaning_hypotheses": list(meaning)}
 
 
 def _snapshot_for(item: HomeFieldScenario) -> tuple[Any, Any]:

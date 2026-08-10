@@ -3,7 +3,7 @@
 **Version R&D :** 0.1  
 **Date :** 9 août 2026  
 **État logiciel de référence :** commit `8f16c67`, version `0.1.0a15`, schéma 39; SCC-1B1 `scc1b1-native-v2` inchangé; campagne T2a Gemma exécutée en 105 appels génériques + 10 appels pairés.  
-**Statut :** contrat scientifique et fonctionnel préparatoire. **SCC-1C n'est pas encore autorisé à l'implantation** : la qualification du provider après SCC-1B2 reste une porte préalable. Codex demeure l'autorité sur l'architecture réelle, le stockage, l'ordre runtime, les migrations et les tests.
+**Statut :** contrat scientifique et fonctionnel préparatoire. **SCC-1C n'est pas autorisé à l'implantation dans ce lot** : SCC-1B2 est fermé, mais la migration `interpretation-only` et l'étude structurelle de provenance imbriquée doivent précéder tout raccordement vivant. Codex demeure l'autorité sur l'architecture réelle, le stockage, l'ordre runtime, les migrations et les tests.
 
 ---
 
@@ -432,7 +432,7 @@ Arrêter et escalader si l'implantation exige :
 
 Avant un work order SCC-1C :
 
-1. terminer SCC-1B2 et qualifier un provider/recipe réel;
+1. qualifier séparément la représentation de provenance/attribution imbriquée;
 2. vérifier que la frontière SCC-1B reste stable après comparaison multi-modèles;
 3. faire auditer par Codex l'intersection avec `CognitionCallPolicy`, l'orchestrateur et les propriétaires persistants;
 4. figer uniquement le contrat fonctionnel minimal d'admission;
@@ -469,3 +469,8 @@ RIC a déjà correctement séparé l'expression, l'accès, la trace et l'interpr
 SCC-1C doit au contraire préserver une propriété centrale d'un agent non omniscient : **une chose peut lui être arrivée, avoir été encodée, et pourtant ne jamais devenir l'objet d'une interprétation explicite.**
 
 La porte d'admission est donc justifiée comme abstraction fonctionnelle. Sa politique exacte doit rester minimale, falsifiable et calibrée; aucun mécanisme neurobiologique particulier n'est imposé à l'architecture RIC.
+---
+
+## Addendum du lot SCC-1B interpretation-only — 10 août 2026
+
+SCC-1B2 est fermé. SCC-1C reste **NON AUTORISÉ À L'IMPLANTATION dans ce lot** : la migration `interpretation-only` est livrée séparément et l'étude structurelle de provenance/attribution imbriquée doit précéder tout raccordement vivant.

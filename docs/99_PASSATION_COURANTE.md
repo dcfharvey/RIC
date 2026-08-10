@@ -297,3 +297,6 @@ Aucune écriture sur ce premier tour.
 Le but de RIC n'est pas de faire croire qu'un LLM est la réalité.
 
 Le moteur établit ce qui est vrai et possible. L'interaction établit ce qui est accessible. La cognition établit ce qui est subjectivement compris, mémorisé, priorisé et décidé. Les trois couches peuvent se répondre, mais aucune ne doit être silencieusement confondue avec une autre.
+## Addendum technique — SCC-1B interpretation-only (10 août 2026)
+
+Le dépôt réel doit être relu sur HEAD avant toute suite. Le lot ajoute la migration forward-only `0040_scc1b_interpretation_only.sql` (schéma 40); les anciennes valeurs de motif sont conservées sous colonne legacy non projetée. SCC-1C reste hors runtime.

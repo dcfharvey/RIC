@@ -38,7 +38,7 @@ class FakeClock:
 @pytest.fixture
 def setup():
     conn = connect_database(":memory:")
-    assert ensure_schema(conn) == 39
+    assert ensure_schema(conn) == 40
     clock = FakeClock()
     world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
     yield conn, world_id, clock
@@ -108,7 +108,7 @@ def test_ambiguous_and_unresolved_are_valid_without_forced_selection(setup):
         world_id, "luna", "unresolved", "luna_speech_1", understanding_status="unresolved",
     )
     assert len(ambiguous["meaning_hypotheses"]) == 2
-    assert unresolved["meaning_hypotheses"] == [] and unresolved["motive_hypotheses"] == []
+    assert unresolved["meaning_hypotheses"] == []
 
 
 def test_hypotheses_are_trimmed_and_duplicates_do_not_satisfy_ambiguity(setup):
@@ -133,13 +133,12 @@ def test_hypotheses_are_trimmed_and_duplicates_do_not_satisfy_ambiguity(setup):
     assert normalized["meaning_hypotheses"] == ["elle plaisante"]
 
 
-def test_assertion_and_attributed_motive_do_not_become_belief_or_actual_intent(setup):
+def test_assertion_does_not_become_belief_or_actual_intent(setup):
     conn, world_id, clock, scenes, memory, erika_trace, luna_trace = _social_source(setup)
     service = SocialInterpretationService(conn, clock=clock)
     interpretation = service.create(
         world_id, "erika", "motive", "erika_speech_1", understanding_status="clear",
         meaning_hypotheses=["Sophie accuse Luna."],
-        motive_hypotheses=["Sophie essaie peut-être de me rassurer."],
     )
     assert "actual_intent" not in interpretation
     assert conn.execute("SELECT COUNT(*) FROM subjective_belief").fetchone()[0] == 0
@@ -258,7 +257,7 @@ def test_trace_does_not_trigger_interpretation_automatically_and_audit_preflight
 def test_interpretation_persists_across_reopen_and_remains_append_only(tmp_path):
     db_path = tmp_path / "scc1a.sqlite"
     conn = connect_database(str(db_path))
-    assert ensure_schema(conn) == 39
+    assert ensure_schema(conn) == 40
     clock = FakeClock()
     world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
     _at_salon(conn, world_id, "sophie", "erika", clock=clock)
@@ -280,7 +279,7 @@ def test_interpretation_persists_across_reopen_and_remains_append_only(tmp_path)
     conn.close()
 
     reopened = connect_database(str(db_path))
-    assert ensure_schema(reopened) == 39
+    assert ensure_schema(reopened) == 40
     persisted = SocialInterpretationService(reopened, clock=clock).get(world_id, "erika", "persistent")
     assert persisted == created
     assert social_interpretation_audit(reopened, world_id) == []

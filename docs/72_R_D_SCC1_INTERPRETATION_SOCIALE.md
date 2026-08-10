@@ -416,6 +416,16 @@ Arrêter et escalader si l'implantation exige :
 
 **SCC-1A : prêt pour un work order Luna borné.**
 
+### Amendement SCC-1B interpretation-only (10 août 2026)
+
+Le contrat effectivement livré par SCC-1B conserve `schema_version`,
+`understanding_status` et `meaning_hypotheses`. Il ne requiert ni ne produit
+`motive_hypotheses`: l'interprétation porte sur le sens communicatif et
+n'impose pas d'explication psychologique du locuteur. Les anciennes valeurs
+de motif sont conservées uniquement sous une colonne legacy non projetée lors
+de la migration du schéma; elles ne sont ni relues ni promues en provenance,
+fait, croyance ou conséquence.
+
 La science soutient qu'une expression accessible n'impose pas une compréhension unique et que les attributions d'intention sont des constructions subjectives. Elle ne fournit pas une taxonomie universelle de « sens social » ni un score de confiance que RIC devrait fossiliser.
 
 La prochaine étape sûre est donc une structure privée, sourcée, révisable et sans conséquence. Le LLM viendra seulement après que cette frontière aura été prouvée techniquement.

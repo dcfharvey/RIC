@@ -294,10 +294,9 @@ Le modèle propose uniquement la partie sémantique :
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "understanding_status": "clear | ambiguous | unresolved",
-  "meaning_hypotheses": ["..."],
-  "motive_hypotheses": ["..."]
+  "meaning_hypotheses": ["..."]
 }
 ```
 
@@ -627,7 +626,9 @@ Hors lot :
 - changement d’action;
 - UI.
 
-SCC-1B2 doit être livré et exécuté sur le modèle/prompt réel avant d’autoriser SCC-1C.
+SCC-1B2 est désormais fermé par la qualification R&D. Le présent lot migre
+le contrat vers `interpretation-only`; la provenance imbriquée reste un sujet
+R&D séparé et SCC-1C n'est pas raccordé au runtime.
 
 ---
 
@@ -664,8 +665,11 @@ SCC-1B2 doit être livré et exécuté sur le modèle/prompt réel avant d’aut
 
 ## 24. Statut pour implantation
 
-La R&D autorise maintenant **SCC-1B1**.
+La R&D autorise maintenant **SCC-1B1** et la migration technique
+`interpretation-only`.
 
 Elle n’autorise pas encore SCC-1C.
 
-La promotion vers SCC-1C dépendra de l’audit technique de SCC-1B1 puis des résultats mesurés de SCC-1B2 sur le modèle, le prompt et les réglages réellement utilisés.
+La promotion vers SCC-1C reste interdite dans ce lot; elle dépendra de
+l'étude structurelle dédiée à l'attribution/provenance imbriquée et d'un
+work order explicite.
