@@ -23,6 +23,7 @@ from typing import Any
 from .cognition_policy import CognitionCallLimits
 from .scene_scheduler import SceneSchedulerError, SceneTurnScheduler
 from .scene_turn import SceneTurnProvider, SceneTurnResult, SceneTurnService
+from .social_cognition_runtime import LiveSocialCognitionOutcome, LiveSocialCognitionService
 from .scenes import SceneError, SocialSceneService
 from .util import Clock, parse_iso, to_iso
 from .world import WorldEngine
@@ -45,6 +46,7 @@ class SocialCycleOutcome:
     closed_scene_keys: tuple[str, ...]
     interrupted_scene_keys: tuple[str, ...]
     turn: SceneTurnResult | None
+    cognition: tuple[LiveSocialCognitionOutcome, ...] = ()
 
 
 class SocialSceneCycle:
@@ -52,10 +54,13 @@ class SocialSceneCycle:
 
     def __init__(
         self, conn: sqlite3.Connection, provider: SceneTurnProvider,
-        clock: Clock | None = None,
+        clock: Clock | None = None, interpretation_provider: Any | None = None,
+        admission_policy: Any = None,
     ) -> None:
         self._conn = conn
         self._provider = provider
+        self._interpretation_provider = interpretation_provider
+        self._admission_policy = admission_policy
         self._clock = clock or Clock()
         self._scenes = SocialSceneService(conn, clock=self._clock)
         self._scheduler = SceneTurnScheduler(conn)
@@ -330,6 +335,14 @@ class SocialSceneCycle:
         opened = self.discover(world_id)
         closed: list[str] = []
         interrupted: list[str] = []
+        cognition: list[LiveSocialCognitionOutcome] = []
+        if self._interpretation_provider is not None:
+            pending = LiveSocialCognitionService(
+                self._conn, self._interpretation_provider, clock=self._clock,
+                admission_policy=self._admission_policy,
+            ).retry_one_pending(world_id, limits)
+            if pending is not None:
+                cognition.append(pending)
         active = self._conn.execute(
             "SELECT scene_key FROM social_scene WHERE world_id = ? AND status = 'active' ORDER BY id",
             (world_id,),
@@ -367,5 +380,10 @@ class SocialSceneCycle:
                 )
                 if release_at is not None and release_at > canonical_now:
                     self._deferred_until_by_turn[opportunity.turn_key] = release_at
-            return SocialCycleOutcome(tuple(opened), tuple(closed), tuple(interrupted), result)
-        return SocialCycleOutcome(tuple(opened), tuple(closed), tuple(interrupted), None)
+            if result.speech is not None and self._interpretation_provider is not None:
+                cognition.extend(LiveSocialCognitionService(
+                    self._conn, self._interpretation_provider, clock=self._clock,
+                    admission_policy=self._admission_policy,
+                ).process_speech(self._world_id(world_id), scene_key, opportunity.turn_key, limits))
+            return SocialCycleOutcome(tuple(opened), tuple(closed), tuple(interrupted), result, tuple(cognition))
+        return SocialCycleOutcome(tuple(opened), tuple(closed), tuple(interrupted), None, tuple(cognition))

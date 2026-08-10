@@ -20,6 +20,7 @@ from .arrival_cycle import InitialArrivalCycle, InitialArrivalOutcome
 from .orchestrator import OrchestratorTick, VivariumOrchestrator
 from .scenes import SocialSceneService
 from .scene_turn import SceneTurnProvider
+from .social_interpretation_provider import SocialInterpretationProvider
 from .simulation import SimulationReport, SimulationEngine
 from .social_cycle import SocialCycleOutcome, SocialSceneCycle
 from .world import WorldEngine
@@ -57,6 +58,8 @@ class MVPRuntime:
         *,
         cognition_provider: CognitionProvider | None = None,
         scene_provider: SceneTurnProvider | None = None,
+        interpretation_provider: SocialInterpretationProvider | None = None,
+        admission_policy: Any = None,
         limits: CognitionCallLimits | None = None,
         max_transitions: int = 120,
         clock: Clock | None = None,
@@ -68,18 +71,27 @@ class MVPRuntime:
                 "les fournisseurs cognitif et social doivent être activés ensemble",
                 code="invalid_mvp_runtime",
             )
+        if scene_provider is None and interpretation_provider is not None:
+            raise MVPRuntimeError(
+                "le provider d'interprétation exige le provider de scène",
+                code="invalid_mvp_runtime",
+            )
         if not isinstance(max_transitions, int) or isinstance(max_transitions, bool) or not 1 <= max_transitions <= 1000:
             raise MVPRuntimeError("borne de transitions invalide", code="invalid_mvp_runtime")
         self._conn = conn
         self.world_id = world_id
         self._cognition_provider = cognition_provider
         self._scene_provider = scene_provider
+        self._interpretation_provider = interpretation_provider
+        self._admission_policy = admission_policy
         self._limits = limits or CognitionCallLimits(0, 3600, 8)
         self._limits.validated()
         self._max_transitions = max_transitions
         self._clock = clock or Clock()
         self._social_cycle = None if scene_provider is None else SocialSceneCycle(
-            conn, scene_provider, clock=self._clock
+            conn, scene_provider, clock=self._clock,
+            interpretation_provider=interpretation_provider,
+            admission_policy=admission_policy,
         )
 
     def run_once(self) -> MVPRunReport:

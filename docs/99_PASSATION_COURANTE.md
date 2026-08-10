@@ -311,10 +311,19 @@ Le moteur établit ce qui est vrai et possible. L'interaction établit ce qui es
 
 Le dépôt réel doit être relu sur HEAD avant toute suite. Le lot ajoute la migration forward-only `0040_scc1b_interpretation_only.sql` (schéma 40); les anciennes valeurs de motif sont conservées sous colonne legacy non projetée. SCC-1C reste hors runtime.
 
-État opérationnel courant : `main` est sur `cc161555`; `0041_scc1c_admission.sql`
-porte le schéma à 41. L'étude d'attribution imbriquée est négative pour une
-persistance libre. SCC-1C est implanté/testé hors runtime via une admission
-append-only owner-scoped depuis une trace SCC-0 explicitement fournie, avec
-tentatives techniques séparées. Aucun rattrapage au redémarrage, aucun effet
-causal et aucun raccordement vivant ne sont autorisés dans ce lot. Prochain
-work order : raccordement événementiel SCC-0 -> SCC-1C -> SCC-1B.
+État opérationnel courant : `main` porte maintenant le raccordement vivant
+SCC-0 -> SCC-1C -> SCC-1B; les migrations `0041_scc1c_admission.sql` et
+`0042_social_interpretation_call_trigger.sql` portent le schéma à 42. Un acte
+social runtime accepté encode les participantes de sa scène, puis passe par
+l'admission owner-scoped, le budget technique et SCC-1B. Les retries sont
+bornés et techniques; aucun scan historique, effet causal ou SCC-2/SCC-3 n'est
+autorisé.
+
+Le raccordement est désormais livré sur le runtime social : un acte accepté
+par `SceneTurnService` déclenche, pour les participantes de la scène seulement,
+SCC-0 puis SCC-1C et, si sélectionné, la porte technique et SCC-1B. La migration
+`0042_social_interpretation_call_trigger.sql` ajoute le trigger technique
+`social_interpretation` au ledger historique; le schéma courant est 42. Les
+tentatives différées/indisponibles sont reprises explicitement et au plus une
+par pulsation, sans nouvelle admission cognitive ni scan exhaustif. Aucun effet
+SCC-2/SCC-3 n'est raccordé.

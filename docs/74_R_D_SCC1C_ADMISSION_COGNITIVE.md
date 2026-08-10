@@ -491,6 +491,25 @@ Une tentative `interpreted` exige une interprétation déjà persistée par
 Il n'y a ni raccordement runtime, ni rattrapage historique au redémarrage, ni
 révision automatique, ni attribution imbriquée, ni effet canonique, croyance,
 affect, relation, permission, but, action ou SCC-2/SCC-3.
+
+## Addendum de raccordement runtime vivant — 10 août 2026
+
+Le raccordement événementiel est maintenant livré. Après la persistance d'un
+nouvel acte `social_speech_act` par le tour social runtime, un adaptateur borne
+le flux sur les participantes de cette scène : SCC-0 encode les traces privées,
+SCC-1C admet chaque trace une seule fois, puis le ledger
+`CognitionCallPolicy` autorise ou diffère l'appel SCC-1B. Le provider et la
+validation existants terminent par `social_interpretation` privée.
+
+Les retries ne recréent pas d'admission cognitive : ils reprennent seulement
+une tentative technique explicitement persistée, au plus une par pulsation et
+avec une cadence minimale. Un restart ne parcourt pas les traces historiques;
+seules les tentatives techniques pending peuvent être reprises selon cette
+borne. La migration `0042_social_interpretation_call_trigger.sql` ajoute le
+déclencheur technique sans modifier les migrations publiées.
+
+Le pipeline s'arrête toujours à SCC-1B. Aucun effet SCC-2/SCC-3, aucune
+attribution imbriquée et aucune conséquence canonique ne sont raccordés.
 ---
 
 ## Addendum du lot SCC-1B interpretation-only — 10 août 2026

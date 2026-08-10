@@ -10,6 +10,16 @@
   projections et tests déterministes. Aucun raccordement runtime, rattrapage
   historique ou effet causal n'est ajouté.
 
+## SCC-1C runtime — chaîne sociale vivante
+
+- Raccorde un nouvel acte social runtime à SCC-0, SCC-1C puis SCC-1B, avec
+  ownership privé, budget technique séparé, dégradation provider et retry borné.
+- Ajoute la migration forward-only `0042_social_interpretation_call_trigger.sql`
+  pour préserver les admissions techniques existantes et autoriser le trigger
+  `social_interpretation`.
+- Aucun scan historique, effet SCC-2/SCC-3, attribution imbriquée ou changement
+  canonique n'est ajouté.
+
 ## SCC-1B2D4 — namespace atomique des artefacts Screen-47
 
 - Les chemins review/paired sont désormais dérivés du principal fourni par
