@@ -322,6 +322,15 @@ appraisals, candidates, décisions et états subjectifs réellement présents.
 Les claims référencent les preuves moteur et l’audit est déterministe. Il n’y a
 ni planificateur LLM, ni UI complète, ni rattrapage, ni nouvelle conséquence.
 
+## Addendum opérationnel — console de rodage Hugin / Munin V0.1
+
+La page locale `/observer` et la route `POST /api/worlds/{world_id}/observer`
+sont livrées. Elles utilisent une connexion SQLite explicitement read-only et
+le read-model moteur. Le focus `current_state` expose position, activité et
+durée uniquement si la transition canonique est prouvée. Le planner naturel
+est déterministe et optionnel; les plans structurés manuels restent le fallback.
+Patoune est observé comme `character` non-sapient, sans cognition inventée.
+
 ## 10. Rappel final
 
 Le but de RIC n'est pas de faire croire qu'un LLM est la réalité.

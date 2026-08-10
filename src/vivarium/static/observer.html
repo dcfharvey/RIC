@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RIC — Console d'observation</title>
+  <style>
+    body{font:16px system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;background:#f7f7f4;color:#252525}
+    main{display:grid;grid-template-columns:22rem 1fr;gap:1rem}.panel{background:white;border:1px solid #ccc;border-radius:6px;padding:1rem}
+    label{display:block;margin:.7rem 0}.wide{width:100%;box-sizing:border-box}button{padding:.55rem .9rem;cursor:pointer}
+    pre{white-space:pre-wrap;overflow:auto;background:#f0f0ed;padding:.8rem;border-radius:4px}.muted{color:#666}
+    @media(max-width:700px){main{display:block}.panel{margin-bottom:1rem}}
+  </style>
+</head>
+<body>
+  <h1>Console de rodage Hugin / Munin</h1>
+  <p class="muted">Observation locale, bornée et lecture seule. Cette page n'est pas l'interface finale.</p>
+  <main>
+    <section class="panel">
+      <label>Monde <input id="world" type="number" min="1" value="1"></label>
+      <label>Question naturelle (optionnelle)<textarea id="question" class="wide" rows="3" placeholder="Où est Patoune ?"></textarea></label>
+      <p>Ou contrôle structuré :</p>
+      <label>Mode <select id="mode"><option>hugin</option><option>munin</option><option>both</option></select></label>
+      <label>Sujets (clés séparées par des virgules)<input id="subjects" class="wide" placeholder="erika,sophie"></label>
+      <label>Focus <select id="focus"><option>current_state</option><option>events</option><option>conversation</option><option>subjective_state</option><option>causal_chain</option><option>comparison</option></select></label>
+      <label>Période <select id="period"><option value="now">Maintenant</option><option value="15m">15 dernières minutes</option><option value="1h">Dernière heure</option><option value="custom">Personnalisée</option></select></label>
+      <label>Début ISO (personnalisée)<input id="start" class="wide" placeholder="2026-08-10T12:00:00+00:00"></label>
+      <label>Fin ISO (personnalisée)<input id="end" class="wide" placeholder="2026-08-10T13:00:00+00:00"></label>
+      <label>Lieu (optionnel)<input id="location" class="wide" placeholder="entree"></label>
+      <label>Maximum d'éléments <input id="max" type="number" min="1" max="100" value="50"></label>
+      <button id="run">Observer</button>
+      <p id="status" class="muted"></p>
+    </section>
+    <section class="panel">
+      <h2>Réponse</h2><p id="narrative">—</p>
+      <h2>Claims</h2><pre id="claims">—</pre>
+      <details><summary>Preuve</summary><pre id="evidence">—</pre></details>
+      <p>Fingerprint: <code id="fingerprint">—</code></p>
+    </section>
+  </main>
+  <script>
+    const $=id=>document.getElementById(id);
+    $('run').onclick=async()=>{
+      $('status').textContent='Lecture en cours…';
+      const q=$('question').value.trim();
+      const body=q?{question:q}:{mode:$('mode').value,focus:$('focus').value,relative_time_scope:$('period').value,
+        subject_keys:$('subjects').value.split(',').map(x=>x.trim()).filter(Boolean),
+        location_key:$('location').value.trim()||null,start_at:$('start').value.trim()||null,end_at:$('end').value.trim()||null,max_events:Number($('max').value)};
+      try{
+        const r=await fetch('/api/worlds/'+encodeURIComponent($('world').value)+'/observer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const j=await r.json(); if(!j.ok) throw new Error(j.error.message||'Erreur'); const d=j.data;
+        $('status').textContent=d.bounds.truncated?'Lecture tronquée par les bornes.':'Lecture terminée.';
+        $('narrative').textContent=d.narrative; $('claims').textContent=JSON.stringify(d.claims,null,2);
+        $('evidence').textContent=JSON.stringify(d.evidence,null,2); $('fingerprint').textContent=d.snapshot_fingerprint;
+      }catch(e){$('status').textContent='Erreur: '+e.message}
+    };
+  </script>
+</body>
+</html>

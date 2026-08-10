@@ -952,3 +952,8 @@
   structuré et strictement lecture seule. Hugin sépare actes de parole et faits;
   Munin conserve l’ownership des états subjectifs et la chaîne de provenance.
   Aucun schéma, état persistant ou comportement runtime n’est ajouté.
+
+- **Console de rodage Hugin/Munin V0.1** : ajout de `/observer`, de la route
+  locale de lecture bornée, du focus canonique `current_state` et d’un planner
+  naturel déterministe optionnel. Les preuves restent dépliables et aucune
+  requête ne modifie la simulation.

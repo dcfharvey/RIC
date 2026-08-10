@@ -16,12 +16,13 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from .util import parse_iso
+from .world import WorldEngine
 
 Mode = Literal["hugin", "munin", "both"]
-Focus = Literal["events", "conversation", "subjective_state", "causal_chain", "comparison"]
+Focus = Literal["events", "conversation", "subjective_state", "causal_chain", "comparison", "current_state"]
 _KEY = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _MODES = {"hugin", "munin", "both"}
-_FOCUSES = {"events", "conversation", "subjective_state", "causal_chain", "comparison"}
+_FOCUSES = {"events", "conversation", "subjective_state", "causal_chain", "comparison", "current_state"}
 
 
 class ObservationError(ValueError):
@@ -37,6 +38,7 @@ class ObservationQuery:
     focus: Focus = "events"
     start_at: str | None = None
     end_at: str | None = None
+    location_key: str | None = None
     max_events: int = 50
     max_items_per_owner: int = 50
 
@@ -150,6 +152,53 @@ class HuginMuninObservationService:
                     f"{row['speaker']} a parle{addressee}: {row['content_text']}", "established", [ref]))
         truncated = len(events) >= query.max_events or len(speeches) >= query.max_events
         return claims, evidence, truncated
+
+    def _current_state(self, world_id: int, query: ObservationQuery) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
+        claims: list[dict[str, Any]] = []
+        evidence: list[dict[str, Any]] = []
+        params: list[Any] = [world_id]
+        clauses = ["ch.world_id=?"]
+        if query.subject_keys:
+            marks = ",".join("?" for _ in query.subject_keys)
+            clauses.append(f"ch.key IN ({marks})")
+            params.extend(query.subject_keys)
+        if query.location_key is not None:
+            clauses.append("l.key=?")
+            params.append(query.location_key)
+        rows = self.conn.execute(
+            "SELECT ch.key,ch.name,l.key AS location_key,l.name AS location_name, "
+            "(SELECT a.type FROM activity a WHERE a.world_id=ch.world_id AND a.character_id=ch.id AND a.status='active' ORDER BY a.id DESC LIMIT 1) AS activity_type, "
+            "(SELECT a.started_at FROM activity a WHERE a.world_id=ch.world_id AND a.character_id=ch.id AND a.status='active' ORDER BY a.id DESC LIMIT 1) AS activity_started_at "
+            "FROM character ch JOIN location l ON l.id=ch.current_location_id WHERE " + " AND ".join(clauses) + " ORDER BY ch.key",
+            tuple(params),
+        ).fetchall()
+        now = WorldEngine(self.conn).read_canonical_time(world_id)
+        for row in rows:
+            ref = f"current_character:{row['key']}"
+            last_move = self.conn.execute(
+                "SELECT e.public_id,e.occurred_at FROM canonical_event e WHERE e.world_id=? AND e.event_type='character_moved' "
+                "AND json_extract(e.payload,'$.character')=? AND json_extract(e.payload,'$.to')=? ORDER BY e.seq DESC LIMIT 1",
+                (world_id, row["key"], row["location_key"]),
+            ).fetchone()
+            duration_seconds = None
+            if last_move is not None:
+                duration_seconds = max(0, int((parse_iso(now) - parse_iso(last_move["occurred_at"])).total_seconds()))
+            data = {"character_key": row["key"], "name": row["name"], "location_key": row["location_key"],
+                    "location_name": row["location_name"], "activity_type": row["activity_type"],
+                    "activity_started_at": row["activity_started_at"], "canonical_now": now,
+                    "duration_seconds": duration_seconds,
+                    "last_transition": None if last_move is None else {"public_id": last_move["public_id"], "occurred_at": last_move["occurred_at"]}}
+            evidence.append(self._evidence(ref, "current_canonical_state", "canon", None, data))
+            activity = f"; activite courante: {row['activity_type']}" if row["activity_type"] else ""
+            duration = (f"; present depuis {duration_seconds} secondes au minimum" if duration_seconds is not None
+                        else "; duree de presence non etablissable")
+            claims.append(self._claim(f"current:{row['key']}", "canon", None,
+                f"{row['name']} ({row['key']}) est actuellement a {row['location_name']} ({row['location_key']}){activity}{duration}.",
+                "established", [ref]))
+        if query.location_key is not None and not rows:
+            claims.append(self._claim("current:empty", "canon", None,
+                f"Aucun personnage canonique n'est actuellement observe a {query.location_key}.", "not_observed", []))
+        return claims, evidence, False
 
     def _munin(self, world_id: int, query: ObservationQuery, owners: dict[str, int]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
         claims: list[dict[str, Any]] = []
@@ -281,7 +330,11 @@ class HuginMuninObservationService:
         truncated = False
         sections: dict[str, Any] = {}
         if query.mode in {"hugin", "both"}:
-            c, e, t = self._hugin(world_id, query); claims.extend(c); evidence.extend(e); truncated |= t
+            if query.focus == "current_state":
+                c, e, t = self._current_state(world_id, query)
+            else:
+                c, e, t = self._hugin(world_id, query)
+            claims.extend(c); evidence.extend(e); truncated |= t
             sections["hugin"] = {"claims": c, "evidence_refs": [x["ref"] for x in e]}
         if query.mode in {"munin", "both"}:
             c, e, t = self._munin(world_id, query, owners); claims.extend(c); evidence.extend(e); truncated |= t

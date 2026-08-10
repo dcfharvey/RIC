@@ -29,8 +29,10 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from .admin import AdminCommandService, AdminReadError, AdminReadService
 from .admin_changes import AdminChangeError, AdminChangeService
-from .db import connect_database
+from .db import connect_database, connect_readonly_database
 from .migrations import load_migrations
+from .observer_planner import ObserverPlannerError, query_from_payload
+from .observation import ObservationError, HuginMuninObservationService
 
 logger = logging.getLogger("vivarium.web")
 
@@ -186,7 +188,7 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             self._check_host()
             self._check_origin()
             kind, args = self._resolve_route()
-            if kind in ("index", "style", "app"):
+            if kind in ("index", "style", "app", "observer_page"):
                 if self.command in ("GET", "HEAD"):
                     self._serve_static(kind, send_body=(self.command == "GET"))
                 else:
@@ -194,7 +196,7 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             elif self.command in ("GET", "HEAD"):
                 if kind in (
                     "command", "change_prepare", "change_prepare_passage",
-                    "change_prepare_remove_passage", "change_confirm"
+                    "change_prepare_remove_passage", "change_confirm", "observer_query"
                 ):
                     raise HttpError(405, "method_not_allowed", "Méthode non autorisée.")
                 if kind in ("change_validate", "change_impact"):
@@ -204,6 +206,8 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             elif self.command == "POST":
                 if kind == "command":
                     self._serve_command(args[0])
+                elif kind == "observer_query":
+                    self._serve_observer(args[0])
                 elif kind in (
                     "change_prepare", "change_prepare_passage",
                     "change_prepare_remove_passage", "change_confirm",
@@ -279,6 +283,8 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             return ("style", [])
         if parts == ["static", "app.js"]:
             return ("app", [])
+        if parts == ["observer"]:
+            return ("observer_page", [])
         if not parts or parts[0] != "api":
             raise HttpError(404, "not_found", "Route inconnue.")
         if parts == ["api", "worlds"]:
@@ -292,6 +298,8 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
                 return ("events", [parts[2]])
             if parts[3] == "scenes":
                 return ("scenes", [parts[2]])
+            if parts[3] == "observer":
+                return ("observer_query", [parts[2]])
             raise HttpError(404, "not_found", "Route inconnue.")
         if (
             len(parts) == 5
@@ -331,6 +339,9 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
         elif kind == "app":
             body = (STATIC_DIR / "app.js").read_bytes()
             ctype = "application/javascript; charset=utf-8"
+        elif kind == "observer_page":
+            body = (STATIC_DIR / "observer.html").read_bytes()
+            ctype = "text/html; charset=utf-8"
         else:  # pragma: no cover - routeur garantit la fermeture
             raise HttpError(404, "not_found", "Route inconnue.")
         self._send_bytes(200, body, ctype, send_body=send_body)
@@ -377,6 +388,24 @@ class VivariumRequestHandler(http.server.BaseHTTPRequestHandler):
             self._send_error(400, "invalid_parameters", str(e), send_body=send_body)
         finally:
             conn.close()
+
+    def _serve_observer(self, world_segment: str) -> None:
+        """Adaptateur HTTP du read-model Hugin/Munin; aucune logique SQL ici."""
+        payload = self._read_json_object(frozenset({
+            "question", "mode", "subject_keys", "focus", "start_at", "end_at",
+            "location_key", "relative_time_scope", "max_events", "max_items_per_owner",
+        }))
+        wid = self._parse_world_id(world_segment)
+        conn = connect_readonly_database(self.server.db_path)
+        try:
+            query = query_from_payload(conn, wid, payload)
+            data = HuginMuninObservationService(conn).report(wid, query)
+        except (ObserverPlannerError, ObservationError, ValueError) as exc:
+            self._send_error(400, getattr(exc, "code", "invalid_observation_query"), str(exc))
+            return
+        finally:
+            conn.close()
+        self._send_json(200, {"ok": True, "data": data, "error": None})
 
     # --- commandes (POST) -----------------------------------------------------
 

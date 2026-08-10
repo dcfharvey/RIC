@@ -34,6 +34,17 @@ def connect_database(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def connect_readonly_database(path: Path) -> sqlite3.Connection:
+    """Ouvre une base existante en lecture seule, sans PRAGMA d'ecriture."""
+    path = Path(path)
+    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    conn.isolation_level = None
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 5000")
+    return conn
+
+
 @contextmanager
 def transaction(conn: sqlite3.Connection):
     """Ouvre une transaction atomique ; rollback total en cas d'erreur.

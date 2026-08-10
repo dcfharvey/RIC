@@ -174,6 +174,14 @@ effectivement persistés. Aucun rapport n’est persisté, aucun LLM n’accède
 base, et aucune requête ne produit de conséquence. Une interface narrative LLM,
 une UI complète et les extensions de mémoire restent différées.
 
+### Addendum opérationnel — console de rodage Hugin / Munin V0.1
+
+Une console locale temporaire est maintenant disponible sur `/observer`. Elle
+consomme le read-model sans SQL dans le transport et fournit le focus canonique
+`current_state` ainsi qu’un planner naturel déterministe très borné. Les
+contrôles structurés restent la voie fiable; aucune narration LLM, détection
+d’anomalies ou interface finale n’est engagée.
+
 ## Frontières explicites
 
 - Les tests unitaires actuels restent la preuve des règles locales.
