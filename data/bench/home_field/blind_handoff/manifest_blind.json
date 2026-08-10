@@ -1,0 +1,26 @@
+{
+  "audit": "SCC-1B2E Home-Field Bias Audit",
+  "blind_manifest_schema_version": 1,
+  "review_only": true,
+  "entry_count": 180,
+  "model_codes": [
+    "M01",
+    "M02",
+    "M03",
+    "M04",
+    "M05"
+  ],
+  "condition_codes": [
+    "C1",
+    "C2"
+  ],
+  "parts": [
+    "blind_review_part_01.jsonl",
+    "blind_review_part_02.jsonl",
+    "blind_review_part_03.jsonl",
+    "blind_review_part_04.jsonl"
+  ],
+  "mapping_included": false,
+  "unblinding_authorized": false,
+  "production_changes": false
+}
