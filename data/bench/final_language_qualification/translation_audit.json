@@ -1,0 +1,21 @@
+{
+  "protocol": "SCC-1B2I",
+  "audit_status": "FROZEN_BEFORE_CALLS",
+  "entries": [
+    {"scenario_id":"G01","fr_text":"Oui, ça me va. / deux propositions","en_text":"Yes, that works for me. / two proposals","target_phenomenon":"ambiguous antecedent","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"Two explicit prior proposals remain plausible."},
+    {"scenario_id":"G05","fr_text":"Invitation + Je dois me lever à cinq heures demain.","en_text":"Invitation + I have to get up at five tomorrow.","target_phenomenon":"indirect refusal","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"The schedule remains a natural indirect response."},
+    {"scenario_id":"G09","fr_text":"Elle m'a dit qu'elle viendrait plus tard.","en_text":"She told me she would come later.","target_phenomenon":"ambiguous pronouns","semantic_equivalence":"PASS","pragmatic_equivalence":"LIMITED","notes":"English preserves pronoun ambiguity but has different discourse morphology."},
+    {"scenario_id":"H03","fr_text":"Je suis désolée que ça soit arrivé.","en_text":"I'm sorry that happened.","target_phenomenon":"sympathy without confession","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"Regret remains distinct from responsibility."},
+    {"scenario_id":"H07","fr_text":"Erika m'a dit: \"Luna a cassé la tasse.\"","en_text":"Erika told me: \"Luna broke the cup.\"","target_phenomenon":"reported-source hierarchy","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"Quotation and reporting hierarchy are retained."},
+    {"scenario_id":"H08","fr_text":"Erika pense que la porte est verrouillée, mais je n'en sais rien.","en_text":"Erika thinks the door is locked, but I don't know.","target_phenomenon":"belief/source discipline","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"Belief and uncertainty roles are explicit."},
+    {"scenario_id":"H10","fr_text":"T'es un ange.","en_text":"You're an angel.","target_phenomenon":"figurative social formula","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"Conventional figurative reading remains available."},
+    {"scenario_id":"H12","fr_text":"Ça m'irrite encore. / Je ne suis pas fâchée.","en_text":"It still irritates me. / I'm not angry.","target_phenomenon":"contradictory self-report","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"Natural contrast without forced synonymy."},
+    {"scenario_id":"H13","fr_text":"Je vais vendre ton ordinateur. Je blague.","en_text":"I'm going to sell your computer. I'm joking.","target_phenomenon":"explicit joke marker","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"The joke marker remains explicit."},
+    {"scenario_id":"H15/H16","fr_text":"Réserve puis clarification.","en_text":"Reserve then clarification.","target_phenomenon":"revision","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"The update remains a genuine clarification."},
+    {"scenario_id":"B04","fr_text":"Le projet vient d'être refusé. / Super.","en_text":"The project was rejected. / Great.","target_phenomenon":"pragmatic contradiction","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"Direct counterpart."},
+    {"scenario_id":"B10","fr_text":"Il fait froid ici. / La fenêtre est ouverte.","en_text":"It's cold in here. / The window is open.","target_phenomenon":"contextual implication","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"Causal/contextual clue preserved."},
+    {"scenario_id":"B13","fr_text":"X a volé mon téléphone.","en_text":"X stole my phone.","target_phenomenon":"assertion versus fact","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"Required lexical item 'stole' is explicit."},
+    {"scenario_id":"B15/B16","fr_text":"Initial puis clarification.","en_text":"Initial then clarification.","target_phenomenon":"revision","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"Lineage and content update preserved."},
+    {"scenario_id":"B19","fr_text":"La porte est ouverte. / La porte est fermée.","en_text":"The door is open. / The door is closed.","target_phenomenon":"contradiction","semantic_equivalence":"PASS","pragmatic_equivalence":"PASS","notes":"Both assertions remain present."}
+  ]
+}
