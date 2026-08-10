@@ -1,0 +1,23 @@
+{
+  "protocol": "SCC-1B2G",
+  "historical_fixtures": {
+    "H01": {"status": "MISMATCH", "reason": "no two antecedents are present in the snapshot"},
+    "H02": {"status": "MISMATCH", "reason": "no preceding erroneous identification is present"},
+    "H03": {"status": "PASS", "reason": "the utterance itself contains the responsibility-ambiguous excuse"},
+    "H04": {"status": "MISMATCH", "reason": "no prior explicit disagreement is present"},
+    "H05": {"status": "MISMATCH", "reason": "no invitation is present before the indirect refusal"},
+    "H06": {"status": "PASS", "reason": "conditional promise is present in the primary utterance"},
+    "H07": {"status": "PASS", "reason": "nested reported speech is present in the primary utterance"},
+    "H08": {"status": "PASS", "reason": "reported belief and Sophie ignorance are explicit"},
+    "H09": {"status": "MISMATCH", "reason": "no two plausible female referents are encoded"},
+    "H10": {"status": "PASS", "reason": "conventional formula is present"},
+    "H11": {"status": "PASS", "reason": "fatigue context is selected"},
+    "H12": {"status": "PASS", "reason": "prior irritation context is selected"},
+    "H13": {"status": "PASS", "reason": "explicit joke marker is present"},
+    "H14": {"status": "PASS", "reason": "collective non-specific request is present"},
+    "H15": {"status": "PASS", "reason": "gift question context is selected"},
+    "H16": {"status": "PASS", "reason": "revision content and initial context are selected"}
+  },
+  "main_semantic_conclusions_exclude": ["H01", "H02", "H04", "H05", "H09"],
+  "historical_results_preserved": true
+}
