@@ -308,7 +308,9 @@ def _run_social_interpretation_screen(model_id: str, report_path: str | None) ->
             raise BenchError("model key inconnu dans l'inventaire local", code="deployment_failed")
         deployment = inspect_screen_deployment(identity)
         safe = _safe_model_id(model_id)
-        principal = report_path or f"data/bench/screen_{safe}.json"
+        principal = Path(report_path) if report_path else Path(f"data/bench/screen_{safe}.json")
+        review = principal.with_name(f"{principal.stem}_review.json")
+        paired = principal.with_name(f"{principal.stem}_paired.json")
         if deployment["screen_status"] != "ready":
             payload = {"screen_schema_version": 1, "level": "Screen-47", "model_id": model_id,
                        "requested_model_key": model_id, "experimental_identity": identity,
@@ -316,16 +318,15 @@ def _run_social_interpretation_screen(model_id: str, report_path: str | None) ->
                        "screen_status": deployment["screen_status"], "warmup": {"attempted": False},
                        "calls_attempted": 0, "calls_completed": 0, "generic_calls": 0, "paired_calls": 0,
                        "hard_blockers": []}
-            target = Path(principal)
+            target = principal
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            target.with_name(f"screen_{safe}_review.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            review.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             print(json.dumps({key: payload[key] for key in ("screen_status", "model_id", "calls_attempted")}, ensure_ascii=False, indent=2))
             return 2
         provider = LMStudioSocialInterpretationProvider(settings)
         report = run_screen47(provider, experimental_identity=identity, deployment=deployment)
-        write_screen47_report(report, principal, Path(principal).with_name(f"screen_{safe}_review.json"),
-                              paired_path=Path(principal).with_name(f"screen_{safe}_paired.json"))
+        write_screen47_report(report, principal, review, paired_path=paired)
         payload = report.as_dict()
     except (BenchError, CognitionError, ValueError) as exc:
         print(f"Screen-47 : {getattr(exc, 'code', 'invalid_request')} — {exc}", file=__import__('sys').stderr)

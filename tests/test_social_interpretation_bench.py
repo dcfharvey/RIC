@@ -31,6 +31,7 @@ from vivarium.social_interpretation_bench import (
     run_trial,
     screen47_call_plan,
     write_t2a_paired_report,
+    write_screen47_report,
     build_model_inventory,
 )
 
@@ -150,6 +151,27 @@ def test_screen47_aggregate_excludes_warmup_and_contains_promised_sections(monke
     assert payload["warmup"]["scored"] is False
     assert payload["median_scored_latency_ms"] == 1
     assert "metamorphic_metrics" in payload and "revision" in payload and "injection" in payload
+
+
+def test_screen47_auxiliary_views_are_reconstructible_from_principal(tmp_path, monkeypatch):
+    provider = LMStudioSocialInterpretationProvider(LocalLLMSettings("http://127.0.0.1:1234", "model_A", None, 12))
+    trial = BenchTrialReport(2, "B01", "base", 1, "model_A", "scc1b1-native-v2", "b" * 64, 1,
+                             "valid_interpretation", "real_provider_ready", understanding_status="ambiguous")
+    pair = BenchPairedRevisionReport("screen", 1, trial, trial, True)
+    monkeypatch.setattr("vivarium.social_interpretation_bench.run_trial", lambda *args, **kwargs: trial)
+    monkeypatch.setattr("vivarium.social_interpretation_bench.run_paired_revision_trial", lambda *args, **kwargs: pair)
+    report = run_screen47(provider)
+    principal = tmp_path / "candidate.json"
+    review = tmp_path / "candidate_review.json"
+    paired = tmp_path / "candidate_paired.json"
+    write_screen47_report(report, principal, review, paired_path=paired)
+    principal_payload = json.loads(principal.read_text(encoding="utf-8"))
+    review_payload = json.loads(review.read_text(encoding="utf-8"))
+    paired_payload = json.loads(paired.read_text(encoding="utf-8"))
+    assert review_payload["generic"] == principal_payload["generic"]
+    assert review_payload["paired"] == principal_payload["paired"]
+    assert paired_payload["pairs"] == principal_payload["paired"]
+    assert paired_payload["baseline"]["generic_artifact"] == principal.name
 
 
 def test_paired_writer_uses_real_model_identity_and_no_gemma_label(tmp_path):

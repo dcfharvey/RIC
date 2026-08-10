@@ -108,6 +108,66 @@ def test_cli_screen_instantiates_real_scc_provider_without_network(monkeypatch, 
     assert "model_A" in capsys.readouterr().out
 
 
+def test_cli_screen_default_report_namespace_is_stable(monkeypatch, tmp_path):
+    settings = LocalLLMSettings("http://127.0.0.1:1234", "model_A", None, 12)
+
+    class InventoryProvider:
+        def __init__(self, received): pass
+
+        def list_model_records(self):
+            return ({"key": "model_A", "loaded_instances": [{"id": "instance-1", "config": {"context_length": 8192}}]},)
+
+    class Report:
+        def as_dict(self):
+            return {"screen_schema_version": 1, "screen_status": "completed", "model_id": "model_A", "calls_attempted": 0,
+                    "calls_completed": 0, "hard_blockers": []}
+
+    paths = {}
+    monkeypatch.setattr("vivarium.cognition.LocalLLMSettings.from_environment", classmethod(lambda cls, require_model=False: settings))
+    monkeypatch.setattr("vivarium.cognition.LMStudioProvider", InventoryProvider)
+    monkeypatch.setattr("vivarium.social_interpretation_bench.run_screen47", lambda provider, **kwargs: Report())
+    monkeypatch.setattr("vivarium.social_interpretation_bench.write_screen47_report",
+                        lambda report, principal, review, *, paired_path=None: paths.update(
+                            principal=principal, review=review, paired=paired_path))
+
+    assert main(["social-interpretation-screen", "--model-id", "model_A"]) == 0
+    assert paths["principal"].name.startswith("screen_model_a_")
+    assert paths["principal"].suffix == ".json"
+    assert paths["review"].name == f"{paths['principal'].stem}_review.json"
+    assert paths["paired"].name == f"{paths['principal'].stem}_paired.json"
+
+
+def test_cli_screen_custom_reports_use_distinct_atomic_namespaces(monkeypatch, tmp_path):
+    settings = LocalLLMSettings("http://127.0.0.1:1234", "model_A", None, 12)
+
+    class InventoryProvider:
+        def __init__(self, received): pass
+
+        def list_model_records(self):
+            return ({"key": "model_A", "loaded_instances": [{"id": "instance-1", "config": {"context_length": 8192}}]},)
+
+    class Report:
+        def as_dict(self):
+            return {"screen_schema_version": 1, "screen_status": "completed", "model_id": "model_A", "calls_attempted": 0,
+                    "calls_completed": 0, "hard_blockers": []}
+
+    calls = []
+    monkeypatch.setattr("vivarium.cognition.LocalLLMSettings.from_environment", classmethod(lambda cls, require_model=False: settings))
+    monkeypatch.setattr("vivarium.cognition.LMStudioProvider", InventoryProvider)
+    monkeypatch.setattr("vivarium.social_interpretation_bench.run_screen47", lambda provider, **kwargs: Report())
+    monkeypatch.setattr("vivarium.social_interpretation_bench.write_screen47_report",
+                        lambda report, principal, review, *, paired_path=None: calls.append((principal, review, paired_path)))
+
+    first = tmp_path / "candidate_one.json"
+    second = tmp_path / "candidate_two.json"
+    assert main(["social-interpretation-screen", "--model-id", "model_A", "--report", str(first)]) == 0
+    assert main(["social-interpretation-screen", "--model-id", "model_A", "--report", str(second)]) == 0
+    assert [(p.name, r.name, q.name) for p, r, q in calls] == [
+        ("candidate_one.json", "candidate_one_review.json", "candidate_one_paired.json"),
+        ("candidate_two.json", "candidate_two_review.json", "candidate_two_paired.json"),
+    ]
+
+
 def test_cli_llm_smoke_reports_a_healthy_ephemeral_run(monkeypatch, capsys):
     class Report:
         model_id = "gemma-local"; character_key = "sophie"; decision = "traverse"

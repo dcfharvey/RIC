@@ -1,5 +1,12 @@
 # Changelog
 
+## SCC-1B2D4 — namespace atomique des artefacts Screen-47
+
+- Les chemins review/paired sont désormais dérivés du principal fourni par
+  `--report`, sans collision avec un autre candidat.
+- Les vues review/paired Screen-47 restent reconstructibles intégralement depuis
+  le rapport principal, sans nouvel appel LLM.
+
 ## SCC-1B2D1 — correctif runner pairé et validation bornée
 
 - Le runner B15/B16 conserve désormais une erreur initiale provider/parse/semantic
