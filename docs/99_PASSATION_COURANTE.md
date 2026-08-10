@@ -302,6 +302,16 @@ techniques séparées. Aucun rattrapage au redémarrage, aucun effet causal et
 aucun raccordement vivant ne sont autorisés dans ce lot. Prochain work order :
 raccordement événementiel SCC-0 -> SCC-1C -> SCC-1B.
 
+## Addendum opérationnel — SCC-3A affect (10 août 2026)
+
+Le schéma courant est 44 (`0044_scc3a_affect_owner.sql`). SCC-3A examine
+exclusivement les candidates `affect` de SCC-2A. Le provider peut répondre
+`no_change` ou proposer un épisode; toute création passe par `AffectService`,
+reste owner-scoped, sourcée par la trace privée et utilise une expression
+nulle et une tendance d'action neutre. Humeur, croyances, relations, buts,
+mémoire, actions et canon restent inchangés. Les autres domaines de candidates
+restent en attente de work orders dédiés.
+
 ## 10. Rappel final
 
 Le but de RIC n'est pas de faire croire qu'un LLM est la réalité.
@@ -313,7 +323,8 @@ Le dépôt réel doit être relu sur HEAD avant toute suite. Le lot ajoute la mi
 
 État opérationnel courant : `main` porte maintenant le raccordement vivant
 SCC-0 -> SCC-1C -> SCC-1B; les migrations `0041_scc1c_admission.sql` et
-`0042_social_interpretation_call_trigger.sql` portent le schéma à 42. Un acte
+Les lignes historiques ci-dessous décrivaient alors le schéma 42; l'état
+opérationnel courant est désormais le schéma 44. Un acte
 social runtime accepté encode les participantes de sa scène, puis passe par
 l'admission owner-scoped, le budget technique et SCC-1B. Les retries sont
 bornés et techniques; aucun scan historique, effet causal ou SCC-2/SCC-3 n'est
@@ -323,7 +334,7 @@ Le raccordement est désormais livré sur le runtime social : un acte accepté
 par `SceneTurnService` déclenche, pour les participantes de la scène seulement,
 SCC-0 puis SCC-1C et, si sélectionné, la porte technique et SCC-1B. La migration
 `0042_social_interpretation_call_trigger.sql` ajoute le trigger technique
-`social_interpretation` au ledger historique; le schéma courant est 42. Les
+`social_interpretation` au ledger historique; cette photographie est historique. Les
 tentatives différées/indisponibles sont reprises explicitement et au plus une
 par pulsation, sans nouvelle admission cognitive ni scan exhaustif. Aucun effet
 SCC-2/SCC-3 n'est raccordé.

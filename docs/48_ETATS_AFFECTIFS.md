@@ -40,6 +40,14 @@ appraisals calculés. Il ne prétend donc pas satisfaire EMO-001 à EMO-012 au
 complet : il garantit seulement les séparations et la provenance nécessaires
 pour les ajouter sans réécrire l'histoire.
 
+## Addendum SCC-3A
+
+SCC-3A introduit un premier chemin causal limité depuis une candidate SCC-2A
+vers un épisode privé. Il ne valide pas une théorie complète de l'appraisal :
+le provider peut répondre `no_change`, et les familles/intensités restent des
+choix d'ingénierie bornés. L'humeur, l'expression observable et le
+comportement restent inchangés.
+
 ## Preuve de sortie
 
 - humeur privée bornée et journalisée ;

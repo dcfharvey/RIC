@@ -22,6 +22,7 @@ from .scenes import SocialSceneService
 from .scene_turn import SceneTurnProvider
 from .social_interpretation_provider import SocialInterpretationProvider
 from .social_appraisal_provider import SocialAppraisalProvider
+from .scc3a_affect_provider import SCC3AAffectProvider
 from .simulation import SimulationReport, SimulationEngine
 from .social_cycle import SocialCycleOutcome, SocialSceneCycle
 from .world import WorldEngine
@@ -61,6 +62,7 @@ class MVPRuntime:
         scene_provider: SceneTurnProvider | None = None,
         interpretation_provider: SocialInterpretationProvider | None = None,
         appraisal_provider: SocialAppraisalProvider | None = None,
+        affect_provider: SCC3AAffectProvider | None = None,
         admission_policy: Any = None,
         limits: CognitionCallLimits | None = None,
         max_transitions: int = 120,
@@ -80,6 +82,8 @@ class MVPRuntime:
             )
         if appraisal_provider is not None and interpretation_provider is None:
             raise MVPRuntimeError("le provider d appraisal exige le provider d interpretation", code="invalid_mvp_runtime")
+        if affect_provider is not None and appraisal_provider is None:
+            raise MVPRuntimeError("le provider affect exige le provider d appraisal", code="invalid_mvp_runtime")
         if not isinstance(max_transitions, int) or isinstance(max_transitions, bool) or not 1 <= max_transitions <= 1000:
             raise MVPRuntimeError("borne de transitions invalide", code="invalid_mvp_runtime")
         self._conn = conn
@@ -96,6 +100,7 @@ class MVPRuntime:
             conn, scene_provider, clock=self._clock,
             interpretation_provider=interpretation_provider,
             appraisal_provider=appraisal_provider,
+            affect_provider=affect_provider,
             admission_policy=admission_policy,
         )
 

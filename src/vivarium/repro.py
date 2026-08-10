@@ -963,6 +963,16 @@ def social_appraisal_audit(conn: sqlite3.Connection, world_id: int) -> list[str]
             if not set(json.loads(c['basis_refs_json'])<=set(bases)): findings.append(f"appraisal {r['id']}: candidate support outside snapshot")
     return findings
 
+def scc3a_affect_audit(conn: sqlite3.Connection, world_id: int) -> list[str]:
+    """Vérifie la décision SCC-3A et la causalité des épisodes affectifs."""
+    findings=[]
+    rows=conn.execute("SELECT d.*,c.character_id AS candidate_character,ep.character_id AS episode_character,ep.cause_trace_id,trace.character_id AS trace_character FROM scc3a_decision d JOIN social_appraisal_candidate c ON c.id=d.candidate_id LEFT JOIN emotion_episode ep ON ep.episode_key=d.episode_key AND ep.world_id=d.world_id AND ep.character_id=d.character_id LEFT JOIN subjective_trace trace ON trace.id=ep.cause_trace_id WHERE d.world_id=?",(world_id,)).fetchall()
+    for row in rows:
+        if row['candidate_character']!=row['character_id']: findings.append(f"SCC-3A decision {row['id']}: candidate owner mismatch")
+        if row['decision']=='start_episode' and (row['episode_key'] is None or row['episode_character']!=row['character_id'] or row['trace_character']!=row['character_id']): findings.append(f"SCC-3A decision {row['id']}: episode provenance mismatch")
+        if row['decision']=='no_change' and row['episode_key'] is not None: findings.append(f"SCC-3A decision {row['id']}: no_change has episode")
+    return findings
+
 
 @dataclass
 class SimulationRunReport:

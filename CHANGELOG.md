@@ -1,5 +1,12 @@
 # Changelog
 
+## SCC-3A — conséquence affective owner-governed (10 août 2026)
+
+- Ajoute la décision SCC-3A affect et la migration forward-only 0044.
+- Une candidate affect peut produire `no_change` ou un épisode privé via
+  `AffectService`; aucune humeur, expression, action ou conséquence d'un autre
+  domaine n'est activée.
+
 ## SCC-2A — appraisal social situé (10 août 2026)
 
 - Ajoute `social_appraisal`, les candidates génériques et le journal technique

@@ -27,6 +27,7 @@ from .repro import (
     subjective_trace_audit,
     social_interpretation_audit,
     social_appraisal_audit,
+    scc3a_affect_audit,
     scc1c_admission_audit,
 )
 
@@ -232,6 +233,7 @@ def inspect_mvp_preflight(
         *subjective_trace_audit(conn, selected_world_id),
         *social_interpretation_audit(conn, selected_world_id),
         *social_appraisal_audit(conn, selected_world_id),
+        *scc3a_affect_audit(conn, selected_world_id),
         *scc1c_admission_audit(conn, selected_world_id),
         *subjective_belief_audit(conn, selected_world_id),
         *subjective_affect_audit(conn, selected_world_id),
