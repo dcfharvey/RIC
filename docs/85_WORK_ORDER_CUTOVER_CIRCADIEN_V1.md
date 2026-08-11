@@ -177,7 +177,7 @@ Cette procédure est future et distincte du présent work order. Elle sépare r�
 7. **Préflight actif.** Vérifier intégrité, ancres, digest/séquences de l'histoire préexistante (inchangés hors nouvelles tables/audit technique) et absence de session ouverte.
 8. **Reprise contrôlée.** Démarrer une nouvelle session officielle puis le runtime. L'intégration commence à T0 ; aucun temps offline ne progresse.
 
-L'étape 5 est tout-ou-rien : précondition ou écriture en échec laisse gate non actif, aucune ligne partielle et chemin legacy intact. Après engagement, aucun rollback silencieux par écritures inverses : arrêt protecteur, conservation des preuves et décision humaine à partir de la sauvegarde.
+L'étape 6 est tout-ou-rien : précondition ou écriture en échec laisse gate non actif, aucune ligne partielle et chemin legacy intact. Après engagement, aucun rollback silencieux par écritures inverses : arrêt protecteur, conservation des preuves et décision humaine à partir de la sauvegarde.
 
 ## 10. Lots après revue
 
