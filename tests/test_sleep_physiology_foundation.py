@@ -8,6 +8,7 @@ from vivarium.migrations import ensure_schema, load_migrations, split_sql_statem
 from vivarium.mvp_preflight import inspect_mvp_preflight
 from vivarium.runtime_session import RuntimeSessionService
 from vivarium.sleep_physiology import (
+    ADDITIVE_MODEL_KEY,
     InitialPhysiologyState,
     SleepPhysiologyError,
     SleepPhysiologyFoundationService,
@@ -51,9 +52,9 @@ def test_foundation_preparation_is_inactive_and_creates_no_lived_event(prepared_
         "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (world_id,)
     ).fetchone()[0]
 
-    prepared = service.prepare_world(world_id, "ric.sleep.v1", 1, "operator_review")
+    prepared = service.prepare_world(world_id, ADDITIVE_MODEL_KEY, 1, "operator_review")
 
-    assert prepared == {"world_id": world_id, "status": "prepared", "model_key": "ric.sleep.v1", "model_version": 1}
+    assert prepared == {"world_id": world_id, "status": "prepared", "model_key": ADDITIVE_MODEL_KEY, "model_version": 1}
     assert service.system_status(world_id) == "prepared"
     assert conn.execute("SELECT COUNT(*) FROM sleep_regulation_state").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM physical_capacity_state").fetchone()[0] == 0
@@ -71,7 +72,7 @@ def test_preparation_requires_complete_light_and_biology_configuration(prepared_
     )
 
     with pytest.raises(SleepPhysiologyError) as caught:
-        service.prepare_world(world_id, "ric.sleep.v1", 1, "operator_review")
+        service.prepare_world(world_id, ADDITIVE_MODEL_KEY, 1, "operator_review")
     assert caught.value.code == "location_light_missing"
     assert service.system_status(world_id) == "inactive"
 
@@ -82,7 +83,7 @@ def test_preparation_refuses_an_open_runtime_session(prepared_world):
     session = RuntimeSessionService(conn).start(world_id)
     try:
         with pytest.raises(SleepPhysiologyError) as caught:
-            service.prepare_world(world_id, "ric.sleep.v1", 1, "operator_review")
+            service.prepare_world(world_id, ADDITIVE_MODEL_KEY, 1, "operator_review")
         assert caught.value.code == "runtime_session_open"
     finally:
         RuntimeSessionService(conn).stop(session.session_id)

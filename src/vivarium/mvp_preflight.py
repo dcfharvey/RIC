@@ -105,7 +105,9 @@ def _physiology_system_check(conn: sqlite3.Connection, world_id: int) -> Preflig
     temps canonique.
     """
     row = conn.execute(
-        "SELECT status FROM world_physiology_system WHERE world_id = ?", (world_id,)
+        "SELECT status, prepared_model_key, prepared_model_version "
+        "FROM world_physiology_system WHERE world_id = ?",
+        (world_id,),
     ).fetchone()
     status = "inactive" if row is None else row["status"]
     character_count = conn.execute(
@@ -117,8 +119,11 @@ def _physiology_system_check(conn: sqlite3.Connection, world_id: int) -> Preflig
     capacity_count = conn.execute(
         "SELECT COUNT(*) FROM physical_capacity_state WHERE world_id = ?", (world_id,)
     ).fetchone()[0]
+    hysteresis_count = conn.execute(
+        "SELECT COUNT(*) FROM sleep_wake_hysteresis_state WHERE world_id = ?", (world_id,)
+    ).fetchone()[0]
     if status == "inactive":
-        passed = regulation_count == 0 and capacity_count == 0
+        passed = regulation_count == 0 and capacity_count == 0 and hysteresis_count == 0
         return _check(
             "sleep_physiology",
             passed,
@@ -137,14 +142,30 @@ def _physiology_system_check(conn: sqlite3.Connection, world_id: int) -> Preflig
             "SELECT COUNT(DISTINCT character_id) FROM character_sleep_biology_assignment WHERE world_id = ?",
             (world_id,),
         ).fetchone()[0]
-        passed = schedules > 0 and exposed == locations and biologic == character_count and regulation_count == 0 and capacity_count == 0
+        model_ok = row["prepared_model_key"] == "ric.sleep.additive.v1" and row["prepared_model_version"] == 1
+        passed = (
+            model_ok and schedules > 0 and exposed == locations and biologic == character_count
+            and regulation_count == 0 and capacity_count == 0 and hysteresis_count == 0
+        )
         return _check(
             "sleep_physiology",
             passed,
             "prepared complet et toujours inactif" if passed else "prepared incomplet ou contient des états prématurés",
         )
     if status == "active":
-        passed = regulation_count == character_count and capacity_count == character_count
+        model_ok = row["prepared_model_key"] == "ric.sleep.additive.v1" and row["prepared_model_version"] == 1
+        desynchronized = conn.execute(
+            "SELECT COUNT(*) FROM sleep_regulation_state r "
+            "JOIN physical_capacity_state p ON p.world_id = r.world_id AND p.character_id = r.character_id "
+            "JOIN sleep_wake_hysteresis_state h ON h.world_id = r.world_id AND h.character_id = r.character_id "
+            "WHERE r.world_id = ? "
+            "AND (r.anchor_at != p.anchor_at OR r.anchor_at != h.anchor_at)",
+            (world_id,),
+        ).fetchone()[0]
+        passed = (
+            model_ok and regulation_count == character_count and capacity_count == character_count
+            and hysteresis_count == character_count and desynchronized == 0
+        )
         return _check(
             "sleep_physiology",
             passed,

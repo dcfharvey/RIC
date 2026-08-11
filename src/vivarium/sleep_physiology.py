@@ -361,6 +361,10 @@ class SleepPhysiologyFoundationService:
         self._require_world(world)
         key = _key(model_key, field="modèle physiologique")
         ver = _version(model_version, field="version de modèle")
+        if key != ADDITIVE_MODEL_KEY or ver != 1:
+            raise SleepPhysiologyError(
+                "modèle physiologique V1 non sélectionné", code="invalid_model"
+            )
         operator = _key(prepared_by, field="préparé par")
         self._assert_preparable(world)
         now = self._now()
@@ -545,7 +549,11 @@ class SleepPhysiologyService:
             raise SleepPhysiologyError("version d'état incompatible", code="invalid_model")
         if row["regulation_anchor_at"] != row["capacity_anchor_at"]:
             raise SleepPhysiologyError("ancres physiologiques désalignées", code="inconsistent_anchor")
-        band = row["previous_band"] or "stable"
+        if row["previous_band"] is None:
+            raise SleepPhysiologyError(
+                "mémoire d'hystérésis absente", code="hysteresis_state_missing"
+            )
+        band = row["previous_band"]
         if band not in _STABILITY_BANDS:
             raise SleepPhysiologyError("hystérésis invalide", code="invalid_hysteresis")
         try:

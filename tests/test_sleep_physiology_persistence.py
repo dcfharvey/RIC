@@ -182,6 +182,43 @@ def test_preflight_reports_prepared_system_without_materializing_states(wired_wo
     assert conn.execute("SELECT COUNT(*) FROM physical_capacity_state").fetchone()[0] == 0
 
 
+def test_prepared_rejects_an_unselected_model_and_preflight_falsifies_one(wired_world):
+    conn, world_id = wired_world
+    foundation = SleepPhysiologyFoundationService(conn)
+
+    with pytest.raises(SleepPhysiologyError) as caught:
+        foundation.prepare_world(world_id, "ric.sleep.sensitivity_modulated.v1", 1, "test_operator")
+    assert caught.value.code == "invalid_model"
+
+    conn.execute(
+        "UPDATE world_physiology_system SET prepared_model_key = ? WHERE world_id = ?",
+        ("ric.sleep.sensitivity_modulated.v1", world_id),
+    )
+    report = inspect_mvp_preflight(conn, world_id=world_id)
+    physiology = next(check for check in report.checks if check.key == "sleep_physiology")
+    assert not physiology.passed
+
+
+def test_active_state_requires_dense_hysteresis_memory(wired_world):
+    conn, world_id = wired_world
+    _activate_synthetic(conn, world_id)
+    service = SleepPhysiologyService(conn)
+    character_id = conn.execute(
+        "SELECT id FROM character WHERE world_id = ? AND key = 'sophie'", (world_id,)
+    ).fetchone()[0]
+    conn.execute(
+        "DELETE FROM sleep_wake_hysteresis_state WHERE world_id = ? AND character_id = ?",
+        (world_id, character_id),
+    )
+
+    with pytest.raises(SleepPhysiologyError) as caught:
+        service.read_state(world_id, "sophie")
+    assert caught.value.code == "hysteresis_state_missing"
+    report = inspect_mvp_preflight(conn, world_id=world_id)
+    physiology = next(check for check in report.checks if check.key == "sleep_physiology")
+    assert not physiology.passed
+
+
 def test_hysteresis_memory_is_physiological_but_interruption_marker_is_not_a_table():
     conn = connect_database(":memory:")
     try:

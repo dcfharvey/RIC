@@ -41,7 +41,7 @@ Ces consommateurs ne seront **pas** changés dans le raccord inactif. Au futur c
 | H, `phi`, `anchor_at` | oui | `SleepPhysiologyService` | état minimal dont `phi` intègre déjà l'effet passé de la lumière |
 | P, `rate_remainder`, `anchor_at` | oui | `SleepPhysiologyService` | capacité physique distincte de H |
 | profil / modèle / version | oui, immuable | fondations | paramètres et provenance sélectionnés explicitement |
-| bande précédente | seulement si l'hystérésis est retenue | `SleepPhysiologyService` | mémoire physiologique minimale, y compris après restart |
+| bande précédente | oui, état dense par personnage `active` | `SleepPhysiologyService` | mémoire physiologique minimale, y compris après restart ; absence = intégrité invalide |
 | interruption déjà appliquée | déjà reconstructible | `ActivityEngine` / état `activity` | une activité `aborted` ne peut plus être interrompue ; l'événement moteur en conserve la cause |
 | exposition effective | non | résolveur pur | dérivée du calendrier objectif, du lieu et de l'état agent |
 | propension sommeil additive | non | projection pure | combinaison H + influence circadienne, jamais une jauge autonome |
@@ -102,7 +102,7 @@ Le résolveur V1 de calendrier devra valider un JSON versionné couvrant sans ch
 
 Les profils traduisent `CircadianParameters` dans un payload immuable versionné et avec provenance : référence humaine commune ; profil félin générique ; profils `fictional_canon` seulement lorsque le produit fournit leur provenance explicite. Aucun chronotype ne provient d'un trait de personnalité. Patoune ne reçoit aucune branche nominative ; Luna/Chuu ne reçoivent aucune physiologie réelle déduite d'une espèce fictionnelle.
 
-La migration 0047 étend le gate de système pour permettre `active` et ajoute `sleep_wake_hysteresis_state` pour la mémoire d'hystérésis retenue. Elle ne crée pas de garde physiologique pour « interruption déjà appliquée » : ce fait appartient à l'activité moteur. Elle est forward-only et ne crée ni état physiologique, ni événement canonique, ni conversion de besoins. La contrainte SQLite de 0046 est remplacée par une table contrôlée, jamais par l'édition rétrospective d'une migration publiée.
+La migration 0047 étend le gate de système pour permettre `active` et ajoute `sleep_wake_hysteresis_state` pour la mémoire d'hystérésis retenue. Le contrat est **dense** : chaque personnage `active` doit avoir H/φ, P et une ligne `previous_band`; une absence est une erreur d'intégrité, jamais l'alias implicite de `stable`. Elle ne crée pas de garde physiologique pour « interruption déjà appliquée » : ce fait appartient à l'activité moteur. Elle est forward-only et ne crée ni état physiologique, ni événement canonique, ni conversion de besoins. La contrainte SQLite de 0046 est remplacée par une table contrôlée, jamais par l'édition rétrospective d'une migration publiée.
 
 L'initialisation est une opération distincte, explicite et atomique :
 
@@ -119,7 +119,7 @@ La provenance est un artefact opérateur ; l'état devient réel à partir de l'
 | État du système | Autorisé | Interdit |
 |---|---|---|
 | `inactive` | catalogues, assignations, banc et préflight diagnostique | états H/P, intégration, lecture par comportement |
-| `prepared` | contrôle de complétude et manifeste hors session | toute décision, activité, autonomie, motivation ou LLM |
+| `prepared` | contrôle de complétude, manifeste hors session et seul modèle `ric.sleep.additive.v1` | toute décision, activité, autonomie, motivation ou LLM |
 | `active` (encore synthétique seulement) | service et projections de test | scheduler runtime, activité, autonomie ou chemin legacy concurrent |
 
 Le raccord persistant inactif devra donc être inaccessible à `Policy`, `Activity`, `Simulation`, `Autonomy`, `Motivation`, `Attention`, `DecisionFrame` et aux providers tant que le gate n'est pas `active`. Un préflight futur distinguera par lecture SQL directe `inactive`, `prepared_complete` et `active_integrity`, sans appeler `WorldEngine.read_canonical_time()`.
