@@ -5,6 +5,7 @@ from dataclasses import dataclass,field
 from types import MappingProxyType
 from typing import Any,Mapping,Protocol
 from .cognition import LocalLLMSettings, request_local_model
+from .diagnostics import DiagnosticRecorder
 from .goals import GoalService
 from .social import SocialService
 from .social_appraisal import SocialAppraisalError, SocialAppraisalService,STATUSES,MEANINGS,IMPORTANCE,DOMAINS
@@ -55,7 +56,7 @@ class SocialAppraisalContextBuilder:
         data={'schema_version':1,'owner':{'character_key':owner},'source_interpretation':{'interpretation_key':interpretation_key,'understanding_status':row['understanding_status'],'meaning_hypotheses':json.loads(row['meaning_hypotheses_json']),'interaction_role':row['interaction_role'],'speaker_key':self.conn.execute('SELECT key FROM character WHERE id=?',(row['speaker_character_id'],)).fetchone()['key'],'recipient_key':self.conn.execute('SELECT key FROM character WHERE id=?',(row['recipient_character_id'],)).fetchone()['key'],'speech_payload':json.loads(row['payload_json'])},'owner_context':{'goals':goals,'active_intention':intention,'relationships':rel,'boundaries':boundaries},'allowed_base_refs':refs}
         return SocialAppraisalSnapshot(data)
 class SocialAppraisalLLMService:
-    def __init__(self,conn,provider,clock=None): self.conn,self.provider,self.clock=conn,provider,clock
+    def __init__(self,conn,provider,clock=None,diagnostics:DiagnosticRecorder|None=None): self.conn,self.provider,self.clock,self.diagnostics=conn,provider,clock,diagnostics
     def run(self,wid,owner,appraisal_key,interpretation_key,*,provider_turn_id=None):
         snap=SocialAppraisalContextBuilder(self.conn).build(wid,owner,interpretation_key); svc=SocialAppraisalService(self.conn,clock=self.clock); existing=self.conn.execute('SELECT 1 FROM social_appraisal a JOIN character c ON c.id=a.character_id WHERE a.world_id=? AND c.key=? AND a.appraisal_key=?',(wid,owner,appraisal_key)).fetchone()
         model=getattr(self.provider,'model_id',getattr(getattr(self.provider,'settings',None),'model_id',None)); version=getattr(self.provider,'provider_version',SCC2A_PROVIDER_VERSION)
@@ -65,5 +66,19 @@ class SocialAppraisalLLMService:
             if prior['source_interpretation_key']!=interpretation_key or prior['snapshot_fingerprint']!=snap.fingerprint or prior['model_id']!=model or prior['provider_version']!=version or prior['provider_turn_id']!=provider_turn_id:
                 raise SocialAppraisalError('clé appraisal déjà utilisée',code='appraisal_key_conflict')
             return prior
-        p=parse_appraisal_proposal(self.provider.propose(snap),set(snap.data['allowed_base_refs']))
-        return svc.create(wid,owner,appraisal_key,interpretation_key,appraisal_status=p['appraisal_status'],qualitative_meaning=p['qualitative_meaning'],importance=p['importance'],bases=p['bases'],candidates=p['candidates'],technical_provenance={'origin_kind':'llm','model_id':model,'provider_version':version,'snapshot_fingerprint':snap.fingerprint,'provider_turn_id':provider_turn_id})
+        raw = None
+        payload = {'world_id':wid,'owner':owner,'appraisal_key':appraisal_key,'interpretation_key':interpretation_key,
+                   'provider_turn_id':provider_turn_id,'model_id':model,'provider_version':version,
+                   'snapshot_fingerprint':snap.fingerprint,'snapshot_wire':snap.wire}
+        try:
+            raw = self.provider.propose(snap)
+            payload['raw_output'] = raw
+            p=parse_appraisal_proposal(raw,set(snap.data['allowed_base_refs']))
+            sheet = svc.create(wid,owner,appraisal_key,interpretation_key,appraisal_status=p['appraisal_status'],qualitative_meaning=p['qualitative_meaning'],importance=p['importance'],bases=p['bases'],candidates=p['candidates'],technical_provenance={'origin_kind':'llm','model_id':model,'provider_version':version,'snapshot_fingerprint':snap.fingerprint,'provider_turn_id':provider_turn_id})
+        except Exception as exc:
+            payload.update({'validation':'rejected','validation_code':getattr(exc,'code','invalid_appraisal')})
+            if self.diagnostics is not None: self.diagnostics.record('scc2a_appraisal',payload)
+            raise
+        payload.update({'validation':'accepted','appraisal_status':sheet['appraisal_status'],'candidate_count':len(sheet['candidates'])})
+        if self.diagnostics is not None: self.diagnostics.record('scc2a_appraisal',payload)
+        return sheet

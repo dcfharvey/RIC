@@ -22,6 +22,7 @@ from .cognition import (
 )
 from .cognition_call_ledger import CognitionCallAdmission, CognitionCallLedgerService
 from .cognition_policy import CALL_TRIGGER_SCENE_TURN, CognitionCallLimits
+from .diagnostics import DiagnosticRecorder
 from .registry import _KEY_RE
 from .scenes import SceneError, SocialSceneService
 from .util import Clock
@@ -176,8 +177,10 @@ class SceneTurnProvider(Protocol):
 class LMStudioSceneTurnProvider:
     """Adaptateur local dédié au schéma d'un unique tour social."""
 
-    def __init__(self, settings: LocalLLMSettings) -> None:
+    def __init__(self, settings: LocalLLMSettings, diagnostics: DiagnosticRecorder | None = None) -> None:
         self._settings = settings.validated(require_model=False)
+        self._diagnostics = diagnostics
+        self.last_diagnostic_id: str | None = None
 
     @staticmethod
     def _parse_model_response(raw: str) -> SceneTurnDecision:
@@ -216,13 +219,27 @@ class LMStudioSceneTurnProvider:
         )
 
     def decide(self, context: SceneTurnContext) -> SceneTurnDecision:
+        raw: str | None = None
+        payload = {"model_id": self._settings.model_id, "provider_version": "scene-turn-v2",
+                   "context_wire": context.wire(), "scene_key": context.scene_key,
+                   "speaker_key": context.speaker_key}
         try:
-            return self._parse_model_response(request_local_model(
+            raw = request_local_model(
                 self._settings,
                 system_prompt="Tu produis au plus un acte de parole structuré, jamais un fait du monde.",
                 input_text=self._prompt(context),
-            ))
+            )
+            decision = self._parse_model_response(raw)
+            payload.update({"raw_output": raw, "validation": "accepted", "validated_output": decision.__dict__})
+            self.last_diagnostic_id = None if self._diagnostics is None else self._diagnostics.record("scene_turn_provider", payload)
+            return decision
+        except CognitionError as exc:
+            payload.update({"raw_output": raw, "validation": "rejected", "validation_code": exc.code})
+            self.last_diagnostic_id = None if self._diagnostics is None else self._diagnostics.record("scene_turn_provider", payload)
+            raise
         except SceneTurnError as exc:
+            payload.update({"raw_output": raw, "validation": "rejected", "validation_code": exc.code})
+            self.last_diagnostic_id = None if self._diagnostics is None else self._diagnostics.record("scene_turn_provider", payload)
             raise CognitionError(str(exc), code="invalid_scene_turn_response") from exc
 
 
@@ -247,8 +264,10 @@ class SceneTurnResult:
 class SceneTurnService:
     """Garde un tour de scène : contexte, admission, LLM puis acte validé."""
 
-    def __init__(self, conn: sqlite3.Connection, provider: SceneTurnProvider, clock: Clock | None = None) -> None:
+    def __init__(self, conn: sqlite3.Connection, provider: SceneTurnProvider, clock: Clock | None = None,
+                 diagnostics: DiagnosticRecorder | None = None) -> None:
         self._conn, self._provider, self._clock = conn, provider, clock or Clock()
+        self._diagnostics = diagnostics
         self._ledger = CognitionCallLedgerService(conn, clock=self._clock)
         self._scenes = SocialSceneService(conn, clock=self._clock)
 
@@ -296,10 +315,12 @@ class SceneTurnService:
                 raise SceneTurnError("fournisseur de scène hors contrat", code="invalid_scene_turn_response")
             decision = decision.validated()
         except (CognitionError, SceneTurnError) as exc:
+            self._record_result(scene_key, speaker_key, turn_key, context, None, getattr(self._provider, "last_diagnostic_id", None), getattr(exc, "code", "invalid_scene_turn_response"))
             return SceneTurnResult(
                 context, admission, None, None, getattr(exc, "code", "invalid_scene_turn_response"), None
             )
         if decision.action == "no_action":
+            self._record_result(scene_key, speaker_key, turn_key, context, decision, getattr(self._provider, "last_diagnostic_id", None), None)
             return SceneTurnResult(context, admission, decision, None, None, None)
 
         assert decision.act_kind is not None and decision.content is not None
@@ -307,6 +328,7 @@ class SceneTurnService:
         if decision.recipient_key == speaker_key or (
             decision.recipient_key is not None and decision.recipient_key not in participant_keys
         ):
+            self._record_result(scene_key, speaker_key, turn_key, context, decision, getattr(self._provider, "last_diagnostic_id", None), "scene_recipient_not_in_scene")
             return SceneTurnResult(context, admission, decision, None, None, "scene_recipient_not_in_scene")
         try:
             speech = self._scenes.speak(
@@ -319,5 +341,19 @@ class SceneTurnService:
                 recipient_key=decision.recipient_key,
             )
         except SceneError as exc:
+            self._record_result(scene_key, speaker_key, turn_key, context, decision, getattr(self._provider, "last_diagnostic_id", None), exc.code)
             return SceneTurnResult(context, admission, decision, None, None, exc.code)
+        self._record_result(scene_key, speaker_key, turn_key, context, decision, getattr(self._provider, "last_diagnostic_id", None), None)
         return SceneTurnResult(context, admission, decision, _freeze(speech), None, None)
+
+    def _record_result(self, scene_key: str, speaker_key: str, turn_key: str,
+                       context: SceneTurnContext, decision: SceneTurnDecision | None,
+                       provider_call_id: str | None, validation_code: str | None) -> None:
+        if self._diagnostics is not None:
+            self._diagnostics.record("scene_turn_result", {
+                "scene_key": scene_key, "speaker_key": speaker_key, "turn_key": turn_key,
+                "provider_call_id": provider_call_id, "context_wire": context.wire(),
+                "validated_output": None if decision is None else decision.__dict__,
+                "validation": "accepted" if validation_code is None else "rejected",
+                "validation_code": validation_code,
+            })

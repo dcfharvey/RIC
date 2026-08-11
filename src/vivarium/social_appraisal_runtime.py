@@ -4,6 +4,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 from .cognition_call_ledger import CognitionCallLedgerService
+from .diagnostics import DiagnosticRecorder
 from .cognition_policy import CALL_TRIGGER_SOCIAL_APPRAISAL, CognitionCallLimits
 from .social_appraisal import SocialAppraisalError, SocialAppraisalService
 from .social_appraisal_provider import SocialAppraisalLLMService
@@ -17,7 +18,7 @@ class LiveSocialAppraisalOutcome:
     character_key:str; interpretation_key:str; technical_status:str; appraisal_status:str|None=None; candidate_count:int=0; detail_code:str|None=None
 
 class LiveSocialAppraisalService:
-    def __init__(self,conn:sqlite3.Connection,provider:Any,clock:Clock|None=None): self.conn,self.provider,self.clock=conn,provider,clock or Clock(); self.ledger=CognitionCallLedgerService(conn,clock=self.clock)
+    def __init__(self,conn:sqlite3.Connection,provider:Any,clock:Clock|None=None,diagnostics:DiagnosticRecorder|None=None): self.conn,self.provider,self.clock,self.diagnostics=conn,provider,clock or Clock(),diagnostics; self.ledger=CognitionCallLedgerService(conn,clock=self.clock)
     def _row(self,wid,owner,ikey):
         return self.conn.execute('SELECT i.id,i.interpretation_key FROM social_interpretation i JOIN character c ON c.id=i.character_id WHERE i.world_id=? AND c.key=? AND i.interpretation_key=?',(wid,owner,ikey)).fetchone()
     def process(self,wid:int,owner:str,ikey:str,limits:CognitionCallLimits,*,retry=False)->LiveSocialAppraisalOutcome:
@@ -33,7 +34,7 @@ class LiveSocialAppraisalService:
         if not technical.verdict.eligible:
             self._record(wid,owner,src['id'],attempt_key,'deferred',technical.verdict.reason_code); return LiveSocialAppraisalOutcome(owner,ikey,'deferred',detail_code=technical.verdict.reason_code)
         try:
-            sheet=SocialAppraisalLLMService(self.conn,self.provider,clock=self.clock).run(wid,owner,f'live_scc2a_{src["id"]}',ikey,provider_turn_id=f'scc2a_{src["id"]}_{attempt_no}')
+            sheet=SocialAppraisalLLMService(self.conn,self.provider,clock=self.clock,diagnostics=self.diagnostics).run(wid,owner,f'live_scc2a_{src["id"]}',ikey,provider_turn_id=f'scc2a_{src["id"]}_{attempt_no}')
         except Exception as exc:
             self._record(wid,owner,src['id'],attempt_key,'provider_unavailable',getattr(exc,'code','provider_failed')); return LiveSocialAppraisalOutcome(owner,ikey,'provider_unavailable',detail_code=getattr(exc,'code','provider_failed'))
         self._record(wid,owner,src['id'],attempt_key,'appraised'); return LiveSocialAppraisalOutcome(owner,ikey,'appraised',sheet['appraisal_status'],len(sheet['candidates']))

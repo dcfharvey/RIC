@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .cognition_call_ledger import CognitionCallLedgerService
+from .diagnostics import DiagnosticRecorder
 from .cognition import CognitionError
 from .cognition_policy import CALL_TRIGGER_SOCIAL_INTERPRETATION, CognitionCallLimits
 from .social_appraisal_runtime import LiveSocialAppraisalService
@@ -48,7 +49,7 @@ class LiveSocialCognitionError(ValueError):
 class LiveSocialCognitionService:
     """Ne possède ni le canon, ni SCC-1B; il ne fait que chaîner les owners."""
 
-    def __init__(self, conn: sqlite3.Connection, provider: Any, clock: Clock | None = None, admission_policy: Any = None, appraisal_provider: Any = None, affect_provider: Any = None) -> None:
+    def __init__(self, conn: sqlite3.Connection, provider: Any, clock: Clock | None = None, admission_policy: Any = None, appraisal_provider: Any = None, affect_provider: Any = None, diagnostics: DiagnosticRecorder | None = None) -> None:
         self._conn = conn
         self._provider = provider
         self._clock = clock or Clock()
@@ -57,8 +58,11 @@ class LiveSocialCognitionService:
         self._ledger = CognitionCallLedgerService(conn, clock=self._clock)
         self._interpretations = SocialInterpretationLLMService(conn, provider, clock=self._clock)
         self._appraisal_provider = appraisal_provider
-        self._appraisals = None if appraisal_provider is None else LiveSocialAppraisalService(conn, appraisal_provider, clock=self._clock)
+        self._appraisals = None if appraisal_provider is None else LiveSocialAppraisalService(
+            conn, appraisal_provider, clock=self._clock, diagnostics=diagnostics
+        )
         self._affect = None if affect_provider is None else LiveSCC3AAffectService(conn, affect_provider, clock=self._clock)
+        self._diagnostics = diagnostics
 
     def _scene_participants(self, world_id: int, scene_key: str, act_key: str) -> tuple[str, ...]:
         try:

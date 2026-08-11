@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .cognition import CognitionProvider
+from .diagnostics import DiagnosticRecorder
 from .cognition_policy import CognitionCallLimits
 from .autonomy_cycle import AutonomyCycle, AutonomyOutcome
 from .arrival_cycle import InitialArrivalCycle, InitialArrivalOutcome
@@ -67,6 +68,7 @@ class MVPRuntime:
         limits: CognitionCallLimits | None = None,
         max_transitions: int = 120,
         clock: Clock | None = None,
+        diagnostics: DiagnosticRecorder | None = None,
     ) -> None:
         if not isinstance(world_id, int) or isinstance(world_id, bool) or world_id < 1:
             raise MVPRuntimeError("monde invalide", code="invalid_mvp_runtime")
@@ -102,6 +104,7 @@ class MVPRuntime:
             appraisal_provider=appraisal_provider,
             affect_provider=affect_provider,
             admission_policy=admission_policy,
+            diagnostics=diagnostics,
         )
 
     def run_once(self) -> MVPRunReport:

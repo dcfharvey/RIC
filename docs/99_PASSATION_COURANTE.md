@@ -1,6 +1,6 @@
 # Passation courante — RIC
 
-**Mise à jour :** 8 août 2026  
+**Mise à jour :** 11 août 2026
 **But :** point d'entrée opérationnel obligatoire pour toute nouvelle instance de Codex.  
 **Projet :** RIC — Reality · Interaction · Cognition (anciennement Vivarium social).
 
@@ -93,10 +93,10 @@ Pour les compteurs de version ou la photographie de HEAD, vérifier toujours `py
 Référence fonctionnelle actuelle :
 
 - version logicielle : **`0.1.0a15`**;
-- schéma SQLite : **39**;
-- migration la plus récente : `0039_scc1b_provider_provenance.sql`;
-- dernière validation complète connue : **767 tests réussis**;
-- dernier commit fonctionnel courant : clôture de la baseline SCC-1B1 livrée après `3472aa6`;
+- schéma SQLite : **44**;
+- migration la plus récente : `0044_scc3a_affect_owner.sql`;
+- dernière validation complète connue : **877 tests réussis**;
+- dernier commit fonctionnel courant : `da30d5d` (`fix: bound cognitive retry storms`);
 - `1cf8278` est la photographie documentaire R&D SCC-1B; les commits `.gitignore` historiques ne font pas partie de l'état fonctionnel courant.
 
 Toujours revérifier localement avant d'agir :
@@ -330,6 +330,21 @@ le read-model moteur. Le focus `current_state` expose position, activité et
 durée uniquement si la transition canonique est prouvée. Le planner naturel
 est déterministe et optionnel; les plans structurés manuels restent le fallback.
 Patoune est observé comme `character` non-sapient, sans cognition inventée.
+
+## Addendum opérationnel — état du rodage et instrumentation préparatoire
+
+Le burn-in nocturne a été techniquement réussi. Son autopsie a confirmé et
+fermé les défauts de classe A corrigés par `da30d5d`. Deux signaux de classe C
+restent volontairement non résolus : la répétition dialogique importante et les
+sorties SCC-2A `invalid_appraisal`, pour lesquelles la réponse provider brute
+n’était pas encore conservée.
+
+Le prochain lot ajoute uniquement une instrumentation diagnostique locale,
+désactivable et bornée des appels pertinents. Elle est séparée de l’histoire
+canonique et de l’état subjectif, n’est pas exposée par Hugin/Munin et ne change
+ni prompts, ni budgets, ni providers, ni contrats. Après sa qualification, le
+prochain jalon est un burn-in court; aucun nouveau mécanisme cognitif n’est
+autorisé par cette observation.
 
 ## 10. Rappel final
 

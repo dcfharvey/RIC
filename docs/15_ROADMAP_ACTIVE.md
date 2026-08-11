@@ -1,7 +1,7 @@
 # Roadmap active — du moteur au Vivarium MVP
 
 **Version :** 1.4
-**Mise à jour :** 8 août 2026
+**Mise à jour :** 11 août 2026
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
 
@@ -25,7 +25,7 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a15` — schéma 39, migration `0039_scc1b_provider_provenance.sql`, baseline SCC-1B1 clôturée, 767 tests validés.
+**Version logicielle actuelle :** `0.1.0a15` — schéma 44, 877 tests validés au dernier comptage local, SCC-1B interpretation-only, SCC-1C, SCC-2A, SCC-3A et Hugin/Munin V0/V0.1 livrés.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
@@ -181,6 +181,19 @@ consomme le read-model sans SQL dans le transport et fournit le focus canonique
 `current_state` ainsi qu’un planner naturel déterministe très borné. Les
 contrôles structurés restent la voie fiable; aucune narration LLM, détection
 d’anomalies ou interface finale n’est engagée.
+
+### Addendum opérationnel — rodage vivant et instrumentation diagnostique
+
+Le rodage vivant est en cours. Le burn-in nocturne a réussi techniquement; il a
+révélé deux défauts de classe A, les retries cognitifs et le polling excessif de
+l’autonomie, corrigés dans `da30d5d` (`fix: bound cognitive retry storms`) et
+contre-vérifiés. Deux signaux de classe C restent ouverts : la répétition
+dialogique et les sorties SCC-2A `invalid_appraisal` dont la réponse provider
+brute n’était pas conservée.
+
+Le prochain jalon est une instrumentation diagnostique locale, optionnelle et
+bornée, puis un burn-in court. Aucun nouveau mécanisme cognitif ni changement
+de contrat n’est décidé par ce jalon.
 
 ## Frontières explicites
 

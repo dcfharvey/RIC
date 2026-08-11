@@ -487,6 +487,8 @@ def _run_mvp_runtime(
     session_service = None
     session_id = None
     protective_stop = False
+    from .diagnostics import DiagnosticRecorder
+    diagnostics = DiagnosticRecorder.from_environment()
     try:
         ensure_schema(conn)
         report = inspect_mvp_preflight(conn, world_id=world_id)
@@ -517,7 +519,7 @@ def _run_mvp_runtime(
         if enable_local_llm:
             settings = LocalLLMSettings.from_environment()
             cognition_provider = LMStudioProvider(settings)
-            scene_provider = LMStudioSceneTurnProvider(settings)
+            scene_provider = LMStudioSceneTurnProvider(settings, diagnostics=diagnostics)
             from .social_interpretation_provider import LMStudioSocialInterpretationProvider
             interpretation_provider = LMStudioSocialInterpretationProvider(settings)
             from .social_appraisal_provider import LMStudioSocialAppraisalProvider
@@ -529,6 +531,7 @@ def _run_mvp_runtime(
             interpretation_provider=interpretation_provider,
             appraisal_provider=appraisal_provider,
             affect_provider=affect_provider,
+            diagnostics=diagnostics,
         )
         guardian = LocalGuardian(
             conn,

@@ -1,5 +1,18 @@
 # Changelog
 
+## Préparation du prochain burn-in — instrumentation diagnostique (11 août 2026)
+
+- Synchronise la photographie active sur le schéma 44 et le rodage vivant après
+  `da30d5d`.
+- Ajoute une instrumentation JSONL locale, désactivée par défaut et bornée, pour
+  relier les appels `scene_turn` et SCC-2A à leur contexte, sortie provider,
+  validation et provenance technique.
+- Les traces diagnostiques restent séparées du canon et des états subjectifs;
+  aucun contrat, budget, prompt, provider ou comportement cognitif n’est modifié.
+- La répétition dialogique et les `invalid_appraisal` SCC-2A restent des signaux
+  de rodage non résolus; le prochain jalon est un burn-in court après validation
+  de cette instrumentation.
+
 ## SCC-3A — conséquence affective owner-governed (10 août 2026)
 
 - Ajoute la décision SCC-3A affect et la migration forward-only 0044.
