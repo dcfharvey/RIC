@@ -36,6 +36,21 @@ def test_legacy_audit_is_exhaustive_and_declares_coordinated_switches():
     assert "ActivityEngine" in behavioral.switches
 
 
+def test_legacy_audit_discovers_unlisted_composed_identifiers(tmp_path):
+    source_root = tmp_path / "src" / "vivarium"
+    source_root.mkdir(parents=True)
+    (source_root / "forgotten_consumer.py").write_text(
+        "repos_rate = -60\nenergie_rate = -50\nCRIT_REPOS = 100\nSLEEP_ENERGIE_TARGET = 95\n",
+        encoding="utf-8",
+    )
+    (source_root / "unrelated.py").write_text("repose = 'verb'\n", encoding="utf-8")
+
+    report = audit_legacy_consumers(tmp_path)
+
+    assert "src/vivarium/forgotten_consumer.py" in report.unlisted_hits
+    assert "src/vivarium/unrelated.py" not in report.unlisted_hits
+
+
 def test_p_never_generates_sleep_motive_and_repos_energie_are_not_inputs():
     parameters = calibration_profiles()["human_reference_candidate.v1"]
     low_capacity = RegulationState(0.75, 0.5, 0.05)

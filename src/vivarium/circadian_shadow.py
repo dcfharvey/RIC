@@ -16,7 +16,9 @@ pas des affirmations biologiques.
 
 from __future__ import annotations
 
+import ast
 import re
+import tokenize
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Mapping
@@ -190,13 +192,57 @@ def audit_legacy_consumers(root: str | Path | None = None) -> LegacyAuditReport:
         for path in sorted(source_root.rglob("*.py")):
             relative = path.relative_to(repo).as_posix()
             text = path.read_text(encoding="utf-8")
-            if re.search(r"\b(?:repos|energie)\b", text) and relative not in manifest_paths:
+            if _contains_legacy_identifier(text) and relative not in manifest_paths:
                 unlisted_hits.append(relative)
     return LegacyAuditReport(
         LEGACY_CONSUMERS, CUTOVER_SWITCH_GROUPS,
         tuple(sorted(set(missing_paths))), tuple(sorted(set(missing_symbols))),
         tuple(sorted(set(unlisted_hits))),
     )
+
+
+_IDENTIFIER_RE = re.compile(r"(?<![A-Za-z0-9_])[A-Za-z_][A-Za-z0-9_]*(?![A-Za-z0-9_])")
+_LEGACY_COMPONENTS = frozenset({"repos", "energie"})
+
+
+def _is_legacy_identifier(identifier: str, *, composed_only: bool = False) -> bool:
+    """Reconnaît un nom Python legacy, sans matcher ``repose`` par accident."""
+
+    components = tuple(part.lower() for part in identifier.split("_") if part)
+    if composed_only and len(components) < 2:
+        return False
+    return any(component in _LEGACY_COMPONENTS for component in components)
+
+
+def _contains_legacy_identifier(source: str) -> bool:
+    """Détecte les identifiants Python et les noms composés présents en SQL.
+
+    Les tokens ``NAME`` évitent les mentions de prose/commentaires. Les chaînes
+    sont inspectées seulement pour des identifiants composés (par exemple
+    ``repos_rate`` dans une requête SQL), ce qui garde la découverte utile sans
+    transformer chaque phrase documentaire en faux consommateur.
+    """
+
+    try:
+        tokens = tokenize.generate_tokens(iter(source.splitlines(keepends=True)).__next__)
+        for token in tokens:
+            if token.type == tokenize.NAME and _is_legacy_identifier(token.string):
+                return True
+            if token.type == tokenize.STRING:
+                try:
+                    payload = ast.literal_eval(token.string)
+                except (SyntaxError, ValueError):
+                    continue
+                if isinstance(payload, str) and any(
+                    _is_legacy_identifier(match.group(0), composed_only=True)
+                    for match in _IDENTIFIER_RE.finditer(payload)
+                ):
+                    return True
+    except (IndentationError, tokenize.TokenError):
+        # A malformed new file is still worth discovering; fall back to the
+        # same component-aware lexical rule rather than hiding the hit.
+        return any(_is_legacy_identifier(match.group(0)) for match in _IDENTIFIER_RE.finditer(source))
+    return False
 
 
 def _score(value: object, *, field: str) -> float:
