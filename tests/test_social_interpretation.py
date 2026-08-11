@@ -38,7 +38,7 @@ class FakeClock:
 @pytest.fixture
 def setup():
     conn = connect_database(":memory:")
-    assert ensure_schema(conn) == 44
+    assert ensure_schema(conn) == 46
     clock = FakeClock()
     world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
     yield conn, world_id, clock
@@ -257,7 +257,7 @@ def test_trace_does_not_trigger_interpretation_automatically_and_audit_preflight
 def test_interpretation_persists_across_reopen_and_remains_append_only(tmp_path):
     db_path = tmp_path / "scc1a.sqlite"
     conn = connect_database(str(db_path))
-    assert ensure_schema(conn) == 44
+    assert ensure_schema(conn) == 46
     clock = FakeClock()
     world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
     _at_salon(conn, world_id, "sophie", "erika", clock=clock)
@@ -279,7 +279,7 @@ def test_interpretation_persists_across_reopen_and_remains_append_only(tmp_path)
     conn.close()
 
     reopened = connect_database(str(db_path))
-    assert ensure_schema(reopened) == 44
+    assert ensure_schema(reopened) == 46
     persisted = SocialInterpretationService(reopened, clock=clock).get(world_id, "erika", "persistent")
     assert persisted == created
     assert social_interpretation_audit(reopened, world_id) == []
