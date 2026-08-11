@@ -114,6 +114,38 @@ def _physiology_snapshot(conn):
     }
 
 
+def _set_synthetic_state(
+    conn,
+    world_id,
+    character_key,
+    *,
+    homeostatic_load_milli,
+    circadian_phase_milli,
+    physical_capacity_milli=70000,
+    previous_band="stable",
+):
+    """Prépare une trajectoire synthétique sans créer de fait canonique."""
+    character_id = conn.execute(
+        "SELECT id FROM character WHERE world_id = ? AND key = ?", (world_id, character_key)
+    ).fetchone()[0]
+    with transaction(conn) as tx:
+        tx.execute(
+            "UPDATE sleep_regulation_state SET homeostatic_load_milli = ?, "
+            "circadian_phase_milli = ?, anchor_at = ? WHERE world_id = ? AND character_id = ?",
+            (homeostatic_load_milli, circadian_phase_milli, ANCHOR, world_id, character_id),
+        )
+        tx.execute(
+            "UPDATE physical_capacity_state SET capacity_milli = ?, rate_remainder = 0, "
+            "anchor_at = ? WHERE world_id = ? AND character_id = ?",
+            (physical_capacity_milli, ANCHOR, world_id, character_id),
+        )
+        tx.execute(
+            "UPDATE sleep_wake_hysteresis_state SET previous_band = ?, anchor_at = ? "
+            "WHERE world_id = ? AND character_id = ?",
+            (previous_band, ANCHOR, world_id, character_id),
+        )
+
+
 def test_persistent_reader_is_gated_until_a_synthetic_active_world(wired_world):
     conn, world_id = wired_world
     service = SleepPhysiologyService(conn)
@@ -220,6 +252,24 @@ def test_active_state_requires_dense_hysteresis_memory(wired_world):
     assert not physiology.passed
 
 
+def test_persistent_reader_rejects_desynchronized_hysteresis_anchor(wired_world):
+    conn, world_id = wired_world
+    _activate_synthetic(conn, world_id)
+    service = SleepPhysiologyService(conn)
+    character_id = conn.execute(
+        "SELECT id FROM character WHERE world_id = ? AND key = 'sophie'", (world_id,)
+    ).fetchone()[0]
+    conn.execute(
+        "UPDATE sleep_wake_hysteresis_state SET anchor_at = ? "
+        "WHERE world_id = ? AND character_id = ?",
+        ("2026-08-11T00:00:01+00:00", world_id, character_id),
+    )
+
+    with pytest.raises(SleepPhysiologyError) as caught:
+        service.read_state(world_id, "sophie")
+    assert caught.value.code == "inconsistent_hysteresis_anchor"
+
+
 def test_synthetic_materialization_is_partition_stable_restart_safe_and_noncanonical(wired_world):
     conn, world_id = wired_world
     _activate_synthetic(conn, world_id)
@@ -262,6 +312,93 @@ def test_synthetic_materialization_is_partition_stable_restart_safe_and_noncanon
     assert conn.execute(
         "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (world_id,)
     ).fetchone()[0] == before_events
+
+
+def test_synthetic_hysteresis_is_partition_stable_through_fragile_band(wired_world):
+    conn, world_id = wired_world
+    _activate_synthetic(conn, world_id)
+    service = SleepPhysiologyService(conn)
+    source = RegulationInput("wake", 0, 25000)
+    for character_key in ("sophie", "erika"):
+        _set_synthetic_state(
+            conn,
+            world_id,
+            character_key,
+            homeostatic_load_milli=5000,
+            circadian_phase_milli=300000,
+            previous_band="stable",
+        )
+
+    single = service.materialize_synthetic(world_id, "sophie", "2026-08-11T15:00:00+00:00", source)
+    partitioned = service.materialize_segments_synthetic(
+        world_id,
+        "erika",
+        (
+            SyntheticRegulationSegment("2026-08-11T00:01:01+00:00", source),
+            SyntheticRegulationSegment("2026-08-11T05:38:14+00:00", source),
+            SyntheticRegulationSegment("2026-08-11T15:00:00+00:00", source),
+        ),
+    )
+
+    assert single.projection.state.previous_stability_band == "fragile"
+    assert partitioned[-1].projection.state.previous_stability_band == "fragile"
+    assert (
+        single.projection.state.regulation.homeostatic_load_milli,
+        single.projection.state.regulation.circadian_phase_milli,
+        single.projection.state.regulation.physical_capacity_milli,
+        single.projection.state.previous_stability_band,
+    ) == (
+        partitioned[-1].projection.state.regulation.homeostatic_load_milli,
+        partitioned[-1].projection.state.regulation.circadian_phase_milli,
+        partitioned[-1].projection.state.regulation.physical_capacity_milli,
+        partitioned[-1].projection.state.previous_stability_band,
+    )
+
+
+def test_synthetic_hysteresis_is_partition_stable_through_critical_entry_and_exit(wired_world):
+    conn, world_id = wired_world
+    _activate_synthetic(conn, world_id)
+    service = SleepPhysiologyService(conn)
+    wake = RegulationInput("wake", 0, 25000)
+    sleep = RegulationInput("sleep", 0, 25000, occluded=True)
+    for character_key in ("sophie", "erika"):
+        _set_synthetic_state(
+            conn,
+            world_id,
+            character_key,
+            homeostatic_load_milli=95000,
+            circadian_phase_milli=300000,
+            previous_band="stable",
+        )
+
+    sophie_wake = service.materialize_synthetic(world_id, "sophie", "2026-08-11T01:00:00+00:00", wake)
+    sophie_final = service.materialize_synthetic(world_id, "sophie", "2026-08-11T13:00:00+00:00", sleep)
+    erika_segments = service.materialize_segments_synthetic(
+        world_id,
+        "erika",
+        (
+            SyntheticRegulationSegment("2026-08-11T00:01:01+00:00", wake),
+            SyntheticRegulationSegment("2026-08-11T01:00:00+00:00", wake),
+            SyntheticRegulationSegment("2026-08-11T01:01:13+00:00", sleep),
+            SyntheticRegulationSegment("2026-08-11T13:00:00+00:00", sleep),
+        ),
+    )
+
+    assert sophie_wake.projection.stability.band == "critical"
+    assert erika_segments[1].projection.stability.band == "critical"
+    assert sophie_final.projection.stability.band == "stable"
+    assert erika_segments[-1].projection.stability.band == "stable"
+    assert (
+        sophie_final.projection.state.regulation.homeostatic_load_milli,
+        sophie_final.projection.state.regulation.circadian_phase_milli,
+        sophie_final.projection.state.regulation.physical_capacity_milli,
+        sophie_final.projection.state.previous_stability_band,
+    ) == (
+        erika_segments[-1].projection.state.regulation.homeostatic_load_milli,
+        erika_segments[-1].projection.state.regulation.circadian_phase_milli,
+        erika_segments[-1].projection.state.regulation.physical_capacity_milli,
+        erika_segments[-1].projection.state.previous_stability_band,
+    )
 
 
 def test_synthetic_segments_preserve_h_p_separation_and_hysteresis_anchor(wired_world):

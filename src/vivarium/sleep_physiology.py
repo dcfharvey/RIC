@@ -25,6 +25,7 @@ from typing import Any, Literal, Mapping
 from .circadian_model import (
     CircadianModelError,
     CircadianParameters,
+    PHASE_TURNS,
     Propensity,
     RegulationInput,
     RegulationState,
@@ -39,6 +40,10 @@ from .util import Clock, new_uuid, parse_iso, to_iso
 
 ADDITIVE_MODEL_KEY = "ric.sleep.additive.v1"
 _STABILITY_BANDS = {"stable", "fragile", "critical"}
+# Quantum de banc, lié à la résolution canonique de ce raccord synthétique.
+# Il garantit que l'hystérésis n'est pas fonction du découpage demandé par
+# l'appelant. Ce n'est ni une cadence runtime ni une constante biologique.
+SYNTHETIC_INTEGRATION_QUANTUM_SECONDS = 1
 
 
 class SleepPhysiologyError(ValueError):
@@ -555,7 +560,7 @@ class SleepPhysiologyService:
             "SELECT r.model_key, r.model_version, r.homeostatic_load_milli, "
             "r.circadian_phase_milli, r.anchor_at AS regulation_anchor_at, "
             "p.capacity_milli, p.rate_remainder, p.anchor_at AS capacity_anchor_at, "
-            "h.previous_band "
+            "h.previous_band, h.anchor_at AS hysteresis_anchor_at "
             "FROM sleep_regulation_state r "
             "JOIN physical_capacity_state p ON p.world_id = r.world_id AND p.character_id = r.character_id "
             "LEFT JOIN sleep_wake_hysteresis_state h ON h.world_id = r.world_id AND h.character_id = r.character_id "
@@ -574,13 +579,17 @@ class SleepPhysiologyService:
             raise SleepPhysiologyError(
                 "mémoire d'hystérésis absente", code="hysteresis_state_missing"
             )
+        if row["regulation_anchor_at"] != row["hysteresis_anchor_at"]:
+            raise SleepPhysiologyError(
+                "ancre d'hystérésis désalignée", code="inconsistent_hysteresis_anchor"
+            )
         band = row["previous_band"]
         if band not in _STABILITY_BANDS:
             raise SleepPhysiologyError("hystérésis invalide", code="invalid_hysteresis")
         try:
             regulation = RegulationState(
                 int(row["homeostatic_load_milli"]) / 100000.0,
-                int(row["circadian_phase_milli"]) / 1_000_000.0,
+                int(row["circadian_phase_milli"]) / (PHASE_TURNS - 1),
                 int(row["capacity_milli"]) / 100000.0,
             )
         except CircadianModelError as exc:
@@ -713,26 +722,37 @@ class SleepPhysiologyService:
     @classmethod
     def _advance_capacity(
         cls,
-        state: PersistedPhysiologyState,
+        capacity_milli: int,
+        remainder: int,
         source: RegulationInput,
         duration_seconds: int,
         parameters: CircadianParameters,
     ) -> tuple[int, int]:
         """Avance P en milli-unités avec reste rationnel et bornes explicites."""
-        if not 0 <= state.physical_capacity_remainder < 3600:
+        if not 0 <= remainder < 3600:
             raise SleepPhysiologyError("reste de capacité invalide", code="invalid_capacity_remainder")
-        current = state.regulation.physical_capacity_milli
         numerator = (
             cls._capacity_rate_milli_per_hour(source, parameters) * duration_seconds
-            + state.physical_capacity_remainder
+            + remainder
         )
         delta, remainder = divmod(numerator, 3600)
-        next_capacity = current + delta
+        next_capacity = capacity_milli + delta
         if next_capacity <= 0:
             return 0, 0
         if next_capacity >= 100000:
             return 100000, 0
         return next_capacity, remainder
+
+    @staticmethod
+    def _quantized_regulation(
+        advanced: RegulationState, capacity_milli: int
+    ) -> RegulationState:
+        """Ramène le calcul local à la précision réellement persistée."""
+        return RegulationState(
+            advanced.homeostatic_load_milli / 100000.0,
+            advanced.circadian_phase_milli / (PHASE_TURNS - 1),
+            capacity_milli / 100000.0,
+        )
 
     def materialize_synthetic(
         self,
@@ -756,19 +776,22 @@ class SleepPhysiologyService:
             if duration == 0:
                 return SyntheticMaterialization(self.project_synthetic(world, character_key, source), False)
             parameters = self.parameters_for_character(world, character_key)
-            advanced = advance_regulation(state.regulation, source, duration, parameters)
-            capacity_milli, remainder = self._advance_capacity(state, source, duration, parameters)
-            regulation = RegulationState(
-                advanced.homeostatic_load,
-                advanced.circadian_phase,
-                capacity_milli / 100000.0,
-            )
-            stability = wake_stability(
-                regulation,
-                source,
-                parameters,
-                previous_band=state.previous_stability_band,
-            )
+            regulation = state.regulation
+            capacity_milli = regulation.physical_capacity_milli
+            remainder = state.physical_capacity_remainder
+            band = state.previous_stability_band
+            stability = wake_stability(regulation, source, parameters, previous_band=band)
+            remaining = duration
+            while remaining:
+                quantum = min(SYNTHETIC_INTEGRATION_QUANTUM_SECONDS, remaining)
+                advanced = advance_regulation(regulation, source, quantum, parameters)
+                capacity_milli, remainder = self._advance_capacity(
+                    capacity_milli, remainder, source, quantum, parameters
+                )
+                regulation = self._quantized_regulation(advanced, capacity_milli)
+                stability = wake_stability(regulation, source, parameters, previous_band=band)
+                band = stability.band
+                remaining -= quantum
             character = self._character(world, character_key)
             now = self._now()
             conn.execute(
@@ -792,7 +815,7 @@ class SleepPhysiologyService:
             updated = conn.execute(
                 "UPDATE sleep_wake_hysteresis_state SET previous_band = ?, anchor_at = ?, updated_at = ? "
                 "WHERE world_id = ? AND character_id = ?",
-                (stability.band, target, now, world, character["id"]),
+                (band, target, now, world, character["id"]),
             )
             if updated.rowcount != 1:
                 raise SleepPhysiologyError(
@@ -806,7 +829,7 @@ class SleepPhysiologyService:
                     regulation=regulation,
                     anchor_at=target,
                     physical_capacity_remainder=remainder,
-                    previous_stability_band=stability.band,
+                    previous_stability_band=band,
                 ),
                 propensity=sleep_propensity(regulation, parameters, family="additive"),
                 stability=stability,
@@ -838,17 +861,13 @@ class SleepPhysiologyService:
         character_key: Any,
         source: RegulationInput,
         until: Any,
-        *,
-        resolution_seconds: int = 60,
     ) -> str | None:
         """Cherche, sans écrire, une entrée ``critical`` sous causes constantes.
 
-        La résolution est un choix numérique de banc, non une cadence runtime ni
-        une règle physiologique. Le raccord moteur futur remplacera cette source
-        libre par les causes canoniques segmentées.
+        Le quantum est identique à celui de matérialisation : le résultat ne
+        dépend donc pas du partitionnement de l'appelant. Il reste un choix
+        numérique de banc, non une cadence runtime ni une règle physiologique.
         """
-        if isinstance(resolution_seconds, bool) or not isinstance(resolution_seconds, int) or resolution_seconds < 1:
-            raise SleepPhysiologyError("résolution synthétique invalide", code="invalid_resolution")
         state = self.read_state(world_id, character_key)
         target = _at(until)
         remaining = self._seconds_between(state.anchor_at, target)
@@ -859,12 +878,10 @@ class SleepPhysiologyService:
         if band == "critical":
             return state.anchor_at
         while remaining:
-            duration = min(resolution_seconds, remaining)
+            duration = min(SYNTHETIC_INTEGRATION_QUANTUM_SECONDS, remaining)
             advanced = advance_regulation(regulation, source, duration, parameters)
-            regulation = RegulationState(
-                advanced.homeostatic_load,
-                advanced.circadian_phase,
-                regulation.physical_capacity,
+            regulation = self._quantized_regulation(
+                advanced, regulation.physical_capacity_milli
             )
             stability = wake_stability(regulation, source, parameters, previous_band=band)
             cursor += timedelta(seconds=duration)

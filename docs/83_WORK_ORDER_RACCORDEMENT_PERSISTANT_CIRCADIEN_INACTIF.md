@@ -152,7 +152,7 @@ La mémoire `previous_band` appartient à `SleepPhysiologyService` si l'hystér�
 
 1. **Revue de ce work order.** Complétée, avec clarification d'ownership.
 2. **Raccord persistant inactif.** Complété : migration 0047, service de lecture/projection, résolveur de sources, mémoire d'hystérésis, préflight diagnostique et aucune injection runtime.
-3. **Exécution synthétique.** Complété dans des mondes de test `active` seulement : matérialisation H/φ/P avec reste rationnel de P, segmentation explicite, hystérésis dense, projections additive/stabilité et scheduler de frontière en lecture. Les APIs sont suffixées `_synthetic`; elles n'activent ni résidence ni politique legacy.
+3. **Exécution synthétique.** Complété dans des mondes de test `active` seulement : matérialisation H/φ/P avec reste rationnel de P, segmentation explicite, hystérésis dense à quantum synthétique fixe (donc indépendante des partitions demandées), projections additive/stabilité et scheduler de frontière en lecture. Le reader vérifie lui-même l'alignement des trois ancres H/φ, P et hystérésis. Les APIs sont suffixées `_synthetic`; elles n'activent ni résidence ni politique legacy.
 4. **Compatibilité et shadow.** Audit exhaustif des consommateurs `repos` et `energie`; essais de l'arbitre/motif/stabilité ensemble sur copies synthétiques, sans écrire dans le monde réel.
 5. **Work order de cutover séparé.** Définition de l'arbitre exécutable, terminaison de sommeil, migration des coûts physiques vers P et bascule atomique. Cette étape exige nouvelle revue Sol/R&D.
 6. **Déploiement réel ultérieur.** Uniquement après reprise officielle de la session crashée, arrêt propre séparé, validation et approbation explicite.
