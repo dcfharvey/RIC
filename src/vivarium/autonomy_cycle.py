@@ -42,9 +42,6 @@ class AutonomyCycle:
 
     def __init__(self, conn: sqlite3.Connection, provider: CognitionProvider, clock: Clock | None = None) -> None:
         self._conn, self._provider, self._clock = conn, provider, clock or Clock()
-        # Cache technique reconstructible : un refus sans admission ne doit pas
-        # reevaluer le meme idle a chaque pulse avant son echeance connue.
-        self._deferred_until_by_source: dict[str, str] = {}
 
     def _active_idle_sources(self, world_id: int) -> tuple[tuple[str, int], ...]:
         candidates: list[tuple[str, int]] = []
@@ -122,16 +119,18 @@ class AutonomyCycle:
         deferred: AutonomyOutcome | None = None
         for character_key, event_seq in self._active_idle_sources(world_id):
             source_key = f"idle_{event_seq}"
-            retry_key = f"{world_id}:{character_key}:{source_key}"
-            canonical_now = WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
-            deferred_until = self._deferred_until_by_source.get(retry_key)
-            if deferred_until is not None and parse_iso(canonical_now) < parse_iso(deferred_until):
-                continue
-            self._deferred_until_by_source.pop(retry_key, None)
             if any(
                 record.trigger == CALL_TRIGGER_PLANNED_REFLECTION and record.source_key == source_key
                 for record in ledger.history(world_id, character_key)
             ):
+                continue
+            verdict = ledger.verdict(
+                world_id, character_key, CALL_TRIGGER_PLANNED_REFLECTION, source_key, limits,
+            )
+            if verdict.reason_code in {"budget_exhausted", "debounced"}:
+                # Ce refus est entièrement dérivable du ledger canonique. Ne pas
+                # créer de télémétrie par pulse et ne pas dépendre d'un cache de
+                # cycle éphémère : une reconstruction reste silencieuse.
                 continue
             try:
                 routed = router.run(
@@ -151,16 +150,6 @@ class AutonomyCycle:
                 )
             if routed.attempted:
                 return outcome
-            reason = routed.admission.verdict.reason_code
-            if reason in {"budget_exhausted", "debounced"}:
-                release_at = ledger.retry_not_before(
-                    world_id, character_key, limits,
-                    attempted_at=canonical_now,
-                    reason_code=reason,
-                    retry_delay_seconds=0,
-                )
-                if parse_iso(release_at) > parse_iso(canonical_now):
-                    self._deferred_until_by_source[retry_key] = release_at
             # Un budget ou debounce individuel ne doit pas affamer les autres
             # résidentes. On garde le premier diagnostic, puis on continue.
             deferred = deferred or outcome

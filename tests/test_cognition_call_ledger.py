@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -14,6 +14,12 @@ from vivarium.util import to_iso
 class Clock:
     def now(self): return datetime(2026, 8, 6, 12, tzinfo=timezone.utc)
     def now_iso(self): return to_iso(self.now())
+
+
+class AdvancingClock(Clock):
+    def __init__(self): self.current = datetime(2026, 8, 6, 12, tzinfo=timezone.utc)
+    def now(self): return self.current
+    def advance(self, seconds): self.current += timedelta(seconds=seconds)
 
 
 @pytest.fixture
@@ -67,3 +73,35 @@ def test_unknown_trigger_and_unknown_character_are_refused_without_trace(setup):
         ledger.admit(wid, "nobody", "direct_event", "event_42", limits)
     assert raised.value.code == "character_not_found"
     assert conn.execute("SELECT COUNT(*) FROM cognition_call_admission").fetchone()[0] == 0
+
+
+def test_retry_domains_keep_provider_wall_time_separate_from_canonical_budget_time():
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    clock = AdvancingClock()
+    wid = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
+    try:
+        # Le monde est volontairement quatre heures derriere l'horloge technique.
+        conn.execute(
+            "UPDATE canonical_clock SET simulated_now=?, real_updated_at=?, runtime_state='running' WHERE world_id=?",
+            ("2026-08-06T08:00:00+00:00", clock.now_iso(), wid),
+        )
+        conn.commit()
+        ledger = CognitionCallLedgerService(conn, clock=clock)
+        limits = CognitionCallLimits(0, 3_600, 1)
+        attempted_at = clock.now_iso()
+
+        assert not ledger.retry_due(wid, "sophie", limits, attempted_at=attempted_at, reason_code="provider_unavailable", retry_delay_seconds=30)
+        clock.advance(29)
+        assert not ledger.retry_due(wid, "sophie", limits, attempted_at=attempted_at, reason_code="provider_unavailable", retry_delay_seconds=30)
+        clock.advance(1)
+        assert ledger.retry_due(wid, "sophie", limits, attempted_at=attempted_at, reason_code="provider_unavailable", retry_delay_seconds=30)
+
+        assert ledger.admit(wid, "sophie", "direct_event", "budget_origin", limits).verdict.eligible
+        assert not ledger.retry_due(wid, "sophie", limits, attempted_at=clock.now_iso(), reason_code="budget_exhausted", retry_delay_seconds=30)
+        clock.advance(3_570)
+        assert not ledger.retry_due(wid, "sophie", limits, attempted_at=clock.now_iso(), reason_code="budget_exhausted", retry_delay_seconds=30)
+        clock.advance(30)
+        assert ledger.retry_due(wid, "sophie", limits, attempted_at=clock.now_iso(), reason_code="budget_exhausted", retry_delay_seconds=30)
+    finally:
+        conn.close()

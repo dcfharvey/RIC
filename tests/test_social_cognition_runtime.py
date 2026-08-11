@@ -27,6 +27,9 @@ class Clock:
     def now_iso(self):
         return to_iso(self.current)
 
+    def advance(self, seconds):
+        self.current += timedelta(seconds=seconds)
+
 
 class SpeakingProvider:
     def decide(self, context):
@@ -157,6 +160,30 @@ def test_r8_retry_is_explicit_bounded_and_creates_one_interpretation(setup, monk
     assert retry.technical_status == "interpreted"
     assert conn.execute("SELECT COUNT(*) FROM social_interpretation WHERE character_id=(SELECT id FROM character WHERE key='sophie')").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM scc1c_admission WHERE trace_id=(SELECT id FROM subjective_trace WHERE request_key='live_trace_speech_1_sophie')").fetchone()[0] == 1
+
+
+def test_scc1c_provider_retry_uses_wall_time_when_canonical_clock_is_skewed(setup):
+    conn, world_id, clock = setup
+    conn.execute(
+        "UPDATE canonical_clock SET simulated_now=?, real_updated_at=?, runtime_state='running' WHERE world_id=?",
+        ("2026-08-10T08:00:00+00:00", clock.now_iso(), world_id),
+    )
+    conn.commit()
+    provider = FlakyInterpretationProvider()
+    service = LiveSocialCognitionService(
+        conn, provider, clock=clock, admission_policy=FixedAdmissionPolicy("selected"),
+    )
+    service.process_speech(world_id, "live_scene", "speech_1", CognitionCallLimits(0, 3600, 8))
+
+    assert service.retry(world_id, "sophie", "live_trace_speech_1_sophie", CognitionCallLimits(0, 3600, 8)).detail_code == "retry_backoff"
+    clock.advance(29)
+    assert service.retry(world_id, "sophie", "live_trace_speech_1_sophie", CognitionCallLimits(0, 3600, 8)).detail_code == "retry_backoff"
+    assert conn.execute("SELECT COUNT(*) FROM scc1c_attempt WHERE outcome='provider_unavailable'").fetchone()[0] == 1
+
+    clock.advance(1)
+    recovered = service.retry(world_id, "sophie", "live_trace_speech_1_sophie", CognitionCallLimits(0, 3600, 8))
+    assert recovered.technical_status == "interpreted"
+    assert conn.execute("SELECT COUNT(*) FROM scc1c_attempt WHERE outcome='interpreted'").fetchone()[0] == 3
 
 
 def test_due_scc1c_retry_is_not_starved_by_a_due_scc2a_retry(setup):

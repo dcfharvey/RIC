@@ -81,6 +81,27 @@ def test_provider_failure_is_technical_and_retry_is_bounded(setup):
     pending=service.retry_one_pending(w,CognitionCallLimits(0,3600,20)); assert pending is not None
     assert c.execute('SELECT COUNT(*) FROM social_appraisal').fetchone()[0]==3 and c.execute('SELECT COUNT(*) FROM scc2a_attempt WHERE outcome="appraised"').fetchone()[0]==3
 
+def test_scc2a_provider_retry_uses_wall_time_when_canonical_clock_is_skewed(setup):
+    c,w,clock=setup
+    c.execute("UPDATE canonical_clock SET simulated_now=?, real_updated_at=?, runtime_state='running' WHERE world_id=?",('2026-08-10T08:00:00+00:00',clock.now_iso(),w)); c.commit()
+    ip=DeterministicInterpretationProvider({'schema_version':2,'understanding_status':'unresolved','meaning_hypotheses':[]},model_id='fake-qwen3-14b')
+    class Flaky:
+        model_id='fake-qwen3-14b'; provider_version='fake-scc2a-v1'
+        def __init__(self): self.calls=0
+        def propose(self,snapshot):
+            self.calls+=1
+            if self.calls==1: raise RuntimeError('LM Studio indisponible')
+            return _proposal('not_relevant')
+    ap=Flaky(); service=LiveSocialCognitionService(c,ip,clock=clock,admission_policy=FixedAdmissionPolicy('selected'),appraisal_provider=ap)
+    service.process_speech(w,'scc2a_scene','speech_1',CognitionCallLimits(0,3600,20))
+    assert service.retry_one_pending(w,CognitionCallLimits(0,3600,20)) is None
+    clock.advance(29)
+    assert service.retry_one_pending(w,CognitionCallLimits(0,3600,20)) is None
+    assert c.execute("SELECT COUNT(*) FROM scc2a_attempt WHERE outcome='provider_unavailable'").fetchone()[0]==1
+    clock.advance(1)
+    assert service.retry_one_pending(w,CognitionCallLimits(0,3600,20)).technical_status=='appraised'
+    assert c.execute('SELECT COUNT(*) FROM scc2a_attempt').fetchone()[0]==4
+
 def test_pending_scc2a_retry_is_not_persisted_at_every_pulse_and_recovers(setup):
     c,w,clock=setup
     ip=DeterministicInterpretationProvider({'schema_version':2,'understanding_status':'unresolved','meaning_hypotheses':[]},model_id='fake-qwen3-14b')

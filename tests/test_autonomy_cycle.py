@@ -133,19 +133,41 @@ def test_budget_deferred_idle_is_silent_until_its_budget_window_reopens():
             world_id, "sophie", "direct_event", "preexisting_call", limits,
         )
         provider = Provider()
-        cycle = AutonomyCycle(conn, provider, clock=clock)
 
-        first = cycle.tick(world_id, limits)
-        assert first.character_key == "sophie" and first.routed is not None
-        assert first.routed.admission.verdict.reason_code == "budget_exhausted"
-        assert cycle.tick(world_id, limits).character_key is None
-        assert cycle.tick(world_id, limits).character_key is None
+        # MVPRuntime reconstruit le cycle a chaque pulse : le silence doit donc
+        # etre derive du ledger, pas d'un cache porte par AutonomyCycle.
+        for _ in range(3):
+            assert AutonomyCycle(conn, provider, clock=clock).tick(world_id, limits).character_key is None
         assert provider.calls == []
 
         clock.advance(3_600)
-        recovered = cycle.tick(world_id, limits)
+        recovered = AutonomyCycle(conn, provider, clock=clock).tick(world_id, limits)
         assert recovered.character_key == "sophie" and recovered.routed is not None
         assert recovered.routed.attempted and recovered.routed.turn is not None
         assert provider.calls and ActivityEngine(conn).activity_sheet(world_id, "sophie")["type"] == "photography"
+    finally:
+        conn.close()
+
+
+def test_budget_silence_for_one_idle_does_not_starve_another_resident():
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    clock = AdvancingClock()
+    world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
+    try:
+        activities = ActivityEngine(conn, clock=clock)
+        activities.start_activity(world_id, "chuu", "idle", "entree_exterieure", duration_seconds=7_200)
+        activities.start_activity(world_id, "sophie", "idle", "entree_exterieure", duration_seconds=7_200)
+        limits = CognitionCallLimits(0, 3_600, 1)
+        CognitionCallLedgerService(conn, clock=clock).admit(
+            world_id, "chuu", "direct_event", "preexisting_chuu_call", limits,
+        )
+
+        provider = Provider()
+        outcome = AutonomyCycle(conn, provider, clock=clock).tick(world_id, limits)
+
+        assert outcome.character_key == "sophie" and outcome.routed is not None and outcome.routed.attempted
+        assert [context.character_key for context in provider.calls] == ["sophie"]
+        assert activities.activity_sheet(world_id, "sophie")["type"] == "photography"
     finally:
         conn.close()

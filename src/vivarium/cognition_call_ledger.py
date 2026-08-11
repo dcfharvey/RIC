@@ -90,6 +90,35 @@ class CognitionCallLedgerService:
         character_id = self._character_id(self._conn, world_id, character_key)
         return self._history(self._conn, world_id, character_id)
 
+    def verdict(
+        self,
+        world_id: Any,
+        character_key: Any,
+        trigger: Any,
+        source_key: Any,
+        limits: Any,
+    ) -> CognitionCallVerdict:
+        """Évalue une admission sans créer de journal technique.
+
+        Ce contrôle sert aux schedulers qui doivent ignorer silencieusement une
+        occasion encore techniquement fermée. L'admission persistée reste la
+        seule autorité juste avant l'appel provider.
+        """
+        world_id, character_key = _world_id(world_id), _key(character_key, "personnage")
+        trigger, source_key = _key(trigger, "motif"), _key(source_key, "source")
+        if not isinstance(limits, CognitionCallLimits):
+            raise CognitionCallLedgerError("limites d'appel invalides", code="invalid_cognition_call_limits")
+        try:
+            limits.validated()
+            character_id = self._character_id(self._conn, world_id, character_key)
+            now = WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
+            request = CognitionCallRequest(character_key, trigger, source_key, now).validated()
+            return CognitionCallPolicy.evaluate(
+                request, self._history(self._conn, world_id, character_id), limits,
+            )
+        except CognitionCallPolicyError as exc:
+            raise CognitionCallLedgerError(str(exc), code=exc.code) from exc
+
     def retry_not_before(
         self,
         world_id: Any,
@@ -122,10 +151,10 @@ class CognitionCallLedgerService:
             attempt = parse_iso(attempted_at)
         except (TypeError, ValueError) as exc:
             raise CognitionCallLedgerError("date de tentative invalide", code="invalid_cognition_call_request") from exc
+        if reason_code not in {"budget_exhausted", "debounced"}:
+            return to_iso(attempt + timedelta(seconds=retry_delay_seconds))
         character_id = self._character_id(self._conn, world_id, character_key)
-        now = parse_iso(
-            WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
-        )
+        now = parse_iso(WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id))
         history = self._history(self._conn, world_id, character_id)
         instants = tuple(parse_iso(record.admitted_at) for record in history)
         if reason_code == "budget_exhausted":
@@ -141,7 +170,7 @@ class CognitionCallLedgerService:
             if latest is not None:
                 return to_iso(latest + timedelta(seconds=limits.debounce_seconds))
             return to_iso(now)
-        return to_iso(attempt + timedelta(seconds=retry_delay_seconds))
+        raise AssertionError("raison de retry non gérée")
 
     def retry_due(
         self,
@@ -161,7 +190,10 @@ class CognitionCallLedgerService:
             reason_code=reason_code,
             retry_delay_seconds=retry_delay_seconds,
         )
-        now = WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
+        if reason_code in {"budget_exhausted", "debounced"}:
+            now = WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
+        else:
+            now = self._clock.now_iso()
         return parse_iso(now) >= parse_iso(release_at)
 
     def admit(

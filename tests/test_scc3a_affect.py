@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import pytest
 
 from vivarium.affect import AffectService
@@ -10,6 +10,7 @@ from vivarium.scenes import SocialSceneService
 from vivarium.scc1c import FixedAdmissionPolicy
 from vivarium.scc3a_affect import SCC3AAffectError
 from vivarium.scc3a_affect_provider import DeterministicSCC3AAffectProvider, SCC3AAffectContextBuilder, SCC3AAffectLLMService
+from vivarium.scc3a_affect_runtime import LiveSCC3AAffectService
 from vivarium.social_appraisal_provider import DeterministicAppraisalProvider
 from vivarium.social_cognition_runtime import LiveSocialCognitionService
 from vivarium.social_interpretation_provider import DeterministicInterpretationProvider
@@ -19,6 +20,7 @@ class FakeClock(Clock):
     def __init__(self): self.current=datetime(2026,8,10,12,tzinfo=timezone.utc)
     def now(self): return self.current
     def now_iso(self): return to_iso(self.current)
+    def advance(self, seconds): self.current += timedelta(seconds=seconds)
 
 @pytest.fixture
 def setup():
@@ -59,3 +61,24 @@ def test_live_scc3a_runs_only_for_affect_candidate_and_stops(setup):
     service=LiveSocialCognitionService(c,ip,clock=clock,admission_policy=FixedAdmissionPolicy('selected'),appraisal_provider=ap,affect_provider=ep); assert service.retry_one_pending(w,CognitionCallLimits(0,3600,30)) is None
     SocialSceneService(c,clock=clock).speak(w,'scc3a_scene','speech_2','sophie',act_kind='inform',content='Nouvelle parole.',recipient_key='erika')
     outcomes=service.process_speech(w,'scc3a_scene','speech_2',CognitionCallLimits(0,3600,30)); assert sum(x.affect_statuses.count('applied') for x in outcomes)==3; assert c.execute('SELECT COUNT(*) FROM emotion_episode').fetchone()[0]==3
+
+def test_scc3a_provider_retry_uses_wall_time_when_canonical_clock_is_skewed(setup):
+    c,w,clock=_source(setup,'affect_case')
+    c.execute("UPDATE canonical_clock SET simulated_now=?, real_updated_at=?, runtime_state='running' WHERE world_id=?",('2026-08-10T16:00:00+00:00',clock.now_iso(),w)); c.commit()
+    candidate_id=c.execute("SELECT c.id FROM social_appraisal_candidate c JOIN character ch ON ch.id=c.character_id WHERE c.candidate_key='affect_case' AND ch.key='erika'").fetchone()[0]
+    class Flaky:
+        model_id='fake-qwen3-14b'; provider_version='fake-scc3a-v1'
+        def __init__(self): self.calls=0
+        def propose(self,snapshot):
+            self.calls+=1
+            if self.calls==1: raise SCC3AAffectError('provider down',code='provider_unavailable')
+            return {'decision':'no_change','family':None,'qualitative_intensity':None,'target_ref':None,'support_refs':[]}
+    provider=Flaky(); service=LiveSCC3AAffectService(c,provider,clock=clock)
+    assert service.process_candidate(w,'erika',candidate_id,CognitionCallLimits(0,3600,30)).technical_status=='provider_unavailable'
+    assert LiveSCC3AAffectService(c,provider,clock=clock).retry_one_pending(w,CognitionCallLimits(0,3600,30)) is None
+    clock.advance(29)
+    assert LiveSCC3AAffectService(c,provider,clock=clock).retry_one_pending(w,CognitionCallLimits(0,3600,30)) is None
+    assert c.execute("SELECT COUNT(*) FROM scc3a_attempt WHERE outcome='provider_unavailable'").fetchone()[0]==1
+    clock.advance(1)
+    assert LiveSCC3AAffectService(c,provider,clock=clock).retry_one_pending(w,CognitionCallLimits(0,3600,30)).technical_status=='no_change'
+    assert c.execute('SELECT COUNT(*) FROM scc3a_attempt').fetchone()[0]==2
