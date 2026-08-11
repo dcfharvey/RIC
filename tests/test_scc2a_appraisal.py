@@ -9,7 +9,7 @@ from vivarium.repro import social_appraisal_audit
 from vivarium.scenes import SocialSceneService
 from vivarium.scc1c import FixedAdmissionPolicy
 from vivarium.social_appraisal import SocialAppraisalError
-from vivarium.social_appraisal_provider import DeterministicAppraisalProvider, SocialAppraisalContextBuilder, SocialAppraisalLLMService
+from vivarium.social_appraisal_provider import DeterministicAppraisalProvider, SocialAppraisalContextBuilder, SocialAppraisalLLMService, parse_appraisal_proposal
 from vivarium.social_cognition_runtime import LiveSocialCognitionService
 from vivarium.social_interpretation_provider import DeterministicInterpretationProvider
 from vivarium.util import Clock, to_iso
@@ -59,6 +59,33 @@ def test_invalid_reference_and_hidden_intent_are_rejected_without_partial_write(
     hidden=_proposal(bases=['interpretation:primary'],candidates=[{'candidate_key':'x','domain':'belief','basis_refs':['interpretation:primary'],'justification':'Sophie voulait blesser Erika.'}])
     with pytest.raises(SocialAppraisalError): SocialAppraisalLLMService(c,DeterministicAppraisalProvider(hidden),clock=clock).run(w,'erika','a_hidden','live_scc1b_2',provider_turn_id='t5')
     assert c.execute('SELECT COUNT(*) FROM social_appraisal').fetchone()[0]==before
+
+def test_interpretation_primary_can_route_owner_goal_without_persisted_intention(setup):
+    c,w,clock=setup; ip=DeterministicInterpretationProvider({'schema_version':2,'understanding_status':'clear','meaning_hypotheses':['Luna remercie Sophie et exprime son intention de se reposer.']},model_id='qwen3-14b')
+    LiveSocialCognitionService(c,ip,clock=clock,admission_policy=FixedAdmissionPolicy('selected')).process_speech(w,'scc2a_scene','speech_1',CognitionCallLimits(0,3600,20))
+    source=c.execute("SELECT i.interpretation_key FROM social_interpretation i JOIN character ch ON ch.id=i.character_id WHERE ch.key='luna'").fetchone()['interpretation_key']
+    proposal={"appraisal_status":"relevant","bases":["interpretation:primary"],"candidates":[{"basis_refs":["interpretation:primary"],"candidate_key":"live_scc1b_69","domain":"goal_or_intention","justification":"L'interprétation indique que Luna exprime son intention de se reposer, ce qui est un objectif clair."}],"importance":"moderate","qualitative_meaning":"favorable","schema_version":1}
+    sheet=SocialAppraisalLLMService(c,DeterministicAppraisalProvider(proposal),clock=clock).run(w,'luna','luna_goal',source,provider_turn_id='luna-goal-v2')
+    assert sheet['candidates'][0]['domain']=='goal_or_intention'
+
+def test_realistic_french_words_are_not_rejected_by_boundary_defense(setup):
+    c,w,clock=setup; _interpret(setup)
+    for index,word in enumerate(('sentiment','environnement','engagement','événement','comportement')):
+        proposal=_proposal(bases=['interpretation:primary'],candidates=[{'candidate_key':f'route_{index}','domain':'affect','basis_refs':['interpretation:primary'],'justification':f"L interpretation décrit un {word} pertinent pour l examen du domaine."}])
+        SocialAppraisalLLMService(c,DeterministicAppraisalProvider(proposal),clock=clock).run(w,'erika',f'word_{index}','live_scc1b_2',provider_turn_id=f'word-{index}')
+
+def test_shared_provider_validation_rejects_structural_errors_before_persistence(setup):
+    c,w,clock=setup; _interpret(setup); before=c.execute('SELECT COUNT(*) FROM social_appraisal').fetchone()[0]
+    duplicate=_proposal(bases=['interpretation:primary'],candidates=[{'candidate_key':'same_route','domain':'affect','basis_refs':['interpretation:primary'],'justification':'Le domaine affectif peut examiner ces bases.'},{'candidate_key':'same_route','domain':'relationship','basis_refs':['interpretation:primary'],'justification':'Le domaine relationnel peut examiner ces bases.'}])
+    with pytest.raises(SocialAppraisalError) as exc:
+        SocialAppraisalLLMService(c,DeterministicAppraisalProvider(duplicate),clock=clock).run(w,'erika','structural_bad','live_scc1b_2',provider_turn_id='structural-bad')
+    assert exc.value.code=='invalid_provider_output'; assert c.execute('SELECT COUNT(*) FROM social_appraisal').fetchone()[0]==before
+    with pytest.raises(SocialAppraisalError) as parse_exc: parse_appraisal_proposal(duplicate, {'interpretation:primary'})
+    assert parse_exc.value.code=='invalid_provider_output'
+    unsupported_justification=_proposal(bases=['interpretation:primary'],candidates=[{'candidate_key':'unsupported_basis','domain':'goal_or_intention','basis_refs':[],'justification':'L intention de Luna est certaine et doit être transmise au propriétaire.'}])
+    with pytest.raises(SocialAppraisalError) as justification_exc:
+        parse_appraisal_proposal(unsupported_justification, {'interpretation:primary'})
+    assert justification_exc.value.code=='invalid_provider_output'
 
 def test_live_chain_stops_at_appraisal_and_is_idempotent(setup):
     c,w,clock=setup; ip=DeterministicInterpretationProvider({'schema_version':2,'understanding_status':'clear','meaning_hypotheses':['Lecture subjective']},model_id='fake-qwen3-14b'); ap=DeterministicAppraisalProvider(_proposal('not_relevant'))

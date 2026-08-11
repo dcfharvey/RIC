@@ -8,7 +8,7 @@ from .affect import AffectService
 from .cognition import LocalLLMSettings, request_local_model
 from .scc3a_affect import DECISIONS,FAMILIES,INTENSITIES,SCC3AAffectError,SCC3AAffectService,_FORBIDDEN
 
-SCC3A_SCHEMA_VERSION=1; SCC3A_PROVIDER_VERSION='scc3a-affect-v1'
+SCC3A_SCHEMA_VERSION=1; SCC3A_PROVIDER_VERSION='scc3a-affect-v2'
 _OUTPUT=frozenset({'decision','family','qualitative_intensity','target_ref','support_refs'})
 def _plain(v):
     if isinstance(v,Mapping): return {str(k):_plain(x) for k,x in v.items()}
@@ -52,7 +52,7 @@ class SCC3AAffectContextBuilder:
         row=SCC3AAffectService(self.conn)._candidate(wid,owner,candidate_key)
         if row is None: raise SCC3AAffectError('candidate affect inaccessible',code='candidate_not_found')
         mood=AffectService(self.conn).mood(wid,owner); active=AffectService(self.conn).active_episodes(wid,owner,limit=5)
-        data={'schema_version':SCC3A_SCHEMA_VERSION,'owner':{'character_key':owner},'candidate':{'candidate_key':row['candidate_key'],'basis_refs':json.loads(row['basis_refs_json']),'justification':row['justification']},'appraisal':{'status':row['appraisal_status'],'meaning':row['qualitative_meaning'],'importance':row['importance'],'bases':json.loads(row['bases_json'])},'interpretation':{'key':row['interpretation_key'],'status':self.conn.execute('SELECT understanding_status FROM social_interpretation WHERE id=?',(row['source_interpretation_id'],)).fetchone()['understanding_status']},'trace':{'request_key':row['request_key'],'speaker_key':row['speaker_key'],'recipient_key':row['recipient_key'],'payload':json.loads(self.conn.execute('SELECT payload_json FROM subjective_trace WHERE request_key=? AND world_id=? AND character_id=?',(row['request_key'],wid,row['character_id'])).fetchone()['payload_json'])},'owner_affect':{'mood':mood,'active_episodes':active},'allowed_targets':sorted({row['speaker_key'],row['recipient_key']}),'allowed_support_refs':['candidate:primary','appraisal:primary','interpretation:primary','trace:primary']}
+        data={'schema_version':SCC3A_SCHEMA_VERSION,'owner':{'character_key':owner},'candidate':{'candidate_key':row['candidate_key'],'basis_refs':json.loads(row['basis_refs_json'])},'appraisal':{'status':row['appraisal_status'],'meaning':row['qualitative_meaning'],'importance':row['importance'],'bases':json.loads(row['bases_json'])},'interpretation':{'key':row['interpretation_key'],'status':self.conn.execute('SELECT understanding_status FROM social_interpretation WHERE id=?',(row['source_interpretation_id'],)).fetchone()['understanding_status']},'trace':{'request_key':row['request_key'],'speaker_key':row['speaker_key'],'recipient_key':row['recipient_key'],'payload':json.loads(self.conn.execute('SELECT payload_json FROM subjective_trace WHERE request_key=? AND world_id=? AND character_id=?',(row['request_key'],wid,row['character_id'])).fetchone()['payload_json'])},'owner_affect':{'mood':mood,'active_episodes':active},'allowed_targets':sorted({row['speaker_key'],row['recipient_key']}),'allowed_support_refs':['candidate:primary','appraisal:primary','interpretation:primary','trace:primary']}
         return SCC3AAffectSnapshot(data)
 class SCC3AAffectLLMService:
     def __init__(self,conn,provider,clock=None): self.conn,self.provider,self.clock=conn,provider,clock

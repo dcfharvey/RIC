@@ -346,6 +346,19 @@ ni prompts, ni budgets, ni providers, ni contrats. Après sa qualification, le
 prochain jalon est un burn-in court; aucun nouveau mécanisme cognitif n’est
 autorisé par cette observation.
 
+## Addendum opérationnel — SCC-2A provider v2
+
+Le correctif SCC-2A est isolé sur le provider `scc2a-appraisal-v2`. La
+justification est un texte de routage non autoritatif; les bases engine-owned
+restent la seule provenance causale. `interpretation:primary` peut soutenir une
+candidate `goal_or_intention` lorsque l'interprétation de l'owner représente
+déjà cette proposition, sans exiger une intention persistée préalable.
+
+Le parser provider et la validation persistante partagent désormais les
+contraintes structurelles. SCC-3A ne reçoit plus la justification dans son
+snapshot provider. Aucun schéma n'est migré et aucun rodage vivant n'est
+redémarré par ce lot.
+
 ## 10. Rappel final
 
 Le but de RIC n'est pas de faire croire qu'un LLM est la réalité.

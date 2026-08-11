@@ -33,6 +33,9 @@ class SCC3AAffectService:
     def decide(self,wid:int,owner:str,candidate_key:str,*,decision:str,family:str|None=None,qualitative_intensity:str|None=None,target_ref:str|None=None,support_refs:Any=(),provenance:Mapping[str,Any],decision_key:str|None=None)->dict[str,Any]:
         owner=_key(owner,'proprietaire'); candidate_id=candidate_key if isinstance(candidate_key,int) else None; candidate_key=_key(candidate_key,'candidate') if candidate_id is None else candidate_key; row=self._candidate(wid,owner,candidate_id if candidate_id is not None else candidate_key)
         if row is None: raise SCC3AAffectError('candidate affect inaccessible',code='candidate_not_found')
+        candidate_bases=json.loads(row['basis_refs_json']); appraisal_bases=json.loads(row['bases_json'])
+        if not candidate_bases or len(set(candidate_bases)) != len(candidate_bases) or not set(candidate_bases) <= set(appraisal_bases):
+            raise SCC3AAffectError('bases candidate invalides',code='invalid_scc3a')
         if decision not in DECISIONS: raise SCC3AAffectError('decision affective invalide',code='invalid_scc3a')
         if decision=='no_change':
             if any(x is not None for x in (family,qualitative_intensity,target_ref)) or support_refs: raise SCC3AAffectError('no_change doit rester vide',code='invalid_scc3a')
