@@ -4,7 +4,12 @@ from dataclasses import asdict
 
 import pytest
 
-from vivarium.circadian_model import RegulationInput, calibration_profiles, effective_light_drive
+from vivarium.circadian_model import (
+    RegulationInput,
+    advance_regulation,
+    calibration_profiles,
+    effective_light_drive,
+)
 from vivarium.db import connect_database, transaction
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema, load_migrations, split_sql_statements
@@ -97,6 +102,13 @@ def _activate_synthetic(conn, world_id):
                 "VALUES (?, ?, ?, 'fragile', ?, ?)",
                 (f"hysteresis-{row['id']}", world_id, row["id"], ANCHOR, ANCHOR),
             )
+            tx.execute(
+                "INSERT INTO sleep_regulation_precision_state "
+                "(public_id, world_id, character_id, homeostatic_load_residue, "
+                "circadian_phase_residue, anchor_at, updated_at) "
+                "VALUES (?, ?, ?, 0.0, 0.0, ?, ?)",
+                (f"precision-{row['id']}", world_id, row["id"], ANCHOR, ANCHOR),
+            )
 
 
 def _physiology_snapshot(conn):
@@ -108,6 +120,7 @@ def _physiology_snapshot(conn):
         for table in (
             "sleep_regulation_state",
             "physical_capacity_state",
+            "sleep_regulation_precision_state",
             "sleep_wake_hysteresis_state",
             "canonical_event",
         )
@@ -143,6 +156,12 @@ def _set_synthetic_state(
             "UPDATE sleep_wake_hysteresis_state SET previous_band = ?, anchor_at = ? "
             "WHERE world_id = ? AND character_id = ?",
             (previous_band, ANCHOR, world_id, character_id),
+        )
+        tx.execute(
+            "UPDATE sleep_regulation_precision_state SET homeostatic_load_residue = 0.0, "
+            "circadian_phase_residue = 0.0, anchor_at = ? "
+            "WHERE world_id = ? AND character_id = ?",
+            (ANCHOR, world_id, character_id),
         )
 
 
@@ -270,6 +289,24 @@ def test_persistent_reader_rejects_desynchronized_hysteresis_anchor(wired_world)
     assert caught.value.code == "inconsistent_hysteresis_anchor"
 
 
+def test_persistent_reader_rejects_desynchronized_precision_anchor(wired_world):
+    conn, world_id = wired_world
+    _activate_synthetic(conn, world_id)
+    service = SleepPhysiologyService(conn)
+    character_id = conn.execute(
+        "SELECT id FROM character WHERE world_id = ? AND key = 'sophie'", (world_id,)
+    ).fetchone()[0]
+    conn.execute(
+        "UPDATE sleep_regulation_precision_state SET anchor_at = ? "
+        "WHERE world_id = ? AND character_id = ?",
+        ("2026-08-11T00:00:01+00:00", world_id, character_id),
+    )
+
+    with pytest.raises(SleepPhysiologyError) as caught:
+        service.read_state(world_id, "sophie")
+    assert caught.value.code == "inconsistent_precision_anchor"
+
+
 def test_synthetic_materialization_is_partition_stable_restart_safe_and_noncanonical(wired_world):
     conn, world_id = wired_world
     _activate_synthetic(conn, world_id)
@@ -353,6 +390,14 @@ def test_synthetic_hysteresis_is_partition_stable_through_fragile_band(wired_wor
         partitioned[-1].projection.state.regulation.physical_capacity_milli,
         partitioned[-1].projection.state.previous_stability_band,
     )
+    assert abs(
+        single.projection.state.regulation.homeostatic_load
+        - partitioned[-1].projection.state.regulation.homeostatic_load
+    ) < 1e-12
+    assert _phase_distance(
+        single.projection.state.regulation.circadian_phase,
+        partitioned[-1].projection.state.regulation.circadian_phase,
+    ) < 1e-12
 
 
 def test_synthetic_hysteresis_is_partition_stable_through_critical_entry_and_exit(wired_world):
@@ -399,6 +444,99 @@ def test_synthetic_hysteresis_is_partition_stable_through_critical_entry_and_exi
         erika_segments[-1].projection.state.regulation.physical_capacity_milli,
         erika_segments[-1].projection.state.previous_stability_band,
     )
+    assert abs(
+        sophie_final.projection.state.regulation.homeostatic_load
+        - erika_segments[-1].projection.state.regulation.homeostatic_load
+    ) < 1e-12
+    assert _phase_distance(
+        sophie_final.projection.state.regulation.circadian_phase,
+        erika_segments[-1].projection.state.regulation.circadian_phase,
+    ) < 1e-12
+
+
+def _phase_distance(left, right):
+    delta = abs(left - right)
+    return min(delta, 1.0 - delta)
+
+
+def test_synthetic_materialization_preserves_long_h_wake_and_sleep_trajectories(wired_world):
+    conn, world_id = wired_world
+    _activate_synthetic(conn, world_id)
+    service = SleepPhysiologyService(conn)
+    wake = RegulationInput("wake", 0, 25000)
+    sleep = RegulationInput("sleep", 0, 25000, occluded=True)
+    for character_key, load in (("sophie", 50000), ("erika", 95000)):
+        _set_synthetic_state(
+            conn,
+            world_id,
+            character_key,
+            homeostatic_load_milli=load,
+            circadian_phase_milli=300000,
+        )
+
+    wake_initial = service.read_state(world_id, "sophie")
+    wake_expected = advance_regulation(
+        wake_initial.regulation, wake, 24 * 3600, service.parameters_for_character(world_id, "sophie")
+    )
+    wake_result = service.materialize_synthetic(
+        world_id, "sophie", "2026-08-12T00:00:00+00:00", wake
+    )
+    sleep_initial = service.read_state(world_id, "erika")
+    sleep_expected = advance_regulation(
+        sleep_initial.regulation, sleep, 12 * 3600, service.parameters_for_character(world_id, "erika")
+    )
+    sleep_result = service.materialize_synthetic(
+        world_id, "erika", "2026-08-11T12:00:00+00:00", sleep
+    )
+
+    assert wake_result.projection.state.regulation.homeostatic_load > 0.85
+    assert abs(wake_result.projection.state.regulation.homeostatic_load - wake_expected.homeostatic_load) < 1e-10
+    assert sleep_result.projection.state.regulation.homeostatic_load < 0.02
+    assert abs(sleep_result.projection.state.regulation.homeostatic_load - sleep_expected.homeostatic_load) < 1e-10
+
+
+def test_synthetic_materialization_preserves_free_running_phase_across_irregular_partitions(wired_world):
+    conn, world_id = wired_world
+    _activate_synthetic(conn, world_id)
+    service = SleepPhysiologyService(conn)
+    source = RegulationInput("wake", 0, 25000)
+    for character_key in ("sophie", "erika"):
+        _set_synthetic_state(
+            conn,
+            world_id,
+            character_key,
+            homeostatic_load_milli=50000,
+            circadian_phase_milli=300000,
+        )
+
+    duration = 7 * 24 * 3600
+    expected = advance_regulation(
+        service.read_state(world_id, "sophie").regulation,
+        source,
+        duration,
+        service.parameters_for_character(world_id, "sophie"),
+    )
+    single = service.materialize_synthetic(world_id, "sophie", "2026-08-18T00:00:00+00:00", source)
+    partitioned = service.materialize_segments_synthetic(
+        world_id,
+        "erika",
+        (
+            SyntheticRegulationSegment("2026-08-11T00:01:01+00:00", source),
+            SyntheticRegulationSegment("2026-08-13T05:38:14+00:00", source),
+            SyntheticRegulationSegment("2026-08-18T00:00:00+00:00", source),
+        ),
+    )[-1]
+
+    assert _phase_distance(single.projection.state.regulation.circadian_phase, expected.circadian_phase) < 1e-9
+    assert _phase_distance(partitioned.projection.state.regulation.circadian_phase, expected.circadian_phase) < 1e-9
+    assert _phase_distance(
+        single.projection.state.regulation.circadian_phase,
+        partitioned.projection.state.regulation.circadian_phase,
+    ) < 1e-12
+    assert abs(
+        single.projection.state.regulation.homeostatic_load
+        - partitioned.projection.state.regulation.homeostatic_load
+    ) < 1e-12
 
 
 def test_synthetic_segments_preserve_h_p_separation_and_hysteresis_anchor(wired_world):
@@ -455,7 +593,7 @@ def test_hysteresis_memory_is_physiological_but_interruption_marker_is_not_a_tab
         conn.close()
 
 
-def test_0047_preserves_prepared_foundation_and_canonical_history():
+def test_0047_and_0048_preserve_prepared_foundation_and_canonical_history():
     conn = connect_database(":memory:")
     try:
         conn.execute(
@@ -494,7 +632,7 @@ def test_0047_preserves_prepared_foundation_and_canonical_history():
             )
         )
 
-        assert ensure_schema(conn) == 47
+        assert ensure_schema(conn) == 48
 
         prepared = conn.execute(
             "SELECT status, activated_at, activated_by FROM world_physiology_system WHERE world_id = ?",
@@ -510,5 +648,81 @@ def test_0047_preserves_prepared_foundation_and_canonical_history():
         assert tuple(prepared) == ("prepared", None, None)
         assert after == before
         assert conn.execute("SELECT COUNT(*) FROM sleep_wake_hysteresis_state").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM sleep_regulation_precision_state").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_0048_backfills_zero_precision_residues_without_canonical_history():
+    conn = connect_database(":memory:")
+    try:
+        conn.execute(
+            "CREATE TABLE migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL, checksum TEXT NOT NULL)"
+        )
+        for migration in load_migrations():
+            if migration.version > 47:
+                continue
+            with transaction(conn):
+                for statement in split_sql_statements(migration.sql):
+                    conn.execute(statement)
+                conn.execute(
+                    "INSERT INTO migrations (version, name, applied_at, checksum) VALUES (?, ?, ?, ?)",
+                    (migration.version, migration.name, ANCHOR, migration.checksum),
+                )
+        world_id = IntegrationWorldService(conn).create_initial_world()["id"]
+        character_id = conn.execute(
+            "SELECT id FROM character WHERE world_id = ? AND key = 'sophie'", (world_id,)
+        ).fetchone()[0]
+        conn.execute(
+            "UPDATE world_physiology_system SET status = 'active', prepared_model_key = ?, "
+            "prepared_model_version = 1, prepared_at = ?, prepared_by = 'test', "
+            "activated_at = ?, activated_by = 'test' WHERE world_id = ?",
+            (ADDITIVE_MODEL_KEY, ANCHOR, ANCHOR, world_id),
+        )
+        conn.execute(
+            "INSERT INTO sleep_regulation_state "
+            "(public_id, world_id, character_id, model_key, model_version, homeostatic_load_milli, "
+            "circadian_phase_milli, anchor_at, updated_at) "
+            "VALUES ('regulation-test', ?, ?, ?, 1, 50000, 250000, ?, ?)",
+            (world_id, character_id, ADDITIVE_MODEL_KEY, ANCHOR, ANCHOR),
+        )
+        conn.execute(
+            "INSERT INTO physical_capacity_state "
+            "(public_id, world_id, character_id, capacity_milli, rate_remainder, anchor_at, updated_at) "
+            "VALUES ('capacity-test', ?, ?, 70000, 0, ?, ?)",
+            (world_id, character_id, ANCHOR, ANCHOR),
+        )
+        conn.execute(
+            "INSERT INTO sleep_wake_hysteresis_state "
+            "(public_id, world_id, character_id, previous_band, anchor_at, updated_at) "
+            "VALUES ('hysteresis-test', ?, ?, 'stable', ?, ?)",
+            (world_id, character_id, ANCHOR, ANCHOR),
+        )
+        before = tuple(
+            tuple(row)
+            for row in conn.execute(
+                "SELECT seq, event_type, occurred_at, payload FROM canonical_event "
+                "WHERE world_id = ? ORDER BY seq",
+                (world_id,),
+            )
+        )
+
+        assert ensure_schema(conn) == 48
+
+        precision = conn.execute(
+            "SELECT homeostatic_load_residue, circadian_phase_residue, anchor_at "
+            "FROM sleep_regulation_precision_state WHERE world_id = ? AND character_id = ?",
+            (world_id, character_id),
+        ).fetchone()
+        after = tuple(
+            tuple(row)
+            for row in conn.execute(
+                "SELECT seq, event_type, occurred_at, payload FROM canonical_event "
+                "WHERE world_id = ? ORDER BY seq",
+                (world_id,),
+            )
+        )
+        assert tuple(precision) == (0.0, 0.0, ANCHOR)
+        assert after == before
     finally:
         conn.close()
