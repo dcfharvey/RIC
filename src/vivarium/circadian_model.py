@@ -195,7 +195,12 @@ class WakeStability:
 
 @dataclass(frozen=True)
 class StabilityGateState:
-    """Mémoire technique minimale anti-spam, à persister au futur cutover."""
+    """Double de banc pour l'idempotence de conséquence moteur.
+
+    Il n'est pas un état physiologique de production : l'activité canonique et
+    sa transition vers ``aborted`` appartiendront au moteur. L'hystérésis
+    physiologique éventuelle est représentée séparément par ``previous_band``.
+    """
 
     interrupted_activity_id: str | None = None
 
@@ -349,7 +354,7 @@ def stability_consequence(
     requires_sustained_wakefulness: bool,
     gate_state: StabilityGateState,
 ) -> StabilityConsequence:
-    """Propose une interruption bornée ; le futur moteur restera validateur."""
+    """Exerce un contrat de banc ; le moteur futur restera validateur."""
     eligible = (
         stability.band == "critical"
         and requires_sustained_wakefulness

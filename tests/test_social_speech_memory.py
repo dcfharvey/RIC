@@ -12,7 +12,7 @@ from vivarium.traversal import TraversalEngine
 @pytest.fixture
 def setup():
     conn = connect_database(":memory:")
-    assert ensure_schema(conn) == 46
+    assert ensure_schema(conn) == 47
     world_id = IntegrationWorldService(conn).create_initial_world()["id"]
     yield conn, world_id
     conn.close()

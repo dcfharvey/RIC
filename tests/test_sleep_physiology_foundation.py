@@ -137,7 +137,7 @@ def test_no_character_identity_is_interpreted_by_the_biology_owner(prepared_worl
     assert profile["evidence_class"] == "generic_feline"
 
 
-def test_forward_migration_from_schema_44_preserves_history_and_leaves_foundation_inactive():
+def test_forward_migration_from_schema_44_preserves_history_and_leaves_persistence_inactive():
     conn = connect_database(":memory:")
     try:
         conn.execute(
@@ -158,13 +158,14 @@ def test_forward_migration_from_schema_44_preserves_history_and_leaves_foundatio
             "SELECT COUNT(*), MAX(seq) FROM canonical_event WHERE world_id = ?", (world["id"],)
         ).fetchone()
 
-        assert ensure_schema(conn) == 46
+        assert ensure_schema(conn) == 47
 
         after = conn.execute(
             "SELECT COUNT(*), MAX(seq) FROM canonical_event WHERE world_id = ?", (world["id"],)
         ).fetchone()
         assert tuple(after) == tuple(before)
         assert SleepPhysiologyFoundationService(conn).system_status(world["id"]) == "inactive"
+        assert conn.execute("SELECT COUNT(*) FROM sleep_wake_hysteresis_state").fetchone()[0] == 0
         assert inspect_mvp_preflight(conn).healthy
     finally:
         conn.close()

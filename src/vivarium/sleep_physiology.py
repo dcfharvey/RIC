@@ -1,10 +1,11 @@
 """Fondations canoniques inactives de la physiologie veille-sommeil.
 
 Ce module possède les registres de lumière, les profils biologiques et la
-préparation technique d'un futur cutover. Il ne calcule pas encore une formule
-circadienne, n'ouvre aucune activité et n'est volontairement appelé par aucun
-cycle runtime : tant que ``world_physiology_system`` n'est pas cut over dans un
-lot ultérieur, le monde conserve intégralement son comportement legacy.
+préparation technique d'un futur cutover. Son raccord persistant peut relire
+des états et projeter le noyau sélectionné, mais n'ouvre aucune activité,
+n'intègre aucun intervalle et n'est volontairement appelé par aucun cycle
+runtime : tant que ``world_physiology_system`` n'est pas cut over dans un lot
+ultérieur, le monde conserve intégralement son comportement legacy.
 
 La phase circadienne sera le premier état intégrateur de l'histoire lumineuse.
 Si la fonction quantitative retenue exige davantage d'histoire récente, elle
@@ -18,10 +19,25 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass
-from typing import Any, Mapping
+from datetime import timezone
+from typing import Any, Literal, Mapping
 
+from .circadian_model import (
+    CircadianModelError,
+    CircadianParameters,
+    Propensity,
+    RegulationInput,
+    RegulationState,
+    WakeStability,
+    sleep_propensity,
+    wake_stability,
+)
 from .db import transaction
 from .util import Clock, new_uuid, parse_iso, to_iso
+
+
+ADDITIVE_MODEL_KEY = "ric.sleep.additive.v1"
+_STABILITY_BANDS = {"stable", "fragile", "critical"}
 
 
 class SleepPhysiologyError(ValueError):
@@ -39,6 +55,27 @@ class InitialPhysiologyState:
     homeostatic_load_milli: int
     circadian_phase_milli: int
     physical_capacity_milli: int
+
+
+@dataclass(frozen=True)
+class PersistedPhysiologyState:
+    """État physiologique matérialisé, lu sans jamais le faire progresser."""
+
+    model_key: str
+    model_version: int
+    regulation: RegulationState
+    anchor_at: str
+    physical_capacity_remainder: int
+    previous_stability_band: Literal["stable", "fragile", "critical"]
+
+
+@dataclass(frozen=True)
+class PhysiologyProjection:
+    """Projections explicables, dérivées et non persistées."""
+
+    state: PersistedPhysiologyState
+    propensity: Propensity
+    stability: WakeStability
 
 
 def _json(value: Any, *, field: str) -> str:
@@ -406,3 +443,221 @@ class SleepPhysiologyFoundationService:
         missing_characters = {int(row["id"]) for row in characters} - assigned_characters
         if missing_characters:
             raise SleepPhysiologyError("profils biologiques incomplets", code="biology_profile_missing")
+
+
+class SleepPhysiologyService:
+    """Raccord persistant, déterministe et encore sans branchement runtime.
+
+    Le service est le seul lecteur normalisé des états H/phase/P et de la
+    mémoire d'hystérésis. Il n'expose aucune activation, aucune intégration et
+    aucune écriture : ces opérations appartiennent à des lots ultérieurs et
+    restent bloquées tant que le cutover atomique n'est pas approuvé.
+    """
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+
+    @staticmethod
+    def _world_id(value: Any) -> int:
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise SleepPhysiologyError("monde invalide", code="invalid_world")
+        return value
+
+    def _character(self, world_id: int, character_key: Any) -> sqlite3.Row:
+        key = _key(character_key, field="personnage")
+        row = self._conn.execute(
+            "SELECT id, key, current_location_id FROM character WHERE world_id = ? AND key = ?",
+            (world_id, key),
+        ).fetchone()
+        if row is None:
+            raise SleepPhysiologyError("personnage introuvable", code="character_not_found")
+        return row
+
+    def _active_system(self, world_id: int) -> sqlite3.Row:
+        row = self._conn.execute(
+            "SELECT status, prepared_model_key, prepared_model_version "
+            "FROM world_physiology_system WHERE world_id = ?",
+            (world_id,),
+        ).fetchone()
+        if row is None or row["status"] != "active":
+            raise SleepPhysiologyError("physiologie inactive", code="physiology_inactive")
+        if row["prepared_model_key"] != ADDITIVE_MODEL_KEY:
+            raise SleepPhysiologyError("modèle physiologique non sélectionné", code="invalid_model")
+        return row
+
+    @staticmethod
+    def _parameters_from_row(row: sqlite3.Row) -> CircadianParameters:
+        try:
+            payload = json.loads(row["parameters_json"])
+        except (TypeError, ValueError) as exc:
+            raise SleepPhysiologyError("profil biologique illisible", code="invalid_profile") from exc
+        if not isinstance(payload, Mapping) or payload.get("model_key") != ADDITIVE_MODEL_KEY:
+            raise SleepPhysiologyError("profil biologique non additif", code="invalid_model")
+        parameters = payload.get("parameters")
+        if not isinstance(parameters, Mapping):
+            raise SleepPhysiologyError("paramètres biologiques invalides", code="invalid_profile")
+        try:
+            return CircadianParameters(
+                profile_key=row["profile_key"],
+                version=int(row["version"]),
+                evidence_class=row["evidence_class"],
+                **dict(parameters),
+            )
+        except (CircadianModelError, TypeError, ValueError) as exc:
+            raise SleepPhysiologyError("paramètres biologiques invalides", code="invalid_profile") from exc
+
+    def parameters_for_character(self, world_id: Any, character_key: Any) -> CircadianParameters:
+        """Lit un profil immuable et impose le modèle production sélectionné."""
+        world = self._world_id(world_id)
+        character = self._character(world, character_key)
+        row = self._conn.execute(
+            "SELECT p.profile_key, p.version, p.evidence_class, p.parameters_json "
+            "FROM character_sleep_biology_assignment a "
+            "JOIN sleep_biology_profile p ON p.id = a.profile_id "
+            "WHERE a.world_id = ? AND a.character_id = ?",
+            (world, character["id"]),
+        ).fetchone()
+        if row is None:
+            raise SleepPhysiologyError("profil biologique absent", code="biology_profile_missing")
+        return self._parameters_from_row(row)
+
+    def read_state(self, world_id: Any, character_key: Any) -> PersistedPhysiologyState:
+        """Relit H/phase/P et l'hystérésis sans les matérialiser."""
+        world = self._world_id(world_id)
+        system = self._active_system(world)
+        character = self._character(world, character_key)
+        row = self._conn.execute(
+            "SELECT r.model_key, r.model_version, r.homeostatic_load_milli, "
+            "r.circadian_phase_milli, r.anchor_at AS regulation_anchor_at, "
+            "p.capacity_milli, p.rate_remainder, p.anchor_at AS capacity_anchor_at, "
+            "h.previous_band "
+            "FROM sleep_regulation_state r "
+            "JOIN physical_capacity_state p ON p.world_id = r.world_id AND p.character_id = r.character_id "
+            "LEFT JOIN sleep_wake_hysteresis_state h ON h.world_id = r.world_id AND h.character_id = r.character_id "
+            "WHERE r.world_id = ? AND r.character_id = ?",
+            (world, character["id"]),
+        ).fetchone()
+        if row is None:
+            raise SleepPhysiologyError("état physiologique absent", code="physiology_state_missing")
+        if row["model_key"] != ADDITIVE_MODEL_KEY or row["model_key"] != system["prepared_model_key"]:
+            raise SleepPhysiologyError("modèle d'état incompatible", code="invalid_model")
+        if int(row["model_version"]) != int(system["prepared_model_version"]):
+            raise SleepPhysiologyError("version d'état incompatible", code="invalid_model")
+        if row["regulation_anchor_at"] != row["capacity_anchor_at"]:
+            raise SleepPhysiologyError("ancres physiologiques désalignées", code="inconsistent_anchor")
+        band = row["previous_band"] or "stable"
+        if band not in _STABILITY_BANDS:
+            raise SleepPhysiologyError("hystérésis invalide", code="invalid_hysteresis")
+        try:
+            regulation = RegulationState(
+                int(row["homeostatic_load_milli"]) / 100000.0,
+                int(row["circadian_phase_milli"]) / 1_000_000.0,
+                int(row["capacity_milli"]) / 100000.0,
+            )
+        except CircadianModelError as exc:
+            raise SleepPhysiologyError("état physiologique invalide", code="invalid_physiology_state") from exc
+        return PersistedPhysiologyState(
+            model_key=row["model_key"],
+            model_version=int(row["model_version"]),
+            regulation=regulation,
+            anchor_at=row["regulation_anchor_at"],
+            physical_capacity_remainder=int(row["rate_remainder"]),
+            previous_stability_band=band,
+        )
+
+    @staticmethod
+    def _schedule_light(schedule: Any, at: str) -> int:
+        if not isinstance(schedule, Mapping) or schedule.get("schema_version") != 1:
+            raise SleepPhysiologyError("calendrier lumineux invalide", code="invalid_light_schedule")
+        segments = schedule.get("segments")
+        if not isinstance(segments, list) or not segments:
+            raise SleepPhysiologyError("calendrier lumineux incomplet", code="invalid_light_schedule")
+        expected_start = 0
+        normalized: list[tuple[int, int, int]] = []
+        for segment in segments:
+            if not isinstance(segment, Mapping):
+                raise SleepPhysiologyError("segment lumineux invalide", code="invalid_light_schedule")
+            start = segment.get("start_second")
+            end = segment.get("end_second")
+            light = segment.get("environmental_light_milli")
+            if any(isinstance(value, bool) or not isinstance(value, int) for value in (start, end, light)):
+                raise SleepPhysiologyError("segment lumineux invalide", code="invalid_light_schedule")
+            if start != expected_start or not start < end <= 86400 or not 0 <= light <= 100000:
+                raise SleepPhysiologyError("segments lumineux discontinus", code="invalid_light_schedule")
+            normalized.append((start, end, light))
+            expected_start = end
+        if expected_start != 86400:
+            raise SleepPhysiologyError("calendrier lumineux incomplet", code="invalid_light_schedule")
+        moment = parse_iso(at).astimezone(timezone.utc)
+        second = moment.hour * 3600 + moment.minute * 60 + moment.second
+        for start, end, light in normalized:
+            if start <= second < end:
+                return light
+        raise SleepPhysiologyError("calendrier lumineux hors plage", code="invalid_light_schedule")
+
+    def resolve_light_source(
+        self,
+        world_id: Any,
+        location_key: Any,
+        at_time: Any,
+        *,
+        state: Literal["wake", "rest", "sleep"],
+        occluded: bool = False,
+        stimulation: float = 0.0,
+    ) -> RegulationInput:
+        """Résout une cause lumineuse objective sans dépendre du runtime.
+
+        Ce lecteur accepte un lieu et une frontière canonique explicites. Il ne
+        déduit pas un « maintenant » et ne rend pas l'assignation de profil
+        rétroactive.
+        """
+        world = self._world_id(world_id)
+        location = _key(location_key, field="lieu")
+        at = _at(at_time)
+        schedule = self._conn.execute(
+            "SELECT p.schedule_json FROM world_light_schedule_assignment a "
+            "JOIN light_schedule_profile p ON p.id = a.profile_id "
+            "WHERE a.world_id = ? AND a.effective_at <= ? "
+            "ORDER BY a.effective_at DESC, a.id DESC LIMIT 1",
+            (world, at),
+        ).fetchone()
+        if schedule is None:
+            raise SleepPhysiologyError("calendrier lumineux absent", code="light_schedule_missing")
+        profile = self._conn.execute(
+            "SELECT p.exposure_milli FROM world_location_light_assignment a "
+            "JOIN location l ON l.id = a.location_id AND l.world_id = a.world_id "
+            "JOIN location_light_profile p ON p.id = a.profile_id "
+            "WHERE a.world_id = ? AND l.key = ? AND a.effective_at <= ? "
+            "ORDER BY a.effective_at DESC, a.id DESC LIMIT 1",
+            (world, location, at),
+        ).fetchone()
+        if profile is None:
+            raise SleepPhysiologyError("profil d'exposition absent", code="location_light_missing")
+        try:
+            schedule_payload = json.loads(schedule["schedule_json"])
+        except (TypeError, ValueError) as exc:
+            raise SleepPhysiologyError("calendrier lumineux illisible", code="invalid_light_schedule") from exc
+        return RegulationInput(
+            state=state,
+            environmental_light_milli=self._schedule_light(schedule_payload, at),
+            location_exposure_milli=int(profile["exposure_milli"]),
+            occluded=occluded,
+            stimulation=stimulation,
+        )
+
+    def project(
+        self, world_id: Any, character_key: Any, source: RegulationInput
+    ) -> PhysiologyProjection:
+        """Projette propension additive et stabilité sans modifier l'ancre."""
+        state = self.read_state(world_id, character_key)
+        parameters = self.parameters_for_character(world_id, character_key)
+        return PhysiologyProjection(
+            state=state,
+            propensity=sleep_propensity(state.regulation, parameters, family="additive"),
+            stability=wake_stability(
+                state.regulation,
+                source,
+                parameters,
+                previous_band=state.previous_stability_band,
+            ),
+        )

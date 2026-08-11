@@ -1,0 +1,255 @@
+"""Raccord persistant inactif : lectures, gate et ownership."""
+
+from dataclasses import asdict
+
+import pytest
+
+from vivarium.circadian_model import calibration_profiles, effective_light_drive
+from vivarium.db import connect_database, transaction
+from vivarium.integration_world import IntegrationWorldService
+from vivarium.migrations import ensure_schema, load_migrations, split_sql_statements
+from vivarium.mvp_preflight import inspect_mvp_preflight
+from vivarium.sleep_physiology import (
+    ADDITIVE_MODEL_KEY,
+    SleepPhysiologyError,
+    SleepPhysiologyFoundationService,
+    SleepPhysiologyService,
+)
+
+
+ANCHOR = "2026-08-11T00:00:00+00:00"
+DAY = "2026-08-11T12:00:00+00:00"
+NIGHT = "2026-08-11T01:00:00+00:00"
+
+
+def _profile_payload():
+    candidate = asdict(calibration_profiles()["human_reference_candidate.v1"])
+    for key in ("profile_key", "version", "evidence_class"):
+        candidate.pop(key)
+    return {"model_key": ADDITIVE_MODEL_KEY, "parameters": candidate}
+
+
+def _schedule():
+    return {
+        "schema_version": 1,
+        "segments": [
+            {"start_second": 0, "end_second": 21600, "environmental_light_milli": 0},
+            {"start_second": 21600, "end_second": 72000, "environmental_light_milli": 90000},
+            {"start_second": 72000, "end_second": 86400, "environmental_light_milli": 0},
+        ],
+    }
+
+
+@pytest.fixture
+def wired_world():
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    world_id = IntegrationWorldService(conn).create_initial_world()["id"]
+    foundation = SleepPhysiologyFoundationService(conn)
+    foundation.register_light_schedule("test.day.v1", 1, _schedule())
+    foundation.register_location_light_profile("test.interior.v1", 1, 25000, {"kind": "interior"})
+    foundation.register_biology_profile(
+        "test.human.v1", 1, "human_reference", _profile_payload()
+    )
+    foundation.assign_light_schedule(world_id, "test.day.v1", 1, ANCHOR, "test_configuration")
+    for row in conn.execute("SELECT key FROM location WHERE world_id = ? ORDER BY key", (world_id,)):
+        foundation.assign_location_light_profile(
+            world_id, row["key"], "test.interior.v1", 1, ANCHOR, "test_configuration"
+        )
+    for row in conn.execute("SELECT key FROM character WHERE world_id = ? ORDER BY key", (world_id,)):
+        foundation.assign_biology_profile(
+            world_id, row["key"], "test.human.v1", 1, "test_configuration"
+        )
+    foundation.prepare_world(world_id, ADDITIVE_MODEL_KEY, 1, "test_operator")
+    try:
+        yield conn, world_id
+    finally:
+        conn.close()
+
+
+def _activate_synthetic(conn, world_id):
+    """Fixture test-only : le produit n'expose encore aucune activation."""
+    with transaction(conn) as tx:
+        tx.execute(
+            "UPDATE world_physiology_system "
+            "SET status='active', activated_at=?, activated_by=?, updated_at=? "
+            "WHERE world_id=?",
+            (ANCHOR, "synthetic_test", ANCHOR, world_id),
+        )
+        for row in tx.execute("SELECT id FROM character WHERE world_id=? ORDER BY id", (world_id,)):
+            tx.execute(
+                "INSERT INTO sleep_regulation_state "
+                "(public_id, world_id, character_id, model_key, model_version, "
+                "homeostatic_load_milli, circadian_phase_milli, anchor_at, updated_at) "
+                "VALUES (?, ?, ?, ?, 1, 50000, 250000, ?, ?)",
+                (f"regulation-{row['id']}", world_id, row["id"], ADDITIVE_MODEL_KEY, ANCHOR, ANCHOR),
+            )
+            tx.execute(
+                "INSERT INTO physical_capacity_state "
+                "(public_id, world_id, character_id, capacity_milli, rate_remainder, anchor_at, updated_at) "
+                "VALUES (?, ?, ?, 70000, 0, ?, ?)",
+                (f"capacity-{row['id']}", world_id, row["id"], ANCHOR, ANCHOR),
+            )
+            tx.execute(
+                "INSERT INTO sleep_wake_hysteresis_state "
+                "(public_id, world_id, character_id, previous_band, anchor_at, updated_at) "
+                "VALUES (?, ?, ?, 'fragile', ?, ?)",
+                (f"hysteresis-{row['id']}", world_id, row["id"], ANCHOR, ANCHOR),
+            )
+
+
+def _physiology_snapshot(conn):
+    return {
+        table: tuple(
+            tuple(row)
+            for row in conn.execute(f"SELECT * FROM {table} ORDER BY id")
+        )
+        for table in (
+            "sleep_regulation_state",
+            "physical_capacity_state",
+            "sleep_wake_hysteresis_state",
+            "canonical_event",
+        )
+    }
+
+
+def test_persistent_reader_is_gated_until_a_synthetic_active_world(wired_world):
+    conn, world_id = wired_world
+    service = SleepPhysiologyService(conn)
+
+    with pytest.raises(SleepPhysiologyError) as caught:
+        service.read_state(world_id, "sophie")
+    assert caught.value.code == "physiology_inactive"
+
+    _activate_synthetic(conn, world_id)
+    before = _physiology_snapshot(conn)
+    source = service.resolve_light_source(world_id, "salon", DAY, state="wake")
+    projection = service.project(world_id, "sophie", source)
+
+    assert projection.state.anchor_at == ANCHOR
+    assert projection.state.previous_stability_band == "fragile"
+    assert projection.propensity.family == "additive"
+    assert projection.stability.band in {"stable", "fragile", "critical"}
+    assert _physiology_snapshot(conn) == before
+
+
+def test_light_resolution_uses_effective_canonical_assignments_and_sleep_occlusion(wired_world):
+    conn, world_id = wired_world
+    foundation = SleepPhysiologyFoundationService(conn)
+    service = SleepPhysiologyService(conn)
+    foundation.register_location_light_profile("test.dark.v2", 2, 10000, {"kind": "interior"})
+    foundation.assign_location_light_profile(
+        world_id, "salon", "test.dark.v2", 2, "2026-08-11T13:00:00+00:00", "test_configuration"
+    )
+
+    daytime = service.resolve_light_source(world_id, "salon", DAY, state="wake")
+    nighttime = service.resolve_light_source(world_id, "salon", NIGHT, state="wake")
+    after_change = service.resolve_light_source(
+        world_id, "salon", "2026-08-11T13:00:00+00:00", state="wake"
+    )
+    sleeping = service.resolve_light_source(world_id, "salon", DAY, state="sleep", occluded=True)
+    parameters = service.parameters_for_character(world_id, "sophie")
+
+    assert daytime.environmental_light_milli == 90000
+    assert nighttime.environmental_light_milli == 0
+    assert after_change.location_exposure_milli == 10000
+    assert effective_light_drive(sleeping, parameters) < effective_light_drive(daytime, parameters)
+
+
+def test_light_resolution_rejects_a_foundation_schedule_that_is_not_operational(wired_world):
+    conn, world_id = wired_world
+    foundation = SleepPhysiologyFoundationService(conn)
+    service = SleepPhysiologyService(conn)
+    foundation.register_light_schedule("test.invalid.v1", 1, {"segments": []})
+    foundation.assign_light_schedule(
+        world_id, "test.invalid.v1", 1, "2026-08-11T14:00:00+00:00", "test_configuration"
+    )
+
+    with pytest.raises(SleepPhysiologyError) as caught:
+        service.resolve_light_source(world_id, "salon", "2026-08-11T14:00:00+00:00", state="wake")
+    assert caught.value.code == "invalid_light_schedule"
+
+
+def test_preflight_reports_prepared_system_without_materializing_states(wired_world):
+    conn, world_id = wired_world
+
+    report = inspect_mvp_preflight(conn, world_id=world_id)
+
+    physiology = next(check for check in report.checks if check.key == "sleep_physiology")
+    assert physiology.passed
+    assert physiology.detail == "prepared complet et toujours inactif"
+    assert conn.execute("SELECT COUNT(*) FROM sleep_regulation_state").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM physical_capacity_state").fetchone()[0] == 0
+
+
+def test_hysteresis_memory_is_physiological_but_interruption_marker_is_not_a_table():
+    conn = connect_database(":memory:")
+    try:
+        ensure_schema(conn)
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(sleep_wake_hysteresis_state)")
+        }
+        assert "previous_band" in columns
+        assert "interrupted_activity_id" not in columns
+    finally:
+        conn.close()
+
+
+def test_0047_preserves_prepared_foundation_and_canonical_history():
+    conn = connect_database(":memory:")
+    try:
+        conn.execute(
+            "CREATE TABLE migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL, checksum TEXT NOT NULL)"
+        )
+        for migration in load_migrations():
+            if migration.version > 46:
+                continue
+            with transaction(conn):
+                for statement in split_sql_statements(migration.sql):
+                    conn.execute(statement)
+                conn.execute(
+                    "INSERT INTO migrations (version, name, applied_at, checksum) VALUES (?, ?, ?, ?)",
+                    (migration.version, migration.name, ANCHOR, migration.checksum),
+                )
+        world_id = IntegrationWorldService(conn).create_initial_world()["id"]
+        foundation = SleepPhysiologyFoundationService(conn)
+        foundation.register_light_schedule("migration.day.v1", 1, _schedule())
+        foundation.register_location_light_profile("migration.interior.v1", 1, 25000, {"kind": "interior"})
+        foundation.register_biology_profile("migration.human.v1", 1, "human_reference", _profile_payload())
+        foundation.assign_light_schedule(world_id, "migration.day.v1", 1, ANCHOR, "migration_test")
+        for row in conn.execute("SELECT key FROM location WHERE world_id = ?", (world_id,)):
+            foundation.assign_location_light_profile(
+                world_id, row["key"], "migration.interior.v1", 1, ANCHOR, "migration_test"
+            )
+        for row in conn.execute("SELECT key FROM character WHERE world_id = ?", (world_id,)):
+            foundation.assign_biology_profile(
+                world_id, row["key"], "migration.human.v1", 1, "migration_test"
+            )
+        foundation.prepare_world(world_id, ADDITIVE_MODEL_KEY, 1, "migration_test")
+        before = tuple(
+            tuple(row)
+            for row in conn.execute(
+                "SELECT seq, event_type, occurred_at, payload FROM canonical_event WHERE world_id = ? ORDER BY seq",
+                (world_id,),
+            )
+        )
+
+        assert ensure_schema(conn) == 47
+
+        prepared = conn.execute(
+            "SELECT status, activated_at, activated_by FROM world_physiology_system WHERE world_id = ?",
+            (world_id,),
+        ).fetchone()
+        after = tuple(
+            tuple(row)
+            for row in conn.execute(
+                "SELECT seq, event_type, occurred_at, payload FROM canonical_event WHERE world_id = ? ORDER BY seq",
+                (world_id,),
+            )
+        )
+        assert tuple(prepared) == ("prepared", None, None)
+        assert after == before
+        assert conn.execute("SELECT COUNT(*) FROM sleep_wake_hysteresis_state").fetchone()[0] == 0
+    finally:
+        conn.close()

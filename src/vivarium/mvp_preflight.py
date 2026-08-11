@@ -97,6 +97,62 @@ def _world_row(conn: sqlite3.Connection, world_id: int | None) -> sqlite3.Row | 
     return None
 
 
+def _physiology_system_check(conn: sqlite3.Connection, world_id: int) -> PreflightCheck:
+    """Contrôle le gate physiologique par SQL direct, sans lire l'horloge.
+
+    Le raccord est volontairement inactif : ce contrôle informe l'opérateur de
+    la configuration sans matérialiser H/phase/P et sans faire progresser le
+    temps canonique.
+    """
+    row = conn.execute(
+        "SELECT status FROM world_physiology_system WHERE world_id = ?", (world_id,)
+    ).fetchone()
+    status = "inactive" if row is None else row["status"]
+    character_count = conn.execute(
+        "SELECT COUNT(*) FROM character WHERE world_id = ?", (world_id,)
+    ).fetchone()[0]
+    regulation_count = conn.execute(
+        "SELECT COUNT(*) FROM sleep_regulation_state WHERE world_id = ?", (world_id,)
+    ).fetchone()[0]
+    capacity_count = conn.execute(
+        "SELECT COUNT(*) FROM physical_capacity_state WHERE world_id = ?", (world_id,)
+    ).fetchone()[0]
+    if status == "inactive":
+        passed = regulation_count == 0 and capacity_count == 0
+        return _check(
+            "sleep_physiology",
+            passed,
+            "inactive ; aucun état matérialisé" if passed else "inactive avec états physiologiques inattendus",
+        )
+    if status == "prepared":
+        schedules = conn.execute(
+            "SELECT COUNT(*) FROM world_light_schedule_assignment WHERE world_id = ?", (world_id,)
+        ).fetchone()[0]
+        locations = conn.execute("SELECT COUNT(*) FROM location WHERE world_id = ?", (world_id,)).fetchone()[0]
+        exposed = conn.execute(
+            "SELECT COUNT(DISTINCT location_id) FROM world_location_light_assignment WHERE world_id = ?",
+            (world_id,),
+        ).fetchone()[0]
+        biologic = conn.execute(
+            "SELECT COUNT(DISTINCT character_id) FROM character_sleep_biology_assignment WHERE world_id = ?",
+            (world_id,),
+        ).fetchone()[0]
+        passed = schedules > 0 and exposed == locations and biologic == character_count and regulation_count == 0 and capacity_count == 0
+        return _check(
+            "sleep_physiology",
+            passed,
+            "prepared complet et toujours inactif" if passed else "prepared incomplet ou contient des états prématurés",
+        )
+    if status == "active":
+        passed = regulation_count == character_count and capacity_count == character_count
+        return _check(
+            "sleep_physiology",
+            passed,
+            "active avec états complets" if passed else "active avec états physiologiques incomplets",
+        )
+    return _check("sleep_physiology", False, f"statut physiologique inconnu : {status!r}")
+
+
 def inspect_mvp_preflight(
     conn: sqlite3.Connection, *, world_id: int | None = None
 ) -> MVPPreflightReport:
@@ -176,6 +232,7 @@ def inspect_mvp_preflight(
             "toutes les positions sont canoniques" if not missing_positions else f"sans position : {','.join(missing_positions)}",
         )
     )
+    checks.append(_physiology_system_check(conn, selected_world_id))
 
     origins = conn.execute(
         "SELECT c.key AS character_key, t.key AS template_key, o.template_version "

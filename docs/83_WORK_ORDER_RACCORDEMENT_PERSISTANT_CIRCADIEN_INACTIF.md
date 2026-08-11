@@ -1,15 +1,15 @@
 # Work order — raccord persistant inactif du cycle circadien V1
 
-**Statut :** proposition technique à revoir avant code.
-**État audité :** `112343f71c668e1ddf2af4524143148076c7b85b`, schéma de code 46.
-**Portée :** préparer un raccord persistant et testable, sans modifier le comportement legacy.
+**Statut :** raccord persistant inactif livré ; cutover comportemental toujours interdit.
+**État :** schéma de code 47 après migration forward-only 0047.
+**Portée :** raccord persistant testable, sans modifier le comportement legacy.
 **Hors portée absolue :** `data/vivarium-rodage.sqlite`, démarrage du runtime, session crashée `runtime_session.id = 4`, migration réelle, activation, conversion `repos → H` ou `energie → P`, et toute histoire physiologique rétroactive.
 
 Ce document traduit les contrats de `docs/79_R_D_CYCLE_DIURNE_CIRCADIEN_SOMMEIL.md`, les fondations de `docs/80_WORK_ORDER_CYCLE_DIURNE_CIRCADIEN_SOMMEIL_V1.md` et la sélection `additive` de `docs/82_SELECTION_ROBUSTESSE_CALIBRATION_CIRCADIEN_V1.md`. Il ne constitue pas une autorisation d'implémentation ni de cutover.
 
 ## 1. État réel et dette legacy à traiter au cutover
 
-Les migrations 0045 et 0046 ont déjà créé les fondations additives : profils lumineux versionnés, profils biologiques versionnés, assignations, préparation de monde (`inactive` / `prepared`) et tables vides pour H/phase et capacité P. `SleepPhysiologyFoundationService` ne fait aujourd'hui que gérer ces catalogues, assignations et la préparation. Il n'intègre aucune physiologie et le runtime ne lit pas ces tables.
+Les migrations 0045 à 0047 ont créé les fondations additives : profils lumineux versionnés, profils biologiques versionnés, assignations, préparation de monde, gate (`inactive` / `prepared` / futur `active`), tables vides H/phase/P et mémoire d'hystérésis vide. `SleepPhysiologyFoundationService` gère les catalogues, assignations et la préparation ; `SleepPhysiologyService` relit et projette seulement des états déjà présents dans un monde synthétique `active`. Il n'intègre aucun intervalle et le runtime ne lit aucune de ces tables.
 
 Le comportement actuel reste entièrement piloté par les besoins alpha legacy :
 
@@ -26,7 +26,7 @@ Ces consommateurs ne seront **pas** changés dans le raccord inactif. Au futur c
 
 ### 2.1 Propriétaire unique
 
-Créer un `SleepPhysiologyService` déterministe, distinct conceptuellement de la couche de catalogue, qui est l'unique écrivain de :
+`SleepPhysiologyService` est le raccord déterministe distinct de la couche de catalogue. Il est aujourd'hui lecture/projection seule ; au lot ultérieur de matérialisation, il sera l'unique écrivain de :
 
 - `sleep_regulation_state` : H normalisée et phase circadienne `phi`, ancrées à un instant canonique ;
 - `physical_capacity_state` : P, son ancre et le reste de calcul entier ;
@@ -102,7 +102,7 @@ Le résolveur V1 de calendrier devra valider un JSON versionné couvrant sans ch
 
 Les profils traduisent `CircadianParameters` dans un payload immuable versionné et avec provenance : référence humaine commune ; profil félin générique ; profils `fictional_canon` seulement lorsque le produit fournit leur provenance explicite. Aucun chronotype ne provient d'un trait de personnalité. Patoune ne reçoit aucune branche nominative ; Luna/Chuu ne reçoivent aucune physiologie réelle déduite d'une espèce fictionnelle.
 
-Une future migration de raccord (probablement 0047, à confirmer au moment du code) étendrait le gate de système pour permettre `active` et ajouterait une mémoire d'hystérésis seulement si le calcul ne peut pas être reconstruit autrement. Elle ne crée pas de garde physiologique pour « interruption déjà appliquée » : ce fait appartient à l'activité moteur. La migration resterait forward-only et ne créerait ni état physiologique, ni événement canonique, ni conversion de besoins. Les contraintes SQLite existantes seraient remplacées par une migration de table contrôlée, jamais éditées rétrospectivement.
+La migration 0047 étend le gate de système pour permettre `active` et ajoute `sleep_wake_hysteresis_state` pour la mémoire d'hystérésis retenue. Elle ne crée pas de garde physiologique pour « interruption déjà appliquée » : ce fait appartient à l'activité moteur. Elle est forward-only et ne crée ni état physiologique, ni événement canonique, ni conversion de besoins. La contrainte SQLite de 0046 est remplacée par une table contrôlée, jamais par l'édition rétrospective d'une migration publiée.
 
 L'initialisation est une opération distincte, explicite et atomique :
 
@@ -120,7 +120,7 @@ La provenance est un artefact opérateur ; l'état devient réel à partir de l'
 |---|---|---|
 | `inactive` | catalogues, assignations, banc et préflight diagnostique | états H/P, intégration, lecture par comportement |
 | `prepared` | contrôle de complétude et manifeste hors session | toute décision, activité, autonomie, motivation ou LLM |
-| `active` (futur seulement) | service, projections, scheduler et cutover complet | chemin legacy concurrent de sommeil/capacité |
+| `active` (encore synthétique seulement) | service et projections de test | scheduler runtime, activité, autonomie ou chemin legacy concurrent |
 
 Le raccord persistant inactif devra donc être inaccessible à `Policy`, `Activity`, `Simulation`, `Autonomy`, `Motivation`, `Attention`, `DecisionFrame` et aux providers tant que le gate n'est pas `active`. Un préflight futur distinguera par lecture SQL directe `inactive`, `prepared_complete` et `active_integrity`, sans appeler `WorldEngine.read_canonical_time()`.
 
@@ -140,8 +140,8 @@ La mémoire `previous_band` appartient à `SleepPhysiologyService` si l'hystér�
 
 ## 8. Lots proposés
 
-1. **Revue de ce work order.** Aucun code ni DB réelle.
-2. **Raccord persistant inactif.** Migration forward-only de code, service unique, résolveur de sources, lecture pure, validation de profils/manifeste, garde si nécessaire, préflight diagnostique. Aucune injection runtime.
+1. **Revue de ce work order.** Complétée, avec clarification d'ownership.
+2. **Raccord persistant inactif.** Complété : migration 0047, service de lecture/projection, résolveur de sources, mémoire d'hystérésis, préflight diagnostique et aucune injection runtime.
 3. **Exécution synthétique.** Matérialisation et segmentation sur mondes de test, plus projections additive/stabilité et scheduler de frontière, sans activer la résidence ou la politique legacy.
 4. **Compatibilité et shadow.** Audit exhaustif des consommateurs `repos` et `energie`; essais de l'arbitre/motif/stabilité ensemble sur copies synthétiques, sans écrire dans le monde réel.
 5. **Work order de cutover séparé.** Définition de l'arbitre exécutable, terminaison de sommeil, migration des coûts physiques vers P et bascule atomique. Cette étape exige nouvelle revue Sol/R&D.
