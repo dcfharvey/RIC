@@ -236,12 +236,12 @@ def _run_llm_calibration(trials: int, character: str) -> int:
     return 0 if report.healthy else 1
 
 
-def _run_sleep_calibration_bench(profile_key: str) -> int:
+def _run_sleep_calibration_bench(profile_key: str, *, selection: bool = False) -> int:
     """Exécute le noyau circadien inactif, sans ouvrir de base de résidence."""
-    from .sleep_calibration import run_reference_calibration
+    from .sleep_calibration import run_calibration_selection, run_reference_calibration
 
     try:
-        report = run_reference_calibration(profile_key)
+        report = run_calibration_selection(profile_key) if selection else run_reference_calibration(profile_key)
     except (KeyError, ValueError) as exc:
         print(f"Banc circadien : invalid_request — {exc}", file=__import__("sys").stderr)
         return 2
@@ -713,6 +713,10 @@ def main(argv: list[str] | None = None) -> int:
         "--profile", default="human_reference_candidate.v1",
         help="Profil candidat versionné de calibration.",
     )
+    p_sleep_calibration.add_argument(
+        "--selection", action="store_true",
+        help="Compare les familles H/C et sonde le voisinage humain, toujours hors runtime.",
+    )
     p_social_bench = sub.add_parser("social-interpretation-bench", help="Banc SCC-1B2 jetable, sans runtime vivant.")
     p_social_bench.add_argument("--level", choices=("T0", "T1", "T2"), default="T0")
     p_social_bench.add_argument("--trials", type=int, default=None, help="Trials par scénario (T2a : 5 par défaut; sinon 1).")
@@ -765,7 +769,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "llm-calibrate":
         return _run_llm_calibration(args.trials, args.character)
     if args.command == "sleep-calibration-bench":
-        return _run_sleep_calibration_bench(args.profile)
+        return _run_sleep_calibration_bench(args.profile, selection=args.selection)
     if args.command == "social-interpretation-bench":
         return _run_social_interpretation_bench(args.level, args.trials, args.model_id, args.scenario, args.report)
     if args.command == "llm-inventory":
