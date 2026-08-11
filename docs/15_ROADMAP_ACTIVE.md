@@ -28,8 +28,9 @@ tests et documentation après un lot à conséquences étendues.
 **Version logicielle actuelle :** `0.1.0a15` — schéma de code 48 (résidence réelle
 intentionnellement maintenue au schéma 44), 929 tests rapportés pour le lot 4
 (à revalider avant nouveau code). Les fondations circadiennes V1 et le shadow
-du lot 4 sont livrés sans cutover comportemental ; le prochain jalon est la
-revue du work order de cutover atomique.
+du lot 4 et le work order de cutover atomique sont acceptés sans cutover
+comportemental ; le prochain jalon est la revue des contrats techniques
+d'arbitrage, de sommeil, de P et du manifeste T0.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;

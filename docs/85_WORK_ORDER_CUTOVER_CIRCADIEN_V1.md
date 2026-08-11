@@ -1,6 +1,6 @@
 # Work order — cutover circadien V1 de la résidence persistante
 
-**Statut :** conception technique soumise à revue ; aucune implémentation ni activation autorisée.
+**Statut :** accepté et clos par Sol ; aucune implémentation ni activation autorisée par ce document.
 
 **HEAD audité :** `2d7e45a8b3ebeadec6d95ea4f5401df2d65a31e2` (`main`).
 **État de code :** schéma 48 ; lot 4 shadow accepté.
@@ -181,7 +181,7 @@ L'étape 6 est tout-ou-rien : précondition ou écriture en échec laisse gate n
 
 ## 10. Lots après revue
 
-1. **Contrats manquants.** `ArbitrationScale`, `SleepTerminationPolicy`, classes de veille soutenue et coûts P : provenance, versions, calibration, falsifications.
+1. **Contrats fonctionnels clos.** `ArbitrationScale`, `SleepTerminationPolicy`, classes de veille soutenue, coûts P et manifeste T0 sont approuvés côté R&D/produit ; leur traduction technique est le work order 86.
 2. **Infrastructure inactive.** Migrations, résolveur causal, scheduler de frontières et APIs transactionnelles derrière gate non activable sans contrat complet.
 3. **Arbitre/cycle sur copies synthétiques.** Début/fin sommeil, P, stabilité, interruption et réévaluation ; aucun runtime réel.
 4. **Compatibilité.** Tests de tous consommateurs manifestés, préflight, observabilité et preuve de zéro lecture legacy active.
@@ -203,15 +203,15 @@ Avant activation réelle, il faut au minimum :
 - stabilité : au plus une transition moteur par activité, jamais sommeil forcé, suivie d'un nouveau cycle d'arbitrage ;
 - Hugin/admin distincts de legacy ; Munin/cognition ne reçoivent ni provenance ni omniscience.
 
-**GO seulement si** les contrats manquants sont approuvés, les tests sont verts sur copie, les migrations sont forward-only, le manifeste est complet, le préflight actif est sain, la récupération id 4 est répétée sur copie et Sol/propriétaire autorisent explicitement la section 9.
+**GO seulement si** les contrats approuvés sont traduits, les tests sont verts sur copie, les migrations sont forward-only, le manifeste est complet, le préflight actif est sain, la récupération id 4 est répétée sur copie et Sol/propriétaire autorisent explicitement la section 9.
 
 **NO-GO si** un score shadow brut devient score production, une voie legacy reste active, une session est ouverte à l'initialisation, une cause n'a pas d'owner, une migration dérive le temps/crée une histoire ou un test révèle un état hybride.
 
-## 12. Décisions à retourner à Sol / propriétaire
+## 12. Contrats à traduire techniquement
 
-1. Contrat et calibration de l'échelle arbitralement commensurable.
-2. Terminaison/réévaluation de sommeil et hard cap technique.
-3. Classification des activités exigeant une veille soutenue.
-4. Coûts P et `InitialPhysiologyManifest` de résidence (H, phi, P, bande, résidus, profil, provenance et T0 commun).
+1. `ArbitrationScale` et son audit privé, incluant le lien intention -> action.
+2. `SleepTerminationPolicy`, checkpoints, réévaluation et hard cap protecteur.
+3. Classification `requires_sustained_wakefulness` dans le catalogue versionné.
+4. Politique de coûts P et `InitialPhysiologyManifest` de résidence (H, phi, P, bande, résidus, profil, provenance et T0 commun).
 
-Sans ces décisions, ce document prépare rigoureusement le lot mais ne donne pas le feu vert de code comportemental.
+Ces contrats ne donnent toujours pas le feu vert de code comportemental sur la résidence : leur implantation et leurs bancs doivent d'abord être revus.

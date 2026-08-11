@@ -116,7 +116,7 @@ Adapter la commande Python à l'environnement local (`.venv/Scripts/python.exe -
 - `0.1.0a13` : première agence non sapiente générique **CAT-0**, sans LLM et sans branche codée au nom/à l'espèce de Patoune; intentions courtes, passages adjacents, attente et abandon après échecs bornés;
 - `0.1.0a14` : les tours sociaux bloqués par budget sont différés jusqu'à leur renouvellement au lieu d'être repollés à chaque tick; temps simulé et temps mural restent distincts;
 - `0.1.0a15` : l'horloge canonique ne progresse que pendant une session runtime; arrêt propre = gel, crash = récupération au dernier instant durable, sans rattrapage accidentel hors ligne.
-- lot circadien V1 : fondations persistantes inactives, matérialisation synthétique et shadow de compatibilité livrés; le work order de cutover est à revoir, `repos`/`energie` restent legacy et aucun cutover n'est autorisé.
+- lot circadien V1 : fondations persistantes inactives, matérialisation synthétique, shadow et work order de cutover acceptés ; les contrats arbitre/sommeil/P/manifeste sont à traduire techniquement avant tout code comportemental, `repos`/`energie` restent legacy et aucun cutover n'est autorisé.
 
 Documents récents associés :
 
@@ -125,7 +125,8 @@ Documents récents associés :
 - `docs/69_CORRECTIF_LATENCE_CHRONOLOGIQUE_0_1_0A12.md`;
 - `docs/70_GEL_HORS_LIGNE_ET_RECUPERATION_CRASH_0_1_0A15.md`;
 - `docs/79_R_D_CYCLE_DIURNE_CIRCADIEN_SOMMEIL.md` à `docs/84_AUDIT_COMPATIBILITE_SHADOW_CIRCADIEN_V1.md` pour les contrats et lots circadiens déjà acceptés;
-- `docs/85_WORK_ORDER_CUTOVER_CIRCADIEN_V1.md` : conception du futur cutover, à revoir avant toute implémentation ou migration réelle;
+- `docs/85_WORK_ORDER_CUTOVER_CIRCADIEN_V1.md` : plan de cutover accepté ; aucune implémentation, migration réelle ou activation n'en découle seule;
+- `docs/86_WORK_ORDER_CONTRATS_CUTOVER_CIRCADIEN_V1.md` : traduction technique des contrats approuvés, à revoir avant code comportemental;
 - `docs/71_R_D_SOCIAL_CONSEQUENCE_CORE.md`;
 - `docs/72_R_D_SCC1_INTERPRETATION_SOCIALE.md`;
 - `docs/73_R_D_SCC1B_PROVIDER_ET_CALIBRATION.md` décrit le banc SCC-1B2A;
