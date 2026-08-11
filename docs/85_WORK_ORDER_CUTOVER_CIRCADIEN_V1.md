@@ -43,7 +43,7 @@ Le comportement legacy doit rester identique pour les mondes `inactive` et `prep
 
 | État ou résultat | Persistance / propriétaire | Règle |
 |---|---|---|
-| H, phi, résidus, P et reste de capacité | `SleepPhysiologyService` | seul écrivain physiologique, à ancre canonique commune |
+| H, phi, résidus, P et reste de capacité | `SleepPhysiologyService` | seul écrivain physiologique, à ancre canonique commune ; les autres moteurs lui demandent une application validée |
 | `previous_band` | `SleepPhysiologyService` | état dense minimal d'hystérésis ; absence = intégrité invalide |
 | activité, position, `aborted`, événement de cause | `ActivityEngine` / moteur | activité abortée = garde anti-répétition ; aucun cache physiologique concurrent |
 | calendrier, profil lumineux, position, type d'activité | propriétaires Reality/activité | seules sources admises pour l'exposition effective V1 |
@@ -52,6 +52,8 @@ Le comportement legacy doit rester identique pour les mondes `inactive` et `prep
 | `post_migration_initialization` | journal opérateur append-only séparé | provenance technique, ni événement vécu ni trace subjective |
 
 H est l'homéostasie abstraite ; P est une capacité physique. P ne participe jamais au motif de sommeil et H ne devient jamais une réserve d'effort. Les résidus H/phi sont des détails numériques de représentation, non des variables biologiques ou souvenirs de lumière.
+
+`ActivityEngine` et `CharacterEngine` sont des demandeurs de coûts, jamais des écrivains de P : ils déterminent et valident la cause canonique (activité ou déplacement), puis appellent une API transactionnelle de `SleepPhysiologyService` qui matérialise et applique le débit. Toute écriture SQL de `physical_capacity_state`, y compris un débit de mouvement, reste confinée à ce service.
 
 ## 4. Sources causales et matérialisation
 
@@ -131,9 +133,9 @@ Le lot créera une politique versionnée de coûts physiques : taux d'activité,
 
 Dans un monde actif :
 
-- `ActivityEngine` demande au propriétaire physiologique de matérialiser P avec le régime de l'activité ;
-- `CharacterEngine` valide et débite les coûts de mouvement via P, après matérialisation à la frontière ;
-- les contrôles de blessure qui lisent `energie` reçoivent la projection P explicitement, sans écrire H/P ;
+- `ActivityEngine` détermine le régime et demande au propriétaire physiologique de matérialiser/appliquer P avec le régime de l'activité ;
+- `CharacterEngine` détermine/valide le coût de déplacement et demande son application à `SleepPhysiologyService`, après matérialisation à la frontière ; il n'écrit jamais P directement ;
+- les contrôles de blessure qui lisent `energie` reçoivent une projection P explicitement, sans écrire H/P ;
 - `repos` et `energie` ne sont plus lus pour décision, validation, durée ou coût actif.
 
 Les `need_state`, champs de définition et événements legacy restent inchangés et lisibles comme histoire. Un monde non actif conserve l'ancien chemin. Seed/règles/instances choisissent explicitement un profil de monde ; ils ne supposent jamais qu'une valeur legacy est une valeur V1.
@@ -149,6 +151,12 @@ Les migrations 0045–0048 restent additives et ne seront pas réécrites. L'imp
 
 Le schéma exact sera choisi après les contrats ci-dessus. Aucune migration ne crée H/phi/P dans une résidence existante ni ne transforme les besoins legacy.
 
+### 8.1 Contrat obligatoire du manifeste initial T0
+
+Avant l'activation réelle, un `InitialPhysiologyManifest` versionné, approuvé et relisible doit couvrir **chaque** personnage de la résidence. Chaque entrée contient au minimum : profil biologique et version sélectionnés ; H initiale ; phi initiale ; P initiale ; `previous_band` initial ; règle explicite des résidus H/phi et du reste P ; provenance et justification de chacun de ces choix. Le manifeste porte aussi une ancre T0 canonique unique pour tous les personnages.
+
+Les valeurs sont des conditions initiales de modèle [D], non des mesures récupérées de la résidence : aucune ne provient de `repos` ou `energie`, aucun passé circadien n'est reconstruit, et aucune physiologie fictionnelle n'est déduite sans provenance canonique explicite. La règle de résidus doit être déclarée avant code ; elle ne peut pas utiliser les résidus pour encoder un historique absent. Sans manifeste complet approuvé, l'activation réelle est **NO-GO**.
+
 Préflight doit séparer :
 
 - **prepared complete** : modèle `ric.sleep.additive.v1`, profils/lumière complets, aucun état physiologique ;
@@ -161,12 +169,13 @@ Hugin peut montrer l'état physiologique actif et P avec leur label propre. Il n
 Cette procédure est future et distincte du présent work order. Elle sépare récupération opérationnelle du crash et activation physiologique.
 
 1. **Arrêt et preuve.** Confirmer runtime absent ; sauvegarde, hash, `integrity_check` et `foreign_key_check` en lecture. Ne pas appeler `WorldEngine.read_canonical_time`.
-2. **Upgrade structural.** Migrer 44 vers le schéma final validé. SQL/structure/configuration seulement : aucune dérivation murale ni état physiologique. Préflight statique `prepared`.
+2. **Upgrade structurel/configuration inerte.** Migrer 44 vers le schéma final validé. Les migrations, catalogues et assignations purement techniques sont possibles ici s'ils n'avancent ni l'horloge ni la physiologie. Le monde reste `inactive` : il est impossible de réclamer `prepared` tant que la session 4 est ouverte, car `prepare_world()` appelle `_assert_preparable()`.
 3. **Récupération officielle.** Chemin normal : `RuntimeSessionService.start()` ferme exactement id 4 avec `crash_recovered`, écrit son `runtime_session_event`, réancre au dernier instant durable sans rattrapage offline et ouvre une nouvelle session. Vérifier les artefacts.
 4. **Gel contrôlé.** Sans faire tourner la simulation, arrêt propre officiel de cette nouvelle session. Il fixe T0 et laisse le monde sans session ouverte. Id 4 reste la preuve du crash.
-5. **Transaction d'activation.** Runtime arrêté : valider à T0 manifeste, profils, lumière, modèle et politiques. Dans une transaction unique, insérer H/phi/P/résidus/hystérésis denses à T0, écrire l'audit opérateur `post_migration_initialization`, activer le système et le chemin comportemental V1. Aucun `canonical_event`, aucune conversion de besoin, aucun intervalle antérieur à T0.
-6. **Préflight actif.** Vérifier intégrité, ancres, digest/séquences de l'histoire préexistante (inchangés hors nouvelles tables/audit technique) et absence de session ouverte.
-7. **Reprise contrôlée.** Démarrer une nouvelle session officielle puis le runtime. L'intégration commence à T0 ; aucun temps offline ne progresse.
+5. **Préparation réelle.** Maintenant seulement, appeler `SleepPhysiologyFoundationService.prepare_world()` : ses validations officielles confirment modèle, lumière, profils et absence de session ouverte, puis le monde devient `prepared`. Préflight `prepared complete`, toujours sans H/phi/P.
+6. **Transaction d'activation.** Runtime arrêté : valider à T0 le manifeste initial, profils, lumière, modèle et politiques. Dans une transaction unique, insérer H/phi/P/résidus/hystérésis denses à T0, écrire l'audit opérateur `post_migration_initialization`, activer le système et le chemin comportemental V1. Aucun `canonical_event`, aucune conversion de besoin, aucun intervalle antérieur à T0.
+7. **Préflight actif.** Vérifier intégrité, ancres, digest/séquences de l'histoire préexistante (inchangés hors nouvelles tables/audit technique) et absence de session ouverte.
+8. **Reprise contrôlée.** Démarrer une nouvelle session officielle puis le runtime. L'intégration commence à T0 ; aucun temps offline ne progresse.
 
 L'étape 5 est tout-ou-rien : précondition ou écriture en échec laisse gate non actif, aucune ligne partielle et chemin legacy intact. Après engagement, aucun rollback silencieux par écritures inverses : arrêt protecteur, conservation des preuves et décision humaine à partir de la sauvegarde.
 
@@ -203,6 +212,6 @@ Avant activation réelle, il faut au minimum :
 1. Contrat et calibration de l'échelle arbitralement commensurable.
 2. Terminaison/réévaluation de sommeil et hard cap technique.
 3. Classification des activités exigeant une veille soutenue.
-4. Coûts P et manifeste initial de résidence avec provenance.
+4. Coûts P et `InitialPhysiologyManifest` de résidence (H, phi, P, bande, résidus, profil, provenance et T0 commun).
 
 Sans ces décisions, ce document prépare rigoureusement le lot mais ne donne pas le feu vert de code comportemental.
