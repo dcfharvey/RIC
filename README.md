@@ -59,6 +59,7 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 .venv/Scripts/python -m vivarium mvp-init --db data/vivarium-alpha.sqlite
 .venv/Scripts/python -m vivarium mvp-run --db data/vivarium-alpha.sqlite --enable-local-llm
 .venv/Scripts/python -m vivarium social-interpretation-bench --level T0
+.venv/Scripts/python -m vivarium sleep-calibration-bench
 ```
 
 - `init` initialise un monde de développement.
@@ -79,6 +80,9 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
   LM Studio; `social-interpretation-screen --model-id <key>` est l'opération
   Screen-47 model-specific, limitée aux modèles déjà chargés et sans
   chargement/déchargement automatique.
+- `sleep-calibration-bench` exécute le noyau circadien déterministe sur des
+  profils candidats versionnés. Il n'ouvre aucune résidence, aucun LLM et
+  n'active pas la physiologie ; voir `docs/81_BANC_CALIBRATION_CIRCADIEN_V1.md`.
 - `upgrade-dev` ajoute, de façon **non destructive et idempotente**, les 4 identités
   provisoires `character_1..4` au monde local (aucun personnage existant modifié ;
   n'insère que les manquants). `init --force` reste un dernier recours manuel.

@@ -236,6 +236,19 @@ def _run_llm_calibration(trials: int, character: str) -> int:
     return 0 if report.healthy else 1
 
 
+def _run_sleep_calibration_bench(profile_key: str) -> int:
+    """Exécute le noyau circadien inactif, sans ouvrir de base de résidence."""
+    from .sleep_calibration import run_reference_calibration
+
+    try:
+        report = run_reference_calibration(profile_key)
+    except (KeyError, ValueError) as exc:
+        print(f"Banc circadien : invalid_request — {exc}", file=__import__("sys").stderr)
+        return 2
+    print(json.dumps(report.as_dict(), ensure_ascii=False, indent=2))
+    return 0 if report.passed else 1
+
+
 def _run_social_interpretation_bench(level: str, trials: int | None, model_id: str | None,
                                      scenario_ids: list[str], report_path: str | None) -> int:
     from .social_interpretation_bench import BenchError, _safe_model_id, run_bench, run_t2a_campaign, write_report, write_t2a_campaign
@@ -692,6 +705,14 @@ def main(argv: list[str] | None = None) -> int:
     p_calibration = sub.add_parser("llm-calibrate", help="Répète un tour LLM jetable pour mesurer le contrat et la latence.")
     p_calibration.add_argument("--trials", type=int, default=3, help="Nombre d'essais isolés (1 à 20, défaut : 3).")
     p_calibration.add_argument("--character", default="sophie", help="Résidente à utiliser (défaut : sophie).")
+    p_sleep_calibration = sub.add_parser(
+        "sleep-calibration-bench",
+        help="Banc circadien déterministe et inactif ; aucune résidence ni LLM n'est ouvert.",
+    )
+    p_sleep_calibration.add_argument(
+        "--profile", default="human_reference_candidate.v1",
+        help="Profil candidat versionné de calibration.",
+    )
     p_social_bench = sub.add_parser("social-interpretation-bench", help="Banc SCC-1B2 jetable, sans runtime vivant.")
     p_social_bench.add_argument("--level", choices=("T0", "T1", "T2"), default="T0")
     p_social_bench.add_argument("--trials", type=int, default=None, help="Trials par scénario (T2a : 5 par défaut; sinon 1).")
@@ -743,6 +764,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_living_bench(args.max_ticks, args.verbose)
     if args.command == "llm-calibrate":
         return _run_llm_calibration(args.trials, args.character)
+    if args.command == "sleep-calibration-bench":
+        return _run_sleep_calibration_bench(args.profile)
     if args.command == "social-interpretation-bench":
         return _run_social_interpretation_bench(args.level, args.trials, args.model_id, args.scenario, args.report)
     if args.command == "llm-inventory":
