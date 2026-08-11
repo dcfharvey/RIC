@@ -9,6 +9,9 @@ from .social_appraisal import SocialAppraisalError, SocialAppraisalService
 from .social_appraisal_provider import SocialAppraisalLLMService
 from .util import Clock, new_uuid
 
+
+RETRY_DELAY_SECONDS = 30
+
 @dataclass(frozen=True)
 class LiveSocialAppraisalOutcome:
     character_key:str; interpretation_key:str; technical_status:str; appraisal_status:str|None=None; candidate_count:int=0; detail_code:str|None=None
@@ -39,9 +42,27 @@ class LiveSocialAppraisalService:
     def retry(self,wid:int,owner:str,ikey:str,limits:CognitionCallLimits)->LiveSocialAppraisalOutcome:
         row=self._row(wid,owner,ikey)
         if row is None: raise SocialAppraisalError('interpretation introuvable',code='source_not_accessible')
-        latest=self.conn.execute('SELECT outcome FROM scc2a_attempt WHERE source_interpretation_id=? ORDER BY id DESC LIMIT 1',(row['id'],)).fetchone()
+        latest=self.conn.execute('SELECT outcome,detail_code,recorded_at FROM scc2a_attempt WHERE source_interpretation_id=? ORDER BY id DESC LIMIT 1',(row['id'],)).fetchone()
         if latest is None or latest['outcome']=='appraised': return self.process(wid,owner,ikey,limits)
+        if not self.ledger.retry_due(
+            wid, owner, limits, attempted_at=latest['recorded_at'],
+            reason_code=latest['detail_code'] or 'technical_failure',
+            retry_delay_seconds=RETRY_DELAY_SECONDS,
+        ):
+            return LiveSocialAppraisalOutcome(owner,ikey,'deferred',detail_code='retry_backoff')
         return self.process(wid,owner,ikey,limits,retry=True)
+
+    def next_pending_retry(self,wid:int,limits:CognitionCallLimits):
+        rows=self.conn.execute("SELECT c.key AS owner,i.interpretation_key,a.recorded_at,a.id,a.detail_code FROM scc2a_attempt a JOIN social_interpretation i ON i.id=a.source_interpretation_id JOIN character c ON c.id=a.character_id WHERE a.world_id=? AND a.outcome IN ('deferred','provider_unavailable') AND NOT EXISTS (SELECT 1 FROM scc2a_attempt newer WHERE newer.source_interpretation_id=a.source_interpretation_id AND newer.id>a.id) ORDER BY a.recorded_at,a.id",(wid,)).fetchall()
+        for row in rows:
+            if self.ledger.retry_due(
+                wid,row['owner'],limits,attempted_at=row['recorded_at'],
+                reason_code=row['detail_code'] or 'technical_failure',
+                retry_delay_seconds=RETRY_DELAY_SECONDS,
+            ):
+                return row
+        return None
+
     def retry_one_pending(self,wid:int,limits:CognitionCallLimits)->LiveSocialAppraisalOutcome|None:
-        row=self.conn.execute("SELECT c.key AS owner,i.interpretation_key FROM scc2a_attempt a JOIN social_interpretation i ON i.id=a.source_interpretation_id JOIN character c ON c.id=a.character_id WHERE a.outcome IN ('deferred','provider_unavailable') AND NOT EXISTS (SELECT 1 FROM scc2a_attempt newer WHERE newer.source_interpretation_id=a.source_interpretation_id AND newer.id>a.id) ORDER BY a.recorded_at,a.id LIMIT 1").fetchone()
+        row=self.next_pending_retry(wid,limits)
         return None if row is None else self.retry(wid,row['owner'],row['interpretation_key'],limits)

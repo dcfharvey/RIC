@@ -9,6 +9,9 @@ from .scc3a_affect import SCC3AAffectError, SCC3AAffectService
 from .scc3a_affect_provider import SCC3AAffectLLMService
 from .util import Clock, new_uuid
 
+
+RETRY_DELAY_SECONDS = 30
+
 @dataclass(frozen=True)
 class LiveSCC3AAffectOutcome:
     character_key:str; candidate_id:int; technical_status:str; decision:str|None=None; episode_key:str|None=None; detail_code:str|None=None
@@ -37,6 +40,18 @@ class LiveSCC3AAffectService:
         self._attempt(wid,owner,candidate_id,key,'no_change' if result['decision']=='no_change' else 'applied'); return LiveSCC3AAffectOutcome(owner,candidate_id,'no_change' if result['decision']=='no_change' else 'applied',result['decision'],result['episode_key'])
     def process_interpretation(self,wid:int,owner:str,interpretation_key:str,limits:CognitionCallLimits)->tuple[LiveSCC3AAffectOutcome,...]:
         return tuple(self.process_candidate(wid,owner,row['id'],limits) for row in self._candidates(wid,owner,interpretation_key) if self.conn.execute('SELECT 1 FROM scc3a_decision WHERE candidate_id=?',(row['id'],)).fetchone() is None)
+
+    def next_pending_retry(self,wid:int,limits:CognitionCallLimits):
+        rows=self.conn.execute("SELECT c.key AS owner,a.candidate_id,a.recorded_at,a.id,a.detail_code FROM scc3a_attempt a JOIN character c ON c.id=a.character_id WHERE a.world_id=? AND a.outcome IN ('deferred','provider_unavailable') AND NOT EXISTS (SELECT 1 FROM scc3a_attempt newer WHERE newer.candidate_id=a.candidate_id AND newer.id>a.id) ORDER BY a.recorded_at,a.id",(wid,)).fetchall()
+        for row in rows:
+            if self.ledger.retry_due(
+                wid,row['owner'],limits,attempted_at=row['recorded_at'],
+                reason_code=row['detail_code'] or 'technical_failure',
+                retry_delay_seconds=RETRY_DELAY_SECONDS,
+            ):
+                return row
+        return None
+
     def retry_one_pending(self,wid:int,limits:CognitionCallLimits)->LiveSCC3AAffectOutcome|None:
-        row=self.conn.execute("SELECT c.key,candidate_id FROM scc3a_attempt a JOIN character c ON c.id=a.character_id WHERE a.outcome IN ('deferred','provider_unavailable') AND NOT EXISTS (SELECT 1 FROM scc3a_attempt newer WHERE newer.candidate_id=a.candidate_id AND newer.id>a.id) ORDER BY a.recorded_at,a.id LIMIT 1").fetchone()
-        return None if row is None else self.process_candidate(wid,row['key'],row['candidate_id'],limits,retry=True)
+        row=self.next_pending_retry(wid,limits)
+        return None if row is None else self.process_candidate(wid,row['owner'],row['candidate_id'],limits,retry=True)

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -157,6 +157,53 @@ def test_r8_retry_is_explicit_bounded_and_creates_one_interpretation(setup, monk
     assert retry.technical_status == "interpreted"
     assert conn.execute("SELECT COUNT(*) FROM social_interpretation WHERE character_id=(SELECT id FROM character WHERE key='sophie')").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM scc1c_admission WHERE trace_id=(SELECT id FROM subjective_trace WHERE request_key='live_trace_speech_1_sophie')").fetchone()[0] == 1
+
+
+def test_due_scc1c_retry_is_not_starved_by_a_due_scc2a_retry(setup):
+    conn, world_id, clock = setup
+
+    class FlakyAppraisalProvider:
+        model_id = "fake-qwen3-14b"
+        provider_version = "fake-scc2a-v1"
+
+        def __init__(self):
+            self.calls = 0
+
+        def propose(self, snapshot):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("provider down")
+            return {
+                "schema_version": 1,
+                "appraisal_status": "not_relevant",
+                "qualitative_meaning": "neutral",
+                "importance": "low",
+                "bases": ["interpretation:primary"],
+                "candidates": [],
+            }
+
+    interpretation_provider = FlakyInterpretationProvider()
+    appraisal_provider = FlakyAppraisalProvider()
+    service = LiveSocialCognitionService(
+        conn, interpretation_provider, clock=clock,
+        admission_policy=FixedAdmissionPolicy("selected"),
+        appraisal_provider=appraisal_provider,
+    )
+    service.process_speech(world_id, "live_scene", "speech_1", CognitionCallLimits(0, 3_600, 20))
+    assert conn.execute("SELECT COUNT(*) FROM scc1c_attempt WHERE outcome='provider_unavailable'").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM scc2a_attempt WHERE outcome='provider_unavailable'").fetchone()[0] == 1
+
+    clock.current += timedelta(seconds=30)
+    retried = service.retry_one_pending(world_id, CognitionCallLimits(0, 3_600, 20))
+
+    assert retried is not None and retried.character_key == "sophie"
+    assert retried.technical_status == "interpreted"
+    assert interpretation_provider.calls == 4
+    assert appraisal_provider.calls == 3  # nouvel appraisal de Sophie, pas retry d'Erika
+    assert conn.execute(
+        "SELECT COUNT(*) FROM scc2a_attempt a JOIN character c ON c.id=a.character_id "
+        "WHERE c.key='erika'"
+    ).fetchone()[0] == 1
 
 
 def test_r9_idempotent_duplicate_event_does_not_call_provider_twice(setup):

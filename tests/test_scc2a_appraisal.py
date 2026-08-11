@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import pytest
 
 from vivarium.cognition_policy import CognitionCallLimits
@@ -18,6 +18,7 @@ class FakeClock(Clock):
     def __init__(self): self.current=datetime(2026,8,10,12,tzinfo=timezone.utc)
     def now(self): return self.current
     def now_iso(self): return to_iso(self.current)
+    def advance(self, seconds): self.current += timedelta(seconds=seconds)
 
 @pytest.fixture
 def setup():
@@ -76,5 +77,64 @@ def test_provider_failure_is_technical_and_retry_is_bounded(setup):
             if self.calls==1: raise RuntimeError('LM Studio indisponible')
             return _proposal('not_relevant')
     ap=Flaky(); service=LiveSocialCognitionService(c,ip,clock=clock,admission_policy=FixedAdmissionPolicy('selected'),appraisal_provider=ap); out=service.process_speech(w,'scc2a_scene','speech_1',CognitionCallLimits(0,3600,20)); assert sum(x.appraisal_technical_status=='provider_unavailable' for x in out)==1
+    clock.advance(30)
     pending=service.retry_one_pending(w,CognitionCallLimits(0,3600,20)); assert pending is not None
     assert c.execute('SELECT COUNT(*) FROM social_appraisal').fetchone()[0]==3 and c.execute('SELECT COUNT(*) FROM scc2a_attempt WHERE outcome="appraised"').fetchone()[0]==3
+
+def test_pending_scc2a_retry_is_not_persisted_at_every_pulse_and_recovers(setup):
+    c,w,clock=setup
+    ip=DeterministicInterpretationProvider({'schema_version':2,'understanding_status':'unresolved','meaning_hypotheses':[]},model_id='fake-qwen3-14b')
+    class Flaky:
+        model_id='fake-qwen3-14b'; provider_version='fake-scc2a-v1'
+        def __init__(self): self.calls=0
+        def propose(self,snapshot):
+            self.calls+=1
+            if self.calls==1: raise RuntimeError('LM Studio indisponible')
+            return _proposal('not_relevant')
+    ap=Flaky()
+    service=LiveSocialCognitionService(c,ip,clock=clock,admission_policy=FixedAdmissionPolicy('selected'),appraisal_provider=ap)
+    service.process_speech(w,'scc2a_scene','speech_1',CognitionCallLimits(0,3600,20))
+    assert c.execute('SELECT COUNT(*) FROM scc2a_attempt').fetchone()[0]==3
+    for _ in range(4):
+        assert service.retry_one_pending(w,CognitionCallLimits(0,3600,20)) is None
+    assert c.execute('SELECT COUNT(*) FROM scc2a_attempt').fetchone()[0]==3
+    assert ap.calls==3
+    clock.advance(30)
+    assert service.retry_one_pending(w,CognitionCallLimits(0,3600,20)).technical_status=='appraised'
+    assert c.execute('SELECT COUNT(*) FROM scc2a_attempt').fetchone()[0]==4
+    assert ap.calls==4
+
+def test_budget_deferred_scc2a_is_not_recounted_until_the_budget_reopens(setup):
+    c,w,clock=setup
+    ip=DeterministicInterpretationProvider({'schema_version':2,'understanding_status':'unresolved','meaning_hypotheses':[]},model_id='fake-qwen3-14b')
+    ap=DeterministicAppraisalProvider(_proposal('not_relevant'))
+    service=LiveSocialCognitionService(c,ip,clock=clock,admission_policy=FixedAdmissionPolicy('selected'),appraisal_provider=ap)
+    limits=CognitionCallLimits(0,3600,1)
+    service.process_speech(w,'scc2a_scene','speech_1',limits)
+    assert c.execute("SELECT COUNT(*) FROM scc2a_attempt WHERE outcome='deferred' AND detail_code='budget_exhausted'").fetchone()[0]==3
+    for _ in range(4):
+        assert service.retry_one_pending(w,limits) is None
+    assert c.execute('SELECT COUNT(*) FROM scc2a_attempt').fetchone()[0]==3
+    assert ap.calls==0
+    clock.advance(3600)
+    assert service.retry_one_pending(w,limits).technical_status=='appraised'
+    assert c.execute('SELECT COUNT(*) FROM scc2a_attempt').fetchone()[0]==4
+    assert ap.calls==1
+
+def test_pending_scc2a_retry_survives_restart_without_duplicate_attempt(setup):
+    c,w,clock=setup
+    ip=DeterministicInterpretationProvider({'schema_version':2,'understanding_status':'unresolved','meaning_hypotheses':[]},model_id='fake-qwen3-14b')
+    class Flaky:
+        model_id='fake-qwen3-14b'; provider_version='fake-scc2a-v1'
+        def __init__(self): self.calls=0
+        def propose(self,snapshot):
+            self.calls+=1
+            if self.calls==1: raise RuntimeError('LM Studio indisponible')
+            return _proposal('not_relevant')
+    ap=Flaky()
+    LiveSocialCognitionService(c,ip,clock=clock,admission_policy=FixedAdmissionPolicy('selected'),appraisal_provider=ap).process_speech(w,'scc2a_scene','speech_1',CognitionCallLimits(0,3600,20))
+    restarted=LiveSocialCognitionService(c,ip,clock=clock,admission_policy=FixedAdmissionPolicy('selected'),appraisal_provider=ap)
+    assert restarted.retry_one_pending(w,CognitionCallLimits(0,3600,20)) is None
+    assert c.execute('SELECT COUNT(*) FROM scc2a_attempt').fetchone()[0]==3
+    clock.advance(30)
+    assert restarted.retry_one_pending(w,CognitionCallLimits(0,3600,20)).technical_status=='appraised'

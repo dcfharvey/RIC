@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Any
 
 from .cognition_call_ledger import CognitionCallLedgerService
@@ -21,7 +20,6 @@ from .social_interpretation_provider import (
 )
 from .subjective_memory import SubjectiveMemoryError, SubjectiveMemoryService
 from .util import Clock, parse_iso
-from .world import WorldEngine
 
 
 RETRY_DELAY_SECONDS = 30
@@ -189,38 +187,76 @@ class LiveSocialCognitionService:
         latest = self._existing_attempt(admission)
         if latest is None or latest["outcome"] == "interpreted":
             return self._interpret(world_id, character_key, trace_request_key, admission, limits)
-        now = parse_iso(WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id))
-        last_time = self._conn.execute(
-            "SELECT recorded_at FROM scc1c_attempt WHERE admission_id = (SELECT id FROM scc1c_admission WHERE public_id = ?) ORDER BY id DESC LIMIT 1",
+        latest_attempt = self._conn.execute(
+            "SELECT recorded_at, detail_code FROM scc1c_attempt WHERE admission_id = (SELECT id FROM scc1c_admission WHERE public_id = ?) ORDER BY id DESC LIMIT 1",
             (admission.public_id,),
-        ).fetchone()["recorded_at"]
-        if (now - parse_iso(last_time)).total_seconds() < RETRY_DELAY_SECONDS:
+        ).fetchone()
+        if not self._ledger.retry_due(
+            world_id, character_key, limits,
+            attempted_at=latest_attempt["recorded_at"],
+            reason_code=latest_attempt["detail_code"] or "technical_failure",
+            retry_delay_seconds=RETRY_DELAY_SECONDS,
+        ):
             return LiveSocialCognitionOutcome(character_key, trace_request_key, admission.decision, latest["outcome"], "retry_backoff", None)
         return self._interpret(world_id, character_key, trace_request_key, admission, limits, retry=True)
 
-    def retry_one_pending(self, world_id: int, limits: CognitionCallLimits) -> LiveSocialCognitionOutcome | None:
-        """Reprend au plus une tentative explicitement persistée et échouée."""
-        if self._appraisals is not None:
-            pending_appraisal = self._appraisals.retry_one_pending(world_id, limits)
-            if pending_appraisal is not None:
-                return LiveSocialCognitionOutcome(
-                    pending_appraisal.character_key, None, "already_interpreted",
-                    pending_appraisal.technical_status, pending_appraisal.detail_code,
-                    pending_appraisal.interpretation_key, pending_appraisal.appraisal_status,
-                    pending_appraisal.candidate_count, pending_appraisal.technical_status,
-                )
-        if self._affect is not None:
-            pending_affect = self._affect.retry_one_pending(world_id, limits)
-            if pending_affect is not None:
-                return LiveSocialCognitionOutcome(pending_affect.character_key, None, "already_appraised", pending_affect.technical_status, pending_affect.detail_code, None, None, 0, None, (pending_affect.technical_status,))
-        row = self._conn.execute(
-            "SELECT ch.key AS character_key, trace.request_key "
+    def _next_interpretation_retry(self, world_id: int, limits: CognitionCallLimits):
+        rows = self._conn.execute(
+            "SELECT ch.key AS character_key, trace.request_key, attempt.recorded_at, attempt.id, attempt.detail_code "
             "FROM scc1c_attempt attempt JOIN scc1c_admission admission ON admission.id = attempt.admission_id "
             "JOIN character ch ON ch.id = admission.character_id JOIN subjective_trace trace ON trace.id = admission.trace_id "
-            "WHERE attempt.outcome IN ('deferred','provider_unavailable') "
+            "WHERE attempt.world_id = ? AND attempt.outcome IN ('deferred','provider_unavailable') "
             "AND NOT EXISTS (SELECT 1 FROM scc1c_attempt newer WHERE newer.admission_id = attempt.admission_id AND newer.id > attempt.id) "
-            "ORDER BY attempt.recorded_at, attempt.id LIMIT 1"
-        ).fetchone()
-        if row is None:
+            "ORDER BY attempt.recorded_at, attempt.id",
+            (world_id,),
+        ).fetchall()
+        for row in rows:
+            if self._ledger.retry_due(
+                world_id, row["character_key"], limits,
+                attempted_at=row["recorded_at"],
+                reason_code=row["detail_code"] or "technical_failure",
+                retry_delay_seconds=RETRY_DELAY_SECONDS,
+            ):
+                return row
+        return None
+
+    def retry_one_pending(self, world_id: int, limits: CognitionCallLimits) -> LiveSocialCognitionOutcome | None:
+        """Reprend au plus une tentative explicitement persistée et échouée."""
+        candidates: list[tuple[str, Any]] = []
+        if self._appraisals is not None:
+            pending_appraisal = self._appraisals.next_pending_retry(world_id, limits)
+            if pending_appraisal is not None:
+                candidates.append(("appraisal", pending_appraisal))
+        if self._affect is not None:
+            pending_affect = self._affect.next_pending_retry(world_id, limits)
+            if pending_affect is not None:
+                candidates.append(("affect", pending_affect))
+        pending_interpretation = self._next_interpretation_retry(world_id, limits)
+        if pending_interpretation is not None:
+            candidates.append(("interpretation", pending_interpretation))
+        if not candidates:
             return None
-        return self.retry(world_id, row["character_key"], row["request_key"], limits)
+        priority = {"interpretation": 0, "appraisal": 1, "affect": 2}
+        domain, row = min(
+            candidates,
+            key=lambda item: (parse_iso(item[1]["recorded_at"]), priority[item[0]], item[1]["id"]),
+        )
+        if domain == "interpretation":
+            return self.retry(world_id, row["character_key"], row["request_key"], limits)
+        if domain == "appraisal":
+            pending_appraisal = self._appraisals.retry(
+                world_id, row["owner"], row["interpretation_key"], limits,
+            )
+            return LiveSocialCognitionOutcome(
+                pending_appraisal.character_key, None, "already_interpreted",
+                pending_appraisal.technical_status, pending_appraisal.detail_code,
+                pending_appraisal.interpretation_key, pending_appraisal.appraisal_status,
+                pending_appraisal.candidate_count, pending_appraisal.technical_status,
+            )
+        pending_affect = self._affect.process_candidate(
+            world_id, row["owner"], row["candidate_id"], limits, retry=True,
+        )
+        return LiveSocialCognitionOutcome(
+            pending_affect.character_key, None, "already_appraised", pending_affect.technical_status,
+            pending_affect.detail_code, None, None, 0, None, (pending_affect.technical_status,),
+        )

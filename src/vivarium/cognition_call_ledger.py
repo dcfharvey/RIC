@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
 from .cognition_policy import (
@@ -21,7 +22,7 @@ from .cognition_policy import (
 )
 from .db import transaction
 from .registry import _KEY_RE
-from .util import Clock, new_uuid
+from .util import Clock, new_uuid, parse_iso, to_iso
 from .world import WorldEngine
 
 
@@ -88,6 +89,80 @@ class CognitionCallLedgerService:
         world_id, character_key = _world_id(world_id), _key(character_key, "personnage")
         character_id = self._character_id(self._conn, world_id, character_key)
         return self._history(self._conn, world_id, character_id)
+
+    def retry_not_before(
+        self,
+        world_id: Any,
+        character_key: Any,
+        limits: Any,
+        *,
+        attempted_at: Any,
+        reason_code: Any,
+        retry_delay_seconds: Any,
+    ) -> str:
+        """Retourne la prochaine date techniquement admissible pour un retry.
+
+        Les refus de budget et de debounce doivent attendre l'echeance calculee
+        depuis le ledger persistant; les autres echecs techniques recoivent un
+        petit delai explicite. Cette lecture ne cree ni admission ni tentative.
+        """
+        world_id, character_key = _world_id(world_id), _key(character_key, "personnage")
+        if not isinstance(limits, CognitionCallLimits):
+            raise CognitionCallLedgerError("limites d'appel invalides", code="invalid_cognition_call_limits")
+        try:
+            limits.validated()
+        except CognitionCallPolicyError as exc:
+            raise CognitionCallLedgerError(str(exc), code=exc.code) from exc
+        if not isinstance(reason_code, str):
+            raise CognitionCallLedgerError("raison de retry invalide", code="invalid_cognition_call_request")
+        if not isinstance(retry_delay_seconds, int) or isinstance(retry_delay_seconds, bool) \
+                or not 0 <= retry_delay_seconds <= 86_400:
+            raise CognitionCallLedgerError("delai de retry invalide", code="invalid_cognition_call_request")
+        try:
+            attempt = parse_iso(attempted_at)
+        except (TypeError, ValueError) as exc:
+            raise CognitionCallLedgerError("date de tentative invalide", code="invalid_cognition_call_request") from exc
+        character_id = self._character_id(self._conn, world_id, character_key)
+        now = parse_iso(
+            WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
+        )
+        history = self._history(self._conn, world_id, character_id)
+        instants = tuple(parse_iso(record.admitted_at) for record in history)
+        if reason_code == "budget_exhausted":
+            inside = tuple(
+                instant for instant in instants
+                if (now - instant).total_seconds() < limits.budget_window_seconds
+            )
+            if len(inside) >= limits.max_calls_per_window:
+                return to_iso(min(inside) + timedelta(seconds=limits.budget_window_seconds))
+            return to_iso(now)
+        if reason_code == "debounced":
+            latest = max(instants, default=None)
+            if latest is not None:
+                return to_iso(latest + timedelta(seconds=limits.debounce_seconds))
+            return to_iso(now)
+        return to_iso(attempt + timedelta(seconds=retry_delay_seconds))
+
+    def retry_due(
+        self,
+        world_id: Any,
+        character_key: Any,
+        limits: Any,
+        *,
+        attempted_at: Any,
+        reason_code: Any,
+        retry_delay_seconds: Any,
+    ) -> bool:
+        """Indique si un retry peut etre tente sans creer de nouvelle ecriture."""
+        world_id, character_key = _world_id(world_id), _key(character_key, "personnage")
+        release_at = self.retry_not_before(
+            world_id, character_key, limits,
+            attempted_at=attempted_at,
+            reason_code=reason_code,
+            retry_delay_seconds=retry_delay_seconds,
+        )
+        now = WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
+        return parse_iso(now) >= parse_iso(release_at)
 
     def admit(
         self,

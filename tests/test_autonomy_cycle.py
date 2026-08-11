@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from vivarium.activities import ActivityEngine
 from vivarium.autonomy_cycle import AutonomyCycle
 from vivarium.cognition import CognitionDecision
+from vivarium.cognition_call_ledger import CognitionCallLedgerService
 from vivarium.cognition_policy import CognitionCallLimits
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
@@ -114,5 +115,37 @@ def test_invalid_llm_response_is_retried_after_a_bounded_delay():
         assert retried.routed.turn.validation.status == "accepted"
         assert provider.calls == 2
         assert ActivityEngine(conn).activity_sheet(world_id, "luna")["type"] == "socialize"
+    finally:
+        conn.close()
+
+
+def test_budget_deferred_idle_is_silent_until_its_budget_window_reopens():
+    conn = connect_database(":memory:")
+    ensure_schema(conn)
+    clock = AdvancingClock()
+    world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
+    try:
+        ActivityEngine(conn, clock=clock).start_activity(
+            world_id, "sophie", "idle", "entree_exterieure", duration_seconds=7_200
+        )
+        limits = CognitionCallLimits(0, 3_600, 1)
+        CognitionCallLedgerService(conn, clock=clock).admit(
+            world_id, "sophie", "direct_event", "preexisting_call", limits,
+        )
+        provider = Provider()
+        cycle = AutonomyCycle(conn, provider, clock=clock)
+
+        first = cycle.tick(world_id, limits)
+        assert first.character_key == "sophie" and first.routed is not None
+        assert first.routed.admission.verdict.reason_code == "budget_exhausted"
+        assert cycle.tick(world_id, limits).character_key is None
+        assert cycle.tick(world_id, limits).character_key is None
+        assert provider.calls == []
+
+        clock.advance(3_600)
+        recovered = cycle.tick(world_id, limits)
+        assert recovered.character_key == "sophie" and recovered.routed is not None
+        assert recovered.routed.attempted and recovered.routed.turn is not None
+        assert provider.calls and ActivityEngine(conn).activity_sheet(world_id, "sophie")["type"] == "photography"
     finally:
         conn.close()
