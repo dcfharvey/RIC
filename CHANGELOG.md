@@ -1,5 +1,15 @@
 # Changelog
 
+## Lot 4 circadien — compatibilité et shadow (11 août 2026)
+
+- Audite exhaustivement les consommateurs legacy de `repos` et `energie` et
+  documente les groupes qui devront être commutés ensemble au futur cutover.
+- Ajoute un motif de sommeil synthétique, un arbitrage volontaire sans priorité
+  de catégorie et une éligibilité de stabilité appliquée par un double moteur,
+  sans branchement runtime ni écriture canonique.
+- P, H et φ restent séparés; aucune conversion `repos → H` ou `energie → P` et
+  aucune modification de la résidence réelle.
+
 ## SCC-2A — correctif de contrat provider v2
 
 - Supprime le faux positif lexical `ment` et n'interdit plus globalement

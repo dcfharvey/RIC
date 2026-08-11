@@ -93,10 +93,10 @@ Pour les compteurs de version ou la photographie de HEAD, vérifier toujours `py
 Référence fonctionnelle actuelle :
 
 - version logicielle : **`0.1.0a15`**;
-- schéma SQLite : **44**;
-- migration la plus récente : `0044_scc3a_affect_owner.sql`;
-- dernière validation complète connue : **877 tests réussis**;
-- dernier commit fonctionnel courant : `da30d5d` (`fix: bound cognitive retry storms`);
+- schéma SQLite du **code** : **48** (la résidence réelle reste volontairement au schéma 44);
+- migrations les plus récentes : `0047_sleep_physiology_persistence.sql` et `0048_sleep_physiology_precision_residues.sql`;
+- dernière validation complète connue : **928 tests réussis** (`--basetemp` local dédié);
+- dernier commit fonctionnel courant avant le lot en cours : `1da3f74` (`fix: preserve circadian precision across synthetic segments`);
 - `1cf8278` est la photographie documentaire R&D SCC-1B; les commits `.gitignore` historiques ne font pas partie de l'état fonctionnel courant.
 
 Toujours revérifier localement avant d'agir :
@@ -116,6 +116,7 @@ Adapter la commande Python à l'environnement local (`.venv/Scripts/python.exe -
 - `0.1.0a13` : première agence non sapiente générique **CAT-0**, sans LLM et sans branche codée au nom/à l'espèce de Patoune; intentions courtes, passages adjacents, attente et abandon après échecs bornés;
 - `0.1.0a14` : les tours sociaux bloqués par budget sont différés jusqu'à leur renouvellement au lieu d'être repollés à chaque tick; temps simulé et temps mural restent distincts;
 - `0.1.0a15` : l'horloge canonique ne progresse que pendant une session runtime; arrêt propre = gel, crash = récupération au dernier instant durable, sans rattrapage accidentel hors ligne.
+- lot circadien V1 : fondations persistantes inactives, matérialisation synthétique et shadow de compatibilité livrés; `repos`/`energie` restent legacy et aucun cutover n'est autorisé.
 
 Documents récents associés :
 
@@ -149,6 +150,7 @@ Documents récents associés :
 - bancs d'essai, prévol, télémétrie et gardien local;
 - CAT-0 non sapient générique;
 - protection de chronologie contre latence LLM et arrêt hors ligne.
+- fondations circadiennes V1, projections synthétiques H/φ/P et audit shadow des consommateurs legacy; aucune activation réelle.
 
 SCC-1B2A finalisé porte 30 IDs, 31 variantes déclarées, 27 fixtures T0
 déterministes et 805 tests passants. B17/B18 opposent honnêtement absence et

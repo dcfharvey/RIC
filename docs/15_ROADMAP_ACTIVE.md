@@ -25,7 +25,10 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a15` — schéma 44, 877 tests validés au dernier comptage local, SCC-1B interpretation-only, SCC-1C, SCC-2A, SCC-3A et Hugin/Munin V0/V0.1 livrés.
+**Version logicielle actuelle :** `0.1.0a15` — schéma de code 48 (résidence réelle
+intentionnellement maintenue au schéma 44), 928 tests validés au dernier
+comptage local. Les fondations circadiennes V1 et le shadow du lot 4 sont
+livrés sans cutover comportemental.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
