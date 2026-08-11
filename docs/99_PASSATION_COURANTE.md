@@ -95,8 +95,8 @@ Référence fonctionnelle actuelle :
 - version logicielle : **`0.1.0a15`**;
 - schéma SQLite du **code** : **48** (la résidence réelle reste volontairement au schéma 44);
 - migrations les plus récentes : `0047_sleep_physiology_persistence.sql` et `0048_sleep_physiology_precision_residues.sql`;
-- dernière validation complète connue : **928 tests réussis** (`--basetemp` local dédié);
-- dernier commit fonctionnel courant avant le lot en cours : `1da3f74` (`fix: preserve circadian precision across synthetic segments`);
+- dernière validation complète rapportée : **929 tests réussis** (lot 4, à revalider localement avant toute écriture de code);
+- HEAD fonctionnel courant : `2d7e45a` (`fix: harden legacy consumer discovery`), parent lot 4 `e395a9d` (`feat: add circadian compatibility shadow audit`);
 - `1cf8278` est la photographie documentaire R&D SCC-1B; les commits `.gitignore` historiques ne font pas partie de l'état fonctionnel courant.
 
 Toujours revérifier localement avant d'agir :
@@ -116,7 +116,7 @@ Adapter la commande Python à l'environnement local (`.venv/Scripts/python.exe -
 - `0.1.0a13` : première agence non sapiente générique **CAT-0**, sans LLM et sans branche codée au nom/à l'espèce de Patoune; intentions courtes, passages adjacents, attente et abandon après échecs bornés;
 - `0.1.0a14` : les tours sociaux bloqués par budget sont différés jusqu'à leur renouvellement au lieu d'être repollés à chaque tick; temps simulé et temps mural restent distincts;
 - `0.1.0a15` : l'horloge canonique ne progresse que pendant une session runtime; arrêt propre = gel, crash = récupération au dernier instant durable, sans rattrapage accidentel hors ligne.
-- lot circadien V1 : fondations persistantes inactives, matérialisation synthétique et shadow de compatibilité livrés; `repos`/`energie` restent legacy et aucun cutover n'est autorisé.
+- lot circadien V1 : fondations persistantes inactives, matérialisation synthétique et shadow de compatibilité livrés; le work order de cutover est à revoir, `repos`/`energie` restent legacy et aucun cutover n'est autorisé.
 
 Documents récents associés :
 
@@ -124,6 +124,8 @@ Documents récents associés :
 - `docs/68_CORRECTIF_ARBITRAGE_SOCIAL_0_1_0A11.md`;
 - `docs/69_CORRECTIF_LATENCE_CHRONOLOGIQUE_0_1_0A12.md`;
 - `docs/70_GEL_HORS_LIGNE_ET_RECUPERATION_CRASH_0_1_0A15.md`;
+- `docs/79_R_D_CYCLE_DIURNE_CIRCADIEN_SOMMEIL.md` à `docs/84_AUDIT_COMPATIBILITE_SHADOW_CIRCADIEN_V1.md` pour les contrats et lots circadiens déjà acceptés;
+- `docs/85_WORK_ORDER_CUTOVER_CIRCADIEN_V1.md` : conception du futur cutover, à revoir avant toute implémentation ou migration réelle;
 - `docs/71_R_D_SOCIAL_CONSEQUENCE_CORE.md`;
 - `docs/72_R_D_SCC1_INTERPRETATION_SOCIALE.md`;
 - `docs/73_R_D_SCC1B_PROVIDER_ET_CALIBRATION.md` décrit le banc SCC-1B2A;
