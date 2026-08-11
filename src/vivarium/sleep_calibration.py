@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from typing import Literal
+from dataclasses import asdict, dataclass, replace
+from typing import Callable, Literal
 
 from .circadian_model import (
     CircadianParameters,
@@ -19,6 +19,14 @@ from .circadian_model import (
 )
 
 
+# Contrats numériques du banc, pas paramètres biologiques. Le phase-lock doit
+# persister plusieurs cycles ; la borne maximale évite un test sans fin.
+PHASE_LOCK_TOLERANCE_TURNS = 1e-6
+PHASE_LOCK_CONSECUTIVE_CYCLES = 3
+PHASE_LOCK_MAX_CYCLES = 512
+PARTITION_PHASE_TOLERANCE_TURNS = 1e-8
+
+
 @dataclass(frozen=True)
 class CalibrationObservation:
     name: str
@@ -26,10 +34,20 @@ class CalibrationObservation:
 
 
 @dataclass(frozen=True)
+class CalibrationTrajectory:
+    """Série de projections du banc, jamais un état canonique persistant."""
+
+    name: str
+    unit: str
+    values: tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class CalibrationReport:
     profile_key: str
     profile_version: int
     observations: tuple[CalibrationObservation, ...]
+    trajectories: tuple[CalibrationTrajectory, ...]
 
     @property
     def passed(self) -> bool:
@@ -41,6 +59,7 @@ class CalibrationReport:
             "profile_version": self.profile_version,
             "passed": self.passed,
             "observations": [asdict(item) for item in self.observations],
+            "trajectories": [asdict(item) for item in self.trajectories],
         }
 
 
@@ -59,6 +78,36 @@ def _daily_light_cycle(state: RegulationState, parameters: CircadianParameters) 
     state = advance_regulation(state, _source("wake", 100_000), 12 * 3_600, parameters)
     state = advance_regulation(state, _source("wake", 0), 4 * 3_600, parameters)
     return advance_regulation(state, _source("sleep", 0, occluded=True), 8 * 3_600, parameters)
+
+
+def _shifted_light_cycle(state: RegulationState, parameters: CircadianParameters) -> RegulationState:
+    """Même cycle de sommeil, zeitgeber objectif déplacé de huit heures."""
+    state = advance_regulation(state, _source("wake", 0), 8 * 3_600, parameters)
+    state = advance_regulation(state, _source("wake", 100_000), 8 * 3_600, parameters)
+    state = advance_regulation(state, _source("sleep", 100_000, occluded=True), 4 * 3_600, parameters)
+    return advance_regulation(state, _source("sleep", 0, occluded=True), 4 * 3_600, parameters)
+
+
+def _phase_lock(
+    initial: RegulationState,
+    parameters: CircadianParameters,
+    cycle: Callable[[RegulationState, CircadianParameters], RegulationState],
+) -> tuple[RegulationState, tuple[float, ...], int | None]:
+    """Cherche un phase-lock par convergence de l'écart cycle à cycle."""
+    state = initial
+    phases = [state.circadian_phase]
+    stable_cycles = 0
+    for index in range(1, PHASE_LOCK_MAX_CYCLES + 1):
+        previous = state.circadian_phase
+        state = cycle(state, parameters)
+        phases.append(state.circadian_phase)
+        if abs(_phase_delta(state.circadian_phase, previous)) <= PHASE_LOCK_TOLERANCE_TURNS:
+            stable_cycles += 1
+            if stable_cycles >= PHASE_LOCK_CONSECUTIVE_CYCLES:
+                return state, tuple(phases), index
+        else:
+            stable_cycles = 0
+    return state, tuple(phases), None
 
 
 def _restriction_protocol(
@@ -99,35 +148,42 @@ def run_reference_calibration(profile_key: str = "human_reference_candidate.v1")
     dark_wake = _source("wake", 0)
     light_wake = _source("wake", 100_000)
 
-    # Invariance de découpage : mêmes causes, même horizon, sans dépendance
-    # à la cadence du runtime.
-    one_piece = advance_regulation(initial, dark_wake, 6 * 3_600, parameters)
-    split = advance_regulation(
-        advance_regulation(initial, dark_wake, 2 * 3_600, parameters), dark_wake, 4 * 3_600, parameters
-    )
-    partition_invariant = (
-        abs(one_piece.homeostatic_load - split.homeostatic_load) < 1e-12
-        and abs(one_piece.circadian_phase - split.circadian_phase) < 1e-12
-        and abs(one_piece.physical_capacity - split.physical_capacity) < 1e-12
+    # Contrat B : H et P sont invariants ici ; la phase est vérifiée selon une
+    # tolérance de convergence, y compris avec des frontières non alignées sur
+    # le quantum numérique de soixante secondes.
+    partition_source = light_wake
+    one_piece = advance_regulation(initial, partition_source, 24 * 3_600, parameters)
+    parts = (61, 377, 1_234, 4_567, 987, 10_000)
+    irregular = initial
+    for duration in (*parts, 24 * 3_600 - sum(parts)):
+        irregular = advance_regulation(irregular, partition_source, duration, parameters)
+    partition_phase_error = abs(_phase_delta(one_piece.circadian_phase, irregular.circadian_phase))
+    partition_converges = (
+        abs(one_piece.homeostatic_load - irregular.homeostatic_load) < 1e-12
+        and abs(one_piece.physical_capacity - irregular.physical_capacity) < 1e-12
+        and partition_phase_error <= PARTITION_PHASE_TOLERANCE_TURNS
     )
 
-    # Sans zeitgeber, le profil non exactement 24 h dérive progressivement.
-    free_run = advance_regulation(initial, dark_wake, 5 * 86_400, parameters)
-    nominal_phase = (initial.circadian_phase + 5 * 86_400 / 86_400) % 1.0
-    free_running = abs(free_run.circadian_phase - nominal_phase) > 0.001
+    # Free-running observable, sans forcer un cycle lumière externe.
+    free_state = initial
+    free_phases = [free_state.circadian_phase]
+    for _ in range(5):
+        free_state = advance_regulation(free_state, dark_wake, 86_400, parameters)
+        free_phases.append(free_state.circadian_phase)
+    nominal_phase = (initial.circadian_phase + 5) % 1.0
+    free_running = abs(_phase_delta(free_state.circadian_phase, nominal_phase)) > 0.001
 
-    # Même lumière, deux phases : forcing de signe différent.
+    # Même lumière, deux phases : le forcing net de lumière, comparé au même
+    # free-run, doit changer de signe.
     early_start = RegulationState(0.4, 0.125, 0.7)
     late_start = RegulationState(0.4, 0.625, 0.7)
     early = advance_regulation(early_start, light_wake, 2 * 3_600, parameters)
     late = advance_regulation(late_start, light_wake, 2 * 3_600, parameters)
     early_dark = advance_regulation(early_start, dark_wake, 2 * 3_600, parameters)
     late_dark = advance_regulation(late_start, dark_wake, 2 * 3_600, parameters)
-    # Le free-run avance toujours : ce qui doit changer de signe est le delta
-    # apporté par la lumière relativement à ce même free-run.
     phase_dependent_light = (
-        (early.circadian_phase - early_dark.circadian_phase)
-        * (late.circadian_phase - late_dark.circadian_phase)
+        _phase_delta(early.circadian_phase, early_dark.circadian_phase)
+        * _phase_delta(late.circadian_phase, late_dark.circadian_phase)
         < 0
     )
 
@@ -143,84 +199,100 @@ def run_reference_calibration(profile_key: str = "human_reference_candidate.v1")
         and sleep_state.physical_capacity > 0.30
         and rest_state.physical_capacity > 0.30
     )
-
     normal_night = advance_regulation(RegulationState(0.78, 0.55, 0.40), _source("sleep", 0), 8 * 3_600, parameters)
     normal_night_plausible = normal_night.homeostatic_load < 0.20 and normal_night.physical_capacity > 0.40
 
+    # L'équation accepte du sommeil de jour ; séparément, la propension haute
+    # rend ce sommeil accessible au futur arbitre sans lui imposer l'état.
     day_nap_start = RegulationState(0.68, 0.0, 0.60)
     day_nap = advance_regulation(day_nap_start, _source("sleep", 100_000, occluded=True), 90 * 60, parameters)
-    nap_is_possible = day_nap.homeostatic_load < day_nap_start.homeostatic_load
+    post_deprivation_day = RegulationState(0.84, 0.0, 0.60)
+    daytime_sleep_equation_dissipates_h = day_nap.homeostatic_load < day_nap_start.homeostatic_load
+    daytime_sleep_propensity_accessible = sleep_propensity(post_deprivation_day, parameters).sleep_propensity >= 0.50
 
     postponed_start = RegulationState(0.72, 0.50, 0.85)
     postponed = advance_regulation(postponed_start, _source("wake", 0, stimulation=1.0), 4 * 3_600, parameters)
     postponed_stability = wake_stability(postponed, _source("wake", 0, stimulation=1.0), parameters)
-    # Le score peut déjà être saturé avant le report ; la falsification porte
-    # donc sur les causes continues (H et stabilité), pas sur un score affiché
-    # qui ne peut dépasser 1.
     voluntary_postponement_degrades = (
         postponed.homeostatic_load > postponed_start.homeostatic_load
         and postponed_stability.instability > 0.0
     )
 
-    # Entrainment et ré-entrainment : on constate un effet cumulatif, limité,
-    # plutôt qu'un prétendu alignement instantané à une heure civile.
-    dark_reference = RegulationState(0.40, 0.18, 0.70)
-    lit_reference = dark_reference
-    dark_after_one = advance_regulation(dark_reference, dark_wake, 24 * 3_600, parameters)
-    dark_after_many = advance_regulation(dark_reference, dark_wake, 5 * 24 * 3_600, parameters)
-    lit_after_one = _daily_light_cycle(lit_reference, parameters)
-    lit_after_many = lit_reference
-    for _ in range(5):
-        lit_after_many = _daily_light_cycle(lit_after_many, parameters)
-    one_day_effect = abs(_phase_delta(lit_after_one.circadian_phase, dark_after_one.circadian_phase))
-    many_day_effect = abs(_phase_delta(lit_after_many.circadian_phase, dark_after_many.circadian_phase))
-    entrainment_progressive = one_day_effect > 0.0 and many_day_effect > one_day_effect and one_day_effect < 0.25
-
-    shifted_once = advance_regulation(lit_after_many, _source("wake", 100_000), 8 * 3_600, parameters)
-    shifted_many = shifted_once
-    for _ in range(3):
-        shifted_many = _daily_light_cycle(shifted_many, parameters)
-    first_reentrainment_delta = abs(_phase_delta(shifted_once.circadian_phase, lit_after_many.circadian_phase))
-    later_reentrainment_delta = abs(_phase_delta(shifted_many.circadian_phase, lit_after_many.circadian_phase))
-    reentrainment_progressive = (
-        first_reentrainment_delta < 0.40
-        and later_reentrainment_delta < 0.50
-        and later_reentrainment_delta > 0.0001
+    # Le phase-lock est la propriété exigée : des écarts quotidiens convergent
+    # dans une bande numérique, sans choisir un nombre de jours biologique.
+    locked_state, stable_phases, stable_lock_cycle = _phase_lock(
+        RegulationState(0.40, 0.18, 0.70), parameters, _daily_light_cycle
+    )
+    phase_locked = stable_lock_cycle is not None
+    shifted_state, shifted_phases, shifted_lock_cycle = _phase_lock(
+        locked_state, parameters, _shifted_light_cycle
+    )
+    reentrained = (
+        shifted_lock_cycle is not None
+        and abs(_phase_delta(shifted_phases[1], shifted_phases[-1])) > PHASE_LOCK_TOLERANCE_TURNS
+        and abs(_phase_delta(shifted_phases[-1], stable_phases[-1])) > PHASE_LOCK_TOLERANCE_TURNS
     )
 
-    # Comparaison des deux familles exigée par le contrat : elles sont toutes
-    # deux évaluées, mais aucune coexistence production n'est créée.
-    # Point volontairement dans la bande non saturée : comparer deux fonctions
-    # au plafond 1 ne constituerait pas une comparaison falsifiable.
-    comparison_state = RegulationState(0.50, 0.25, 0.80)
-    additive = sleep_propensity(comparison_state, parameters, family="additive")
-    modulated = sleep_propensity(comparison_state, parameters, family="threshold_modulated")
-    families_distinct = abs(additive.sleep_propensity - modulated.sleep_propensity) > 1e-6
+    # Deux familles réellement distinctes. La seconde module la pente de la
+    # réponse à H ; une recherche exhaustive de k simple montre qu'aucune
+    # famille additive H+kC ne la reproduit sur cette grille non saturée.
+    comparison_states = (
+        RegulationState(0.46, 0.00, 0.80), RegulationState(0.46, 0.25, 0.80),
+        RegulationState(0.58, 0.00, 0.80), RegulationState(0.58, 0.25, 0.80),
+        RegulationState(0.68, 0.00, 0.80), RegulationState(0.68, 0.25, 0.80),
+    )
+    sensitivity_values = tuple(
+        sleep_propensity(state, parameters, family="sensitivity_modulated").sleep_propensity
+        for state in comparison_states
+    )
+    best_additive_error = min(
+        max(
+            abs(
+                sleep_propensity(state, replace(parameters, circadian_propensity_weight=weight / 1_000), family="additive").sleep_propensity
+                - target
+            )
+            for state, target in zip(comparison_states, sensitivity_values, strict=True)
+        )
+        for weight in range(0, 601)
+    )
+    families_not_trivially_equivalent = best_additive_error > 0.001
 
-    critical_state = RegulationState(0.98, 0.5, 0.8)
-    low_stimulation = _source("wake", 0, stimulation=0.0)
-    high_stimulation = _source("wake", 0, stimulation=1.0)
-    unstable = wake_stability(critical_state, low_stimulation, parameters)
-    stimulated = wake_stability(critical_state, high_stimulation, parameters)
-    first = stability_consequence(
-        unstable, activity_id="activity-1", requires_sustained_wakefulness=True, gate_state=StabilityGateState()
-    )
-    repeat = stability_consequence(
-        unstable, activity_id="activity-1", requires_sustained_wakefulness=True, gate_state=first.next_gate_state
-    )
+    # À physiologie extrême, la stimulation diminue la manifestation continue
+    # mais laisse la bande critical et sa conséquence moteur atteignables à
+    # chaque nouvelle activité : pas de protection indéfinie.
+    extreme = RegulationState(1.0, 0.5, 0.8)
+    no_stimulation = wake_stability(extreme, _source("wake", 0, stimulation=0.0), parameters)
+    full_stimulation = wake_stability(extreme, _source("wake", 0, stimulation=1.0), parameters)
+    critical_bands = []
+    critical_state = extreme
+    previous_band: Literal["stable", "fragile", "critical"] = "stable"
+    for _ in range(24):
+        stability = wake_stability(critical_state, _source("wake", 0, stimulation=1.0), parameters, previous_band=previous_band)
+        critical_bands.append(stability.band == "critical")
+        previous_band = stability.band
+        critical_state = advance_regulation(critical_state, _source("wake", 0, stimulation=1.0), 3_600, parameters)
+    first = stability_consequence(full_stimulation, activity_id="activity-1", requires_sustained_wakefulness=True, gate_state=StabilityGateState())
+    repeat = stability_consequence(full_stimulation, activity_id="activity-1", requires_sustained_wakefulness=True, gate_state=first.next_gate_state)
     bounded_stability = (
         first.should_interrupt and not repeat.should_interrupt
-        and 0.0 < stimulated.instability < unstable.instability
+        and 0.0 < full_stimulation.instability < no_stimulation.instability
+        and all(critical_bands)
     )
 
-    regular = _restriction_protocol(RegulationState(0.35, 0.15, 0.70), parameters, sleep_hours=8, days=4)
-    restricted = _restriction_protocol(RegulationState(0.35, 0.15, 0.70), parameters, sleep_hours=5, days=4)
-    restriction_accumulates = restricted.homeostatic_load > regular.homeostatic_load
-    # Contrat markovien V1 : à état complet identique, aucune histoire cachée
-    # n'est inventée pour conserver une dette chronique résiduelle.
+    # Restriction et récupération : pas de dette cachée après convergence, mais
+    # les trajectoires divergent bel et bien pendant le protocole.
+    regular_states = [RegulationState(0.35, 0.15, 0.70)]
+    restricted_states = [RegulationState(0.35, 0.15, 0.70)]
+    for _ in range(4):
+        regular_states.append(_restriction_protocol(regular_states[-1], parameters, sleep_hours=8, days=1))
+        restricted_states.append(_restriction_protocol(restricted_states[-1], parameters, sleep_hours=5, days=1))
+    recovery_states = [restricted_states[-1]]
+    for _ in range(3):
+        recovery_states.append(_restriction_protocol(recovery_states[-1], parameters, sleep_hours=8, days=1))
+    restriction_accumulates = restricted_states[-1].homeostatic_load > regular_states[-1].homeostatic_load
     convergence_is_markovian = (
-        advance_regulation(regular, dark_wake, 3_600, parameters)
-        == advance_regulation(RegulationState(regular.homeostatic_load, regular.circadian_phase, regular.physical_capacity), dark_wake, 3_600, parameters)
+        advance_regulation(regular_states[-1], dark_wake, 3_600, parameters)
+        == advance_regulation(RegulationState(regular_states[-1].homeostatic_load, regular_states[-1].circadian_phase, regular_states[-1].physical_capacity), dark_wake, 3_600, parameters)
     )
     feline_episodes = _opportunity_episodes(calibration_profiles()["generic_feline_hypothesis.v1"])
 
@@ -228,27 +300,36 @@ def run_reference_calibration(profile_key: str = "human_reference_candidate.v1")
         parameters.profile_key,
         parameters.version,
         (
-            CalibrationObservation("partition_invariant", partition_invariant),
+            CalibrationObservation("partition_numerically_converges", partition_converges),
+            CalibrationObservation("partition_phase_error_nano_turns", round(partition_phase_error * 1_000_000_000)),
             CalibrationObservation("offline_freeze_at_zero_duration", advance_regulation(initial, dark_wake, 0, parameters) == initial),
             CalibrationObservation("free_running_observable", free_running),
             CalibrationObservation("phase_dependent_light", phase_dependent_light),
+            CalibrationObservation("stable_zeitgeber_phase_locks", phase_locked),
+            CalibrationObservation("shifted_zeitgeber_reentrains_to_different_lock", reentrained),
             CalibrationObservation("sleep_occlusion_attenuates_light", sleep_occlusion),
             CalibrationObservation("normal_night_is_plausible", normal_night_plausible),
-            CalibrationObservation("daytime_nap_and_post_deprivation_sleep_are_possible", nap_is_possible),
+            CalibrationObservation("daytime_sleep_equation_dissipates_h", daytime_sleep_equation_dissipates_h),
+            CalibrationObservation("post_deprivation_daytime_sleep_propensity_accessible", daytime_sleep_propensity_accessible),
             CalibrationObservation("voluntary_postponement_degrades_physiology", voluntary_postponement_degrades),
-            CalibrationObservation("entrainment_is_progressive", entrainment_progressive),
-            CalibrationObservation("reentrainment_is_progressive", reentrainment_progressive),
             CalibrationObservation("rest_and_sleep_separate_h_and_p", capacity_separation),
             CalibrationObservation("low_physical_capacity_does_not_change_sleep_propensity", sleep_propensity(RegulationState(0.70, 0.30, 0.10), parameters).sleep_propensity == sleep_propensity(RegulationState(0.70, 0.30, 0.90), parameters).sleep_propensity),
-            CalibrationObservation("propensity_families_are_comparable", families_distinct),
+            CalibrationObservation("propensity_families_not_trivially_equivalent", families_not_trivially_equivalent),
+            CalibrationObservation("best_additive_fit_max_error_milli", round(best_additive_error * 100_000)),
             CalibrationObservation("critical_stability_is_bounded", bounded_stability),
             CalibrationObservation("repeated_restriction_accumulates_during_protocol", restriction_accumulates),
             CalibrationObservation("complete_state_convergence_is_markovian", convergence_is_markovian),
             CalibrationObservation("generic_feline_opportunities_allow_multiple_episodes", feline_episodes >= 2),
-            CalibrationObservation("additive_propensity_milli", round(additive.sleep_propensity * 100_000)),
-            CalibrationObservation("modulated_propensity_milli", round(modulated.sleep_propensity * 100_000)),
-            CalibrationObservation("awake_light_drive_milli", round(awake_drive * 100_000)),
-            CalibrationObservation("sleep_light_drive_milli", round(sleep_drive * 100_000)),
             CalibrationObservation("generic_feline_episode_count", feline_episodes),
+        ),
+        (
+            CalibrationTrajectory("free_running_daily_phase", "phase_milli_turn", tuple(round(value * 1_000_000) for value in free_phases)),
+            CalibrationTrajectory("stable_zeitgeber_daily_phase", "phase_milli_turn", tuple(round(value * 1_000_000) for value in stable_phases)),
+            CalibrationTrajectory("shifted_zeitgeber_daily_phase", "phase_milli_turn", tuple(round(value * 1_000_000) for value in shifted_phases)),
+            CalibrationTrajectory("regular_sleep_h", "load_milli", tuple(round(value.homeostatic_load * 100_000) for value in regular_states)),
+            CalibrationTrajectory("restriction_h", "load_milli", tuple(round(value.homeostatic_load * 100_000) for value in restricted_states)),
+            CalibrationTrajectory("recovery_h", "load_milli", tuple(round(value.homeostatic_load * 100_000) for value in recovery_states)),
+            CalibrationTrajectory("stability_no_stimulation_vs_maximal", "instability_milli", (round(no_stimulation.instability * 100_000), round(full_stimulation.instability * 100_000))),
+            CalibrationTrajectory("additive_vs_sensitivity_modulated", "propensity_milli_pairs", tuple(round(value * 100_000) for pair in zip((sleep_propensity(state, parameters, family="additive").sleep_propensity for state in comparison_states), sensitivity_values, strict=True) for value in pair)),
         ),
     )

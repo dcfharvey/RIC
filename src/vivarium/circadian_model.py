@@ -69,7 +69,7 @@ class CircadianParameters:
     circadian_propensity_weight: float
     propensity_offer_low: float
     propensity_offer_high: float
-    modulation_width: float
+    circadian_sensitivity_modulation: float
     homeostatic_stability_weight: float
     circadian_stability_weight: float
     max_stimulation_relief: float
@@ -103,7 +103,7 @@ class CircadianParameters:
             (self.circadian_propensity_weight, "circadian_propensity_weight"),
             (self.propensity_offer_low, "propensity_offer_low"),
             (self.propensity_offer_high, "propensity_offer_high"),
-            (self.modulation_width, "modulation_width"),
+            (self.circadian_sensitivity_modulation, "circadian_sensitivity_modulation"),
             (self.homeostatic_stability_weight, "homeostatic_stability_weight"),
             (self.circadian_stability_weight, "circadian_stability_weight"),
             (self.max_stimulation_relief, "max_stimulation_relief"),
@@ -181,7 +181,7 @@ class Propensity:
     homeostatic_component: float
     circadian_wake_support: float
     sleep_propensity: float
-    family: Literal["additive", "threshold_modulated"]
+    family: Literal["additive", "sensitivity_modulated"]
 
 
 @dataclass(frozen=True)
@@ -277,7 +277,7 @@ def sleep_propensity(
     state: RegulationState,
     parameters: CircadianParameters,
     *,
-    family: Literal["additive", "threshold_modulated"] = "additive",
+    family: Literal["additive", "sensitivity_modulated"] = "additive",
 ) -> Propensity:
     """Calcule deux familles concurrentes ; aucune ne pilote le runtime."""
     support = circadian_wake_support(state.circadian_phase)
@@ -287,13 +287,18 @@ def sleep_propensity(
             state.homeostatic_load + parameters.circadian_propensity_weight * circadian_sleep_influence
         )
         score = _smoothstep(parameters.propensity_offer_low, parameters.propensity_offer_high, combined)
-    elif family == "threshold_modulated":
-        threshold = parameters.propensity_offer_high - parameters.modulation_width * circadian_sleep_influence
-        score = _smoothstep(
-            threshold - (parameters.propensity_offer_high - parameters.propensity_offer_low),
-            threshold,
+    elif family == "sensitivity_modulated":
+        # Alternative réellement différente : C modifie la sensibilité de la
+        # réponse à H, et non les deux bornes de la même smoothstep. À H=0 ou
+        # H=1, C n'invente ni n'annule de charge ; entre les deux, il change la
+        # pente. Cette forme comporte un terme H×C non réductible à H + kC.
+        homeostatic_score = _smoothstep(
+            parameters.propensity_offer_low,
+            parameters.propensity_offer_high,
             state.homeostatic_load,
         )
+        exponent = 1.0 + parameters.circadian_sensitivity_modulation * (support - 0.5)
+        score = homeostatic_score ** exponent
     else:
         raise CircadianModelError("famille de propension inconnue")
     return Propensity(state.homeostatic_load, support, score, family)
@@ -315,7 +320,12 @@ def wake_stability(
     )
     # La stimulation ne peut enlever qu'une fraction plafonnée de la
     # manifestation actuelle : même maximale, elle ne garantit jamais 0.
-    instability = base * (1.0 - parameters.max_stimulation_relief * source.stimulation)
+    reduced = base * (1.0 - parameters.max_stimulation_relief * source.stimulation)
+    # Le seuil de conséquence est défini par la physiologie brute : au-delà de
+    # cette bande, la stimulation peut réduire la manifestation continue, mais
+    # ne peut plus faire sortir de ``critical``. Elle ne peut donc pas garantir
+    # une veille viable indéfinie sous H/C extrêmes.
+    instability = max(reduced, parameters.critical_enter if base >= parameters.critical_enter else 0.0)
     if previous_band == "critical":
         band: Literal["stable", "fragile", "critical"] = (
             "critical" if instability >= parameters.critical_exit
@@ -357,13 +367,16 @@ def calibration_profiles() -> dict[str, CircadianParameters]:
     common = dict(
         version=1,
         light_half_saturation_milli=30_000,
-        light_phase_shift_milli_per_hour=1_200,
+        # Ancre de calibration RIC : 1 200 ne produisait pas de phase-locking
+        # pour le zeitgeber V1 décalé. Cette amplitude est retenue parce que
+        # les deux protocoles de lock convergent, pas comme valeur biologique.
+        light_phase_shift_milli_per_hour=5_000,
         light_sensitivity_milli=100_000,
         sleep_occlusion_milli=5_000,
         circadian_propensity_weight=0.24,
         propensity_offer_low=0.42,
         propensity_offer_high=0.74,
-        modulation_width=0.20,
+        circadian_sensitivity_modulation=0.20,
         homeostatic_stability_weight=0.78,
         circadian_stability_weight=0.34,
         max_stimulation_relief=0.55,

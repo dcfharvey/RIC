@@ -1,5 +1,7 @@
 """Falsifications déterministes du noyau circadien inactif."""
 
+from dataclasses import replace
+
 import pytest
 
 from vivarium.circadian_model import (
@@ -34,6 +36,20 @@ def test_homeostasis_is_segment_invariant_and_rest_is_awake(human):
     assert sleep.homeostatic_load < initial.homeostatic_load
 
 
+def test_phase_partition_has_documented_numerical_convergence_for_irregular_boundaries(human):
+    initial = RegulationState(0.4, 0.18, 0.5)
+    source = RegulationInput("wake", 100_000, 100_000)
+    one_piece = advance_regulation(initial, source, 24 * 3_600, human)
+    irregular = initial
+    parts = (61, 377, 1_234, 4_567, 987, 10_000)
+    for duration in (*parts, 24 * 3_600 - sum(parts)):
+        irregular = advance_regulation(irregular, source, duration, human)
+    phase_error = abs(((one_piece.circadian_phase - irregular.circadian_phase + 0.5) % 1.0) - 0.5)
+    assert one_piece.homeostatic_load == pytest.approx(irregular.homeostatic_load, abs=1e-12)
+    assert one_piece.physical_capacity == pytest.approx(irregular.physical_capacity, abs=1e-12)
+    assert phase_error <= 1e-8
+
+
 def test_zero_duration_is_an_offline_freeze(human):
     state = RegulationState(0.4, 0.2, 0.5)
     assert advance_regulation(state, RegulationInput("wake", 90_000, 100_000), 0, human) == state
@@ -63,16 +79,30 @@ def test_capacity_is_independent_from_sleep_propensity_and_rest_recovers_only_ca
     assert rest.homeostatic_load > rested.homeostatic_load
 
 
-def test_two_propensity_families_are_available_for_bench_comparison_not_runtime_selection(human):
-    state = RegulationState(0.50, 0.25, 0.8)
-    additive = sleep_propensity(state, human, family="additive")
-    modulated = sleep_propensity(state, human, family="threshold_modulated")
-    assert additive.family == "additive" and modulated.family == "threshold_modulated"
-    assert additive.sleep_propensity != modulated.sleep_propensity
+def test_two_propensity_families_are_not_a_trivial_reparameterization(human):
+    states = (
+        RegulationState(0.46, 0.00, 0.8), RegulationState(0.46, 0.25, 0.8),
+        RegulationState(0.58, 0.00, 0.8), RegulationState(0.58, 0.25, 0.8),
+        RegulationState(0.68, 0.00, 0.8), RegulationState(0.68, 0.25, 0.8),
+    )
+    alternative = tuple(
+        sleep_propensity(state, human, family="sensitivity_modulated").sleep_propensity for state in states
+    )
+    best_additive_error = min(
+        max(
+            abs(
+                sleep_propensity(state, replace(human, circadian_propensity_weight=weight / 1_000), family="additive").sleep_propensity
+                - target
+            )
+            for state, target in zip(states, alternative, strict=True)
+        )
+        for weight in range(0, 601)
+    )
+    assert best_additive_error > 0.001
 
 
 def test_stability_uses_hysteresis_bounded_stimulation_and_one_interruption_per_activity(human):
-    state = RegulationState(0.98, 0.5, 0.9)
+    state = RegulationState(1.0, 0.5, 0.9)
     unstable = wake_stability(state, RegulationInput("wake", 0, 100_000), human)
     stimulated = wake_stability(state, RegulationInput("wake", 0, 100_000, stimulation=1.0), human)
     assert unstable.band == "critical"
@@ -80,6 +110,12 @@ def test_stability_uses_hysteresis_bounded_stimulation_and_one_interruption_per_
     first = stability_consequence(unstable, activity_id="a1", requires_sustained_wakefulness=True, gate_state=StabilityGateState())
     repeat = stability_consequence(unstable, activity_id="a1", requires_sustained_wakefulness=True, gate_state=first.next_gate_state)
     assert first.should_interrupt and not repeat.should_interrupt
+    previous = "stable"
+    for _ in range(24):
+        sustained = wake_stability(state, RegulationInput("wake", 0, 100_000, stimulation=1.0), human, previous_band=previous)
+        assert sustained.band == "critical"
+        previous = sustained.band
+        state = advance_regulation(state, RegulationInput("wake", 0, 100_000, stimulation=1.0), 3_600, human)
 
 
 def test_feline_candidate_is_explicitly_a_calibration_hypothesis_not_a_named_character_rule():
