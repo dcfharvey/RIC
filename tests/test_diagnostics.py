@@ -82,12 +82,12 @@ def test_invalid_appraisal_keeps_snapshot_raw_output_and_rejection_code(tmp_path
     with pytest.raises(Exception) as exc:
         SocialAppraisalLLMService(conn, provider, clock=clock, diagnostics=recorder).run(
             wid, "erika", "diag_bad", "live_scc1b_2", provider_turn_id="diag-turn-1")
-    assert getattr(exc.value, "code", None) == "invalid_appraisal"
+    assert getattr(exc.value, "code", None) == "invalid_provider_output"
     item = _read(path)[0]
     assert item["kind"] == "scc2a_appraisal"
     assert item["payload"]["raw_output"] == bad
     assert item["payload"]["snapshot_wire"]
-    assert item["payload"]["validation_code"] == "invalid_appraisal"
+    assert item["payload"]["validation_code"] == "invalid_provider_output"
     assert conn.execute("SELECT COUNT(*) FROM social_appraisal").fetchone()[0] == 0
 
 

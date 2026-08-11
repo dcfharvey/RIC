@@ -1,5 +1,16 @@
 # Changelog
 
+## SCC-2A — correctif de contrat provider v2
+
+- Supprime le faux positif lexical `ment` et n'interdit plus globalement
+  `intention` dans les justifications de candidates.
+- Fait converger les contraintes structurelles du parser provider et du service
+  persistant avant écriture; aucune migration SQLite n'est nécessaire.
+- Reformule la justification comme routage non autoritatif et versionne le
+  provider en `scc2a-appraisal-v2`.
+- Retire la justification du snapshot provider SCC-3A; l'observation peut encore
+  l'afficher, mais aucun propriétaire aval ne la traite comme une preuve.
+
 ## Préparation du prochain burn-in — instrumentation diagnostique (11 août 2026)
 
 - Synchronise la photographie active sur le schéma 44 et le rodage vivant après

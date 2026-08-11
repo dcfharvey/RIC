@@ -44,7 +44,7 @@ def test_start_episode_uses_affect_owner_and_private_trace(setup):
     assert c.execute("SELECT COUNT(*) FROM mood_state").fetchone()[0]==0; assert c.execute("SELECT COUNT(*) FROM subjective_belief").fetchone()[0]==0; assert c.execute("SELECT COUNT(*) FROM relationship_view").fetchone()[0]==0
 
 def test_snapshot_is_owner_scoped_and_target_is_allowlisted(setup):
-    c,w,clock=_source(setup,'affect_case'); snap=SCC3AAffectContextBuilder(c).build(w,'erika','affect_case'); assert snap.data['owner']['character_key']=='erika'; assert set(snap.data['allowed_targets'])=={'sophie','erika'}; assert 'luna_private' not in snap.wire
+    c,w,clock=_source(setup,'affect_case'); snap=SCC3AAffectContextBuilder(c).build(w,'erika','affect_case'); assert snap.data['owner']['character_key']=='erika'; assert set(snap.data['allowed_targets'])=={'sophie','erika'}; assert 'luna_private' not in snap.wire; assert 'justification' not in snap.data['candidate']; assert 'Cet épisode peut être examiné' not in snap.wire
     with pytest.raises(SCC3AAffectError): SCC3AAffectLLMService(c,DeterministicSCC3AAffectProvider({'decision':'start_episode','family':'anger','qualitative_intensity':'high','target_ref':'luna','support_refs':['candidate:primary']}),clock=clock).run(w,'erika','affect_case',provider_turn_id='bad_target')
 
 def test_invalid_family_action_hidden_motive_and_partial_write_are_rejected(setup):

@@ -31,3 +31,27 @@ contrat.
   cadence et budget technique sont versionnés et falsifiables.
 
 SCC-2A s'arrête après la persistance de l'appraisal et des candidates.
+
+## Addendum contractuel — provider v2
+
+Le provider `scc2a-appraisal-v2` traite la `justification` comme une
+explication de routage non autoritative. Elle explique pourquoi le domaine
+cible pourrait examiner les `basis_refs`; elle ne crée ni fait, ni croyance,
+ni intention, ni émotion, ni support supplémentaire. Les propriétaires aval
+repartent exclusivement des bases engine-owned référencées.
+
+Une candidate `goal_or_intention` peut être fondée sur `interpretation:primary`
+lorsque les `meaning_hypotheses` de l'owner y représentent déjà une proposition
+de but ou d'intention. Une intention persistée explicitement engine-owned reste
+également admissible. Aucune intention inventée ou cachée attribuée à autrui
+n'est autorisée par le contrat.
+
+Les contraintes structurelles communes sont validées par une fonction pure
+partagée entre le parser provider et `SocialAppraisalService`; les erreurs de
+sortie provider sont donc rejetées avant la persistance. L'ownership, la source,
+la provenance technique et l'écriture transactionnelle restent des contrôles
+distincts du service persistant. Aucun schéma SQLite n'est modifié.
+
+SCC-3A conserve la candidate et ses bases autorisées, mais n'injecte plus la
+justification dans son snapshot provider. Cette justification reste disponible
+pour l'observation et l'audit technique, sans devenir une preuve causale.

@@ -11,7 +11,41 @@ MEANINGS = frozenset({'favorable','defavorable','mixed','neutral','uncertain'})
 IMPORTANCE = frozenset({'low','moderate','high','uncertain'})
 DOMAINS = frozenset({'affect','belief','relationship','goal_or_intention','memory'})
 _FP = re.compile(r'^[0-9a-f]{64}$')
-_FORBIDDEN = re.compile(r'(voulait|veut|intention|motif|jalou|mentir|ment|manipul|personnalit|sinc[eè]re|coupable|blesser|delta\s*=|set_[a-z]+|trust\s*=)', re.I)
+_FORBIDDEN = re.compile(
+    r'(?:\b(?:delta|trust)\s*=|\bset_[a-z][a-z0-9_]*\b|'
+    r'\b(?:elle|il|[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ-]*)\s+'
+    r'(?:voulait|veut|ment|manipuler|est\s+(?:jalouse?|coupable))\b|'
+    r'\b(?:son|sa)\s+intention\s+cach[ée]e\b|\bmotif\s+(?:cach[ée]|invente)\b)',
+    re.I,
+)
+
+def validate_appraisal_structure(proposal: Mapping[str, Any], allowed_refs: set[str], *, error_code: str) -> dict[str, Any]:
+    if (not isinstance(proposal, dict) or set(proposal) != {'schema_version','appraisal_status','qualitative_meaning','importance','bases','candidates'} or proposal['schema_version'] != 1 or proposal['appraisal_status'] not in STATUSES or proposal['qualitative_meaning'] not in MEANINGS or proposal['importance'] not in IMPORTANCE or not isinstance(proposal['bases'], list) or not isinstance(proposal['candidates'], list)):
+        raise SocialAppraisalError('sortie appraisal hors contrat', code=error_code)
+    bases=proposal['bases']
+    if len(bases)>16 or any(not isinstance(item,str) or not 1<=len(item)<=120 or item not in allowed_refs for item in bases) or len(set(bases))!=len(bases):
+        raise SocialAppraisalError('bases invalides', code=error_code)
+    status=proposal['appraisal_status']
+    if status=='unresolved' and (proposal['qualitative_meaning']!='uncertain' or proposal['importance']!='uncertain' or bases):
+        raise SocialAppraisalError('unresolved doit rester sans lecture precise', code=error_code)
+    candidates=proposal['candidates']
+    if (status=='not_relevant' and candidates) or (status=='relevant' and not bases) or len(candidates)>8:
+        raise SocialAppraisalError('coherence appraisal invalide', code=error_code)
+    seen=set(); allowed_bases=set(bases)
+    for candidate in candidates:
+        if not isinstance(candidate,dict) or set(candidate)!={'candidate_key','domain','basis_refs','justification'}:
+            raise SocialAppraisalError('candidate hors contrat', code=error_code)
+        candidate_key=candidate['candidate_key']
+        if not isinstance(candidate_key,str) or not _KEY_RE.fullmatch(candidate_key) or candidate_key in seen or candidate['domain'] not in DOMAINS:
+            raise SocialAppraisalError('candidate invalide', code=error_code)
+        refs=candidate['basis_refs']
+        if not isinstance(refs,list) or not refs or any(not isinstance(ref,str) or ref not in allowed_bases for ref in refs) or len(set(refs))!=len(refs):
+            raise SocialAppraisalError('support candidate invalide', code=error_code)
+        text=candidate['justification']
+        if not isinstance(text,str) or not 1<=len(text.strip())<=280 or _FORBIDDEN.search(text):
+            raise SocialAppraisalError('justification hors frontiere SCC-2A', code=error_code)
+        seen.add(candidate_key)
+    return proposal
 
 class SocialAppraisalError(ValueError):
     def __init__(self, message: str, *, code: str): super().__init__(message); self.code = code
@@ -30,23 +64,9 @@ class SocialAppraisalService:
     def create(self, wid:int, owner:str, appraisal_key:str, source_interpretation_key:str, *, appraisal_status:str, qualitative_meaning:str, importance:str, bases:Any, candidates:Any=(), technical_provenance:Mapping[str,Any]|None=None)->dict[str,Any]:
         if not isinstance(wid,int) or isinstance(wid,bool) or wid<1: raise SocialAppraisalError('monde invalide',code='invalid_appraisal')
         owner,appraisal_key,source_interpretation_key=(_key(owner,'proprietaire'),_key(appraisal_key,'appraisal'),_key(source_interpretation_key,'interpretation'))
-        if appraisal_status not in STATUSES or qualitative_meaning not in MEANINGS or importance not in IMPORTANCE: raise SocialAppraisalError('enum appraisal invalide',code='invalid_appraisal')
-        if not isinstance(bases,(list,tuple)) or len(bases)>16 or any(not isinstance(x,str) or not 1<=len(x)<=120 for x in bases) or len(set(bases))!=len(bases): raise SocialAppraisalError('bases invalides',code='invalid_appraisal')
-        bases=tuple(bases)
-        if appraisal_status=='unresolved' and (qualitative_meaning!='uncertain' or importance!='uncertain' or bases): raise SocialAppraisalError('unresolved doit rester sans lecture precise',code='invalid_appraisal')
-        if appraisal_status=='not_relevant' and candidates: raise SocialAppraisalError('not_relevant ne produit aucune candidate',code='invalid_appraisal')
-        if appraisal_status=='relevant' and not bases: raise SocialAppraisalError('relevant exige une base autorisee',code='invalid_appraisal')
-        if not isinstance(candidates,(list,tuple)) or len(candidates)>8: raise SocialAppraisalError('candidates invalides',code='invalid_appraisal')
-        clean=[]; seen=set(); allowed=set(bases)
-        for c in candidates:
-            if not isinstance(c,Mapping) or set(c)!={'candidate_key','domain','basis_refs','justification'}: raise SocialAppraisalError('candidate hors contrat',code='invalid_appraisal')
-            ck=_key(c['candidate_key'],'candidate')
-            if ck in seen or c['domain'] not in DOMAINS: raise SocialAppraisalError('candidate invalide',code='invalid_appraisal')
-            refs=c['basis_refs']
-            if not isinstance(refs,(list,tuple)) or not refs or any(x not in allowed for x in refs) or len(set(refs))!=len(refs): raise SocialAppraisalError('support candidate invalide',code='invalid_appraisal')
-            text=c['justification']
-            if not isinstance(text,str) or not 1<=len(text.strip())<=280 or _FORBIDDEN.search(text): raise SocialAppraisalError('justification hors frontiere SCC-2A',code='invalid_appraisal')
-            clean.append({'candidate_key':ck,'domain':c['domain'],'basis_refs':tuple(refs),'justification':text.strip()}); seen.add(ck)
+        proposal=validate_appraisal_structure({'schema_version':1,'appraisal_status':appraisal_status,'qualitative_meaning':qualitative_meaning,'importance':importance,'bases':list(bases) if isinstance(bases,(list,tuple)) else bases,'candidates':list(candidates) if isinstance(candidates,(list,tuple)) else candidates},{item for item in bases if isinstance(item,str)} if isinstance(bases,(list,tuple)) else set(),error_code='invalid_appraisal')
+        bases=tuple(proposal['bases'])
+        clean=[{'candidate_key':c['candidate_key'],'domain':c['domain'],'basis_refs':tuple(c['basis_refs']),'justification':c['justification'].strip()} for c in proposal['candidates']]
         p=dict(technical_provenance or {}); expected={'origin_kind','model_id','provider_version','snapshot_fingerprint','provider_turn_id'}
         if set(p)!=expected or p['origin_kind'] not in {'llm','direct_controlled'} or not all(isinstance(p[k],str) and p[k].strip() for k in ('model_id','provider_version')) or not isinstance(p['snapshot_fingerprint'],str) or not _FP.fullmatch(p['snapshot_fingerprint']): raise SocialAppraisalError('provenance invalide',code='invalid_appraisal')
         if p['provider_turn_id'] is not None and (not isinstance(p['provider_turn_id'],str) or not p['provider_turn_id']): raise SocialAppraisalError('tour provider invalide',code='invalid_appraisal')
