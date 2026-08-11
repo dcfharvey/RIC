@@ -30,9 +30,9 @@ Créer un `SleepPhysiologyService` déterministe, distinct conceptuellement de l
 
 - `sleep_regulation_state` : H normalisée et phase circadienne `phi`, ancrées à un instant canonique ;
 - `physical_capacity_state` : P, son ancre et le reste de calcul entier ;
-- le futur état minimal de garde de stabilité, si la persistance est requise.
+- la mémoire physiologique minimale d'hystérésis (`previous_band`) seulement si le modèle actif en a réellement besoin.
 
-`SleepPhysiologyFoundationService` reste propriétaire des profils, des assignations et de `world_physiology_system`. Les autres services demandent une matérialisation ou lisent une projection ; ils ne mettent jamais à jour H, `phi`, P ou le garde directement. Le moteur reste propriétaire des activités, des déplacements, des interruptions et des événements canoniques qu'il valide.
+`SleepPhysiologyFoundationService` reste propriétaire des profils, des assignations et de `world_physiology_system`. Les autres services demandent une matérialisation ou lisent une projection ; ils ne mettent jamais à jour H, `phi`, P ou l'hystérésis directement. Le moteur reste propriétaire des activités, des déplacements, des interruptions et des événements canoniques qu'il valide.
 
 ### 2.2 Données conservées
 
@@ -41,7 +41,8 @@ Créer un `SleepPhysiologyService` déterministe, distinct conceptuellement de l
 | H, `phi`, `anchor_at` | oui | `SleepPhysiologyService` | état minimal dont `phi` intègre déjà l'effet passé de la lumière |
 | P, `rate_remainder`, `anchor_at` | oui | `SleepPhysiologyService` | capacité physique distincte de H |
 | profil / modèle / version | oui, immuable | fondations | paramètres et provenance sélectionnés explicitement |
-| bande précédente + activité déjà interrompue | seulement si le garde est retenu | `SleepPhysiologyService` | hystérésis et une interruption bornée par activité, y compris après restart |
+| bande précédente | seulement si l'hystérésis est retenue | `SleepPhysiologyService` | mémoire physiologique minimale, y compris après restart |
+| interruption déjà appliquée | déjà reconstructible | `ActivityEngine` / état `activity` | une activité `aborted` ne peut plus être interrompue ; l'événement moteur en conserve la cause |
 | exposition effective | non | résolveur pur | dérivée du calendrier objectif, du lieu et de l'état agent |
 | propension sommeil additive | non | projection pure | combinaison H + influence circadienne, jamais une jauge autonome |
 | stabilité de veille | non | projection pure | H, `phi`, contexte et stimulation bornés |
@@ -101,7 +102,7 @@ Le résolveur V1 de calendrier devra valider un JSON versionné couvrant sans ch
 
 Les profils traduisent `CircadianParameters` dans un payload immuable versionné et avec provenance : référence humaine commune ; profil félin générique ; profils `fictional_canon` seulement lorsque le produit fournit leur provenance explicite. Aucun chronotype ne provient d'un trait de personnalité. Patoune ne reçoit aucune branche nominative ; Luna/Chuu ne reçoivent aucune physiologie réelle déduite d'une espèce fictionnelle.
 
-Une future migration de raccord (probablement 0047, à confirmer au moment du code) étendrait le gate de système pour permettre `active` et ajouterait la table de garde de stabilité seulement si elle est nécessaire. Elle resterait forward-only et ne créerait ni état physiologique, ni événement canonique, ni conversion de besoins. Les contraintes SQLite existantes seraient remplacées par une migration de table contrôlée, jamais éditées rétrospectivement.
+Une future migration de raccord (probablement 0047, à confirmer au moment du code) étendrait le gate de système pour permettre `active` et ajouterait une mémoire d'hystérésis seulement si le calcul ne peut pas être reconstruit autrement. Elle ne crée pas de garde physiologique pour « interruption déjà appliquée » : ce fait appartient à l'activité moteur. La migration resterait forward-only et ne créerait ni état physiologique, ni événement canonique, ni conversion de besoins. Les contraintes SQLite existantes seraient remplacées par une migration de table contrôlée, jamais éditées rétrospectivement.
 
 L'initialisation est une opération distincte, explicite et atomique :
 
@@ -133,9 +134,9 @@ Le `DecisionFrameService` actuel reste une explication de la hiérarchie legacy,
 
 ### Stabilité involontaire
 
-La projection `wake_stability` utilise H, `phi`, contexte/stimulation et l'hystérésis du modèle sélectionné. À une frontière critique planifiée, le moteur peut interrompre une activité qui exige le maintien de l'éveil ; il ne force pas directement un sommeil complet. L'interruption ouvre une nouvelle situation d'arbitrage où le motif demeure.
+La projection `wake_stability` utilise H, `phi`, contexte/stimulation et l'hystérésis du modèle sélectionné. À une frontière critique planifiée, la physiologie ne fournit qu'une éligibilité explicable. Le moteur valide ensuite et peut interrompre une activité qui exige le maintien de l'éveil ; il ne force pas directement un sommeil complet. L'interruption ouvre une nouvelle situation d'arbitrage où le motif demeure.
 
-Si le garde est nécessaire pour l'hystérésis et « une interruption par activité », il doit être persistant et owned par `SleepPhysiologyService` : `previous_band` et l'identifiant de l'activité interrompue. Il est réinitialisé seulement à la frontière causale appropriée (nouvelle activité, sortie hystérésée) et survit au restart. Aucune interruption par pulse, aucune roulette et aucune stochasticité V1.
+La mémoire `previous_band` appartient à `SleepPhysiologyService` si l'hystérésis ne peut pas être dérivée de manière suffisante. En revanche, l'anti-répétition d'une conséquence appartient déjà au propriétaire moteur : `ActivityEngine` vérifie l'activité canonique active, applique sa transition vers `aborted` et émet l'événement d'interruption avec sa cause. Une activité déjà `aborted` n'est plus éligible ; le fait est reconstructible depuis son état canonique et l'événement moteur, sans double état physiologique. La future API moteur doit rendre cette application idempotente plutôt que déclencher une exception au second appel concurrent. Aucune interruption par pulse, aucune roulette et aucune stochasticité V1.
 
 ## 8. Lots proposés
 
@@ -150,11 +151,11 @@ Si le garde est nécessaire pour l'hystérésis et « une interruption par activ
 
 - migration de test 46 → raccord : digest, séquences et compteurs d'histoire canonique identiques ; aucune ligne H/P et aucun événement ;
 - `inactive`/`prepared` : mêmes décisions, activités et sorties runtime que le monde legacy témoin ; des spies démontrent l'absence de lecture physiologique par les consommateurs interdits ;
-- service actif synthétique : seul son owner peut écrire H/`phi`/P/garde, lectures sans écriture, `dt=0` idempotent, restart sans double intégration ;
+- service actif synthétique : seul son owner peut écrire H/`phi`/P/hystérésis, lectures sans écriture, `dt=0` idempotent, restart sans double intégration ;
 - frontières : mouvement, démarrage/fin/abandon de `sleep`, `rest`, lumière et partitions irrégulières produisent les segments attendus ; occlusion de sommeil appliquée ; `rest` récupère P mais ne dissipe pas matériellement H ;
 - temps : monde arrêté/pausé et grand décalage mur/canon ne progressent jamais H/`phi`/P ;
 - profils : immutabilité, assignments effectifs, modèle `additive` obligatoire, profil félin générique sans cognition Patoune ;
-- stabilité : passage critique borné, une interruption par activité, hystérésis et reprise après changement causal, aucune tempête après reconstruction ;
+- stabilité : passage critique borné, physiologie qui ne fait que proposer l'éligibilité, interruption idempotente détenue par `ActivityEngine`, hystérésis et reprise après changement causal, aucune tempête après reconstruction ;
 - arbitrage synthétique : une intention et le motif peuvent chacun gagner selon leurs entrées explicites, sans priorité de catégorie ; P ne peut jamais créer le motif ;
 - atomicité future : configuration incomplète ou écriture en échec laisse le monde legacy et les états physiologiques inchangés.
 
@@ -184,6 +185,6 @@ Cette récupération opérationnelle ne matérialise aucune physiologie et ne do
 - définition de quelles activités exigent suffisamment de stabilité pour une interruption moteur ;
 - paramétrage et provenance du manifeste initial par résidence ;
 - règle physiologique de fin de sommeil et hard cap de sûreté ;
-- confirmation, après code du raccord, que le garde persistant est réellement nécessaire plutôt qu'une dérivation suffisante depuis les causes canoniques.
+- confirmation, après code du raccord, que la mémoire d'hystérésis est réellement nécessaire plutôt qu'une dérivation suffisante depuis les causes canoniques.
 
 Aucune de ces décisions ne doit être déduite silencieusement au cours du lot inactif.
