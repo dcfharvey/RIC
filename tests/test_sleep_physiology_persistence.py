@@ -4,7 +4,7 @@ from dataclasses import asdict
 
 import pytest
 
-from vivarium.circadian_model import calibration_profiles, effective_light_drive
+from vivarium.circadian_model import RegulationInput, calibration_profiles, effective_light_drive
 from vivarium.db import connect_database, transaction
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema, load_migrations, split_sql_statements
@@ -14,6 +14,7 @@ from vivarium.sleep_physiology import (
     SleepPhysiologyError,
     SleepPhysiologyFoundationService,
     SleepPhysiologyService,
+    SyntheticRegulationSegment,
 )
 
 
@@ -123,8 +124,8 @@ def test_persistent_reader_is_gated_until_a_synthetic_active_world(wired_world):
 
     _activate_synthetic(conn, world_id)
     before = _physiology_snapshot(conn)
-    source = service.resolve_light_source(world_id, "salon", DAY, state="wake")
-    projection = service.project(world_id, "sophie", source)
+    source = service.resolve_light_source_synthetic(world_id, "salon", DAY, state="wake")
+    projection = service.project_synthetic(world_id, "sophie", source)
 
     assert projection.state.anchor_at == ANCHOR
     assert projection.state.previous_stability_band == "fragile"
@@ -142,12 +143,12 @@ def test_light_resolution_uses_effective_canonical_assignments_and_sleep_occlusi
         world_id, "salon", "test.dark.v2", 2, "2026-08-11T13:00:00+00:00", "test_configuration"
     )
 
-    daytime = service.resolve_light_source(world_id, "salon", DAY, state="wake")
-    nighttime = service.resolve_light_source(world_id, "salon", NIGHT, state="wake")
-    after_change = service.resolve_light_source(
+    daytime = service.resolve_light_source_synthetic(world_id, "salon", DAY, state="wake")
+    nighttime = service.resolve_light_source_synthetic(world_id, "salon", NIGHT, state="wake")
+    after_change = service.resolve_light_source_synthetic(
         world_id, "salon", "2026-08-11T13:00:00+00:00", state="wake"
     )
-    sleeping = service.resolve_light_source(world_id, "salon", DAY, state="sleep", occluded=True)
+    sleeping = service.resolve_light_source_synthetic(world_id, "salon", DAY, state="sleep", occluded=True)
     parameters = service.parameters_for_character(world_id, "sophie")
 
     assert daytime.environmental_light_milli == 90000
@@ -166,7 +167,7 @@ def test_light_resolution_rejects_a_foundation_schedule_that_is_not_operational(
     )
 
     with pytest.raises(SleepPhysiologyError) as caught:
-        service.resolve_light_source(world_id, "salon", "2026-08-11T14:00:00+00:00", state="wake")
+        service.resolve_light_source_synthetic(world_id, "salon", "2026-08-11T14:00:00+00:00", state="wake")
     assert caught.value.code == "invalid_light_schedule"
 
 
@@ -217,6 +218,90 @@ def test_active_state_requires_dense_hysteresis_memory(wired_world):
     report = inspect_mvp_preflight(conn, world_id=world_id)
     physiology = next(check for check in report.checks if check.key == "sleep_physiology")
     assert not physiology.passed
+
+
+def test_synthetic_materialization_is_partition_stable_restart_safe_and_noncanonical(wired_world):
+    conn, world_id = wired_world
+    _activate_synthetic(conn, world_id)
+    source = RegulationInput("wake", 0, 25000)
+    service = SleepPhysiologyService(conn)
+    before_events = conn.execute(
+        "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (world_id,)
+    ).fetchone()[0]
+
+    single = service.materialize_synthetic(world_id, "sophie", "2026-08-11T06:00:00+00:00", source)
+    segmented = service.materialize_segments_synthetic(
+        world_id,
+        "erika",
+        (
+            SyntheticRegulationSegment("2026-08-11T00:01:01+00:00", source),
+            SyntheticRegulationSegment("2026-08-11T06:00:00+00:00", source),
+        ),
+    )
+    restarted = SleepPhysiologyService(conn)
+    snapshot = _physiology_snapshot(conn)
+    repeated = restarted.materialize_synthetic(world_id, "sophie", "2026-08-11T06:00:00+00:00", source)
+
+    assert single.changed
+    assert all(result.changed for result in segmented)
+    assert not repeated.changed
+    assert _physiology_snapshot(conn) == snapshot
+    assert abs(
+        single.projection.state.regulation.homeostatic_load_milli
+        - segmented[-1].projection.state.regulation.homeostatic_load_milli
+    ) <= 1
+    assert abs(
+        single.projection.state.regulation.physical_capacity_milli
+        - segmented[-1].projection.state.regulation.physical_capacity_milli
+    ) <= 1
+    phase_delta = abs(
+        single.projection.state.regulation.circadian_phase_milli
+        - segmented[-1].projection.state.regulation.circadian_phase_milli
+    )
+    assert min(phase_delta, 1_000_000 - phase_delta) <= 2
+    assert conn.execute(
+        "SELECT COUNT(*) FROM canonical_event WHERE world_id = ?", (world_id,)
+    ).fetchone()[0] == before_events
+
+
+def test_synthetic_segments_preserve_h_p_separation_and_hysteresis_anchor(wired_world):
+    conn, world_id = wired_world
+    _activate_synthetic(conn, world_id)
+    service = SleepPhysiologyService(conn)
+    wake = RegulationInput("wake", 0, 25000)
+    rest = RegulationInput("rest", 0, 25000)
+    sleep = RegulationInput("sleep", 0, 25000, occluded=True)
+
+    after_wake = service.materialize_synthetic(world_id, "sophie", "2026-08-11T02:00:00+00:00", wake)
+    after_rest = service.materialize_synthetic(world_id, "sophie", "2026-08-11T03:00:00+00:00", rest)
+    after_sleep = service.materialize_synthetic(world_id, "sophie", "2026-08-11T04:00:00+00:00", sleep)
+    hysteresis = conn.execute(
+        "SELECT previous_band, anchor_at FROM sleep_wake_hysteresis_state h "
+        "JOIN character c ON c.id = h.character_id AND c.world_id = h.world_id "
+        "WHERE h.world_id = ? AND c.key = 'sophie'",
+        (world_id,),
+    ).fetchone()
+
+    assert after_rest.projection.state.regulation.homeostatic_load_milli > after_wake.projection.state.regulation.homeostatic_load_milli
+    assert after_rest.projection.state.regulation.physical_capacity_milli > after_wake.projection.state.regulation.physical_capacity_milli
+    assert after_sleep.projection.state.regulation.homeostatic_load_milli < after_rest.projection.state.regulation.homeostatic_load_milli
+    assert tuple(hysteresis) == (after_sleep.projection.stability.band, "2026-08-11T04:00:00.000+00:00")
+
+
+def test_synthetic_scheduler_finds_a_critical_boundary_without_writing(wired_world):
+    conn, world_id = wired_world
+    _activate_synthetic(conn, world_id)
+    service = SleepPhysiologyService(conn)
+    source = RegulationInput("wake", 0, 25000)
+    before = _physiology_snapshot(conn)
+
+    boundary = service.next_critical_boundary_synthetic(
+        world_id, "sophie", source, "2026-08-12T00:00:00+00:00"
+    )
+
+    assert boundary is not None
+    assert ANCHOR < boundary <= "2026-08-12T00:00:00+00:00"
+    assert _physiology_snapshot(conn) == before
 
 
 def test_hysteresis_memory_is_physiological_but_interruption_marker_is_not_a_table():

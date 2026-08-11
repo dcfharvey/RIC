@@ -124,6 +124,16 @@ La provenance est un artefact opérateur ; l'état devient réel à partir de l'
 
 Le raccord persistant inactif devra donc être inaccessible à `Policy`, `Activity`, `Simulation`, `Autonomy`, `Motivation`, `Attention`, `DecisionFrame` et aux providers tant que le gate n'est pas `active`. Un préflight futur distinguera par lecture SQL directe `inactive`, `prepared_complete` et `active_integrity`, sans appeler `WorldEngine.read_canonical_time()`.
 
+### Frontière des sources au lot synthétique
+
+Les APIs de banc explicitement suffixées `_synthetic` acceptent un
+`RegulationInput` libre afin de falsifier le modèle. Elles ne sont pas une
+interface de production. Le futur raccord causal devra construire ses causes
+depuis leurs propriétaires : lumière depuis calendrier/lieu/Reality ;
+wake/rest/sleep depuis activité ou état canonique ; occlusion depuis état
+physique validé ; stimulation depuis contexte moteur borné. Une cognition ou
+un LLM ne pourra pas choisir ces entrées pour modifier sa physiologie.
+
 ## 7. Contrats futurs d'arbitrage et de stabilité
 
 ### Arbitrage volontaire
@@ -142,7 +152,7 @@ La mémoire `previous_band` appartient à `SleepPhysiologyService` si l'hystér�
 
 1. **Revue de ce work order.** Complétée, avec clarification d'ownership.
 2. **Raccord persistant inactif.** Complété : migration 0047, service de lecture/projection, résolveur de sources, mémoire d'hystérésis, préflight diagnostique et aucune injection runtime.
-3. **Exécution synthétique.** Matérialisation et segmentation sur mondes de test, plus projections additive/stabilité et scheduler de frontière, sans activer la résidence ou la politique legacy.
+3. **Exécution synthétique.** Complété dans des mondes de test `active` seulement : matérialisation H/φ/P avec reste rationnel de P, segmentation explicite, hystérésis dense, projections additive/stabilité et scheduler de frontière en lecture. Les APIs sont suffixées `_synthetic`; elles n'activent ni résidence ni politique legacy.
 4. **Compatibilité et shadow.** Audit exhaustif des consommateurs `repos` et `energie`; essais de l'arbitre/motif/stabilité ensemble sur copies synthétiques, sans écrire dans le monde réel.
 5. **Work order de cutover séparé.** Définition de l'arbitre exécutable, terminaison de sommeil, migration des coûts physiques vers P et bascule atomique. Cette étape exige nouvelle revue Sol/R&D.
 6. **Déploiement réel ultérieur.** Uniquement après reprise officielle de la session crashée, arrêt propre séparé, validation et approbation explicite.
