@@ -5,7 +5,7 @@ on:
     branches:
       - chatgpt/dev-bridge-phase-a-final
     paths:
-      - .sol-dev/patch.diff
+      - .sol-dev/patch.py
 
 permissions:
   contents: write
@@ -22,9 +22,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Apply patch
+      - name: Apply deterministic source transform
         shell: pwsh
-        run: git apply --check .sol-dev/patch.diff; git apply .sol-dev/patch.diff
+        run: python .sol-dev/patch.py
       - name: Install test dependency
         shell: pwsh
         run: python -m pip install pytest
