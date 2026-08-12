@@ -112,3 +112,30 @@ def test_repo_git_refuses_oversized_commit_file(tmp_path):
         repo.commit({"message": "feat: too large", "paths": ["src/large.py"]})
     assert denied.value.code == "commit_file_too_large"
     assert _run(root, "diff", "--cached", "--name-only") == ""
+
+
+def test_repo_git_commit_does_not_capture_concurrently_staged_outsider(tmp_path):
+    repo, root, _remote = _repo(tmp_path)
+    repo.create_branch({"branch": "chatgpt/concurrent-stage"})
+    requested = root / "src" / "requested.py"
+    requested.write_text("REQUESTED = True\n", encoding="utf-8")
+    outsider = root / "tests" / "outsider.py"
+    outsider.write_text("OUTSIDER = True\n", encoding="utf-8")
+
+    original_run = repo._run
+    injected = False
+
+    def wrapped(args, *, timeout=90, ok=(0,)):
+        nonlocal injected
+        if "commit" in args and not injected:
+            injected = True
+            _run(root, "add", "tests/outsider.py")
+        return original_run(args, timeout=timeout, ok=ok)
+
+    repo._run = wrapped
+    result = repo.commit({"message": "feat: requested only", "paths": ["src/requested.py"]})
+    assert result["paths"] == ["src/requested.py"]
+    names = _run(root, "show", "--pretty=format:", "--name-only", "HEAD").splitlines()
+    assert "src/requested.py" in names
+    assert "tests/outsider.py" not in names
+    assert _run(root, "diff", "--cached", "--name-only") == "tests/outsider.py"

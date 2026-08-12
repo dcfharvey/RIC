@@ -172,7 +172,7 @@ class RepoGit:
             result = self._run([
                 "-c", "user.name=RIC Sol Bridge",
                 "-c", "user.email=ric-sol-bridge@localhost",
-                "commit", "--no-verify", "-m", message.strip(),
+                "commit", "--no-verify", "-m", message.strip(), "--only", "--", *sorted(staged),
             ])
         except Exception:
             self._run(["restore", "--staged", "--", *relative], ok=(0, 1))
