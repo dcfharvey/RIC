@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 from dataclasses import dataclass
 from math import prod
 from typing import Any, Literal, Mapping
 
+from .action_arbitration import ActionArbitrationFoundationService
 from .action_contract import (
     ACTION_START_ACTIVITY,
     ACTION_TRAVERSE,
@@ -26,8 +28,15 @@ from .action_contract import (
     ValidationResult,
     normalize_action_specification,
 )
-from .sleep_physiology import PhysicalCapacityPolicy
-from .util import parse_iso, to_iso
+from .circadian_model import RegulationInput
+from .goals import GoalService
+from .repro import max_seq
+from .sleep_physiology import (
+    PhysicalCapacityPolicy,
+    SleepPhysiologyFoundationService,
+    SleepPhysiologyService,
+)
+from .util import Clock, parse_iso, to_iso
 
 
 _LOAD_CLASSES = frozenset({"none", "light", "moderate", "vigorous"})
@@ -37,6 +46,7 @@ _SOURCE_OWNERS = {
     "physical_recovery": "SleepPhysiologyService",
     "subjective_intention": "GoalService",
 }
+_TRANSFORMS = frozenset({"identity_milli.v1", "linear_clamped_milli.v1"})
 
 
 class SyntheticActionArbitrationError(ValueError):
@@ -123,12 +133,53 @@ def evaluate_physical_cost(
 
 
 @dataclass(frozen=True)
+class SyntheticSourceMapping:
+    """Mapping versionne de banc : normalisation n'est jamais calibration implicite."""
+
+    transform_kind: Literal["identity_milli.v1", "linear_clamped_milli.v1"]
+    correlation_group: str
+    input_low_milli: int | None = None
+    input_high_milli: int | None = None
+    direction: Literal["ascending", "descending"] | None = None
+
+    def __post_init__(self) -> None:
+        if self.transform_kind not in _TRANSFORMS:
+            raise SyntheticActionArbitrationError("transform invalide", code="invalid_synthetic_arbitration")
+        _text(self.correlation_group, field="groupe de correlation")
+        if self.transform_kind == "identity_milli.v1":
+            if any(value is not None for value in (self.input_low_milli, self.input_high_milli, self.direction)):
+                raise SyntheticActionArbitrationError("identity enrichie interdite", code="invalid_synthetic_arbitration")
+            return
+        low = _milli(self.input_low_milli, field="borne basse")
+        high = _milli(self.input_high_milli, field="borne haute")
+        if high <= low or self.direction not in {"ascending", "descending"}:
+            raise SyntheticActionArbitrationError("mapping lineaire invalide", code="invalid_synthetic_arbitration")
+
+    @property
+    def calibrated(self) -> bool:
+        return self.transform_kind != "identity_milli.v1"
+
+    def apply(self, raw_score_milli: Any) -> int:
+        raw = _milli(raw_score_milli, field="score brut")
+        if self.transform_kind == "identity_milli.v1":
+            return raw
+        assert self.input_low_milli is not None and self.input_high_milli is not None
+        assert self.direction is not None
+        bounded = min(self.input_high_milli, max(self.input_low_milli, raw))
+        scaled = round(
+            (bounded - self.input_low_milli) * 100_000
+            / (self.input_high_milli - self.input_low_milli)
+        )
+        return scaled if self.direction == "ascending" else 100_000 - scaled
+
+
+@dataclass(frozen=True)
 class SyntheticArbitrationPolicy:
     """Calibration d'ingenierie de banc, distincte du catalogue persistant."""
 
     policy_key: str
     version: int
-    source_mappings: Mapping[str, str]
+    source_mappings: Mapping[str, SyntheticSourceMapping]
     quasi_equality_milli: int
     current_action_inertia_milli: int
     reassessment_seconds: int
@@ -154,23 +205,40 @@ class SyntheticArbitrationPolicy:
                 or correlation_groups != {"kind": "declared_by_source_mapping.v1"} \
                 or aggregation != {"kind": "max_per_group_then_saturating_sum.v1"}:
             raise SyntheticActionArbitrationError("politique de banc incompatible", code="invalid_synthetic_arbitration")
-        groups: dict[str, str] = {}
+        parsed: dict[str, SyntheticSourceMapping] = {}
         for source in sorted(_SOURCE_KINDS):
             mapping = mappings[source]
-            if not isinstance(mapping, Mapping) or set(mapping) != {"transform", "correlation_group"} \
-                    or mapping["transform"] != "identity_milli.v1":
+            if not isinstance(mapping, Mapping):
                 raise SyntheticActionArbitrationError("mapping de source invalide", code="invalid_synthetic_arbitration")
-            groups[source] = _text(mapping["correlation_group"], field="groupe de correlation")
+            transform = mapping.get("transform")
+            group = _text(mapping.get("correlation_group"), field="groupe de correlation")
+            if transform == "identity_milli.v1" and set(mapping) == {"transform", "correlation_group"}:
+                parsed[source] = SyntheticSourceMapping(transform, group)
+            elif transform == "linear_clamped_milli.v1" and set(mapping) == {
+                "transform", "correlation_group", "input_low_milli", "input_high_milli", "direction"
+            }:
+                parsed[source] = SyntheticSourceMapping(
+                    transform, group,
+                    _milli(mapping["input_low_milli"], field="borne basse"),
+                    _milli(mapping["input_high_milli"], field="borne haute"),
+                    mapping["direction"],
+                )
+            else:
+                raise SyntheticActionArbitrationError("mapping de source invalide", code="invalid_synthetic_arbitration")
         if set(inertia) != {"max_bonus_milli"} or set(equality) != {"band_milli"} \
                 or set(reassessment) != {"interval_seconds"}:
             raise SyntheticActionArbitrationError("controles de politique invalides", code="invalid_synthetic_arbitration")
         return cls(
-            _text(policy_key, field="politique"), _positive(version, field="version"), groups,
+            _text(policy_key, field="politique"), _positive(version, field="version"), parsed,
             _milli(equality["band_milli"], field="bande d'egalite"),
             _milli(inertia["max_bonus_milli"], field="inertie"),
             _positive(reassessment["interval_seconds"], field="reevaluation"),
             _text(provenance, field="provenance"),
         )
+
+    @property
+    def fully_calibrated(self) -> bool:
+        return all(mapping.calibrated for mapping in self.source_mappings.values())
 
 
 @dataclass(frozen=True)
@@ -223,7 +291,8 @@ class ActionArbitrationFrame:
     @property
     def digest(self) -> str:
         return _digest({
-            "world_id": self.world_id, "actor_key": self.actor_key, "canonical_at": to_iso(parse_iso(self.canonical_at)),
+            "world_id": self.world_id, "actor_key": self.actor_key,
+            "canonical_at": to_iso(parse_iso(self.canonical_at)),
             "expected_event_seq": self.expected_event_seq,
             "policy": {"key": self.policy.policy_key, "version": self.policy.version},
             "current_action_key": self.current_action_key,
@@ -232,10 +301,6 @@ class ActionArbitrationFrame:
                  "params": dict(item.specification.params), "source": item.source_kind,
                  "raw": item.raw_score_milli, "owner": item.owner, "provenance": item.provenance,
                  "feasible": item.feasible}
-                # Les contributions forment un multiensemble : leur ordre
-                # d'enumeration ne constitue jamais une nouvelle frontiere.
-                # Tous les champs semantiques qui peuvent differer font donc
-                # partie de l'ordre canonique.
                 for item in sorted(
                     self.contributions,
                     key=lambda value: (
@@ -283,8 +348,11 @@ class ActionArbitrationService:
         feasible = all(item.feasible for item in items)
         grouped: dict[str, int] = {}
         for item in items:
-            group = frame.policy.source_mappings[item.source_kind]
-            grouped[group] = max(grouped.get(group, 0), item.raw_score_milli)
+            mapping = frame.policy.source_mappings[item.source_kind]
+            transformed = mapping.apply(item.raw_score_milli)
+            grouped[mapping.correlation_group] = max(
+                grouped.get(mapping.correlation_group, 0), transformed
+            )
         score = round(100_000 * (1.0 - prod(1.0 - value / 100_000.0 for value in grouped.values())))
         if frame.current_action_key == action_key:
             score = min(100_000, score + frame.policy.current_action_inertia_milli)
@@ -295,18 +363,33 @@ class ActionArbitrationService:
         candidates = tuple(self._candidate(frame, key) for key in keys)
         viable = tuple(item for item in candidates if item.feasible)
         if not viable:
-            return ActionArbitrationDecision(frame.digest, "reassess_at_boundary", None, candidates, "no_feasible_action", frame.policy.reassessment_seconds)
+            return ActionArbitrationDecision(
+                frame.digest, "reassess_at_boundary", None, candidates,
+                "no_feasible_action", frame.policy.reassessment_seconds,
+            )
         top = max(item.score_milli for item in viable)
         leaders = tuple(item for item in viable if top - item.score_milli <= frame.policy.quasi_equality_milli)
         if len(leaders) != 1:
             if frame.current_action_key and any(item.specification.action_key == frame.current_action_key for item in leaders):
                 winner = next(item for item in leaders if item.specification.action_key == frame.current_action_key)
-                return ActionArbitrationDecision(frame.digest, "continue_current_until_boundary", winner, candidates, "current_action_quasi_equal", frame.policy.reassessment_seconds)
-            return ActionArbitrationDecision(frame.digest, "reassess_at_boundary", None, candidates, "quasi_equal_actions", frame.policy.reassessment_seconds)
+                return ActionArbitrationDecision(
+                    frame.digest, "continue_current_until_boundary", winner, candidates,
+                    "current_action_quasi_equal", frame.policy.reassessment_seconds,
+                )
+            return ActionArbitrationDecision(
+                frame.digest, "reassess_at_boundary", None, candidates,
+                "quasi_equal_actions", frame.policy.reassessment_seconds,
+            )
         winner = leaders[0]
         if winner.specification.action_key == frame.current_action_key:
-            return ActionArbitrationDecision(frame.digest, "continue_current_until_boundary", winner, candidates, "current_action_leads", frame.policy.reassessment_seconds)
-        return ActionArbitrationDecision(frame.digest, "transition", winner, candidates, "highest_calibrated_score", frame.policy.reassessment_seconds)
+            return ActionArbitrationDecision(
+                frame.digest, "continue_current_until_boundary", winner, candidates,
+                "current_action_leads", frame.policy.reassessment_seconds,
+            )
+        return ActionArbitrationDecision(
+            frame.digest, "transition", winner, candidates,
+            "highest_calibrated_score", frame.policy.reassessment_seconds,
+        )
 
     @staticmethod
     def proposal_for(frame: ActionArbitrationFrame, decision: ActionArbitrationDecision) -> IntentProposal | None:
@@ -315,20 +398,17 @@ class ActionArbitrationService:
             raise SyntheticActionArbitrationError("decision hors frame", code="invalid_synthetic_arbitration")
         if decision.outcome != "transition" or decision.winner is None:
             return None
-        # Le registre d'actions impose une cle commencant par une lettre. La
-        # troncature conserve 63 hexadecimaux (252 bits) : elle est technique,
-        # deterministe et ne devient pas une identite comportementale.
         proposal_id = f"a{decision.frame_digest[:63]}"
         spec = decision.winner.specification
         if spec.action_kind == ACTION_START_ACTIVITY:
             return IntentProposal.start_activity(
-                proposal_id, frame.actor_key, spec.params["activity_type"], spec.params["target_location_key"],
-                origin=ORIGIN_ACTION_ARBITRATION,
+                proposal_id, frame.actor_key, spec.params["activity_type"],
+                spec.params["target_location_key"], origin=ORIGIN_ACTION_ARBITRATION,
             )
         if spec.action_kind == ACTION_TRAVERSE:
             return IntentProposal.traverse(
-                proposal_id, frame.actor_key, spec.params["connector_key"], spec.params["target_location_key"],
-                origin=ORIGIN_ACTION_ARBITRATION,
+                proposal_id, frame.actor_key, spec.params["connector_key"],
+                spec.params["target_location_key"], origin=ORIGIN_ACTION_ARBITRATION,
             )
         raise SyntheticActionArbitrationError("action gagnante inconnue", code="invalid_synthetic_arbitration")
 
@@ -345,6 +425,214 @@ class ActionArbitrationService:
             expected_event_seq=frame.expected_event_seq,
         )
         return decision, result
+
+
+class SyntheticCausalArbitrationBuilder:
+    """Construit une frame depuis les owners reels, uniquement en monde de banc.
+
+    H/phi alimentent seulement ``sleep_regulation``. P est lu comme capacite
+    pour la faisabilite et comme source de ``physical_recovery`` vers ``rest``.
+    Les intentions n'existent ici que via les liens explicites GoalService : le
+    plan JSON opaque n'est jamais parse. Aucune valeur legacy n'est consultee.
+    """
+
+    def __init__(self, conn: sqlite3.Connection, clock: Clock | None = None) -> None:
+        self._conn = conn
+        self._clock = clock or Clock()
+        self._foundation = ActionArbitrationFoundationService(conn, clock=self._clock)
+        self._physiology = SleepPhysiologyService(conn, clock=self._clock)
+        self._physiology_foundation = SleepPhysiologyFoundationService(conn, clock=self._clock)
+        self._goals = GoalService(conn, clock=self._clock)
+
+    def _policy(self, world_id: int) -> SyntheticArbitrationPolicy:
+        stored = self._foundation.world_policy(world_id)
+        policy = SyntheticArbitrationPolicy.from_configuration(
+            stored.policy_key, stored.version, stored.configuration, stored.provenance
+        )
+        if not policy.fully_calibrated:
+            raise SyntheticActionArbitrationError(
+                "identity_milli.v1 interdit sur sources causales",
+                code="uncalibrated_identity_mapping",
+            )
+        return policy
+
+    def _physical_evaluation(
+        self,
+        world_id: int,
+        specification: ActionSpecification,
+        policy: PhysicalCapacityPolicy,
+        capacity_milli: int,
+    ) -> PhysicalCostEvaluation:
+        if specification.action_kind == ACTION_START_ACTIVITY:
+            row = self._conn.execute(
+                "SELECT physical_load_class FROM activity_definition "
+                "WHERE world_id=? AND activity_type=?",
+                (world_id, specification.params["activity_type"]),
+            ).fetchone()
+            if row is None or row["physical_load_class"] not in _LOAD_CLASSES:
+                raise SyntheticActionArbitrationError(
+                    "classe physique d'activite absente",
+                    code="activity_physical_class_missing",
+                )
+            request = PhysicalCostRequest(
+                "activity", physical_load_class=row["physical_load_class"]
+            )
+        elif specification.action_kind == ACTION_TRAVERSE:
+            # Le contrat d'action v2 represente une traversee de connecteur :
+            # une proposition correspond donc a une seule arete canonique.
+            request = PhysicalCostRequest("traversal", edge_count=1)
+        else:
+            raise SyntheticActionArbitrationError(
+                "action sans contrat physique", code="invalid_physical_request"
+            )
+        return evaluate_physical_cost(policy, request, capacity_milli=capacity_milli)
+
+    @staticmethod
+    def _require_named_activity(
+        specification: Any, expected_type: str, *, field: str
+    ) -> ActionSpecification:
+        if not isinstance(specification, ActionSpecification) \
+                or specification.action_kind != ACTION_START_ACTIVITY \
+                or specification.params.get("activity_type") != expected_type:
+            raise SyntheticActionArbitrationError(
+                f"{field} invalide", code="invalid_causal_action"
+            )
+        return specification
+
+    def build(
+        self,
+        world_id: int,
+        actor_key: str,
+        *,
+        canonical_at: str,
+        sleep_specification: ActionSpecification,
+        rest_specification: ActionSpecification,
+        wake_source: RegulationInput,
+        current_action_key: str | None = None,
+    ) -> ActionArbitrationFrame:
+        """Lit H/phi/P + intention active et produit une frame non mutante."""
+        if wake_source.state != "wake":
+            raise SyntheticActionArbitrationError(
+                "source de veille requise", code="invalid_causal_source"
+            )
+        at = to_iso(parse_iso(canonical_at))
+        actor = _text(actor_key, field="acteur")
+        sleep_spec = self._require_named_activity(
+            sleep_specification, "sleep", field="specification sommeil"
+        )
+        rest_spec = self._require_named_activity(
+            rest_specification, "rest", field="specification repos physique"
+        )
+        policy = self._policy(world_id)
+        p_policy = self._physiology_foundation.validate_physical_capacity_configuration(world_id)
+        state = self._physiology.read_state(world_id, actor)
+        if state.anchor_at != at:
+            raise SyntheticActionArbitrationError(
+                "etat physiologique non materialise a la frontiere",
+                code="physiology_anchor_mismatch",
+            )
+        projection = self._physiology.project_synthetic(world_id, actor, wake_source)
+        capacity = state.regulation.physical_capacity_milli
+
+        specs: dict[str, ActionSpecification] = {
+            sleep_spec.action_key: sleep_spec,
+            rest_spec.action_key: rest_spec,
+        }
+        subjective: list[tuple[ActionSpecification, int, str]] = []
+        intention = self._goals.active_intention(world_id, actor)
+        if intention is not None:
+            for link in self._goals.intention_action_links(
+                world_id, actor, intention["intention_key"]
+            ):
+                spec = normalize_action_specification(link["action_kind"], link["params"])
+                if spec.action_key != link["action_key"]:
+                    raise SyntheticActionArbitrationError(
+                        "action_key subjectif incoherent", code="subjective_link_corrupt"
+                    )
+                specs.setdefault(spec.action_key, spec)
+                if specs[spec.action_key] != spec:
+                    raise SyntheticActionArbitrationError(
+                        "action_key subjectif ambigu", code="subjective_link_corrupt"
+                    )
+                # Conversion d'unite seulement : GoalService persiste 0..1000,
+                # l'arbitre transporte 0..100000. La calibration vient ensuite
+                # du mapping versionne et non de cette multiplication.
+                subjective.append(
+                    (spec, int(link["subjective_strength_milli"]) * 100, link["provenance"])
+                )
+
+        feasibility = {
+            key: self._physical_evaluation(world_id, spec, p_policy, capacity).feasible
+            for key, spec in specs.items()
+        }
+        contributions: list[ArbitrationContribution] = [
+            ArbitrationContribution(
+                sleep_spec, "sleep_regulation",
+                round(projection.propensity.sleep_propensity * 100_000),
+                "SleepPhysiologyService", "sleep_physiology_h_phi",
+                feasibility[sleep_spec.action_key],
+            ),
+            ArbitrationContribution(
+                rest_spec, "physical_recovery", capacity,
+                "SleepPhysiologyService", "physical_capacity_p",
+                feasibility[rest_spec.action_key],
+            ),
+        ]
+        contributions.extend(
+            ArbitrationContribution(
+                spec, "subjective_intention", raw, "GoalService", provenance,
+                feasibility[spec.action_key],
+            )
+            for spec, raw, provenance in subjective
+        )
+        return ActionArbitrationFrame(
+            world_id, actor, at, max_seq(self._conn, world_id), policy,
+            tuple(contributions), current_action_key,
+        )
+
+    def audit_decision(
+        self, frame: ActionArbitrationFrame, decision: ActionArbitrationDecision
+    ) -> int:
+        """Persiste uniquement la provenance operateur, jamais le canon."""
+        if decision.frame_digest != frame.digest:
+            raise SyntheticActionArbitrationError(
+                "decision hors frame", code="invalid_synthetic_arbitration"
+            )
+        options = [
+            {
+                "action_key": item.specification.action_key,
+                "score_milli": item.score_milli,
+                "feasible": item.feasible,
+            }
+            for item in decision.candidates
+        ]
+        sources = [
+            {
+                "action_key": item.specification.action_key,
+                "source_kind": item.source_kind,
+                "owner": item.owner,
+                "provenance": item.provenance,
+                "raw_score_milli": item.raw_score_milli,
+                "transformed_score_milli": frame.policy.source_mappings[item.source_kind].apply(
+                    item.raw_score_milli
+                ),
+            }
+            for item in frame.contributions
+        ]
+        result = {
+            "outcome": decision.outcome,
+            "winner_action_key": None if decision.winner is None else decision.winner.specification.action_key,
+            "reason_code": decision.reason_code,
+        }
+        return self._foundation.record_private_audit(
+            frame.world_id,
+            frame_digest=frame.digest,
+            options=options,
+            sources=sources,
+            result=result,
+            canonical_at=frame.canonical_at,
+            reason_code="synthetic_causal_arbitration",
+        )
 
 
 def synthetic_specification(action_kind: Any, params: Any) -> ActionSpecification:

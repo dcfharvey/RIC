@@ -165,6 +165,14 @@ class SyntheticSleepActivityCoordinator:
                 previous_band=checkpoint["previous_band"], external_wake_accessible=False,
             )
             if evaluation.completion_eligible:
+                # Re-evaluation volontaire par l'owner de la politique : le
+                # bool de l'evaluateur local n'est pas un jeton forgeable. La
+                # preuve persiste le checkpoint/episode/frontiere exacts et le
+                # trigger 0055 la consomme avec l'evenement canonique.
+                self._termination.authorize_completion(
+                    world_id, character_key, at_time=at,
+                    wake_viability_milli=viability, external_wake_accessible=False,
+                )
                 self._activities.complete_sleep_from_checkpoint(world_id, character_key, at_time=at)
                 return SleepCheckpointResult(evaluation, False, False, True, True)
             if evaluation.hard_cap_reached:
