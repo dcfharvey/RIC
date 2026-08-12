@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   repair-schema-expectations:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'ci: apply schema 55 expectation repair'
+    if: "${{ github.event_name == 'push' && github.event.head_commit.message == 'ci: apply schema 55 expectation repair' }}"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -55,7 +55,7 @@ jobs:
           git push
 
   pytest:
-    if: github.event_name != 'push' || github.event.head_commit.message != 'ci: apply schema 55 expectation repair'
+    if: "${{ github.event_name != 'push' || github.event.head_commit.message != 'ci: apply schema 55 expectation repair' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
