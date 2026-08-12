@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import signal
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -14,6 +15,7 @@ _BRANCH = re.compile(r"^chatgpt/[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$")
 _SECRET_ENV = re.compile(r"TOKEN|SECRET|PASSWORD|PRIVATE|CREDENTIAL|KEY", re.IGNORECASE)
 MAX_GIT_OUTPUT = 256 * 1024
 MAX_GIT_SECONDS = 90
+MAX_COMMIT_FILE_BYTES = 128 * 1024
 
 
 class RepoGitError(ValueError):
@@ -29,6 +31,25 @@ def _branch(value: Any) -> str:
     if any(token in value for token in ("..", "//", "@{", "\\")) or value.endswith(("/", ".")):
         raise RepoGitError("branch name rejected", code="branch_denied", status=403)
     return value
+
+
+def _kill_tree(process: subprocess.Popen[bytes]) -> None:
+    if process.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=10,
+        )
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            process.kill()
 
 
 class RepoGit:
@@ -57,20 +78,23 @@ class RepoGit:
             "-c", "commit.gpgsign=false",
             *args,
         ]
+        kwargs: dict[str, Any] = {
+            "cwd": str(self.root),
+            "env": self._env(),
+            "shell": False,
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+        }
+        if os.name == "nt":
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        else:
+            kwargs["start_new_session"] = True
         try:
-            process = subprocess.Popen(
-                command,
-                cwd=str(self.root),
-                env=self._env(),
-                shell=False,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
-            )
+            process = subprocess.Popen(command, **kwargs)
             stdout, stderr = process.communicate(timeout=timeout)
         except subprocess.TimeoutExpired as exc:
-            process.kill()
+            _kill_tree(process)
             stdout, stderr = process.communicate()
             raise RepoGitError("git command timed out", code="git_timeout", status=504) from exc
         except OSError as exc:
@@ -127,6 +151,12 @@ class RepoGit:
             path = self.validate_path(item)
             if not path.is_file():
                 raise RepoGitError("commit path must be an existing file", code="commit_paths_invalid")
+            try:
+                size = path.stat().st_size
+            except OSError as exc:
+                raise RepoGitError("commit path cannot be stated", code="commit_paths_invalid") from exc
+            if size > MAX_COMMIT_FILE_BYTES:
+                raise RepoGitError("commit path exceeds byte limit", code="commit_file_too_large", status=413)
             rel = path.relative_to(self.root).as_posix()
             if rel not in relative:
                 relative.append(rel)
@@ -142,7 +172,7 @@ class RepoGit:
             result = self._run([
                 "-c", "user.name=RIC Sol Bridge",
                 "-c", "user.email=ric-sol-bridge@localhost",
-                "commit", "--no-verify", "-m", message.strip(), "--", *sorted(staged),
+                "commit", "--no-verify", "-m", message.strip(),
             ])
         except Exception:
             self._run(["restore", "--staged", "--", *relative], ok=(0, 1))
