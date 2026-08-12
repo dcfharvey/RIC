@@ -79,6 +79,8 @@ WHEN NEW.event_type = 'activity_completed'
       ON ch.world_id = auth.world_id AND ch.id = auth.character_id
     JOIN activity a
       ON a.id = auth.activity_id
+    JOIN activity_sleep_checkpoint cp
+      ON cp.id = auth.checkpoint_id AND cp.activity_id = auth.activity_id
     WHERE auth.world_id = NEW.world_id
       AND ch.key = json_extract(NEW.payload, '$.character')
       AND a.world_id = auth.world_id
@@ -86,6 +88,8 @@ WHEN NEW.event_type = 'activity_completed'
       AND a.type = 'sleep'
       AND a.status = 'completed'
       AND auth.boundary_at = NEW.occurred_at
+      AND auth.boundary_at >= cp.next_reassessment_at
+      AND auth.boundary_at <= cp.hard_cap_at
       AND auth.consumed_event_id IS NULL
  )
 BEGIN SELECT RAISE(ABORT, 'sleep checkpoint completion requires authorization'); END;
@@ -107,6 +111,8 @@ BEGIN
           ON ch.world_id = auth.world_id AND ch.id = auth.character_id
         JOIN activity a
           ON a.id = auth.activity_id
+        JOIN activity_sleep_checkpoint cp
+          ON cp.id = auth.checkpoint_id AND cp.activity_id = auth.activity_id
         WHERE auth.world_id = NEW.world_id
           AND ch.key = json_extract(NEW.payload, '$.character')
           AND a.world_id = auth.world_id
@@ -114,6 +120,8 @@ BEGIN
           AND a.type = 'sleep'
           AND a.status = 'completed'
           AND auth.boundary_at = NEW.occurred_at
+          AND auth.boundary_at >= cp.next_reassessment_at
+          AND auth.boundary_at <= cp.hard_cap_at
           AND auth.consumed_event_id IS NULL
         ORDER BY auth.id DESC
         LIMIT 1

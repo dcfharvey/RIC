@@ -1,7 +1,7 @@
 """Falsifications du raccord causal arbitre, sans runtime ni residence reelle."""
 
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -379,5 +379,28 @@ def test_private_owner_provenance_audit_does_not_mutate_canon():
         assert "GoalService" in sources
         assert "sleep_physiology_h_phi" in sources
         assert "physical_capacity_p" in sources
+    finally:
+        conn.close()
+
+
+def test_causal_builder_refuses_stale_physiology_anchor():
+    conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
+    try:
+        physiology = SleepPhysiologyService(conn, clock=clock)
+        boundary = to_iso(T0 + timedelta(seconds=60))
+        wake_source = physiology.resolve_light_source_synthetic(
+            world_id, "salon", boundary, state="wake"
+        )
+        sleep_spec, rest_spec = _specifications()
+        before = max_seq(conn, world_id)
+        with pytest.raises(SyntheticActionArbitrationError) as raised:
+            SyntheticCausalArbitrationBuilder(conn, clock=clock).build(
+                world_id, "sophie", canonical_at=boundary,
+                sleep_specification=sleep_spec, rest_specification=rest_spec,
+                wake_source=wake_source,
+            )
+        assert raised.value.code == "physiology_anchor_mismatch"
+        assert max_seq(conn, world_id) == before
+        assert physiology.read_state(world_id, "sophie").anchor_at == to_iso(T0)
     finally:
         conn.close()

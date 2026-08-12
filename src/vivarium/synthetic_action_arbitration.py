@@ -526,6 +526,11 @@ class SyntheticCausalArbitrationBuilder:
         policy = self._policy(world_id)
         p_policy = self._physiology_foundation.validate_physical_capacity_configuration(world_id)
         state = self._physiology.read_state(world_id, actor)
+        if state.anchor_at != at:
+            raise SyntheticActionArbitrationError(
+                "etat physiologique non materialise a la frontiere",
+                code="physiology_anchor_mismatch",
+            )
         projection = self._physiology.project_synthetic(world_id, actor, wake_source)
         capacity = state.regulation.physical_capacity_milli
 

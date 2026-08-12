@@ -345,3 +345,38 @@ def test_checkpoint_refuses_early_processing_without_materializing_physiology(sy
         "WHERE r.world_id=? AND ch.key='sophie'", (world_id,)
     ).fetchone()[0] == before
     assert conn.execute("SELECT COUNT(*) FROM sleep_completion_authorization").fetchone()[0] == 0
+
+
+def test_stale_completion_authorization_cannot_survive_checkpoint_advance(synthetic_world):
+    conn, world_id, clock = synthetic_world
+    _start_sleep(conn, world_id, clock)
+    coordinator = SyntheticSleepActivityCoordinator(conn, clock=clock)
+    due = to_iso(T0 + timedelta(seconds=600))
+    later = to_iso(T0 + timedelta(seconds=1200))
+    coordinator.attach_checkpoint(
+        world_id, "sophie", first_reassessment_at=due,
+        hard_cap_at=to_iso(T0 + timedelta(seconds=1800)),
+    )
+    termination = SleepTerminationFoundationService(conn, clock=clock)
+    authorization = termination.authorize_completion(
+        world_id, "sophie", at_time=due, wake_viability_milli=100_000,
+    )
+    assert not authorization.consumed
+
+    engine = ActivityEngine(conn, clock=clock)
+    engine.advance_sleep_checkpoint(
+        world_id, "sophie", at_time=due, next_reassessment_at=later,
+        previous_band="wake_admissible",
+    )
+    before = max_seq(conn, world_id)
+    with pytest.raises(sqlite3.IntegrityError):
+        engine.complete_sleep_from_checkpoint(world_id, "sophie", at_time=due)
+
+    active = engine.activity_sheet(world_id, "sophie")
+    assert active is not None and active["type"] == "sleep"
+    assert max_seq(conn, world_id) == before
+    stored = conn.execute(
+        "SELECT consumed_event_id FROM sleep_completion_authorization WHERE id=?",
+        (authorization.authorization_id,),
+    ).fetchone()
+    assert stored is not None and stored["consumed_event_id"] is None
