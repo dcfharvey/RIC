@@ -29,7 +29,7 @@ from test_social_interpretation import FakeClock, _social_source
 @pytest.fixture
 def setup():
     conn = connect_database(":memory:")
-    assert ensure_schema(conn) == 54
+    assert ensure_schema(conn) == 55
     clock = FakeClock()
     world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
     yield conn, world_id, clock
@@ -185,7 +185,7 @@ def test_corrupt_llm_provenance_breaks_audit_and_preflight(setup):
 def test_llm_provenance_survives_restart(tmp_path):
     db_path = tmp_path / "scc1b.sqlite"
     conn = connect_database(str(db_path))
-    assert ensure_schema(conn) == 54
+    assert ensure_schema(conn) == 55
     clock = FakeClock()
     world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
     from test_social_interpretation import _at_salon
