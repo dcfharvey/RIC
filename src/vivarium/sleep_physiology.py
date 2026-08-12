@@ -121,6 +121,146 @@ class PhysicalCapacityPolicy:
     created_at: str
 
 
+_INITIAL_MANIFEST_BANDS = frozenset({"stable", "fragile", "critical"})
+_INITIAL_POLICY_FIELDS = frozenset({
+    "schema_version", "model_key", "model_version", "homeostatic_load_region",
+    "physical_capacity_region", "bootstrap_rule", "residue_rule",
+})
+_INITIAL_MANIFEST_POLICY_SCHEMA_VERSION = 1
+_INITIAL_MANIFEST_BOOTSTRAP_RULE = "wake_stability.stable_seed.v1"
+_INITIAL_MANIFEST_RESIDUE_RULE = "zero_at_t0.v1"
+
+
+@dataclass(frozen=True)
+class InitialPhysiologyPolicy:
+    """Bornes de calibration T0, explicites mais jamais actives par defaut."""
+
+    policy_key: str
+    version: int
+    homeostatic_load_min_milli: int
+    homeostatic_load_max_milli: int
+    physical_capacity_min_milli: int
+    physical_capacity_max_milli: int
+    bootstrap_rule: str
+    residue_rule: str
+    provenance: str
+    created_at: str
+
+
+@dataclass(frozen=True)
+class T0PhaseRule:
+    """Relation versionnee entre la lumiere canonique du calendrier et phi T0."""
+
+    rule_key: str
+    version: int
+    light_phase_windows: tuple[tuple[int, int], ...]
+    dark_phase_windows: tuple[tuple[int, int], ...]
+    provenance: str
+    created_at: str
+
+
+@dataclass(frozen=True)
+class InitialPhysiologyManifestEntry:
+    """Condition initiale declaree, sans trace d'une histoire physiologique."""
+
+    character_key: str
+    biology_profile_key: str
+    biology_profile_version: int
+    homeostatic_load_milli: int
+    circadian_phase_milli: int
+    physical_capacity_milli: int
+    previous_band: Literal["stable", "fragile", "critical"]
+    provenance: str
+    justification: str
+    homeostatic_load_residue: float = 0.0
+    circadian_phase_residue: float = 0.0
+    physical_capacity_remainder: int = 0
+    phase_override_provenance: str | None = None
+    phase_override_justification: str | None = None
+
+
+def _justification(value: Any, *, field: str) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value) > 2_000:
+        raise SleepPhysiologyError(f"{field} invalide", code="invalid_configuration")
+    return value
+
+
+def _initial_region(value: Any, *, field: str) -> tuple[int, int]:
+    if not isinstance(value, Mapping) or set(value) != {"min_milli", "max_milli"}:
+        raise SleepPhysiologyError(f"{field} invalide", code="invalid_configuration")
+    low = _capacity_milli(value["min_milli"], field=f"{field} minimum")
+    high = _capacity_milli(value["max_milli"], field=f"{field} maximum")
+    if low > high:
+        raise SleepPhysiologyError(f"{field} inverse", code="invalid_configuration")
+    return low, high
+
+
+def _initial_physiology_policy_payload(value: Any) -> dict[str, Any]:
+    """Valide des regions T0 declarees; aucune calibration n'est implicite."""
+    if not isinstance(value, Mapping) or set(value) != _INITIAL_POLICY_FIELDS:
+        raise SleepPhysiologyError("politique initiale invalide", code="invalid_configuration")
+    if value["schema_version"] != _INITIAL_MANIFEST_POLICY_SCHEMA_VERSION \
+            or value["model_key"] != ADDITIVE_MODEL_KEY or value["model_version"] != 1 \
+            or value["bootstrap_rule"] != _INITIAL_MANIFEST_BOOTSTRAP_RULE \
+            or value["residue_rule"] != _INITIAL_MANIFEST_RESIDUE_RULE:
+        raise SleepPhysiologyError("politique initiale incompatible", code="invalid_configuration")
+    homeostatic_low, homeostatic_high = _initial_region(
+        value["homeostatic_load_region"], field="region homeostatique"
+    )
+    capacity_low, capacity_high = _initial_region(
+        value["physical_capacity_region"], field="region de capacite"
+    )
+    return {
+        "schema_version": _INITIAL_MANIFEST_POLICY_SCHEMA_VERSION,
+        "model_key": ADDITIVE_MODEL_KEY,
+        "model_version": 1,
+        "homeostatic_load_region": {"min_milli": homeostatic_low, "max_milli": homeostatic_high},
+        "physical_capacity_region": {"min_milli": capacity_low, "max_milli": capacity_high},
+        "bootstrap_rule": _INITIAL_MANIFEST_BOOTSTRAP_RULE,
+        "residue_rule": _INITIAL_MANIFEST_RESIDUE_RULE,
+    }
+
+
+def _phase_windows(value: Any, *, field: str) -> tuple[tuple[int, int], ...]:
+    if not isinstance(value, list) or not value:
+        raise SleepPhysiologyError(f"{field} invalide", code="invalid_configuration")
+    windows: list[tuple[int, int]] = []
+    for window in value:
+        if not isinstance(window, list) or len(window) != 2:
+            raise SleepPhysiologyError(f"{field} invalide", code="invalid_configuration")
+        if any(isinstance(item, bool) or not isinstance(item, int) for item in window):
+            raise SleepPhysiologyError(f"{field} invalide", code="invalid_configuration")
+        start = int(window[0])
+        end = int(window[1])
+        if not 0 <= start < end <= PHASE_TURNS:
+            raise SleepPhysiologyError(f"{field} invalide", code="invalid_configuration")
+        if windows and start < windows[-1][1]:
+            raise SleepPhysiologyError(f"{field} se chevauche", code="invalid_configuration")
+        windows.append((start, end))
+    return tuple(windows)
+
+
+def _t0_phase_rule_payload(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != {
+        "schema_version", "rule_kind", "light_phase_windows", "dark_phase_windows",
+    } or value["schema_version"] != 1 or value["rule_kind"] != "schedule_light_phase_windows.v1":
+        raise SleepPhysiologyError("regle de phase T0 invalide", code="invalid_configuration")
+    return {
+        "schema_version": 1,
+        "rule_kind": "schedule_light_phase_windows.v1",
+        "light_phase_windows": [list(window) for window in _phase_windows(
+            value["light_phase_windows"], field="fenetres de phase lumineuses"
+        )],
+        "dark_phase_windows": [list(window) for window in _phase_windows(
+            value["dark_phase_windows"], field="fenetres de phase sombres"
+        )],
+    }
+
+
+def _phase_matches_windows(phase_milli: int, windows: tuple[tuple[int, int], ...]) -> bool:
+    return any(start <= phase_milli < end for start, end in windows)
+
+
 def _json(value: Any, *, field: str) -> str:
     if not isinstance(value, Mapping):
         raise SleepPhysiologyError(f"{field} doit être un objet", code="invalid_configuration")
@@ -357,6 +497,287 @@ class SleepPhysiologyFoundationService:
             "evidence_class": row["evidence_class"], "parameters": json.loads(row["parameters_json"]),
             "created_at": row["created_at"],
         }
+
+    def register_initial_physiology_policy(
+        self, policy_key: Any, version: Any, policy: Any, provenance: Any
+    ) -> InitialPhysiologyPolicy:
+        """Ajoute les regions T0 choisies au banc, sans valeur par defaut."""
+        key, ver = _key(policy_key, field="politique initiale"), _version(version)
+        payload, origin, now = _initial_physiology_policy_payload(policy), _key(provenance, field="provenance"), self._now()
+        try:
+            with transaction(self._conn) as conn:
+                conn.execute(
+                    "INSERT INTO initial_physiology_policy "
+                    "(public_id,policy_key,version,policy_json,provenance,created_at) VALUES (?,?,?,?,?,?)",
+                    (new_uuid(), key, ver, _json(payload, field="politique initiale"), origin, now),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise SleepPhysiologyError("politique initiale deja enregistree", code="duplicate_profile") from exc
+        return self.initial_physiology_policy(key, ver)
+
+    def initial_physiology_policy(self, policy_key: Any, version: Any) -> InitialPhysiologyPolicy:
+        key, ver = _key(policy_key, field="politique initiale"), _version(version)
+        row = self._conn.execute(
+            "SELECT policy_key,version,policy_json,provenance,created_at FROM initial_physiology_policy "
+            "WHERE policy_key=? AND version=?", (key, ver)
+        ).fetchone()
+        if row is None:
+            raise SleepPhysiologyError("politique initiale introuvable", code="profile_not_found")
+        try:
+            payload = _initial_physiology_policy_payload(json.loads(row["policy_json"]))
+        except (TypeError, ValueError) as exc:
+            raise SleepPhysiologyError("politique initiale illisible", code="invalid_configuration") from exc
+        return InitialPhysiologyPolicy(
+            row["policy_key"], int(row["version"]),
+            payload["homeostatic_load_region"]["min_milli"], payload["homeostatic_load_region"]["max_milli"],
+            payload["physical_capacity_region"]["min_milli"], payload["physical_capacity_region"]["max_milli"],
+            payload["bootstrap_rule"], payload["residue_rule"], row["provenance"], row["created_at"],
+        )
+
+    def register_t0_phase_rule(
+        self, rule_key: Any, version: Any, rule: Any, provenance: Any
+    ) -> T0PhaseRule:
+        """Ajoute une regle T0 declarative qui relie phi au zeitgeber objectif."""
+        key, ver = _key(rule_key, field="regle de phase T0"), _version(version)
+        payload, origin, now = _t0_phase_rule_payload(rule), _key(provenance, field="provenance"), self._now()
+        try:
+            with transaction(self._conn) as conn:
+                conn.execute(
+                    "INSERT INTO t0_phase_rule "
+                    "(public_id,rule_key,version,rule_json,provenance,created_at) VALUES (?,?,?,?,?,?)",
+                    (new_uuid(), key, ver, _json(payload, field="regle de phase T0"), origin, now),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise SleepPhysiologyError("regle de phase T0 deja enregistree", code="duplicate_profile") from exc
+        return self.t0_phase_rule(key, ver)
+
+    def t0_phase_rule(self, rule_key: Any, version: Any) -> T0PhaseRule:
+        key, ver = _key(rule_key, field="regle de phase T0"), _version(version)
+        row = self._conn.execute(
+            "SELECT rule_key,version,rule_json,provenance,created_at FROM t0_phase_rule "
+            "WHERE rule_key=? AND version=?", (key, ver)
+        ).fetchone()
+        if row is None:
+            raise SleepPhysiologyError("regle de phase T0 introuvable", code="profile_not_found")
+        try:
+            payload = _t0_phase_rule_payload(json.loads(row["rule_json"]))
+        except (TypeError, ValueError) as exc:
+            raise SleepPhysiologyError("regle de phase T0 illisible", code="invalid_configuration") from exc
+        return T0PhaseRule(
+            row["rule_key"], int(row["version"]),
+            tuple(tuple(window) for window in payload["light_phase_windows"]),
+            tuple(tuple(window) for window in payload["dark_phase_windows"]),
+            row["provenance"], row["created_at"],
+        )
+
+    def _assert_manifest_recordable(self, world_id: int) -> None:
+        if self._conn.execute(
+            "SELECT 1 FROM runtime_session WHERE world_id=? AND stopped_at IS NULL", (world_id,)
+        ).fetchone() is not None:
+            raise SleepPhysiologyError("session runtime ouverte", code="runtime_session_open")
+        if self.system_status(world_id) == "active":
+            raise SleepPhysiologyError("monde physiologique actif", code="invalid_system_status")
+
+    def create_initial_physiology_manifest(
+        self, world_id: Any, manifest_key: Any, version: Any, policy_key: Any, policy_version: Any,
+        phase_rule_key: Any, phase_rule_version: Any, anchor_at: Any, provenance: Any, justification: Any,
+    ) -> dict[str, Any]:
+        """Cree l'en-tete immuable d'un manifeste T0 sans etat physiologique."""
+        world = self._world_id(world_id)
+        self._require_world(world)
+        self._assert_manifest_recordable(world)
+        key, ver, anchor = _key(manifest_key, field="manifeste"), _version(version), _at(anchor_at)
+        policy = self.initial_physiology_policy(policy_key, policy_version)
+        phase_rule = self.t0_phase_rule(phase_rule_key, phase_rule_version)
+        origin = _key(provenance, field="provenance")
+        reason = _justification(justification, field="justification")
+        policy_id = self._conn.execute(
+            "SELECT id FROM initial_physiology_policy WHERE policy_key=? AND version=?",
+            (policy.policy_key, policy.version),
+        ).fetchone()["id"]
+        phase_rule_id = self._conn.execute(
+            "SELECT id FROM t0_phase_rule WHERE rule_key=? AND version=?",
+            (phase_rule.rule_key, phase_rule.version),
+        ).fetchone()["id"]
+        now = self._now()
+        try:
+            with transaction(self._conn) as conn:
+                conn.execute(
+                    "INSERT INTO initial_physiology_manifest "
+                    "(public_id,world_id,manifest_key,version,model_key,model_version,policy_id,phase_rule_id,anchor_at,provenance,justification,created_at) "
+                    "VALUES (?,?,?,?,?,1,?,?,?,?,?,?)",
+                    (new_uuid(), world, key, ver, ADDITIVE_MODEL_KEY, policy_id, phase_rule_id, anchor, origin, reason, now),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise SleepPhysiologyError("manifeste initial deja enregistre", code="duplicate_manifest") from exc
+        return self.initial_physiology_manifest(world, key, ver)
+
+    def initial_physiology_manifest(self, world_id: Any, manifest_key: Any, version: Any) -> dict[str, Any]:
+        world, key, ver = self._world_id(world_id), _key(manifest_key, field="manifeste"), _version(version)
+        row = self._conn.execute(
+            "SELECT m.id,m.manifest_key,m.version,m.model_key,m.model_version,m.anchor_at,m.provenance,m.justification,"
+            "p.policy_key,p.version AS policy_version,r.rule_key,r.version AS phase_rule_version,"
+            "c.sealed_at,c.entry_count FROM initial_physiology_manifest m "
+            "JOIN initial_physiology_policy p ON p.id=m.policy_id JOIN t0_phase_rule r ON r.id=m.phase_rule_id "
+            "LEFT JOIN initial_physiology_manifest_completion c ON c.manifest_id=m.id "
+            "WHERE m.world_id=? AND m.manifest_key=? AND m.version=?", (world, key, ver),
+        ).fetchone()
+        if row is None:
+            raise SleepPhysiologyError("manifeste initial introuvable", code="manifest_not_found")
+        return {
+            "manifest_id": int(row["id"]), "world_id": world, "manifest_key": row["manifest_key"],
+            "version": int(row["version"]), "model_key": row["model_key"], "model_version": int(row["model_version"]),
+            "policy_key": row["policy_key"], "policy_version": int(row["policy_version"]),
+            "phase_rule_key": row["rule_key"], "phase_rule_version": int(row["phase_rule_version"]),
+            "anchor_at": row["anchor_at"], "provenance": row["provenance"], "justification": row["justification"],
+            "sealed_at": row["sealed_at"], "entry_count": row["entry_count"],
+        }
+
+    def _manifest_source(self, world_id: int, character_id: int, anchor_at: str) -> RegulationInput:
+        """Lit les seules causes objectives disponibles au T0, sans ecriture."""
+        row = self._conn.execute(
+            "SELECT c.key AS character_key,l.key AS location_key,a.type AS activity_type "
+            "FROM character c JOIN location l ON l.id=c.current_location_id "
+            "LEFT JOIN activity a ON a.world_id=c.world_id AND a.character_id=c.id AND a.status='active' "
+            "WHERE c.world_id=? AND c.id=?", (world_id, character_id),
+        ).fetchone()
+        if row is None or row["location_key"] is None:
+            raise SleepPhysiologyError("contexte T0 incomplet", code="invalid_initial_manifest")
+        activity_type = row["activity_type"]
+        state: Literal["wake", "rest", "sleep"] = (
+            "sleep" if activity_type == "sleep" else "rest" if activity_type == "rest" else "wake"
+        )
+        return SleepPhysiologyService(self._conn).resolve_light_source_synthetic(
+            world_id, row["location_key"], anchor_at, state=state, occluded=(state == "sleep")
+        )
+
+    def _validate_initial_manifest_entry(
+        self,
+        manifest: dict[str, Any], policy: InitialPhysiologyPolicy, phase_rule: T0PhaseRule,
+        entry: InitialPhysiologyManifestEntry,
+    ) -> tuple[int, int]:
+        if not isinstance(entry, InitialPhysiologyManifestEntry):
+            raise SleepPhysiologyError("entree de manifeste invalide", code="invalid_initial_manifest")
+        character_key = _key(entry.character_key, field="personnage")
+        profile_key, profile_version = _key(entry.biology_profile_key, field="profil biologique"), _version(entry.biology_profile_version)
+        homeostatic = _capacity_milli(entry.homeostatic_load_milli, field="H initiale")
+        phase = entry.circadian_phase_milli
+        capacity = _capacity_milli(entry.physical_capacity_milli, field="P initiale")
+        if isinstance(phase, bool) or not isinstance(phase, int) or not 0 <= phase < PHASE_TURNS:
+            raise SleepPhysiologyError("phi initiale invalide", code="invalid_initial_manifest")
+        if entry.previous_band not in _INITIAL_MANIFEST_BANDS:
+            raise SleepPhysiologyError("bande initiale invalide", code="invalid_initial_manifest")
+        _key(entry.provenance, field="provenance")
+        _justification(entry.justification, field="justification")
+        if (entry.homeostatic_load_residue, entry.circadian_phase_residue, entry.physical_capacity_remainder) != (0.0, 0.0, 0):
+            raise SleepPhysiologyError("residus T0 non nuls interdits", code="invalid_initial_manifest")
+        if not policy.homeostatic_load_min_milli <= homeostatic <= policy.homeostatic_load_max_milli:
+            raise SleepPhysiologyError("H initiale hors region approuvee", code="invalid_initial_manifest")
+        if not policy.physical_capacity_min_milli <= capacity <= policy.physical_capacity_max_milli:
+            raise SleepPhysiologyError("P initiale hors region approuvee", code="invalid_initial_manifest")
+        override_fields = (entry.phase_override_provenance, entry.phase_override_justification)
+        if any(value is not None for value in override_fields) and not all(value is not None for value in override_fields):
+            raise SleepPhysiologyError("override de phase incomplet", code="invalid_initial_manifest")
+        if all(value is not None for value in override_fields):
+            _key(entry.phase_override_provenance, field="provenance override phi")
+            _justification(entry.phase_override_justification, field="justification override phi")
+
+        row = self._conn.execute(
+            "SELECT c.id AS character_id,p.id AS profile_id,p.profile_key,p.version,p.evidence_class,p.parameters_json "
+            "FROM character c JOIN character_sleep_biology_assignment a "
+            "ON a.world_id=c.world_id AND a.character_id=c.id "
+            "JOIN sleep_biology_profile p ON p.id=a.profile_id "
+            "WHERE c.world_id=? AND c.key=? AND p.profile_key=? AND p.version=?",
+            (manifest["world_id"], character_key, profile_key, profile_version),
+        ).fetchone()
+        if row is None:
+            raise SleepPhysiologyError("profil du manifeste non assigne", code="biology_profile_mismatch")
+        parameters = SleepPhysiologyService._parameters_from_row(row)
+        source = self._manifest_source(manifest["world_id"], int(row["character_id"]), manifest["anchor_at"])
+        if not all(value is not None for value in override_fields):
+            windows = phase_rule.light_phase_windows if source.environmental_light_milli > 0 else phase_rule.dark_phase_windows
+            if not _phase_matches_windows(phase, windows):
+                raise SleepPhysiologyError("phi T0 incoherente avec la lumiere", code="t0_phase_light_mismatch")
+        state = RegulationState(homeostatic / 100000.0, phase / (PHASE_TURNS - 1), capacity / 100000.0)
+        expected_band = wake_stability(state, source, parameters, previous_band="stable").band
+        if entry.previous_band != expected_band:
+            raise SleepPhysiologyError("bande T0 incoherente", code="initial_band_mismatch")
+        return int(row["character_id"]), int(row["profile_id"])
+
+    def append_initial_physiology_manifest_entry(
+        self, world_id: Any, manifest_key: Any, manifest_version: Any, entry: InitialPhysiologyManifestEntry
+    ) -> None:
+        """Ajoute une entree validee; le manifeste ne devient utilisable qu'au scellement."""
+        manifest = self.initial_physiology_manifest(world_id, manifest_key, manifest_version)
+        if manifest["sealed_at"] is not None:
+            raise SleepPhysiologyError("manifeste initial scelle", code="manifest_sealed")
+        policy = self.initial_physiology_policy(manifest["policy_key"], manifest["policy_version"])
+        phase_rule = self.t0_phase_rule(manifest["phase_rule_key"], manifest["phase_rule_version"])
+        character_id, profile_id = self._validate_initial_manifest_entry(manifest, policy, phase_rule, entry)
+        override = entry.phase_override_provenance is not None
+        now = self._now()
+        try:
+            with transaction(self._conn) as conn:
+                conn.execute(
+                    "INSERT INTO initial_physiology_manifest_entry "
+                    "(public_id,manifest_id,world_id,character_id,profile_id,homeostatic_load_milli,circadian_phase_milli,physical_capacity_milli,previous_band,homeostatic_load_residue,circadian_phase_residue,physical_capacity_remainder,phase_override,phase_override_provenance,phase_override_justification,provenance,justification,created_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (new_uuid(), manifest["manifest_id"], manifest["world_id"], character_id, profile_id,
+                     entry.homeostatic_load_milli, entry.circadian_phase_milli, entry.physical_capacity_milli,
+                     entry.previous_band, 0.0, 0.0, 0, int(override), entry.phase_override_provenance,
+                     entry.phase_override_justification, entry.provenance, entry.justification, now),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise SleepPhysiologyError("entree de manifeste deja presente", code="duplicate_manifest_entry") from exc
+
+    def validate_initial_physiology_manifest(
+        self, world_id: Any, manifest_key: Any, version: Any
+    ) -> tuple[str, ...]:
+        """Revalide la couverture et les causes T0; lecture pure, sans activation."""
+        manifest = self.initial_physiology_manifest(world_id, manifest_key, version)
+        policy = self.initial_physiology_policy(manifest["policy_key"], manifest["policy_version"])
+        phase_rule = self.t0_phase_rule(manifest["phase_rule_key"], manifest["phase_rule_version"])
+        rows = self._conn.execute(
+            "SELECT c.key AS character_key,p.profile_key,p.version,e.homeostatic_load_milli,e.circadian_phase_milli,"
+            "e.physical_capacity_milli,e.previous_band,e.homeostatic_load_residue,e.circadian_phase_residue,"
+            "e.physical_capacity_remainder,e.phase_override,e.phase_override_provenance,e.phase_override_justification,"
+            "e.provenance,e.justification FROM initial_physiology_manifest_entry e "
+            "JOIN character c ON c.id=e.character_id AND c.world_id=e.world_id "
+            "JOIN sleep_biology_profile p ON p.id=e.profile_id WHERE e.manifest_id=? ORDER BY c.key",
+            (manifest["manifest_id"],),
+        ).fetchall()
+        expected = tuple(row["key"] for row in self._conn.execute(
+            "SELECT key FROM character WHERE world_id=? ORDER BY key", (manifest["world_id"],)
+        ))
+        if tuple(row["character_key"] for row in rows) != expected:
+            raise SleepPhysiologyError("couverture de manifeste incomplete", code="incomplete_initial_manifest")
+        for row in rows:
+            self._validate_initial_manifest_entry(
+                manifest, policy, phase_rule,
+                InitialPhysiologyManifestEntry(
+                    row["character_key"], row["profile_key"], int(row["version"]),
+                    int(row["homeostatic_load_milli"]), int(row["circadian_phase_milli"]),
+                    int(row["physical_capacity_milli"]), row["previous_band"], row["provenance"], row["justification"],
+                    float(row["homeostatic_load_residue"]), float(row["circadian_phase_residue"]),
+                    int(row["physical_capacity_remainder"]), row["phase_override_provenance"], row["phase_override_justification"],
+                ),
+            )
+        return expected
+
+    def seal_initial_physiology_manifest(self, world_id: Any, manifest_key: Any, version: Any) -> dict[str, Any]:
+        """Scelle un manifeste complet apres sa validation pure; ne l'applique jamais."""
+        manifest = self.initial_physiology_manifest(world_id, manifest_key, version)
+        if manifest["sealed_at"] is not None:
+            raise SleepPhysiologyError("manifeste initial deja scelle", code="manifest_sealed")
+        characters = self.validate_initial_physiology_manifest(world_id, manifest_key, version)
+        now = self._now()
+        with transaction(self._conn) as conn:
+            conn.execute(
+                "INSERT INTO initial_physiology_manifest_completion "
+                "(public_id,manifest_id,entry_count,sealed_at,created_at) VALUES (?,?,?,?,?)",
+                (new_uuid(), manifest["manifest_id"], len(characters), now, now),
+            )
+        return self.initial_physiology_manifest(world_id, manifest_key, version)
 
     def register_physical_capacity_policy(
         self, policy_key: Any, version: Any, policy: Any, provenance: Any

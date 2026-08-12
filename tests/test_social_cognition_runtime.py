@@ -53,7 +53,7 @@ class FlakyInterpretationProvider:
 @pytest.fixture
 def setup():
     conn = connect_database(":memory:")
-    assert ensure_schema(conn) == 53
+    assert ensure_schema(conn) == 54
     clock = Clock()
     world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
     scenes = SocialSceneService(conn, clock=clock)
