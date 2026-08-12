@@ -128,6 +128,8 @@ jobs:
           if body:
               headers["Content-Type"] = "application/json"
           relay = urllib.request.Request(base + route, data=body or None, headers=headers, method=method)
+          response_raw = None
+          status = None
           try:
               with urllib.request.urlopen(relay, timeout=120) as response:
                   response_raw = response.read(MAX_RESULT_BYTES + 1)
@@ -135,10 +137,11 @@ jobs:
           except urllib.error.HTTPError as exc:
               response_raw = exc.read(MAX_RESULT_BYTES + 1)
               status = exc.code
-          except urllib.error.URLError as exc:
+          except urllib.error.URLError:
               result = {"schema_version": 2, "request_id": request_id, "status": "transport_error",
                         "error": "bridge_unreachable"}
-          else:
+
+          if response_raw is not None and status is not None:
               if len(response_raw) > MAX_RESULT_BYTES:
                   result = {"schema_version": 2, "request_id": request_id, "status": "error",
                             "http_status": status, "error": "response_too_large"}
