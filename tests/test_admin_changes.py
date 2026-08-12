@@ -302,6 +302,6 @@ def test_migration_0016_preserve_les_plans_et_audits_0015(tmp_path):
         restored = _service(conn, clock)._row_to_plan(_service(conn, clock)._plan_row(plan["id"]))
         assert restored["payload"] == {"from": "Avant", "to": "Après"}
         assert _audit_count(conn) == 1
-        assert current_version(conn) == 54
+        assert current_version(conn) == 55
     finally:
         conn.close()

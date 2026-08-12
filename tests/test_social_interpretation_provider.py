@@ -200,7 +200,7 @@ def test_llm_provenance_survives_restart(tmp_path):
     created = SocialInterpretationLLMService(conn, provider, clock=clock).run(world_id, "erika", "restart", "speech_trace", provider_turn_id="restart-turn")
     conn.close()
     reopened = connect_database(str(db_path))
-    assert ensure_schema(reopened) == 54
+    assert ensure_schema(reopened) == 55
     persisted = SocialInterpretationService(reopened, clock=clock).get(world_id, "erika", "restart")
     assert persisted == created
     assert social_interpretation_audit(reopened, world_id) == []

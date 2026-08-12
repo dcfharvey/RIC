@@ -279,7 +279,7 @@ def test_interpretation_persists_across_reopen_and_remains_append_only(tmp_path)
     conn.close()
 
     reopened = connect_database(str(db_path))
-    assert ensure_schema(reopened) == 54
+    assert ensure_schema(reopened) == 55
     persisted = SocialInterpretationService(reopened, clock=clock).get(world_id, "erika", "persistent")
     assert persisted == created
     assert social_interpretation_audit(reopened, world_id) == []
