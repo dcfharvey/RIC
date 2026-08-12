@@ -14,6 +14,8 @@ jobs:
   patch-test-commit:
     runs-on: windows-latest
     timeout-minutes: 20
+    env:
+      VIVARIUM_LLM_MODEL: gemma-local
     steps:
       - uses: actions/checkout@v4
         with:
