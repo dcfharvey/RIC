@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   apply-stale-boundary-hardening:
-    if: "${{ github.event_name == 'push' && github.event.head_commit.message == 'ci: apply stale-boundary hardening' }}"
+    if: "${{ github.event_name == 'push' && github.event.head_commit.message == 'ci: retry stale-boundary hardening' }}"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -32,16 +32,29 @@ jobs:
 
           migration = Path("src/vivarium/migrations/0055_sleep_completion_authorization.sql")
           text = migration.read_text(encoding="utf-8")
-          old_join = '''    JOIN activity a\n      ON a.id = auth.activity_id\n'''
-          new_join = '''    JOIN activity a\n      ON a.id = auth.activity_id\n    JOIN activity_sleep_checkpoint cp\n      ON cp.id = auth.checkpoint_id AND cp.activity_id = auth.activity_id\n'''
-          if text.count(old_join) != 2:
-              raise SystemExit(f"Unexpected authorization join count: {text.count(old_join)}")
-          text = text.replace(old_join, new_join)
-          old_boundary = '''      AND auth.boundary_at = NEW.occurred_at\n      AND auth.consumed_event_id IS NULL\n'''
-          new_boundary = '''      AND auth.boundary_at = NEW.occurred_at\n      AND auth.boundary_at >= cp.next_reassessment_at\n      AND auth.boundary_at <= cp.hard_cap_at\n      AND auth.consumed_event_id IS NULL\n'''
-          if text.count(old_boundary) != 2:
-              raise SystemExit(f"Unexpected authorization boundary count: {text.count(old_boundary)}")
-          migration.write_text(text.replace(old_boundary, new_boundary), encoding="utf-8")
+          replacements = (
+              (
+                  '''    JOIN activity a\n      ON a.id = auth.activity_id\n''',
+                  '''    JOIN activity a\n      ON a.id = auth.activity_id\n    JOIN activity_sleep_checkpoint cp\n      ON cp.id = auth.checkpoint_id AND cp.activity_id = auth.activity_id\n''',
+              ),
+              (
+                  '''        JOIN activity a\n          ON a.id = auth.activity_id\n''',
+                  '''        JOIN activity a\n          ON a.id = auth.activity_id\n        JOIN activity_sleep_checkpoint cp\n          ON cp.id = auth.checkpoint_id AND cp.activity_id = auth.activity_id\n''',
+              ),
+              (
+                  '''      AND auth.boundary_at = NEW.occurred_at\n      AND auth.consumed_event_id IS NULL\n''',
+                  '''      AND auth.boundary_at = NEW.occurred_at\n      AND auth.boundary_at >= cp.next_reassessment_at\n      AND auth.boundary_at <= cp.hard_cap_at\n      AND auth.consumed_event_id IS NULL\n''',
+              ),
+              (
+                  '''          AND auth.boundary_at = NEW.occurred_at\n          AND auth.consumed_event_id IS NULL\n''',
+                  '''          AND auth.boundary_at = NEW.occurred_at\n          AND auth.boundary_at >= cp.next_reassessment_at\n          AND auth.boundary_at <= cp.hard_cap_at\n          AND auth.consumed_event_id IS NULL\n''',
+              ),
+          )
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f"Unexpected migration patch count for {old!r}: {text.count(old)}")
+              text = text.replace(old, new)
+          migration.write_text(text, encoding="utf-8")
 
           causal_tests = Path("tests/test_synthetic_causal_arbitration.py")
           text = causal_tests.read_text(encoding="utf-8")
@@ -49,16 +62,14 @@ jobs:
           if text.count(old_import) != 1:
               raise SystemExit("Unexpected datetime import")
           text = text.replace(old_import, "from datetime import datetime, timedelta, timezone\n")
-          test_name = "test_causal_builder_refuses_stale_physiology_anchor"
-          if test_name in text:
+          if "test_causal_builder_refuses_stale_physiology_anchor" in text:
               raise SystemExit("Causal stale-anchor test already exists")
           text += '''\n\ndef test_causal_builder_refuses_stale_physiology_anchor():\n    conn, world_id, clock = _make_world(_calibrated_arbitration_policy())\n    try:\n        physiology = SleepPhysiologyService(conn, clock=clock)\n        boundary = to_iso(T0 + timedelta(seconds=60))\n        wake_source = physiology.resolve_light_source_synthetic(\n            world_id, "salon", boundary, state="wake"\n        )\n        sleep_spec, rest_spec = _specifications()\n        before = max_seq(conn, world_id)\n        with pytest.raises(SyntheticActionArbitrationError) as raised:\n            SyntheticCausalArbitrationBuilder(conn, clock=clock).build(\n                world_id, "sophie", canonical_at=boundary,\n                sleep_specification=sleep_spec, rest_specification=rest_spec,\n                wake_source=wake_source,\n            )\n        assert raised.value.code == "physiology_anchor_mismatch"\n        assert max_seq(conn, world_id) == before\n        assert physiology.read_state(world_id, "sophie").anchor_at == to_iso(T0)\n    finally:\n        conn.close()\n'''
           causal_tests.write_text(text, encoding="utf-8")
 
           sleep_tests = Path("tests/test_synthetic_sleep_integration.py")
           text = sleep_tests.read_text(encoding="utf-8")
-          test_name = "test_stale_completion_authorization_cannot_survive_checkpoint_advance"
-          if test_name in text:
+          if "test_stale_completion_authorization_cannot_survive_checkpoint_advance" in text:
               raise SystemExit("Stale sleep authorization test already exists")
           text += '''\n\ndef test_stale_completion_authorization_cannot_survive_checkpoint_advance(synthetic_world):\n    conn, world_id, clock = synthetic_world\n    _start_sleep(conn, world_id, clock)\n    coordinator = SyntheticSleepActivityCoordinator(conn, clock=clock)\n    due = to_iso(T0 + timedelta(seconds=600))\n    later = to_iso(T0 + timedelta(seconds=1200))\n    coordinator.attach_checkpoint(\n        world_id, "sophie", first_reassessment_at=due,\n        hard_cap_at=to_iso(T0 + timedelta(seconds=1800)),\n    )\n    termination = SleepTerminationFoundationService(conn, clock=clock)\n    authorization = termination.authorize_completion(\n        world_id, "sophie", at_time=due, wake_viability_milli=100_000,\n    )\n    assert not authorization.consumed\n\n    engine = ActivityEngine(conn, clock=clock)\n    engine.advance_sleep_checkpoint(\n        world_id, "sophie", at_time=due, next_reassessment_at=later,\n        previous_band="wake_admissible",\n    )\n    before = max_seq(conn, world_id)\n    with pytest.raises(sqlite3.IntegrityError):\n        engine.complete_sleep_from_checkpoint(world_id, "sophie", at_time=due)\n\n    active = engine.activity_sheet(world_id, "sophie")\n    assert active is not None and active["type"] == "sleep"\n    assert max_seq(conn, world_id) == before\n    stored = conn.execute(\n        "SELECT consumed_event_id FROM sleep_completion_authorization WHERE id=?",\n        (authorization.authorization_id,),\n    ).fetchone()\n    assert stored is not None and stored["consumed_event_id"] is None\n'''
           sleep_tests.write_text(text, encoding="utf-8")
@@ -80,7 +91,7 @@ jobs:
           git push
 
   pytest:
-    if: "${{ github.event_name != 'push' || github.event.head_commit.message != 'ci: apply stale-boundary hardening' }}"
+    if: "${{ github.event_name != 'push' || github.event.head_commit.message != 'ci: retry stale-boundary hardening' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
