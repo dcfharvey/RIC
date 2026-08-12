@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import pytest
 
 from vivarium.action_arbitration import ActionArbitrationFoundationService
-from vivarium.action_contract import ACTION_START_ACTIVITY
+from vivarium.action_contract import ACTION_START_ACTIVITY, ActionOrchestrator, IntentProposal
 from vivarium.circadian_model import calibration_profiles
 from vivarium.db import connect_database, transaction
 from vivarium.goals import GoalService
@@ -379,5 +379,78 @@ def test_private_owner_provenance_audit_does_not_mutate_canon():
         assert "GoalService" in sources
         assert "sleep_physiology_h_phi" in sources
         assert "physical_capacity_p" in sources
+    finally:
+        conn.close()
+
+
+def test_owner_backed_light_projection_rejects_free_or_stale_inputs():
+    conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
+    try:
+        physiology = SleepPhysiologyService(conn, clock=clock)
+        source = physiology.resolve_light_source_owner_backed(
+            world_id, "sophie", at_time=to_iso(T0)
+        )
+        assert source.provenance == "SleepPhysiologyService.owner_backed_light_v1"
+        assert source.source.occluded is False
+        assert source.source.stimulation == 0.0
+        viability = physiology.project_wake_viability_owner_backed(
+            world_id, "sophie", at_time=to_iso(T0)
+        )
+        assert viability.world_id == world_id
+        assert viability.character_key == "sophie"
+        assert viability.input_fingerprint == source.input_fingerprint
+        with pytest.raises(Exception) as raised:
+            physiology.resolve_light_source_owner_backed(
+                world_id, "sophie", at_time="2026-08-11T12:00:01.000+00:00"
+            )
+        assert getattr(raised.value, "code", None) == "stale_canonical_anchor"
+        with pytest.raises(Exception) as unknown_character:
+            physiology.resolve_light_source_owner_backed(
+                world_id, "not_a_character", at_time=to_iso(T0)
+            )
+        assert getattr(unknown_character.value, "code", None) == "character_not_found"
+        with pytest.raises(Exception) as unknown_world:
+            physiology.resolve_light_source_owner_backed(
+                world_id + 999, "sophie", at_time=to_iso(T0)
+            )
+        assert getattr(unknown_world.value, "code", None) == "world_not_found"
+    finally:
+        conn.close()
+
+
+def test_owner_backed_builder_has_no_free_wake_source_argument():
+    conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
+    try:
+        sleep_spec, rest_spec = _specifications()
+        frame = SyntheticCausalArbitrationBuilder(conn, clock=clock).build_owner_backed(
+            world_id, "sophie", canonical_at=to_iso(T0),
+            sleep_specification=sleep_spec, rest_specification=rest_spec,
+        )
+        assert frame.world_id == world_id
+        assert any(item.source_kind == "sleep_regulation" for item in frame.contributions)
+    finally:
+        conn.close()
+
+
+def test_rejected_action_proposal_does_not_debit_physical_capacity():
+    conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
+    try:
+        before = tuple(conn.execute(
+            "SELECT capacity_milli, rate_remainder, anchor_at FROM physical_capacity_state "
+            "WHERE world_id=? ORDER BY character_id", (world_id,)
+        ).fetchall())
+        proposal = IntentProposal.start_activity(
+            "rejected_physical_cost", "sophie", "sport", "cour"
+        )
+        result = ActionOrchestrator(conn, clock=clock).execute(
+            world_id, proposal, effective_at=to_iso(T0), expected_event_seq=999_999
+        )
+        assert result.status == "refused"
+        assert result.reason_code == "stale_decision_context"
+        after = tuple(conn.execute(
+            "SELECT capacity_milli, rate_remainder, anchor_at FROM physical_capacity_state "
+            "WHERE world_id=? ORDER BY character_id", (world_id,)
+        ).fetchall())
+        assert before == after
     finally:
         conn.close()

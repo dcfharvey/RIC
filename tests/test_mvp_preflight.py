@@ -68,3 +68,26 @@ def test_preflight_rejects_invalid_or_unknown_world_ids(conn):
         inspect_mvp_preflight(conn, world_id=True)
     with pytest.raises(MVPPreflightError, match="introuvable"):
         inspect_mvp_preflight(conn, world_id=999)
+
+
+def test_active_physiology_fails_closed_on_missing_classes_and_legacy_consumers(conn):
+    world = IntegrationWorldService(conn).create_initial_world()
+    conn.execute(
+        "INSERT INTO world_physiology_system (public_id,world_id,status,prepared_model_key,prepared_model_version,"
+        "prepared_at,prepared_by,activated_at,activated_by,created_at,updated_at) "
+        "VALUES ('preflight-active',?,'active','ric.sleep.additive.v1',1,"
+        "'2026-08-11T12:00:00.000+00:00','test','2026-08-11T12:00:00.000+00:00','test',"
+        "'2026-08-11T12:00:00.000+00:00','2026-08-11T12:00:00.000+00:00')",
+        (world["id"],)
+    )
+    conn.execute(
+        "UPDATE world_physiology_system SET status='active', prepared_model_key='ric.sleep.additive.v1', "
+        "prepared_model_version=1, prepared_at='2026-08-11T12:00:00.000+00:00', "
+        "prepared_by='test', activated_at='2026-08-11T12:00:00.000+00:00', activated_by='test' "
+        "WHERE world_id=?", (world["id"],)
+    )
+    report = inspect_mvp_preflight(conn, world_id=world["id"])
+    failures = {check.key for check in report.failures}
+    assert "physical_load_classes" in failures
+    assert "legacy_runtime_guard" in failures
+    assert "owner_backed_contracts" not in failures

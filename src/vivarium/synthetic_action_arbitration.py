@@ -585,6 +585,36 @@ class SyntheticCausalArbitrationBuilder:
             tuple(contributions), current_action_key,
         )
 
+    def build_owner_backed(
+        self,
+        world_id: int,
+        actor_key: str,
+        *,
+        canonical_at: str,
+        sleep_specification: ActionSpecification,
+        rest_specification: ActionSpecification,
+        current_action_key: str | None = None,
+    ) -> ActionArbitrationFrame:
+        """Construit une frame depuis la source lumineuse owner-backed V1.
+
+        Cette entree ne recoit volontairement aucun ``RegulationInput``. Le
+        resolver derive l'etat depuis l'horloge, la position, l'activite et les
+        assignments lumineux canoniques. ``build`` demeure disponible pour les
+        bancs synthetiques qui fournissent des causes explicites.
+        """
+        source = self._physiology.resolve_light_source_owner_backed(
+            world_id, actor_key, at_time=canonical_at
+        )
+        return self.build(
+            world_id,
+            actor_key,
+            canonical_at=source.canonical_at,
+            sleep_specification=sleep_specification,
+            rest_specification=rest_specification,
+            wake_source=source.source,
+            current_action_key=current_action_key,
+        )
+
     def audit_decision(
         self, frame: ActionArbitrationFrame, decision: ActionArbitrationDecision
     ) -> int:
