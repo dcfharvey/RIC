@@ -61,8 +61,8 @@ def main() -> None:
         cwd=str(workspace),
         env=inner_env,
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         creationflags=creationflags,
     )
 
@@ -73,8 +73,8 @@ def main() -> None:
         cwd=str(install_dir),
         env=control_env,
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         creationflags=creationflags,
     )
 
