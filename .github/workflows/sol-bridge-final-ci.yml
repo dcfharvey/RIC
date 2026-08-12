@@ -1,0 +1,28 @@
+name: Sol bridge final validation
+
+on:
+  push:
+    branches:
+      - chatgpt/dev-bridge-final
+
+permissions:
+  contents: read
+
+jobs:
+  targeted:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    env:
+      VIVARIUM_LLM_MODEL: gemma-local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install pytest
+      - run: python -m pytest tests/test_dev_bridge_control.py -q
+      - run: git diff --check
