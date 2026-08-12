@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - chatgpt/wo86-synthetic-causal-guard
+  workflow_dispatch:
 
 permissions:
   contents: read
