@@ -1,0 +1,164 @@
+name: RIC trusted dev relay v1
+
+on:
+  workflow_call:
+    inputs:
+      request_json:
+        required: true
+        type: string
+    secrets:
+      BASE_URL:
+        required: true
+    outputs:
+      result_b64:
+        description: Base64-encoded bounded relay result
+        value: ${{ jobs.relay.outputs.result_b64 }}
+      request_id:
+        description: Request UUID
+        value: ${{ jobs.relay.outputs.request_id }}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      result_b64: ${{ steps.relay.outputs.result_b64 }}
+      request_id: ${{ steps.relay.outputs.request_id }}
+    steps:
+      - name: Relay one request with request-bound GitHub OIDC
+        id: relay
+        shell: bash
+        env:
+          REQUEST_JSON: ${{ inputs.request_json }}
+          BASE_URL: ${{ secrets.BASE_URL }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          import uuid
+
+          MAX_REQUEST_BYTES = 128 * 1024
+          MAX_RESULT_BYTES = 300 * 1024
+          ALLOWED = {
+              ("GET", "/health"),
+              ("GET", "/capabilities"),
+              ("GET", "/v1/models"),
+              ("POST", "/dev/fs"),
+              ("POST", "/dev/exec"),
+              ("POST", "/dev/jobs"),
+              ("POST", "/dev/git"),
+              ("POST", "/dev/ric"),
+              ("POST", "/dev/write"),
+              ("POST", "/v1/chat/completions"),
+              ("POST", "/v1/responses"),
+          }
+
+          raw_request = os.environ.get("REQUEST_JSON", "").encode("utf-8")
+          if not raw_request or len(raw_request) > MAX_REQUEST_BYTES:
+              raise RuntimeError("request envelope missing or too large")
+          try:
+              envelope = json.loads(raw_request.decode("utf-8"))
+          except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+              raise RuntimeError("request envelope is invalid JSON") from exc
+          if not isinstance(envelope, dict) or envelope.get("schema_version") != 2:
+              raise RuntimeError("request envelope schema rejected")
+
+          request_id = envelope.get("request_id")
+          try:
+              parsed_id = uuid.UUID(request_id) if isinstance(request_id, str) else None
+          except ValueError as exc:
+              raise RuntimeError("request_id must be UUID4") from exc
+          if parsed_id is None or parsed_id.version != 4:
+              raise RuntimeError("request_id must be UUID4")
+          method = envelope.get("method")
+          route = envelope.get("route")
+          payload = envelope.get("payload", {})
+          if (method, route) not in ALLOWED:
+              raise RuntimeError("route not allowlisted")
+          if not isinstance(payload, dict):
+              raise RuntimeError("payload must be object")
+          if method == "GET" and payload:
+              raise RuntimeError("GET payload must be empty")
+          body = b"" if method == "GET" else json.dumps(payload, ensure_ascii=False, sort_keys=True,
+                                                           separators=(",", ":")).encode("utf-8")
+          if len(body) > MAX_REQUEST_BYTES:
+              raise RuntimeError("request body too large")
+
+          base = os.environ.get("BASE_URL", "").strip().rstrip("/")
+          parsed_base = urllib.parse.urlsplit(base)
+          if parsed_base.scheme != "https" or not parsed_base.hostname or parsed_base.username or parsed_base.password \
+                  or parsed_base.query or parsed_base.fragment or parsed_base.path not in {"", "/"}:
+              raise RuntimeError("bridge base URL rejected")
+          if not parsed_base.hostname.endswith(".trycloudflare.com"):
+              raise RuntimeError("bridge host is not an approved Quick Tunnel")
+          if parsed_base.port not in {None, 443}:
+              raise RuntimeError("bridge port rejected")
+
+          digest = hashlib.sha256(method.encode("ascii") + b"\n" + route.encode("utf-8") + b"\n" + body).hexdigest()
+          audience = f"ric-dev-bridge:v1:{request_id}:{digest}"
+
+          oidc_base = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
+          oidc_request_token = os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
+          separator = "&" if "?" in oidc_base else "?"
+          oidc_url = oidc_base + separator + urllib.parse.urlencode({"audience": audience})
+          oidc_request = urllib.request.Request(
+              oidc_url,
+              headers={"Authorization": f"bearer {oidc_request_token}", "Accept": "application/json"},
+          )
+          with urllib.request.urlopen(oidc_request, timeout=30) as response:
+              oidc = json.loads(response.read().decode("utf-8"))["value"]
+          if not isinstance(oidc, str) or len(oidc) < 100:
+              raise RuntimeError("GitHub OIDC token unavailable")
+
+          headers = {
+              "Accept": "application/json",
+              "Authorization": f"Bearer {oidc}",
+              "X-RIC-Request-ID": request_id,
+          }
+          if body:
+              headers["Content-Type"] = "application/json"
+          relay = urllib.request.Request(base + route, data=body or None, headers=headers, method=method)
+          try:
+              with urllib.request.urlopen(relay, timeout=120) as response:
+                  response_raw = response.read(MAX_RESULT_BYTES + 1)
+                  status = response.status
+          except urllib.error.HTTPError as exc:
+              response_raw = exc.read(MAX_RESULT_BYTES + 1)
+              status = exc.code
+          except urllib.error.URLError as exc:
+              result = {"schema_version": 2, "request_id": request_id, "status": "transport_error",
+                        "error": "bridge_unreachable"}
+          else:
+              if len(response_raw) > MAX_RESULT_BYTES:
+                  result = {"schema_version": 2, "request_id": request_id, "status": "error",
+                            "http_status": status, "error": "response_too_large"}
+              else:
+                  try:
+                      response_doc = json.loads(response_raw.decode("utf-8"))
+                  except (UnicodeDecodeError, json.JSONDecodeError):
+                      response_doc = {"raw": response_raw.decode("utf-8", errors="replace")[:4096]}
+                  result = {"schema_version": 2, "request_id": request_id,
+                            "status": "ok" if 200 <= status < 300 else "error",
+                            "http_status": status, "response": response_doc}
+
+          result_raw = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+          if len(result_raw) > MAX_RESULT_BYTES:
+              result_raw = json.dumps({"schema_version": 2, "request_id": request_id, "status": "error",
+                                       "error": "result_too_large"}, sort_keys=True,
+                                      separators=(",", ":")).encode("utf-8")
+          encoded = base64.b64encode(result_raw).decode("ascii")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"request_id={request_id}\n")
+              handle.write(f"result_b64={encoded}\n")
+          print(f"Trusted relay completed request_id={request_id} status={result.get('status')}")
+          PY
