@@ -1,0 +1,1 @@
+{"http_status":200,"request_id":"44444444-4444-4444-8444-444444444444","request_sha":"f9d105b4d20304537bc0268719d717715672d3dd","response":{"duration_ms":0,"ok":true,"operation":"health","result":{"read_only":true,"service":"ric-dev-bridge"}},"schema_version":1,"status":"ok"}
