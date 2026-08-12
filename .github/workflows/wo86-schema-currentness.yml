@@ -24,49 +24,43 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          files = [
-              'tests/test_action_arbitration_foundation.py',
-              'tests/test_activity_physiology_metadata.py',
-              'tests/test_admin_changes.py',
-              'tests/test_bench.py',
-              'tests/test_initial_physiology_manifest.py',
-              'tests/test_physical_capacity_policy.py',
-              'tests/test_scc1c_admission.py',
-              'tests/test_sleep_physiology_foundation.py',
-              'tests/test_sleep_physiology_persistence.py',
-              'tests/test_sleep_termination_foundation.py',
-              'tests/test_social_cognition_runtime.py',
-              'tests/test_social_interpretation.py',
-              'tests/test_social_interpretation_provider.py',
-              'tests/test_social_speech_memory.py',
-          ]
+          replacements = {
+              'tests/test_admin_changes.py': [
+                  ('current_version(conn) == 54', 'current_version(conn) == 55'),
+              ],
+              'tests/test_social_interpretation.py': [
+                  ('ensure_schema(reopened) == 54', 'ensure_schema(reopened) == 55'),
+              ],
+              'tests/test_social_interpretation_provider.py': [
+                  ('ensure_schema(reopened) == 54', 'ensure_schema(reopened) == 55'),
+              ],
+          }
           changed = []
-          for name in files:
+          for name, rules in replacements.items():
               path = Path(name)
               text = path.read_text(encoding='utf-8')
-              updated = text.replace('ensure_schema(conn) == 54', 'ensure_schema(conn) == 55')
-              updated = updated.replace('report.schema_version == 54', 'report.schema_version == 55')
+              updated = text
+              for old, new in rules:
+                  if old not in updated:
+                      raise SystemExit(f'expected stale assertion not found: {name}: {old}')
+                  updated = updated.replace(old, new, 1)
               if updated != text:
                   path.write_text(updated, encoding='utf-8')
                   changed.append(name)
           print('updated:', *changed, sep='\n  ')
           PY
 
-      - name: Verify no stale current-schema assertion remains
+      - name: Verify repaired assertions
         run: |
-          if grep -R -n -E 'ensure_schema\(conn\) == 54|report\.schema_version == 54' tests; then
-            echo 'stale current-schema assertion remains' >&2
-            exit 1
-          fi
+          grep -n 'current_version(conn) == 55' tests/test_admin_changes.py
+          grep -n 'ensure_schema(reopened) == 55' tests/test_social_interpretation.py
+          grep -n 'ensure_schema(reopened) == 55' tests/test_social_interpretation_provider.py
 
-      - name: Commit exact expectation bump if needed
+      - name: Commit exact expectation bump
         run: |
-          if git diff --quiet -- tests; then
-            echo 'No schema expectation changes needed.'
-            exit 0
-          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add tests
+          git diff --cached --check
           git commit -m 'test: advance schema expectations to 55'
           git push origin HEAD:chatgpt/wo86-synthetic-causal-guard
