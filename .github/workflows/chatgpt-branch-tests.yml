@@ -8,55 +8,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  repair-schema-expectations:
-    if: "${{ github.event_name == 'push' && github.event.head_commit.message == 'ci: apply schema 55 expectation repair' }}"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Update exact full-schema expectations
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          replacements = {
-              "ensure_schema(conn) == 54": "ensure_schema(conn) == 55",
-              "report.schema_version == 54": "report.schema_version == 55",
-          }
-          changed = []
-          total = 0
-          for path in sorted(Path("tests").rglob("*.py")):
-              original = path.read_text(encoding="utf-8")
-              updated = original
-              count = 0
-              for old, new in replacements.items():
-                  found = updated.count(old)
-                  updated = updated.replace(old, new)
-                  count += found
-              if updated != original:
-                  path.write_text(updated, encoding="utf-8")
-                  changed.append((str(path), count))
-                  total += count
-          if total == 0:
-              raise SystemExit("No exact schema-54 expectations found")
-          print(f"Updated {total} exact expectation(s) across {len(changed)} file(s)")
-          for path, count in changed:
-              print(f"  {path}: {count}")
-          PY
-      - name: Commit repair
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests
-          git diff --cached --check
-          git commit -m "test: update full schema expectations to 55"
-          git push
-
   pytest:
-    if: "${{ github.event_name != 'push' || github.event.head_commit.message != 'ci: apply schema 55 expectation repair' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
