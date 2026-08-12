@@ -10,10 +10,6 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: ric-sol-rpc-bootstrap
-  cancel-in-progress: false
-
 jobs:
   relay:
     runs-on: ubuntu-latest
@@ -26,7 +22,7 @@ jobs:
       RPC_BRANCH: bridge/sol-rpc
       REQUEST_SHA: ${{ github.sha }}
     steps:
-      - name: Relay one immutable bounded request and publish one bounded result
+      - name: Relay one immutable bounded request and publish one immutable result
         shell: bash
         run: |
           set -euo pipefail
@@ -59,9 +55,12 @@ jobs:
               with urllib.request.urlopen(req, timeout=30) as response:
                   return json.loads(response.read().decode())
 
+          def decode_contents(document):
+              return base64.b64decode(document["content"].replace("\n", ""))
+
           immutable_ref = urllib.parse.quote(request_sha, safe="")
           request_doc = github("GET", f"/repos/{repo}/contents/{request_path}?ref={immutable_ref}")
-          request_raw = base64.b64decode(request_doc["content"].replace("\n", ""))
+          request_raw = decode_contents(request_doc)
           if len(request_raw) > 64 * 1024:
               raise RuntimeError("request exceeds size limit")
           try:
@@ -126,15 +125,24 @@ jobs:
 
           safe_result_id = request_id if valid_request_id else f"invalid-{os.environ.get('GITHUB_RUN_ID', 'unknown')}"
           result_path = f".ric-bridge/results/{safe_result_id}.json"
+          branch_ref = urllib.parse.quote(branch, safe="")
           existing = None
           try:
-              existing = github("GET", f"/repos/{repo}/contents/{result_path}?ref={urllib.parse.quote(branch, safe='')}")
+              existing = github("GET", f"/repos/{repo}/contents/{result_path}?ref={branch_ref}")
           except urllib.error.HTTPError as exc:
               if exc.code != 404:
                   raise
-          update = {"message": f"bridge: result {safe_result_id}", "content": base64.b64encode(result_raw).decode(), "branch": branch}
           if existing and existing.get("sha"):
-              update["sha"] = existing["sha"]
+              try:
+                  previous = json.loads(decode_contents(existing).decode("utf-8"))
+              except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                  raise RuntimeError("existing result is not valid JSON") from exc
+              if previous.get("request_sha") != request_sha:
+                  raise RuntimeError("request_id collision: immutable result already belongs to another request")
+              print(f"RPC result already published idempotently: request_id={request_id!s} request_sha={request_sha}")
+              raise SystemExit(0)
+
+          update = {"message": f"bridge: result {safe_result_id}", "content": base64.b64encode(result_raw).decode(), "branch": branch}
           github("PUT", f"/repos/{repo}/contents/{result_path}", update)
           print(f"RPC result published: request_id={request_id!s} request_sha={request_sha} status={result.get('status')}")
           PY
