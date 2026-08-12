@@ -45,6 +45,8 @@ Le lien référence le vocabulaire exécutable unique du contrat d'action v2 : `
 
 L'action gagnante qui implique une transition devient un `IntentProposal` déterministe, avec une origine distincte à ajouter au contrat, puis passe par `ActionOrchestrator.execute()`. Cet orchestrateur revalide immédiatement le contexte/sequence et délègue transactionnellement à `TraversalEngine` ou `ActivityEngine` avant toute mutation canonique. Les résultats `continue_current_until_boundary` et `reassess_at_boundary` ne créent aucune proposition. `ActionOptionService` reste un filtre étroit d'options visibles au LLM : il n'est ni le catalogue exhaustif de l'arbitre, ni une seconde sémantique d'action.
 
+Le `proposal_id` dérivé d'une décision arbitrale est stable pour le retry/rejeu de cette même frame, tant qu'aucune frontière causale ni aucun contexte de décision nouveau ne l'a remplacée. Une frame créée après une frontière causale reçoit une nouvelle identité de proposition. Cette règle permet à l'idempotence existante d'`ActionOrchestrator` de retrouver l'acceptation plutôt que de dupliquer une mutation, sans imposer ici l'algorithme de génération de l'identifiant.
+
 ### 2.4 Audit privé
 
 Le détail des contributions peut contenir des données subjectives. Ajouter un journal opérateur append-only `action_arbitration_audit` : digest de frame, options, sources/owners, politique/calibration, résultat, instant canonique et raison. Il n'entre ni dans `canonical_event`, ni Hugin, ni Munin. `activity_started` garde l'action canonique et au plus une référence technique opaque.
@@ -71,7 +73,7 @@ Créer un profil immutable/versionné `physical_capacity_policy`, assigné au mo
 |---|---|
 | `sleep`, `rest`, `idle` | `eat`, `clean`, `gaming`, `photography`, `sport`, `girly_care`, `socialize`, `watch_tv` |
 
-Cette liste est appliquée par migration de données contrôlée et préflight, non par `if activity_type == ...`. Les classes physiques initiales et coûts restent calibration [C/D] : `unclassified` est tolérable legacy mais interdit l'activation. P faible peut rendre une requête coûteuse non faisable et soutenir `rest`; il ne crée jamais `sleep_regulation`. Le chemin actif ne lit ni ne convertit `energie`.
+Cette liste est appliquée par migration de données contrôlée et préflight, non par `if activity_type == ...`. Les classes physiques initiales et coûts restent calibration [C/D] : `physical_load_class = NULL` est toléré hors monde actif mais interdit l'activation. P faible peut rendre une requête coûteuse non faisable et soutenir `rest`; il ne crée jamais `sleep_regulation`. Le chemin actif ne lit ni ne convertit `energie`.
 
 ## 5. Manifeste initial T0
 
@@ -99,7 +101,7 @@ Le gate existant `inactive|prepared|active` est le commutateur unique. Il passe 
 
 | Banc | Paramètres testables [C/D] | Falsifications minimales |
 |---|---|---|
-| `action_arbitration_lab` | mappings, saturation, corrélation, inertie, égalité, seuil de récupération P | aucune priorité de catégorie ; H/C comptés une fois ; deux profils subjectifs divergent ; à H/phi égaux, P bas peut soutenir `rest` plus que P haut ; P bas ne modifie pas `sleep_regulation` ; P peut rendre une action coûteuse impossible tout en soutenant `rest` ; égalité continue ou réévalue sans tie-break |
+| `action_arbitration_lab` | mappings, saturation, corrélation, inertie, égalité, seuil de récupération P | aucune priorité de catégorie ; H/C comptés une fois ; deux profils subjectifs divergent ; à H/phi égaux, P bas peut soutenir `rest` plus que P haut ; P bas ne modifie pas `sleep_regulation` ; P peut rendre une action coûteuse impossible tout en soutenant `rest` ; égalité continue ou réévalue sans tie-break ; retry de la même frame/proposition = une mutation, nouvelle frame après changement canonique = nouvelle proposition |
 | `sleep_termination_lab` | seuils/bandes, horizon checkpoint, garde technique | aucune cible legacy/durée fixe ; réveil stable ; pas d'oscillation ; wake externe inaccessible refusé ; hard cap sans `activity_completed` fictif |
 | `physical_capacity_lab` | classes, coût/arête, récupération, limite effort | attente sans coût arbitraire ; activité/mouvement limitent P ; rest/sleep restaurent P ; rest ne baisse pas H ; P faible ne propose jamais sommeil |
 | `initial_manifest_lab` | régions T0 H/P, règle phi/lumière, bootstrap de bande, résidus, profils | couverture complète ; T0 commun ; rejet d'une bande incompatible ; falsification de cohérence phi/lumière sauf override sourcé ; validation des régions H/P ; aucun besoin legacy ; aucun événement vécu ; restart fidèle à l'ancre |
