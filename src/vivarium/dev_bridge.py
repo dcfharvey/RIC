@@ -1,0 +1,626 @@
+"""Bounded, read-only development bridge for Sol/Codex inspection.
+
+The bridge is deliberately separate from the RIC runtime.  It exposes a small
+JSON operation surface, keeps the workspace root locked, and uses read-only
+SQLite connections for every inspector operation.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import sys
+import threading
+import time
+import uuid
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any, Mapping
+
+from .db import connect_readonly_database
+from .diagnostics import MAX_DIAGNOSTIC_STRING
+from .repro import max_seq
+from .sleep_physiology import SleepPhysiologyService
+from .telemetry import inspect_rodage
+from .world import WorldEngine
+
+
+MAX_RESPONSE_BYTES = 512 * 1024
+MAX_FILE_BYTES = 256 * 1024
+MAX_SEARCH_MATCHES = 200
+MAX_TREE_ENTRIES = 500
+MAX_EXEC_OUTPUT = 512 * 1024
+MAX_EXEC_SECONDS = 120
+MAX_JOB_SECONDS = 600
+MAX_JOBS = 2
+MAX_STORED_JOBS = 32
+JOB_TTL_SECONDS = 3600
+
+_SECRET_NAME = re.compile(
+    r"(^|[._-])(env|secret|secrets|token|tokens|password|credential|credentials|private|key)([._-]|$)",
+    re.IGNORECASE,
+)
+_SECRET_EXTENSIONS = {".pem", ".key", ".p12", ".pfx", ".secret"}
+_ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+_READ_ONLY_GIT = {"status", "diff", "log", "branch", "rev-parse", "show", "ls-files"}
+_FORBIDDEN_GIT = {
+    "add", "apply", "clean", "checkout", "cherry-pick", "commit", "config",
+    "fetch", "merge", "mv", "pull", "push", "rebase", "reset", "restore",
+    "rm", "switch", "tag",
+}
+_ALLOWED_EXECUTABLES = {"python", "python.exe", "py", "py.exe", "pytest", "pytest.exe", "git", "git.exe", "rg", "rg.exe"}
+
+
+class BridgeError(ValueError):
+    def __init__(self, message: str, *, code: str = "invalid_request", status: int = 400) -> None:
+        super().__init__(message)
+        self.code, self.status = code, status
+
+
+def _json_safe(value: Any, *, limit: int = MAX_RESPONSE_BYTES) -> Any:
+    """Return JSON-compatible data without ever serializing secrets or huge text."""
+    if isinstance(value, Mapping):
+        return {
+            str(key): _json_safe(item, limit=limit)
+            for key, item in value.items()
+            if str(key).lower() not in {"authorization", "token", "secret", "password", "headers"}
+        }
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item, limit=limit) for item in value]
+    if isinstance(value, str):
+        return value[:limit]
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return repr(value)[:limit]
+
+
+class RootLock:
+    def __init__(self, root: Path) -> None:
+        self.root = root.expanduser().resolve()
+        if not self.root.is_dir():
+            raise BridgeError("workspace root absent", code="root_missing", status=500)
+
+    def _is_secret(self, path: Path) -> bool:
+        relative = path.relative_to(self.root)
+        if any(_SECRET_NAME.search(part) for part in relative.parts):
+            return True
+        return path.suffix.lower() in _SECRET_EXTENSIONS
+
+    def path(self, value: Any, *, allow_root: bool = True, reject_secret: bool = True) -> Path:
+        if not isinstance(value, str) or not value or "\x00" in value:
+            raise BridgeError("path must be a non-empty string", code="invalid_path")
+        candidate = Path(value)
+        if candidate.is_absolute():
+            raise BridgeError("absolute paths are forbidden", code="path_outside_root", status=403)
+        resolved = (self.root / candidate).resolve(strict=False)
+        try:
+            resolved.relative_to(self.root)
+        except ValueError as exc:
+            raise BridgeError("path escapes workspace root", code="path_outside_root", status=403) from exc
+        if not allow_root and resolved == self.root:
+            raise BridgeError("workspace root is not a file", code="invalid_path")
+        if reject_secret and self._is_secret(resolved):
+            raise BridgeError("sensitive paths are denied", code="sensitive_path_denied", status=403)
+        return resolved
+
+    def relative(self, path: Path) -> str:
+        return path.relative_to(self.root).as_posix() or "."
+
+
+class FilesystemTools:
+    def __init__(self, root: RootLock) -> None:
+        self.root = root
+
+    def list_tree(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        base = self.root.path(payload.get("path", "."))
+        limit = min(int(payload.get("limit", MAX_TREE_ENTRIES)), MAX_TREE_ENTRIES)
+        if limit < 1:
+            raise BridgeError("limit must be positive")
+        entries: list[dict[str, Any]] = []
+        hidden = 0
+        stack = [base]
+        while stack and len(entries) < limit:
+            current = stack.pop()
+            try:
+                children = sorted(current.iterdir(), key=lambda item: item.name.casefold(), reverse=True)
+            except OSError as exc:
+                raise BridgeError("directory cannot be read", code="filesystem_error", status=500) from exc
+            for child in children:
+                if self.root._is_secret(child):
+                    hidden += 1
+                    continue
+                try:
+                    resolved = child.resolve(strict=False)
+                    resolved.relative_to(self.root.root)
+                except (OSError, ValueError):
+                    hidden += 1
+                    continue
+                entries.append({
+                    "path": self.root.relative(resolved),
+                    "kind": "directory" if resolved.is_dir() else "file" if resolved.is_file() else "other",
+                })
+                if resolved.is_dir() and not resolved.is_symlink():
+                    stack.append(resolved)
+                if len(entries) >= limit:
+                    break
+        return {"entries": entries, "truncated": bool(stack), "sensitive_hidden": hidden}
+
+    def stat(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        path = self.root.path(payload.get("path"), allow_root=False)
+        try:
+            info = path.stat()
+        except OSError as exc:
+            raise BridgeError("path cannot be stated", code="filesystem_error", status=404) from exc
+        return {"path": self.root.relative(path), "kind": "directory" if path.is_dir() else "file", "size": info.st_size}
+
+    def read_file(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        path = self.root.path(payload.get("path"), allow_root=False)
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise BridgeError("file cannot be read", code="filesystem_error", status=404) from exc
+        if len(raw) > MAX_FILE_BYTES:
+            raise BridgeError("file exceeds response limit", code="response_too_large", status=413)
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise BridgeError("binary files are not supported", code="text_only") from exc
+        return {"path": self.root.relative(path), "content": text, "truncated": False}
+
+    def search_text(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        query = payload.get("query")
+        if not isinstance(query, str) or not query or len(query) > 4096:
+            raise BridgeError("query must be a bounded non-empty string")
+        base = self.root.path(payload.get("path", "."))
+        limit = min(int(payload.get("limit", MAX_SEARCH_MATCHES)), MAX_SEARCH_MATCHES)
+        matches: list[dict[str, Any]] = []
+        candidates = [base] if base.is_file() else [item for item in base.rglob("*") if item.is_file()]
+        for path in candidates:
+            try:
+                path = self.root.path(self.root.relative(path))
+            except BridgeError:
+                continue
+            try:
+                raw = path.read_bytes()
+                if len(raw) > MAX_FILE_BYTES:
+                    continue
+                text = raw.decode("utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for line_number, line in enumerate(text.splitlines(), 1):
+                if query in line:
+                    matches.append({"path": self.root.relative(path), "line": line_number, "text": line[:MAX_DIAGNOSTIC_STRING]})
+                    if len(matches) >= limit:
+                        return {"matches": matches, "truncated": True}
+        return {"matches": matches, "truncated": False}
+
+
+def _bounded_text(raw: bytes, cap: int) -> tuple[str, bool]:
+    truncated = len(raw) > cap
+    return raw[:cap].decode("utf-8", errors="replace"), truncated
+
+
+def _safe_process_env(root: Path | None = None) -> dict[str, str]:
+    """Keep inherited execution context useful without forwarding secrets."""
+    env = {
+        key: value for key, value in os.environ.items()
+        if not _SECRET_NAME.search(key)
+        and not key.upper().startswith("GIT_CONFIG_")
+        and key.upper() not in {"PYTHONPATH", "PYTHONHOME"}
+    }
+    if root is not None:
+        env.update({
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "safe.directory",
+            "GIT_CONFIG_VALUE_0": str(root),
+        })
+    return env
+
+
+def _run_bounded_process(process: subprocess.Popen[bytes], timeout: int, cap: int) -> tuple[bytes, bytes, bool]:
+    """Drain both pipes concurrently while retaining only cap+1 bytes each."""
+    captured: dict[str, bytearray] = {"stdout": bytearray(), "stderr": bytearray()}
+
+    def drain(name: str, stream: Any) -> None:
+        while True:
+            chunk = stream.read(8192)
+            if not chunk:
+                return
+            target = captured[name]
+            if len(target) < cap + 1:
+                target.extend(chunk[: cap + 1 - len(target)])
+
+    readers = [
+        threading.Thread(target=drain, args=("stdout", process.stdout), daemon=True),
+        threading.Thread(target=drain, args=("stderr", process.stderr), daemon=True),
+    ]
+    for reader in readers:
+        reader.start()
+    timed_out = False
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+    for reader in readers:
+        reader.join(timeout=5)
+    return bytes(captured["stdout"]), bytes(captured["stderr"]), timed_out
+
+
+class CommandRunner:
+    def __init__(self, root: RootLock, *, redactions: tuple[str, ...] = ()) -> None:
+        self.root = root
+        self.redactions = tuple(item for item in redactions if item)
+
+    def _redact(self, text: str) -> str:
+        for item in self.redactions:
+            text = text.replace(item, "[REDACTED]")
+        return text
+
+    def validate(self, payload: Mapping[str, Any]) -> tuple[list[str], Path, int, int, dict[str, str]]:
+        argv = payload.get("argv")
+        if not isinstance(argv, list) or not argv or any(not isinstance(item, str) or not item for item in argv):
+            raise BridgeError("argv must be a non-empty string array", code="invalid_argv")
+        if len(argv) > 32 or sum(len(item) for item in argv) > 64 * 1024:
+            raise BridgeError("argv exceeds limits", code="invalid_argv")
+        executable = Path(argv[0]).name.casefold()
+        if executable not in _ALLOWED_EXECUTABLES:
+            raise BridgeError("executable is not allowlisted", code="executable_denied", status=403)
+        argv = list(argv)
+        if executable in {"python", "python.exe", "py", "py.exe"}:
+            # Keep Sol on the tested workspace interpreter rather than an
+            # unrelated PATH installation; this remains process-scoped.
+            argv[0] = sys.executable
+        if executable.startswith(("python", "py")):
+            if "-c" in argv or "-" in argv[1:]:
+                raise BridgeError("inline or stdin Python is denied", code="unsafe_exec", status=403)
+            if "-m" in argv:
+                index = argv.index("-m")
+                if index + 1 >= len(argv) or argv[index + 1] != "pytest":
+                    raise BridgeError("only python -m pytest is allowed", code="unsafe_exec", status=403)
+        if executable.startswith("git"):
+            commands = [item for item in argv[1:] if not item.startswith("-")]
+            if not commands or commands[0] not in _READ_ONLY_GIT or commands[0] in _FORBIDDEN_GIT:
+                raise BridgeError("git write operation is denied", code="git_write_denied", status=403)
+        for item in argv[1:]:
+            if "\x00" in item or re.search(r"(^|[\\/])\.\.([\\/]|$)", item) or re.match(r"^[A-Za-z]:[\\/]", item):
+                raise BridgeError("argv path escapes workspace root", code="path_outside_root", status=403)
+        cwd = self.root.path(payload.get("cwd", "."))
+        if not cwd.is_dir():
+            raise BridgeError("cwd must be a directory", code="invalid_cwd")
+        timeout = int(payload.get("timeout_seconds", 30))
+        if not 1 <= timeout <= MAX_EXEC_SECONDS:
+            raise BridgeError("timeout outside allowed range", code="invalid_timeout")
+        output_limit = min(int(payload.get("output_limit", MAX_EXEC_OUTPUT)), MAX_EXEC_OUTPUT)
+        if output_limit < 1024:
+            raise BridgeError("output limit too small", code="invalid_output_limit")
+        supplied = payload.get("env", {})
+        if not isinstance(supplied, Mapping) or len(supplied) > 32:
+            raise BridgeError("env must be a small mapping", code="invalid_env")
+        env: dict[str, str] = {}
+        for key, value in supplied.items():
+            if not isinstance(key, str) or not _ENV_NAME.fullmatch(key) \
+                    or key.upper() in {"PATH", "PATHEXT", "COMSPEC", "PYTHONPATH", "PYTHONHOME"} \
+                    or re.search(r"TOKEN|SECRET|PASSWORD|PRIVATE|KEY", key, re.I):
+                raise BridgeError("secret-like environment names are denied", code="sensitive_env_denied", status=403)
+            if not isinstance(value, str) or len(value) > 4096:
+                raise BridgeError("environment value is invalid", code="invalid_env")
+            env[key] = value
+        return argv, cwd, timeout, output_limit, env
+
+    def run(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        argv, cwd, timeout, output_limit, supplied = self.validate(payload)
+        env = _safe_process_env(self.root.root)
+        env.update(supplied)
+        started = time.monotonic()
+        process = subprocess.Popen(
+            argv, cwd=str(cwd), env=env, shell=False,
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+        )
+        stdout, stderr, timed_out = _run_bounded_process(process, timeout, output_limit)
+        out, out_truncated = _bounded_text(stdout, output_limit)
+        err, err_truncated = _bounded_text(stderr, output_limit)
+        return {
+            "exit_code": None if timed_out else process.returncode,
+            "stdout": self._redact(out), "stderr": self._redact(err),
+            "truncated": out_truncated or err_truncated, "timed_out": timed_out,
+            "duration_ms": round((time.monotonic() - started) * 1000),
+        }
+
+
+@dataclass
+class _Job:
+    job_id: str
+    argv: list[str]
+    cwd: Path
+    timeout: int
+    output_limit: int
+    process: subprocess.Popen[bytes]
+    started: float
+    stdout: str = ""
+    stderr: str = ""
+    truncated: bool = False
+    timed_out: bool = False
+    finished: bool = False
+
+
+class JobManager:
+    def __init__(self, runner: CommandRunner) -> None:
+        self.runner = runner
+        self._jobs: dict[str, _Job] = {}
+        self._lock = threading.Lock()
+
+    def _reap(self) -> None:
+        cutoff = time.monotonic() - JOB_TTL_SECONDS
+        with self._lock:
+            for job_id, job in list(self._jobs.items()):
+                if job.finished and job.started < cutoff:
+                    self._jobs.pop(job_id, None)
+            if len(self._jobs) > MAX_STORED_JOBS:
+                for job_id, job in list(self._jobs.items()):
+                    if len(self._jobs) <= MAX_STORED_JOBS:
+                        break
+                    if job.finished:
+                        self._jobs.pop(job_id, None)
+
+    def start(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        self._reap()
+        argv, cwd, timeout, output_limit, supplied = self.runner.validate(payload)
+        with self._lock:
+            active = sum(not job.finished for job in self._jobs.values())
+            if active >= MAX_JOBS:
+                raise BridgeError("job concurrency limit reached", code="job_limit", status=429)
+            env = _safe_process_env(self.runner.root.root); env.update(supplied)
+            process = subprocess.Popen(
+                argv, cwd=str(cwd), env=env, shell=False,
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+            )
+            job = _Job(uuid.uuid4().hex, argv, cwd, timeout, output_limit, process, time.monotonic())
+            self._jobs[job.job_id] = job
+        threading.Thread(target=self._watch, args=(job,), daemon=True).start()
+        return {"job_id": job.job_id, "status": "running"}
+
+    def _watch(self, job: _Job) -> None:
+        stdout, stderr, job.timed_out = _run_bounded_process(job.process, job.timeout, job.output_limit)
+        out, out_truncated = _bounded_text(stdout, job.output_limit)
+        err, err_truncated = _bounded_text(stderr, job.output_limit)
+        with self._lock:
+            job.stdout = self.runner._redact(out)
+            job.stderr = self.runner._redact(err)
+            job.truncated = out_truncated or err_truncated
+            job.finished = True
+
+    def _get(self, value: Any) -> _Job:
+        if not isinstance(value, str) or not value:
+            raise BridgeError("job_id is required")
+        with self._lock:
+            job = self._jobs.get(value)
+        if job is None:
+            raise BridgeError("job not found", code="job_not_found", status=404)
+        return job
+
+    def status(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        job = self._get(payload.get("job_id"))
+        return {"job_id": job.job_id, "status": "finished" if job.finished else "running", "timed_out": job.timed_out}
+
+    def output(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        job = self._get(payload.get("job_id"))
+        return {"job_id": job.job_id, "status": "finished" if job.finished else "running", "exit_code": job.process.returncode if job.finished else None, "stdout": job.stdout, "stderr": job.stderr, "truncated": job.truncated, "timed_out": job.timed_out}
+
+    def cancel(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        job = self._get(payload.get("job_id"))
+        if not job.finished:
+            job.process.terminate()
+        return {"job_id": job.job_id, "status": "cancellation_requested"}
+
+
+def _tail_jsonl(path: Path, limit: int) -> list[Any]:
+    if not path.exists():
+        return []
+    try:
+        lines = path.read_bytes().splitlines()[-limit:]
+    except OSError as exc:
+        raise BridgeError("log cannot be read", code="filesystem_error", status=404) from exc
+    result = []
+    for line in lines:
+        try:
+            result.append(_json_safe(json.loads(line.decode("utf-8"))))
+        except (UnicodeDecodeError, ValueError):
+            result.append({"raw": line.decode("utf-8", errors="replace")[:MAX_DIAGNOSTIC_STRING]})
+    return result
+
+
+class RicInspector:
+    def __init__(self, root: RootLock, db_path: str | None = None) -> None:
+        self.root = root
+        configured = db_path or os.environ.get("RIC_DEV_DB_PATH", "data/vivarium-rodage.sqlite")
+        self.db_path = self.root.path(configured, allow_root=False)
+
+    def _conn(self):
+        if not self.db_path.is_file():
+            raise BridgeError("configured database is absent", code="database_missing", status=404)
+        conn = connect_readonly_database(self.db_path)
+        conn.execute("PRAGMA query_only = ON")
+        return conn
+
+    def _world(self, payload: Mapping[str, Any]) -> int:
+        value = payload.get("world_id", 1)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise BridgeError("world_id is invalid")
+        return value
+
+    def world_status(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        conn = self._conn()
+        try:
+            world = WorldEngine(conn).get_world(self._world(payload))
+            canonical = WorldEngine(conn).read_canonical_time(world["id"])
+            schema = conn.execute("SELECT MAX(version) FROM migrations").fetchone()[0]
+            return {"world": world, "canonical_at": canonical, "schema_version": schema, "event_seq": max_seq(conn, world["id"])}
+        finally:
+            conn.close()
+
+    def active_activities(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT c.key AS character_key,a.type,a.started_at,a.planned_end_at,a.status "
+                "FROM activity a JOIN character c ON c.id=a.character_id "
+                "WHERE a.world_id=? AND a.status='active' ORDER BY c.key,a.id",
+                (self._world(payload),),
+            ).fetchall()
+            return {"activities": [dict(row) for row in rows]}
+        finally:
+            conn.close()
+
+    def physiology_snapshot(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        conn = self._conn()
+        try:
+            service = SleepPhysiologyService(conn)
+            characters = payload.get("character_key")
+            if characters is None:
+                rows = conn.execute("SELECT key FROM character WHERE world_id=? ORDER BY key", (self._world(payload),)).fetchall()
+                characters = [row["key"] for row in rows]
+            elif isinstance(characters, str):
+                characters = [characters]
+            if not isinstance(characters, list) or len(characters) > 32:
+                raise BridgeError("character_key must be a bounded list")
+            return {"states": {key: asdict(service.read_state(self._world(payload), key)) for key in characters}}
+        finally:
+            conn.close()
+
+    def arbitration_audit(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        conn = self._conn()
+        try:
+            limit = min(int(payload.get("limit", 50)), 200)
+            rows = conn.execute(
+                "SELECT id,world_id,frame_digest,options_json,sources_json,result_json,canonical_at,reason_code,recorded_at "
+                "FROM action_arbitration_audit WHERE world_id=? ORDER BY id DESC LIMIT ?",
+                (self._world(payload), limit),
+            ).fetchall()
+            return {"audits": [_json_safe(dict(row)) for row in rows]}
+        finally:
+            conn.close()
+
+    def canonical_events_since(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        conn = self._conn()
+        try:
+            after = int(payload.get("after_seq", 0)); limit = min(int(payload.get("limit", 100)), 500)
+            if after < 0 or limit < 1:
+                raise BridgeError("invalid event bounds")
+            rows = conn.execute(
+                "SELECT seq,occurred_at,source_kind,event_type,payload FROM canonical_event "
+                "WHERE world_id=? AND seq>? ORDER BY seq LIMIT ?",
+                (self._world(payload), after, limit),
+            ).fetchall()
+            return {"events": [_json_safe(dict(row)) for row in rows], "truncated": len(rows) >= limit}
+        finally:
+            conn.close()
+
+    def telemetry_snapshot(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        conn = self._conn()
+        try:
+            return asdict(inspect_rodage(conn, self._world(payload)))
+        finally:
+            conn.close()
+
+    def diagnostics_tail(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        path = self.root.path(payload.get("path", "logs/llm_diagnostics.jsonl"), allow_root=False)
+        return {"records": _tail_jsonl(path, min(int(payload.get("limit", 50)), 200))}
+
+    def runtime_outcomes_tail(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        path = self.root.path(payload.get("path", "logs/runtime_outcomes.jsonl"), allow_root=False)
+        return {"records": _tail_jsonl(path, min(int(payload.get("limit", 50)), 200))}
+
+    def guardian_report(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        path = self.root.path(payload.get("path", "logs/guardian.jsonl"), allow_root=False)
+        return {"records": _tail_jsonl(path, min(int(payload.get("limit", 20)), 100)), "read_only": True}
+
+    def dispatch(self, operation: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        operations = {
+            "world_status": self.world_status, "active_activities": self.active_activities,
+            "physiology_snapshot": self.physiology_snapshot, "arbitration_audit": self.arbitration_audit,
+            "canonical_events_since": self.canonical_events_since, "telemetry_snapshot": self.telemetry_snapshot,
+            "diagnostics_tail": self.diagnostics_tail, "runtime_outcomes_tail": self.runtime_outcomes_tail,
+            "guardian_report": self.guardian_report,
+        }
+        handler = operations.get(operation)
+        if handler is None:
+            raise BridgeError("unknown inspector operation", code="operation_not_found", status=404)
+        return handler(payload)
+
+
+class DevBridgeService:
+    FUTURE_PERMISSIONS = {"REPO_WRITE": "DENY", "RUNTIME_CONTROL": "DENY", "REAL_WORLD_WRITE": "DENY", "DESTRUCTIVE": "DENY"}
+
+    def __init__(self, root: Path, token: str, *, db_path: str | None = None) -> None:
+        if not isinstance(token, str) or len(token) < 32:
+            raise BridgeError("strong bearer token required", code="token_invalid", status=500)
+        self.token = token
+        lock = RootLock(root)
+        self.fs = FilesystemTools(lock)
+        self.runner = CommandRunner(lock, redactions=(token,))
+        self.jobs = JobManager(self.runner)
+        self.inspector = RicInspector(lock, db_path)
+        self.root = lock
+
+    def authorized(self, value: str | None) -> bool:
+        import secrets
+        return bool(value) and secrets.compare_digest(value, f"Bearer {self.token}")
+
+    def capabilities(self) -> dict[str, Any]:
+        return {
+            "permissions": {"READ": "ALLOW", "TEST_EXEC": "ALLOW", **self.FUTURE_PERMISSIONS},
+            "tools": {
+                "filesystem": {"permission": "READ", "operations": ["list_tree", "read_file", "stat", "search_text"]},
+                "exec": {"permission": "TEST_EXEC", "operations": ["exec"], "allowlist": sorted(_ALLOWED_EXECUTABLES)},
+                "jobs": {"permission": "TEST_EXEC", "operations": ["start_job", "job_status", "job_output", "cancel_job"], "max_concurrent": MAX_JOBS},
+                "git": {"permission": "READ", "operations": sorted(_READ_ONLY_GIT)},
+                "ric_inspector": {"permission": "READ", "operations": ["guardian_report", "telemetry_snapshot", "world_status", "active_activities", "diagnostics_tail", "runtime_outcomes_tail", "physiology_snapshot", "arbitration_audit", "canonical_events_since"]},
+            },
+        }
+
+    def _git(self, operation: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        args = ["git", operation]
+        # Keep status bounded even when the workspace contains large
+        # untracked worktrees or generated directories.
+        if operation == "status": args += ["--short", "--branch", "--untracked-files=normal"]
+        elif operation == "diff": args += ["--no-ext-diff", "--binary"]
+        elif operation == "log": args += ["--oneline", "--decorate", f"-{min(int(payload.get('limit', 30)), 100)}"]
+        elif operation == "branch": args += ["-vv"]
+        elif operation == "rev-parse": args += [str(payload.get("ref", "HEAD"))]
+        elif operation == "show": args += ["--stat", "--oneline", str(payload.get("ref", "HEAD"))]
+        elif operation == "ls-files": args += ["--cached", "--others", "--exclude-standard"]
+        else: raise BridgeError("git operation unavailable", code="operation_not_found", status=404)
+        return self.runner.run({"argv": args, "cwd": ".", "timeout_seconds": 30, "output_limit": MAX_EXEC_OUTPUT})
+
+    def dispatch(self, route: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        started = time.monotonic()
+        if route == "/dev/fs":
+            operation = payload.get("operation")
+            result = getattr(self.fs, operation)(payload) if isinstance(operation, str) and operation in {"list_tree", "read_file", "stat", "search_text"} else None
+            if result is None: raise BridgeError("filesystem operation unavailable", code="operation_not_found", status=404)
+        elif route == "/dev/exec":
+            if payload.get("operation", "exec") != "exec": raise BridgeError("exec operation unavailable", code="operation_not_found", status=404)
+            result = self.runner.run(payload)
+        elif route == "/dev/jobs":
+            operation = payload.get("operation")
+            handler = {"start_job": self.jobs.start, "job_status": self.jobs.status, "job_output": self.jobs.output, "cancel_job": self.jobs.cancel}.get(operation)
+            if handler is None:
+                raise BridgeError("job operation unavailable", code="operation_not_found", status=404)
+            result = handler(payload)
+        elif route == "/dev/git":
+            result = self._git(str(payload.get("operation")), payload)
+        elif route == "/dev/ric":
+            result = self.inspector.dispatch(str(payload.get("operation")), payload)
+        else:
+            raise BridgeError("route unavailable", code="route_not_found", status=404)
+        return {"ok": True, "operation": payload.get("operation"), "result": _json_safe(result), "duration_ms": round((time.monotonic() - started) * 1000)}
