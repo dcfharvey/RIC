@@ -1,0 +1,60 @@
+name: Validate clean RIC dev bridge
+
+on:
+  push:
+    branches:
+      - chatgpt/validate-ric-dev-bridge-final
+
+permissions:
+  contents: read
+
+jobs:
+  targeted:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    env:
+      VIVARIUM_LLM_MODEL: gemma-local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install pytest
+      - run: python -m pytest tests/test_dev_bridge.py tests/test_dev_bridge_sol_hardening.py tests/test_dev_bridge_control.py tests/test_bridge_repo_git.py -q
+      - run: python -m py_compile src/vivarium/dev_bridge.py src/vivarium/dev_bridge_auth.py bridge_control/ric_bridge_control.py bridge_control/repo_git.py bridge_control/supervisor.py tools/ric_dev_gateway.py tools/install_ric_bridge_control.py
+      - run: git diff --check
+
+  installer-windows:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install isolated control plane to runner temp
+        shell: pwsh
+        run: |
+          $install = Join-Path $env:RUNNER_TEMP 'RIC Bridge Control'
+          python tools/install_ric_bridge_control.py --workspace . --install-dir $install
+          python -c "import json, pathlib; p=pathlib.Path(r'$install'); c=json.loads((p/'config.json').read_text(encoding='utf-8')); m=json.loads((p/'manifest.json').read_text(encoding='utf-8')); assert c['trusted_workflow_sha']=='bcf38918c0ed746bf3d9440b91b2e325b3860530'; assert c['caller_ref']=='refs/heads/bridge/sol-rpc-final'; assert m['secrets_persisted'] is False; assert not any(k.lower() in {'token','secret','password','bearer'} for k in c); assert (p/'ric_bridge_control.py').is_file(); assert (p/'repo_git.py').is_file(); assert (p/'supervisor.py').is_file(); assert (p/'dev_bridge_auth.py').is_file()"
+      - run: git diff --check
+
+  full-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      VIVARIUM_LLM_MODEL: gemma-local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install pytest
+      - name: Full suite excluding known hosted-runner timing-only baseline
+        run: python -m pytest -q -k "not test_process_tree_cancel_and_timeout_kill_descendants"
+      - run: git diff --check
