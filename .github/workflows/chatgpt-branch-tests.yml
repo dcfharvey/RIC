@@ -1,3 +1,4 @@
+# Temporary validation only; remove before handoff.
 name: Temporary branch pytest
 
 on:
