@@ -6,7 +6,6 @@ on:
       - chatgpt/dev-bridge-final
     paths:
       - .sol-final/patch.py
-      - tools/fix_final_patch_runner.py
 
 permissions:
   contents: write
@@ -25,7 +24,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - run: python tools/fix_final_patch_runner.py
       - run: python .sol-final/patch.py
       - run: python -m pip install pytest
       - run: python -m pytest tests/test_dev_bridge_control.py tests/test_bridge_repo_git.py -q
@@ -35,6 +33,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/vivarium/dev_bridge_auth.py bridge_control/ric_bridge_control.py tests/test_dev_bridge_control.py
-          git commit -m "fix: bind bridge auth and writes to exact trust scope"
+          git add bridge_control/ric_bridge_control.py tests/test_dev_bridge_control.py
+          git commit -m "fix: revalidate optimistic file CAS before replace"
           git push origin HEAD:chatgpt/dev-bridge-final
