@@ -156,7 +156,7 @@ def test_forward_migration_from_49_creates_no_policy_or_canonical_history():
             "SELECT COUNT(*), MAX(seq) FROM canonical_event WHERE world_id = ?", (world["id"],)
         ).fetchone()
 
-        assert ensure_schema(conn) == 51
+        assert ensure_schema(conn) == 52
 
         assert conn.execute("SELECT COUNT(*) FROM physical_capacity_policy").fetchone()[0] == 0
         assert conn.execute(

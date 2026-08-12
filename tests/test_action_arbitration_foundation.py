@@ -92,7 +92,7 @@ def test_forward_migration_from_50_creates_no_policy_link_audit_or_canonical_his
     try:
         _apply_through(conn,50); world=IntegrationWorldService(conn,clock=FakeClock()).create_initial_world()
         before=conn.execute("SELECT COUNT(*),MAX(seq) FROM canonical_event WHERE world_id=?",(world["id"],)).fetchone()
-        assert ensure_schema(conn) == 51
+        assert ensure_schema(conn) == 52
         assert conn.execute("SELECT COUNT(*) FROM action_arbitration_policy").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM subjective_intention_action_link").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM action_arbitration_audit").fetchone()[0] == 0
