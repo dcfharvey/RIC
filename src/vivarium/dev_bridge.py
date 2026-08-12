@@ -205,6 +205,10 @@ class FilesystemTools:
                 break
             path = pending.popleft()
             try:
+                path = self.root.path(self.root.relative(path))
+            except (BridgeError, ValueError):
+                continue
+            try:
                 if path.is_dir():
                     for child in path.iterdir():
                         if child.is_dir() and child.name in _SEARCH_SKIP_DIRS:
@@ -214,10 +218,6 @@ class FilesystemTools:
             except OSError:
                 continue
             inspected_files += 1
-            try:
-                path = self.root.path(self.root.relative(path))
-            except BridgeError:
-                continue
             try:
                 raw = path.read_bytes()
                 if len(raw) > MAX_FILE_BYTES or inspected_bytes + len(raw) > MAX_SEARCH_BYTES:
@@ -611,16 +611,34 @@ def _tail_jsonl(path: Path, limit: int) -> list[Any]:
     if not path.exists():
         return []
     try:
-        lines: deque[bytes] = deque(maxlen=limit)
-        total = 0
+        max_bytes = MAX_RESPONSE_BYTES * 2
+        block_size = 64 * 1024
+        chunks: deque[bytes] = deque()
         with path.open("rb") as handle:
-            for line in handle:
-                total += len(line)
-                if total > MAX_RESPONSE_BYTES * 2:
+            handle.seek(0, os.SEEK_END)
+            position = handle.tell()
+            consumed = 0
+            newline_count = 0
+            while position > 0 and consumed < max_bytes:
+                size = min(block_size, position, max_bytes - consumed)
+                position -= size
+                handle.seek(position)
+                chunk = handle.read(size)
+                if not chunk:
                     break
-                lines.append(line.rstrip(b"\r\n"))
+                chunks.appendleft(chunk)
+                consumed += len(chunk)
+                newline_count += chunk.count(b"\n")
+                if newline_count > limit:
+                    break
     except OSError as exc:
         raise BridgeError("log cannot be read", code="filesystem_error", status=404) from exc
+    raw_tail = b"".join(chunks)
+    lines = raw_tail.splitlines()
+    if position > 0 and lines:
+        # The first buffered record may begin in the middle of a physical line.
+        lines = lines[1:]
+    lines = lines[-limit:]
     result = []
     for line in lines:
         try:
