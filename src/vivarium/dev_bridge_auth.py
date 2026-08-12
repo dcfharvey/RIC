@@ -85,7 +85,6 @@ class OIDCTrustPolicy:
     repository_owner_id: str
     job_workflow_ref: str
     job_workflow_sha: str
-    audience: str = "ric-dev-bridge"
     actor_id: str | None = None
     runner_environment: str = "github-hosted"
     max_lifetime_seconds: int = 600
@@ -153,11 +152,14 @@ class GitHubOIDCVerifier:
             raise OIDCError("OIDC signing key unknown")
         return key
 
-    def _validate_claims(self, claims: Mapping[str, Any]) -> None:
+    def _validate_claims(self, claims: Mapping[str, Any], *, expected_audience: str) -> None:
+        if not isinstance(expected_audience, str) or not expected_audience.startswith("ric-dev-bridge:v1:") \
+                or len(expected_audience) > 512:
+            raise OIDCError("expected OIDC audience invalid")
         policy = self.policy
         exact = {
             "iss": ISSUER,
-            "aud": policy.audience,
+            "aud": expected_audience,
             "repository": policy.repository,
             "repository_id": policy.repository_id,
             "repository_owner_id": policy.repository_owner_id,
@@ -198,7 +200,7 @@ class GitHubOIDCVerifier:
                 raise OIDCError("OIDC token replay rejected")
             self._used_jti[jti] = float(exp)
 
-    def verify(self, token: str) -> Mapping[str, Any]:
+    def verify(self, token: str, *, expected_audience: str) -> Mapping[str, Any]:
         if not isinstance(token, str) or len(token) < 100 or len(token) > 32 * 1024:
             raise OIDCError("OIDC token malformed")
         parts = token.split(".")
@@ -212,13 +214,16 @@ class GitHubOIDCVerifier:
         if not isinstance(kid, str) or not kid or len(kid) > 512:
             raise OIDCError("OIDC kid invalid")
         signature = _b64url_decode(parts[2])
-        signing_input = f"{parts[0]}.{parts[1]}".encode("ascii")
+        try:
+            signing_input = f"{parts[0]}.{parts[1]}".encode("ascii")
+        except UnicodeEncodeError as exc:
+            raise OIDCError("OIDC token malformed") from exc
         if not _rsa_rs256_verify(signing_input, signature, self._key(kid)):
             raise OIDCError("OIDC signature invalid")
-        self._validate_claims(claims)
+        self._validate_claims(claims, expected_audience=expected_audience)
         return claims
 
-    def verify_authorization(self, value: str | None) -> Mapping[str, Any]:
+    def verify_authorization(self, value: str | None, *, expected_audience: str) -> Mapping[str, Any]:
         if not isinstance(value, str) or not value.startswith("Bearer "):
             raise OIDCError("OIDC bearer missing")
-        return self.verify(value[7:])
+        return self.verify(value[7:], expected_audience=expected_audience)
