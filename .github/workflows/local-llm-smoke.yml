@@ -1,0 +1,60 @@
+name: Temporary local LLM smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BASE_URL: ${{ secrets.RIC_LOCAL_LLM_BASE_URL }}
+      TOKEN: ${{ secrets.RIC_LOCAL_LLM_BEARER_TOKEN }}
+    steps:
+      - name: Call qwen3-14b through the temporary gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          base = os.environ["BASE_URL"].rstrip("/")
+          token = os.environ["TOKEN"]
+          headers = {"Accept": "application/json", "Authorization": f"Bearer {token}"}
+
+          def request(path, payload=None):
+              data = None if payload is None else json.dumps(payload).encode()
+              local_headers = dict(headers)
+              if data is not None:
+                  local_headers["Content-Type"] = "application/json"
+              req = urllib.request.Request(base + path, data=data, headers=local_headers, method="GET" if data is None else "POST")
+              with urllib.request.urlopen(req, timeout=90) as response:
+                  if response.status != 200:
+                      raise RuntimeError(f"unexpected HTTP status: {response.status}")
+                  return json.loads(response.read().decode())
+
+          models = request("/v1/models")
+          ids = [item.get("id") for item in models.get("data", []) if isinstance(item, dict)]
+          if "qwen3-14b" not in ids:
+              raise RuntimeError(f"qwen3-14b not visible; observed models: {ids}")
+          print("Model observed: qwen3-14b")
+
+          result = request("/v1/chat/completions", {
+              "model": "qwen3-14b",
+              "messages": [{"role": "user", "content": "Reply with exactly PONG."}],
+              "reasoning_effort": "none",
+              "temperature": 0,
+              "max_tokens": 16,
+              "stream": False,
+          })
+          choices = result.get("choices", [])
+          content = choices[0].get("message", {}).get("content") if choices else None
+          if not isinstance(content, str) or not content.strip():
+              raise RuntimeError("chat completion had no response content")
+          print("Response observed:", content.strip())
+          PY
