@@ -16,7 +16,7 @@ from typing import Any, Literal, Mapping
 
 from .db import transaction
 from .registry import _KEY_RE
-from .util import Clock, new_uuid
+from .util import Clock, new_uuid, parse_iso, to_iso
 
 
 _BANDS = frozenset({"continue_sleep", "wake_admissible"})
@@ -57,6 +57,18 @@ class SleepCheckpointEvaluation:
     ]
     next_reassessment_after_seconds: int | None
     hard_cap_reached: bool
+
+
+@dataclass(frozen=True)
+class SleepCompletionAuthorization:
+    """Preuve privee liee a un episode/frontiere, consommable une seule fois."""
+
+    id: int
+    checkpoint_id: int
+    activity_id: int
+    boundary_at: str
+    reason_code: str
+    consumed: bool
 
 
 def _key(value: Any, *, field: str) -> str:
@@ -137,7 +149,7 @@ def evaluate_sleep_checkpoint(
 
 
 class SleepTerminationFoundationService:
-    """Owner du catalogue/assignment, jamais des transitions d'activite."""
+    """Owner du catalogue/assignment et des preuves privees, jamais de l'activite."""
 
     def __init__(self, conn: sqlite3.Connection, clock: Clock | None = None) -> None:
         self._conn = conn
@@ -189,3 +201,117 @@ class SleepTerminationFoundationService:
         if row is None:
             raise SleepTerminationError("politique de terminaison non assignee", code="policy_not_assigned")
         return self.policy(row["policy_key"], int(row["version"]))
+
+    @staticmethod
+    def _authorization(row: sqlite3.Row) -> SleepCompletionAuthorization:
+        try:
+            evidence = json.loads(row["evaluation_json"])
+        except (TypeError, ValueError) as exc:
+            raise SleepTerminationError("autorisation illisible", code="invalid_authorization") from exc
+        if not isinstance(evidence, Mapping) or not isinstance(evidence.get("reason_code"), str):
+            raise SleepTerminationError("autorisation invalide", code="invalid_authorization")
+        return SleepCompletionAuthorization(
+            int(row["id"]), int(row["checkpoint_id"]), int(row["activity_id"]),
+            row["boundary_at"], evidence["reason_code"], row["consumed_event_id"] is not None,
+        )
+
+    def authorize_completion(
+        self,
+        world_id: Any,
+        character_key: Any,
+        *,
+        at_time: Any,
+        wake_viability_milli: Any,
+        external_wake_accessible: Any = False,
+    ) -> SleepCompletionAuthorization:
+        """Emet une preuve seulement apres re-evaluation du checkpoint persiste.
+
+        La preuve est liee au checkpoint, a l'episode, a la politique assignee et
+        a la frontiere exacte. Elle n'applique aucune transition canonique. Le
+        trigger de migration 0055 exige ensuite cette preuve lors de l'evenement
+        ``activity_completed`` et la consomme dans la meme transaction.
+        """
+        world = self._world_id(world_id)
+        character = _key(character_key, field="personnage")
+        try:
+            at = to_iso(parse_iso(at_time))
+        except (TypeError, ValueError) as exc:
+            raise SleepTerminationError("frontiere d'autorisation invalide", code="invalid_checkpoint") from exc
+
+        row = self._conn.execute(
+            "SELECT cp.id AS checkpoint_id,cp.activity_id,cp.policy_id,cp.next_reassessment_at,"
+            "cp.previous_band,cp.hard_cap_at,a.started_at,a.status,ch.id AS character_id "
+            "FROM activity_sleep_checkpoint cp "
+            "JOIN activity a ON a.id=cp.activity_id "
+            "JOIN character ch ON ch.id=cp.character_id AND ch.world_id=cp.world_id "
+            "WHERE cp.world_id=? AND ch.key=? ORDER BY cp.id DESC LIMIT 1",
+            (world, character),
+        ).fetchone()
+        if row is None or row["status"] != "active":
+            raise SleepTerminationError("checkpoint actif absent", code="checkpoint_missing")
+        if parse_iso(at) < parse_iso(row["next_reassessment_at"]):
+            raise SleepTerminationError("checkpoint pas encore du", code="checkpoint_not_due")
+        if parse_iso(at) > parse_iso(row["hard_cap_at"]):
+            raise SleepTerminationError("checkpoint apres hard cap", code="checkpoint_after_hard_cap")
+
+        assignment = self._conn.execute(
+            "SELECT policy_id FROM world_sleep_termination_policy_assignment WHERE world_id=?",
+            (world,),
+        ).fetchone()
+        if assignment is None or int(assignment["policy_id"]) != int(row["policy_id"]):
+            raise SleepTerminationError("politique de checkpoint desynchronisee", code="policy_mismatch")
+        policy = self.world_policy(world)
+        elapsed_exact = (parse_iso(at) - parse_iso(row["started_at"])).total_seconds()
+        if elapsed_exact < 0 or not elapsed_exact.is_integer():
+            raise SleepTerminationError("duree de checkpoint invalide", code="invalid_checkpoint")
+        elapsed = int(elapsed_exact)
+        evaluation = evaluate_sleep_checkpoint(
+            policy,
+            elapsed_seconds=elapsed,
+            wake_viability_milli=wake_viability_milli,
+            previous_band=row["previous_band"],
+            external_wake_accessible=external_wake_accessible,
+        )
+        if not evaluation.completion_eligible:
+            raise SleepTerminationError("completion non autorisee", code="completion_not_authorized")
+
+        evidence = {
+            "schema_version": 1,
+            "reason_code": evaluation.reason_code,
+            "wake_viability_milli": _integer(
+                wake_viability_milli, field="viabilite de reveil", minimum=0, maximum=100_000
+            ),
+            "previous_band": row["previous_band"],
+            "elapsed_seconds": elapsed,
+            "external_wake_accessible": external_wake_accessible,
+        }
+        wire = _json(evidence, field="preuve d'autorisation")
+        existing = self._conn.execute(
+            "SELECT id,checkpoint_id,activity_id,boundary_at,evaluation_json,consumed_event_id "
+            "FROM sleep_completion_authorization WHERE checkpoint_id=? AND boundary_at=?",
+            (row["checkpoint_id"], at),
+        ).fetchone()
+        if existing is not None:
+            if existing["evaluation_json"] != wire:
+                raise SleepTerminationError("autorisation conflictuelle", code="authorization_conflict")
+            return self._authorization(existing)
+
+        now = self._clock.now_iso()
+        with transaction(self._conn) as conn:
+            conn.execute(
+                "INSERT INTO sleep_completion_authorization "
+                "(public_id,world_id,character_id,activity_id,checkpoint_id,policy_id,boundary_at,"
+                "evaluation_json,authorized_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    new_uuid(), world, int(row["character_id"]), int(row["activity_id"]),
+                    int(row["checkpoint_id"]), int(row["policy_id"]), at, wire, now,
+                ),
+            )
+        created = self._conn.execute(
+            "SELECT id,checkpoint_id,activity_id,boundary_at,evaluation_json,consumed_event_id "
+            "FROM sleep_completion_authorization WHERE checkpoint_id=? AND boundary_at=?",
+            (row["checkpoint_id"], at),
+        ).fetchone()
+        if created is None:
+            raise SleepTerminationError("autorisation non persistée", code="authorization_missing")
+        return self._authorization(created)
