@@ -13,6 +13,7 @@ gateway using a bearer token that never leaves the local machine.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import http.client
 import json
 import os
@@ -60,6 +61,7 @@ _SECRET_NAME = re.compile(
 )
 _SECRET_EXTENSIONS = {".pem", ".key", ".p12", ".pfx", ".secret"}
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_GIT_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 DEFAULT_WRITE_ROOTS = ("src", "tests", "tools", "docs")
 DEFAULT_WRITE_FILES = ("README.md", "CHANGELOG.md", "pyproject.toml")
@@ -141,7 +143,7 @@ class ControlConfig:
         if not root.is_dir():
             raise ControlError("workspace root absent", code="config_invalid", status=500)
         workflow_sha = required_string("trusted_workflow_sha").lower()
-        if not _SHA256.fullmatch(workflow_sha):
+        if not _GIT_COMMIT_SHA.fullmatch(workflow_sha):
             raise ControlError("trusted workflow SHA invalid", code="config_invalid", status=500)
         workflow_ref = required_string("trusted_workflow_ref")
         if not workflow_ref.endswith("@" + workflow_sha):
@@ -426,6 +428,13 @@ class ControlHandler(BaseHTTPRequestHandler):
             return None
         return self.rfile.read(length)
 
+    def _legacy_lm_authorized(self, route: str) -> bool:
+        if route not in {"/v1/models", "/v1/chat/completions", "/v1/responses"}:
+            return False
+        value = self.headers.get("Authorization")
+        expected = f"Bearer {self.server.inner_token}"
+        return isinstance(value, str) and hmac.compare_digest(value, expected)
+
     def _authenticate(self, route: str, body: bytes) -> str | None:
         request_id = self.headers.get("X-RIC-Request-ID")
         if not request_id:
@@ -494,9 +503,12 @@ class ControlHandler(BaseHTTPRequestHandler):
         if route not in READ_GET_ROUTES:
             self._json(404, {"ok": False, "error": {"code": "route_not_found", "message": "route not found"}})
             return
-        request_id = self._authenticate(route, b"")
-        if request_id is None:
-            return
+        if route == "/v1/models" and self._legacy_lm_authorized(route):
+            request_id = None
+        else:
+            request_id = self._authenticate(route, b"")
+            if request_id is None:
+                return
         try:
             if route == "/health":
                 result = {
@@ -524,9 +536,12 @@ class ControlHandler(BaseHTTPRequestHandler):
         body = self._read_body()
         if body is None:
             return
-        request_id = self._authenticate(route, body)
-        if request_id is None:
-            return
+        if route in {"/v1/chat/completions", "/v1/responses"} and self._legacy_lm_authorized(route):
+            request_id = None
+        else:
+            request_id = self._authenticate(route, body)
+            if request_id is None:
+                return
         try:
             if route == WRITE_ROUTE:
                 try:
