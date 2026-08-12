@@ -1,6 +1,6 @@
 """Falsifications du raccord causal arbitre, sans runtime ni residence reelle."""
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -26,6 +26,7 @@ from vivarium.synthetic_action_arbitration import (
     synthetic_specification,
 )
 from vivarium.util import new_uuid, to_iso
+from vivarium.world import WorldEngine
 
 
 T0 = datetime(2026, 8, 11, 12, tzinfo=timezone.utc)
@@ -398,13 +399,23 @@ def test_owner_backed_light_projection_rejects_free_or_stale_inputs():
         assert source.assignment_metadata["schedule_assignment"]["profile_key"] == "causal.day.v1"
         assert source.assignment_metadata["location_assignment"]["profile_key"] == "causal.interior.v1"
         viability = physiology.project_wake_viability_owner_backed(
-            world_id, "sophie", at_time=to_iso(T0)
+            world_id, "sophie", at_time=to_iso(T0),
+            expected_event_seq=source.canonical_event_seq,
         )
         assert viability.world_id == world_id
         assert viability.character_key == "sophie"
+        assert viability.canonical_event_seq == source.canonical_event_seq
         assert viability.input_fingerprint != source.input_fingerprint
+        assert viability.regulation_fingerprint == source.input_fingerprint
 
-        clock.current = T0 + timedelta(seconds=5)
+        # La frontiere T0 reste valide quand seule l'horloge murale avance.
+        clock.current = T0 + timedelta(milliseconds=25)
+        moving_viability = physiology.project_wake_viability_owner_backed(
+            world_id, "sophie", at_time=to_iso(T0),
+            expected_event_seq=source.canonical_event_seq,
+        )
+        assert moving_viability.canonical_at == to_iso(T0)
+
         current = to_iso(clock.current)
         current_source = physiology.resolve_light_source_owner_backed(
             world_id, "sophie", at_time=current
@@ -415,11 +426,14 @@ def test_owner_backed_light_projection_rejects_free_or_stale_inputs():
                 world_id, "sophie", at_time=current
             )
         assert stale_physiology.value.code == "stale_physiology_anchor"
+        # Une nouvelle sequence canonique invalide l'ancienne frontiere T0.
+        WorldEngine(conn, clock=clock).rename_world(world_id, "Monde causal modifie")
         with pytest.raises(SleepPhysiologyError) as raised:
             physiology.resolve_light_source_owner_backed(
-                world_id, "sophie", at_time=to_iso(T0)
+                world_id, "sophie", at_time=to_iso(T0),
+                expected_event_seq=source.canonical_event_seq,
             )
-        assert raised.value.code == "stale_canonical_anchor"
+        assert raised.value.code == "stale_canonical_context"
         with pytest.raises(SleepPhysiologyError) as unknown_character:
             physiology.resolve_light_source_owner_backed(
                 world_id, "not_a_character", at_time=current
@@ -439,7 +453,7 @@ def test_owner_backed_wake_viability_fingerprint_covers_physiology_state():
     try:
         physiology = SleepPhysiologyService(conn, clock=clock)
         first = physiology.project_wake_viability_owner_backed(
-            world_id, "sophie", at_time=to_iso(T0)
+            world_id, "sophie", at_time=to_iso(T0),
         )
         character_id = conn.execute(
             "SELECT id FROM character WHERE world_id=? AND key='sophie'", (world_id,)
@@ -455,6 +469,51 @@ def test_owner_backed_wake_viability_fingerprint_covers_physiology_state():
         )
         assert first.value_milli != second.value_milli
         assert first.input_fingerprint != second.input_fingerprint
+    finally:
+        conn.close()
+
+
+def test_owner_backed_wake_viability_ignores_irrelevant_parameters():
+    conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
+    try:
+        physiology = SleepPhysiologyService(conn, clock=clock)
+        baseline = physiology.project_wake_viability_owner_backed(
+            world_id, "sophie", at_time=to_iso(T0)
+        )
+        original = physiology.parameters_for_character(world_id, "sophie")
+        irrelevant = replace(
+            original,
+            active_capacity_cost_per_hour=original.active_capacity_cost_per_hour + 0.1,
+            propensity_offer_low=original.propensity_offer_low + 0.01,
+        )
+        physiology.parameters_for_character = lambda *_args: irrelevant
+        changed = physiology.project_wake_viability_owner_backed(
+            world_id, "sophie", at_time=to_iso(T0)
+        )
+        assert changed.value_milli == baseline.value_milli
+        assert changed.input_fingerprint == baseline.input_fingerprint
+    finally:
+        conn.close()
+
+
+def test_owner_backed_wake_viability_fingerprint_tracks_relevant_parameter():
+    conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
+    try:
+        physiology = SleepPhysiologyService(conn, clock=clock)
+        baseline = physiology.project_wake_viability_owner_backed(
+            world_id, "sophie", at_time=to_iso(T0)
+        )
+        original = physiology.parameters_for_character(world_id, "sophie")
+        relevant = replace(
+            original,
+            homeostatic_stability_weight=original.homeostatic_stability_weight + 0.05,
+        )
+        physiology.parameters_for_character = lambda *_args: relevant
+        changed = physiology.project_wake_viability_owner_backed(
+            world_id, "sophie", at_time=to_iso(T0)
+        )
+        assert changed.value_milli != baseline.value_milli
+        assert changed.input_fingerprint != baseline.input_fingerprint
     finally:
         conn.close()
 
