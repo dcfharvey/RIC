@@ -232,7 +232,21 @@ class ActionArbitrationFrame:
                  "params": dict(item.specification.params), "source": item.source_kind,
                  "raw": item.raw_score_milli, "owner": item.owner, "provenance": item.provenance,
                  "feasible": item.feasible}
-                for item in sorted(self.contributions, key=lambda value: (value.specification.action_key, value.source_kind, value.owner, value.provenance))
+                # Les contributions forment un multiensemble : leur ordre
+                # d'enumeration ne constitue jamais une nouvelle frontiere.
+                # Tous les champs semantiques qui peuvent differer font donc
+                # partie de l'ordre canonique.
+                for item in sorted(
+                    self.contributions,
+                    key=lambda value: (
+                        value.specification.action_key,
+                        value.source_kind,
+                        value.owner,
+                        value.provenance,
+                        value.raw_score_milli,
+                        value.feasible,
+                    ),
+                )
             ],
         })
 

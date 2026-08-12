@@ -13,6 +13,7 @@ unique est préservée (écritures via `db.transaction` + `world._append_event`)
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import timedelta
 from typing import Any
@@ -28,6 +29,7 @@ from .needs import NeedsEngine
 from .seed import SEED_ACTIVITIES, SEED_ACTIVITY_ALLOWED
 from .spatial import GraphEngine
 from .policy import MAX_IDLE
+from .registry import _KEY_RE
 from .util import Clock, new_uuid, parse_iso, to_iso
 from .world import SOURCE_ENGINE, SOURCE_SYSTEM, _append_event
 
@@ -418,9 +420,12 @@ class ActivityEngine:
         return self.activity_sheet(world_id, character_key)
 
     def abort_activity(
-        self, world_id: int, character_key: str, *, sim_now: str | None = None
+        self, world_id: int, character_key: str, *, sim_now: str | None = None,
+        reason_code: str | None = None,
     ) -> dict[str, Any] | None:
         """Abandon explicite de l'activité active (matérialisation + aborted)."""
+        if reason_code is not None and (not isinstance(reason_code, str) or not _KEY_RE.fullmatch(reason_code)):
+            raise ActivityError("raison d'abandon invalide")
         with transaction(self._conn) as c:
             active = self._active_row(c, world_id, character_key)
             if active is None:
@@ -440,18 +445,168 @@ class ActivityEngine:
                 "UPDATE activity SET status = 'aborted', updated_at = ? WHERE id = ?",
                 (now, active["id"]),
             )
+            payload = {"character": character_key, "activity": active["type"]}
+            if reason_code is not None:
+                payload["reason_code"] = reason_code
             _append_event(
                 c, world_id, SOURCE_ENGINE, "activity_aborted",
-                {"character": character_key, "activity": active["type"]},
+                payload,
                 occurred_at=canonical, recorded_at=now,
             )
             # avancement de l'horloge canonique à l'instant d'abandon
             self._world()._advance_clock(world_id, canonical, c)
         return self.activity_sheet(world_id, character_key)
 
+    # --- Frontieres de sommeil synthetiques -----------------------------------
+
+    def attach_sleep_checkpoint(
+        self, world_id: int, character_key: str, *, policy_id: int,
+        next_reassessment_at: str, hard_cap_at: str,
+        previous_band: str = "continue_sleep",
+    ) -> dict[str, Any]:
+        """Attache un plan de terminaison a un sommeil actif de banc.
+
+        Ce plan appartient au cycle canonique de l'activite. Il ne planifie
+        aucun runtime et n'emet aucun evenement : cette API ne sert qu'au
+        raccord synthetique avant cutover.
+        """
+        if isinstance(policy_id, bool) or not isinstance(policy_id, int) or policy_id < 1:
+            raise ActivityError("politique de checkpoint invalide")
+        if previous_band not in {"continue_sleep", "wake_admissible"}:
+            raise ActivityError("bande de checkpoint invalide")
+        try:
+            next_at = to_iso(parse_iso(next_reassessment_at))
+            hard_at = to_iso(parse_iso(hard_cap_at))
+        except (TypeError, ValueError) as exc:
+            raise ActivityError("frontiere de checkpoint invalide") from exc
+        if parse_iso(next_at) > parse_iso(hard_at):
+            raise ActivityError("checkpoint apres hard cap")
+        with transaction(self._conn) as c:
+            active = self._active_row(c, world_id, character_key)
+            if active is None or active["type"] != "sleep":
+                raise ActivityError("checkpoint exige un sommeil actif")
+            if parse_iso(next_at) < parse_iso(active["started_at"]):
+                raise ActivityError("checkpoint avant le sommeil")
+            now = self._clock.now_iso()
+            try:
+                c.execute(
+                    "INSERT INTO activity_sleep_checkpoint "
+                    "(public_id,world_id,character_id,activity_id,policy_id,next_reassessment_at,previous_band,hard_cap_at,created_at,updated_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (new_uuid(), world_id, self._character_id(world_id, character_key), active["id"],
+                     policy_id, next_at, previous_band, hard_at, now, now),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ActivityError("checkpoint de sommeil deja attache") from exc
+        return self.sleep_checkpoint(world_id, character_key) or {}
+
+    def sleep_checkpoint(self, world_id: int, character_key: str) -> dict[str, Any] | None:
+        """Lit le checkpoint de sommeil sans faire progresser le temps."""
+        row = self._conn.execute(
+            "SELECT cp.id,cp.activity_id,cp.policy_id,cp.next_reassessment_at,cp.previous_band,"
+            "cp.hard_cap_at,cp.hard_cap_reported_at,a.started_at,a.status "
+            "FROM activity_sleep_checkpoint cp JOIN activity a ON a.id=cp.activity_id "
+            "JOIN character ch ON ch.id=cp.character_id "
+            "WHERE cp.world_id=? AND ch.key=? ORDER BY cp.id DESC LIMIT 1",
+            (world_id, character_key),
+        ).fetchone()
+        return None if row is None else dict(row)
+
+    def advance_sleep_checkpoint(
+        self, world_id: int, character_key: str, *, at_time: str,
+        next_reassessment_at: str, previous_band: str,
+    ) -> dict[str, Any]:
+        """Avance uniquement le plan mutable d'un sommeil toujours actif."""
+        if previous_band not in {"continue_sleep", "wake_admissible"}:
+            raise ActivityError("bande de checkpoint invalide")
+        try:
+            at = to_iso(parse_iso(at_time))
+            next_at = to_iso(parse_iso(next_reassessment_at))
+        except (TypeError, ValueError) as exc:
+            raise ActivityError("frontiere de checkpoint invalide") from exc
+        if parse_iso(next_at) <= parse_iso(at):
+            raise ActivityError("prochaine reevaluation non progressive")
+        with transaction(self._conn) as c:
+            checkpoint = self.sleep_checkpoint(world_id, character_key)
+            if checkpoint is None or checkpoint["status"] != "active":
+                raise ActivityError("checkpoint de sommeil actif absent")
+            if parse_iso(checkpoint["next_reassessment_at"]) > parse_iso(at):
+                raise ActivityError("checkpoint pas encore echu")
+            if parse_iso(next_at) > parse_iso(checkpoint["hard_cap_at"]):
+                raise ActivityError("reevaluation apres hard cap")
+            c.execute(
+                "UPDATE activity_sleep_checkpoint SET next_reassessment_at=?,previous_band=?,updated_at=? WHERE id=?",
+                (next_at, previous_band, self._clock.now_iso(), checkpoint["id"]),
+            )
+        return self.sleep_checkpoint(world_id, character_key) or {}
+
+    def report_sleep_hard_cap(self, world_id: int, character_key: str, *, at_time: str) -> bool:
+        """Enregistre une alerte technique unique; elle ne reveille jamais."""
+        try:
+            at = to_iso(parse_iso(at_time))
+        except (TypeError, ValueError) as exc:
+            raise ActivityError("instant de hard cap invalide") from exc
+        with transaction(self._conn) as c:
+            checkpoint = self.sleep_checkpoint(world_id, character_key)
+            if checkpoint is None or checkpoint["status"] != "active":
+                raise ActivityError("checkpoint de sommeil actif absent")
+            if parse_iso(at) < parse_iso(checkpoint["hard_cap_at"]):
+                raise ActivityError("hard cap non atteint")
+            if checkpoint["hard_cap_reported_at"] is not None:
+                return False
+            now = self._clock.now_iso()
+            c.execute(
+                "UPDATE activity_sleep_checkpoint SET hard_cap_reported_at=?,updated_at=? WHERE id=?",
+                (at, now, checkpoint["id"]),
+            )
+            c.execute(
+                "INSERT INTO sleep_termination_audit "
+                "(public_id,world_id,character_id,activity_id,checkpoint_id,operation,details_json,recorded_at) "
+                "VALUES (?,?,?,?,?,'hard_cap_protective',?,?)",
+                (new_uuid(), world_id, self._character_id(world_id, character_key),
+                 checkpoint["activity_id"], checkpoint["id"],
+                 json.dumps({"at_time": at}, sort_keys=True, separators=(",", ":")), now),
+            )
+        return True
+
+    def complete_sleep_from_checkpoint(
+        self, world_id: int, character_key: str, *, at_time: str
+    ) -> dict[str, Any] | None:
+        """Termine un sommeil a une frontiere deja validee par son checkpoint."""
+        try:
+            at = to_iso(parse_iso(at_time))
+        except (TypeError, ValueError) as exc:
+            raise ActivityError("instant de terminaison invalide") from exc
+        with transaction(self._conn) as c:
+            checkpoint = self.sleep_checkpoint(world_id, character_key)
+            active = self._active_row(c, world_id, character_key)
+            if checkpoint is None or checkpoint["status"] != "active" or active is None \
+                    or active["id"] != checkpoint["activity_id"] or active["type"] != "sleep":
+                raise ActivityError("sommeil de checkpoint absent")
+            if parse_iso(at) < parse_iso(active["started_at"]):
+                raise ActivityError("terminaison avant sommeil")
+            now = self._clock.now_iso()
+            rates = self._rates(world_id, "sleep")
+            NeedsEngine(self._conn, clock=self._clock).materialize_with_rates(
+                world_id, character_key, at, "sleep_checkpoint_complete", rates,
+                _conn=c, activity_type="sleep",
+            )
+            InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
+                world_id, character_key, at, "sleep", _conn=c,
+            )
+            c.execute("UPDATE activity SET status='completed',updated_at=? WHERE id=?", (now, active["id"]))
+            _append_event(
+                c, world_id, SOURCE_ENGINE, "activity_completed",
+                {"character": character_key, "activity": "sleep", "ended_at": at,
+                 "reason_code": "sleep_checkpoint"},
+                occurred_at=at, recorded_at=now,
+            )
+            self._world()._advance_clock(world_id, at, c)
+        return self.activity_sheet(world_id, character_key)
+
     def _active_row(self, c: sqlite3.Connection, world_id: int, character_key: str):
         return c.execute(
-            "SELECT a.id, a.type, a.planned_end_at FROM activity a "
+            "SELECT a.id, a.type, a.started_at, a.planned_end_at FROM activity a "
             "JOIN character ch ON ch.world_id = a.world_id AND ch.id = a.character_id "
             "WHERE a.world_id = ? AND ch.key = ? AND a.status = 'active' "
             "ORDER BY a.id DESC LIMIT 1",

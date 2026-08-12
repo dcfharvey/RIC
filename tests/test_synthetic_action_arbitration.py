@@ -240,3 +240,31 @@ def test_synthetic_policy_requires_explicit_groups_and_owner_provenance():
     })
     with pytest.raises(SyntheticActionArbitrationError):
         ArbitrationContribution(sleep, "sleep_regulation", 1, "GoalService", "forged")
+
+
+def test_frame_digest_and_proposal_are_invariant_to_contribution_enumeration_order():
+    sleep = synthetic_specification(ACTION_START_ACTIVITY, {
+        "activity_type": "sleep", "target_location_key": "bedroom",
+    })
+    traverse = synthetic_specification(ACTION_TRAVERSE, {
+        "connector_key": "porte_entree", "target_location_key": "salon",
+    })
+    contributions = (
+        _contribution(sleep, "sleep_regulation", 30_000),
+        # Ces deux elements ont la meme cle de tri historique, mais pas la
+        # meme semantique. Leur permutation ne doit changer ni digest ni ID.
+        _contribution(sleep, "sleep_regulation", 70_000, feasible=False),
+        _contribution(traverse, "subjective_intention", 90_000),
+    )
+    first = _frame(1, 7, contributions)
+    second = _frame(1, 7, tuple(reversed(contributions)))
+    service = ActionArbitrationService()
+
+    first_decision = service.decide(first)
+    second_decision = service.decide(second)
+    assert first.digest == second.digest
+    assert first_decision == second_decision
+    assert first_decision.outcome == "transition"
+    assert service.proposal_for(first, first_decision).proposal_id == service.proposal_for(
+        second, second_decision
+    ).proposal_id
