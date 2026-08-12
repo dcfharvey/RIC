@@ -52,7 +52,6 @@ Le `proposal_id` dérivé d'une décision arbitrale est stable pour le retry/rej
 Le détail des contributions peut contenir des données subjectives. Ajouter un journal opérateur append-only `action_arbitration_audit` : digest de frame, options, sources/owners, politique/calibration, résultat, instant canonique et raison. Il n'entre ni dans `canonical_event`, ni Hugin, ni Munin. `activity_started` garde l'action canonique et au plus une référence technique opaque.
 
 ## 3. Politique de terminaison de sommeil
-
 `SleepPhysiologyService` fournit une projection H/phi et une viabilité de veille pure. `ActivityEngine` possède le cycle de **son** activité `sleep`, ses checkpoints, sa complétion et ses interruptions. La mémoire d'hystérésis de sortie est donc un état de planification d'activité : `activity_sleep_checkpoint`, lié à l'activité active, contient `next_reassessment_at`, la bande `continue_sleep|wake_admissible` et le garde-fou technique. Ce n'est pas un second état H/phi. `previous_band` de stabilité de veille reste physiologique et détenu par `SleepPhysiologyService`.
 
 Au checkpoint, dans une transaction : matérialiser le segment de sommeil, lire projection et bande, appliquer l'hystérésis sommeil/veille, puis compléter `sleep`, ou poursuivre avec un prochain checkpoint, ou accepter un réveil externe réellement perceptible, ou signaler le hard cap au runtime/Guardian. Le hard cap ne termine ni ne réveille l'activité. Son signal Guardian est seulement diagnostic/observabilité : `LocalGuardian` reste read-only et ne produit ni complétion, ni réveil, ni autre mutation canonique. Après complétion, une nouvelle frame décide de la suite ; se réveiller ne signifie pas décider de se lever.
@@ -116,3 +115,30 @@ Les paramètres explorables ici sont seulement ceux des politiques et bancs : ma
 **NO-GO comportemental :** intention sans lien d'action validable ; mapping sans provenance ; activité non classée ; hard cap qui réveille ; external wake sans accessibilité ; écriture P hors service owner ; lecture de `repos`/`energie` dans un monde actif ; ou toute opération sur la résidence réelle.
 
 Le prochain code, après revue, reste additif et s'exécute uniquement sur mondes synthétiques ou copies contrôlées.
+
+## 9. État d'implantation candidate — 12 août 2026
+
+Une implantation candidate du raccord **synthétique** de ce work order a été réalisée sur une branche isolée, sans modification de `main` ni de la résidence persistante. Elle porte le schéma de code à **55** par une migration forward-only d'autorisation privée et consommable de complétion du sommeil.
+
+Éléments désormais matérialisés et falsifiés :
+
+- construction d'une frame d'arbitrage synthétique depuis les owners existants pour H/phi/P et les liens intention -> action explicites ;
+- interdiction de parser le plan subjectif opaque pour inventer une action ;
+- séparation stricte de P : faisabilité/récupération physique uniquement, jamais cause `sleep_regulation` ;
+- refus des mappings `identity_milli.v1` sur le raccord causal et refus des activités sans `physical_load_class` ;
+- audit d'arbitrage privé et non canonique ;
+- autorisation de complétion du sommeil liée à l'activité/checkpoint/politique/frontière, consommée atomiquement par l'événement canonique ;
+- rollback d'une tentative de `complete_sleep_from_checkpoint()` sans autorisation ;
+- hard cap non réveillant et cause de réveil externe non supportée refusée explicitement.
+
+Validation exécutée sur GitHub Actions, Python **3.12.13** : **974/974 tests réussis**. Le workflow créé pour cette validation était temporaire et a été retiré de l'arbre de passation.
+
+Cette preuve ne change pas le NO-GO comportemental. Les points suivants restent volontairement non promus et exigent une décision/revue d'architecture avant tout cutover :
+
+1. `SleepTerminationFoundationService.authorize_completion()` reçoit encore `wake_viability_milli` ; le raccord synthétique la dérive de `SleepPhysiologyService`, mais le service générique ne prouve pas seul cette provenance production ;
+2. `SyntheticCausalArbitrationBuilder.build()` reçoit encore un `wake_source` ; une source production doit être résolue par un owner moteur/canonique conformément au work order 85, pas fournie librement ;
+3. aucun owner d'événement externe accessible n'existe encore pour un réveil externe V1 : le chemin reste donc fermé ;
+4. `physical_load_class = NULL` reste toléré en legacy et provoque un refus fail-closed dans le raccord causal ; la classification/calibration production n'est pas silencieusement inventée ;
+5. le scheduler runtime, les consommateurs legacy actifs et le débit P production par les moteurs demandeurs ne sont pas commutés par ce lot.
+
+**Verdict de cette implantation :** GO pour revue technique et poursuite sur mondes synthétiques/copies contrôlées ; **NO-GO pour runtime actif, résidence réelle ou cutover**.
