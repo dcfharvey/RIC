@@ -251,6 +251,26 @@ def test_completion_authorization_cannot_be_minted_before_due_boundary(synthetic
     assert conn.execute("SELECT COUNT(*) FROM sleep_completion_authorization").fetchone()[0] == 0
 
 
+def test_completion_authorization_refuses_unowned_external_wake_cause(synthetic_world):
+    """Le pur evaluateur peut modeliser le cas; la preuve persistante ne peut pas l'inventer."""
+    conn, world_id, clock = synthetic_world
+    _start_sleep(conn, world_id, clock)
+    coordinator = SyntheticSleepActivityCoordinator(conn, clock=clock)
+    due = to_iso(T0 + timedelta(seconds=600))
+    coordinator.attach_checkpoint(
+        world_id, "sophie", first_reassessment_at=due,
+        hard_cap_at=to_iso(T0 + timedelta(seconds=1800)),
+    )
+    service = SleepTerminationFoundationService(conn, clock=clock)
+    with pytest.raises(SleepTerminationError) as raised:
+        service.authorize_completion(
+            world_id, "sophie", at_time=due, wake_viability_milli=0,
+            external_wake_accessible=True,
+        )
+    assert raised.value.code == "external_wake_not_supported"
+    assert conn.execute("SELECT COUNT(*) FROM sleep_completion_authorization").fetchone()[0] == 0
+
+
 def test_hard_cap_is_private_idempotent_and_never_completes_sleep(synthetic_world):
     conn, world_id, clock = synthetic_world
     _set_state(conn, world_id, anchor=to_iso(T0), h=95000, phase=500000)
