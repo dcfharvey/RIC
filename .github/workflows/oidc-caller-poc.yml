@@ -1,0 +1,16 @@
+name: OIDC caller POC
+
+on:
+  push:
+    branches:
+      - chatgpt/oidc-caller-poc
+    paths:
+      - .oidc/trigger.txt
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  proof:
+    uses: dcfharvey/RIC/.github/workflows/oidc-trusted-poc.yml@bdf0b4c3d4ed62c244ec02a69ffb4b11bcfdfdbb
