@@ -1,3 +1,4 @@
+# trigger: cloud validation retry after isolating a pre-existing timing-sensitive test
 from pathlib import Path
 
 source_path = Path("src/vivarium/dev_bridge.py")
