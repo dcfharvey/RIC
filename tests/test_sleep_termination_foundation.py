@@ -192,6 +192,14 @@ def test_external_wake_requires_explicit_access_and_hard_cap_never_completes_sle
     assert hard_cap.reason_code == "hard_cap_protective" and hard_cap.hard_cap_reached and not hard_cap.completion_eligible
 
 
+def test_owner_backed_authorization_does_not_accept_free_viability_or_external_wake(setup):
+    _conn, world, service, _policy_value = setup
+    with pytest.raises(TypeError):
+        service.authorize_completion_owner_backed(
+            world, "sophie", at_time=to_iso(T0), wake_viability_milli=80_000
+        )
+
+
 def test_forward_migration_from_52_creates_no_policy_checkpoint_audit_or_canonical_history():
     conn=connect_database(":memory:")
     try:

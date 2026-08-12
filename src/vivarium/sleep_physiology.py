@@ -17,6 +17,7 @@ cette histoire rétroactivement.
 from __future__ import annotations
 
 import json
+import hashlib
 import sqlite3
 from dataclasses import dataclass
 from datetime import timedelta, timezone
@@ -41,6 +42,21 @@ from .util import Clock, new_uuid, parse_iso, to_iso
 ADDITIVE_MODEL_KEY = "ric.sleep.additive.v1"
 _STABILITY_BANDS = {"stable", "fragile", "critical"}
 _PHYSICAL_LOAD_CLASSES = frozenset({"none", "light", "moderate", "vigorous"})
+# Classification fonctionnelle V1 du catalogue actuel. Ce vocabulaire RIC est
+# une abstraction de charge, pas une mesure MET ni une calibration biologique.
+V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY: Mapping[str, str] = {
+    "sleep": "none",
+    "rest": "none",
+    "idle": "none",
+    "eat": "none",
+    "gaming": "none",
+    "socialize": "none",
+    "watch_tv": "none",
+    "photography": "light",
+    "girly_care": "light",
+    "clean": "moderate",
+    "sport": "vigorous",
+}
 # Quantum de banc, lié à la résolution canonique de ce raccord synthétique.
 # Il garantit que l'hystérésis n'est pas fonction du découpage demandé par
 # l'appelant. Ce n'est ni une cadence runtime ni une constante biologique.
@@ -85,6 +101,41 @@ class PhysiologyProjection:
     state: PersistedPhysiologyState
     propensity: Propensity
     stability: WakeStability
+
+
+@dataclass(frozen=True)
+class OwnerBackedRegulationProjection:
+    """Projection V1 de l'exposition lumineuse effective.
+
+    ``RegulationInput`` reste un objet derive : cette enveloppe conserve la
+    provenance des lectures canoniques qui l'ont produit et n'ajoute aucun
+    etat persistant.
+    """
+
+    world_id: int
+    character_key: str
+    canonical_at: str
+    source: RegulationInput
+    provenance: str
+    input_fingerprint: str
+
+
+@dataclass(frozen=True)
+class OwnerBackedWakeViability:
+    """Indice operationnel [C/D], derive a la demande et non persiste."""
+
+    world_id: int
+    character_key: str
+    canonical_at: str
+    model_key: str
+    model_version: int
+    value_milli: int
+    provenance: str
+    input_fingerprint: str
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.value_milli <= 100_000:
+            raise SleepPhysiologyError("viabilite de reveil invalide", code="invalid_wake_viability")
 
 
 @dataclass(frozen=True)
@@ -1329,6 +1380,79 @@ class SleepPhysiologyService:
             stimulation=stimulation,
         )
 
+    def resolve_light_source_owner_backed(
+        self,
+        world_id: Any,
+        character_key: Any,
+        *,
+        at_time: Any | None = None,
+    ) -> OwnerBackedRegulationProjection:
+        """Resolve V1 depuis les seuls owners canoniques deja presents.
+
+        Contrairement a ``resolve_light_source_synthetic``, l'appelant ne peut
+        fournir ni lieu, ni etat, ni occlusion, ni stimulation. L'instant doit
+        etre l'instant canonique courant : une projection stale est refusee.
+        Cette API est un contrat futur/preflight et n'est appelee par aucun
+        runtime dans ce lot.
+        """
+        world = self._world_id(world_id)
+        if not isinstance(character_key, str) or not character_key:
+            raise SleepPhysiologyError("personnage invalide", code="invalid_character")
+        if self._conn.execute("SELECT 1 FROM worlds WHERE id=?", (world,)).fetchone() is None:
+            raise SleepPhysiologyError("monde introuvable", code="world_not_found")
+        row = self._character(world, character_key)
+        canonical_row = self._conn.execute(
+            "SELECT simulated_now FROM canonical_clock WHERE world_id=?", (world,)
+        ).fetchone()
+        if canonical_row is None:
+            raise SleepPhysiologyError("horloge canonique absente", code="canonical_clock_missing")
+        canonical_at = _at(canonical_row["simulated_now"])
+        if at_time is not None and _at(at_time) != canonical_at:
+            raise SleepPhysiologyError(
+                "projection hors ancre canonique", code="stale_canonical_anchor"
+            )
+        status = self._conn.execute(
+            "SELECT status FROM world_physiology_system WHERE world_id=?", (world,)
+        ).fetchone()
+        if status is None or status["status"] != "active":
+            raise SleepPhysiologyError(
+                "contrat owner-backed exige un monde physiologique actif",
+                code="owner_backed_requires_active_world",
+            )
+        location = self._conn.execute(
+            "SELECT l.key FROM character c JOIN location l ON l.id=c.current_location_id "
+            "WHERE c.world_id=? AND c.id=?", (world, row["id"])
+        ).fetchone()
+        if location is None:
+            raise SleepPhysiologyError("position canonique absente", code="canonical_position_missing")
+        activity = self._conn.execute(
+            "SELECT type FROM activity WHERE world_id=? AND character_id=? AND status='active' "
+            "ORDER BY id DESC LIMIT 1", (world, row["id"])
+        ).fetchone()
+        activity_type = None if activity is None else activity["type"]
+        state: Literal["wake", "rest", "sleep"] = (
+            "sleep" if activity_type == "sleep" else "rest" if activity_type == "rest" else "wake"
+        )
+        source = self.resolve_light_source_synthetic(
+            world, location["key"], canonical_at, state=state
+        )
+        payload = {
+            "world_id": world,
+            "character_key": character_key,
+            "canonical_at": canonical_at,
+            "location_key": location["key"],
+            "activity_type": activity_type,
+            "state": source.state,
+            "environmental_light_milli": source.environmental_light_milli,
+            "location_exposure_milli": source.location_exposure_milli,
+        }
+        wire = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return OwnerBackedRegulationProjection(
+            world, character_key, canonical_at, source,
+            "SleepPhysiologyService.owner_backed_light_v1",
+            hashlib.sha256(wire.encode("utf-8")).hexdigest(),
+        )
+
     def project_synthetic(
         self, world_id: Any, character_key: Any, source: RegulationInput
     ) -> PhysiologyProjection:
@@ -1344,6 +1468,30 @@ class SleepPhysiologyService:
                 parameters,
                 previous_band=state.previous_stability_band,
             ),
+        )
+
+    def project_wake_viability_owner_backed(
+        self,
+        world_id: Any,
+        character_key: Any,
+        *,
+        at_time: Any | None = None,
+    ) -> OwnerBackedWakeViability:
+        """Construit la viabilite depuis une source owner-backed validee."""
+        source = self.resolve_light_source_owner_backed(
+            world_id, character_key, at_time=at_time
+        )
+        projection = self.project_synthetic(world_id, character_key, source.source)
+        value = round((1.0 - projection.stability.instability) * 100_000)
+        return OwnerBackedWakeViability(
+            source.world_id,
+            source.character_key,
+            source.canonical_at,
+            projection.state.model_key,
+            projection.state.model_version,
+            value,
+            source.provenance,
+            source.input_fingerprint,
         )
 
     @staticmethod

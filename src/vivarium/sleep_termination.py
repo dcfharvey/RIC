@@ -16,6 +16,7 @@ from typing import Any, Literal, Mapping
 
 from .db import transaction
 from .registry import _KEY_RE
+from .sleep_physiology import OwnerBackedWakeViability, SleepPhysiologyService
 from .util import Clock, new_uuid, parse_iso, to_iso
 
 
@@ -223,6 +224,7 @@ class SleepTerminationFoundationService:
         at_time: Any,
         wake_viability_milli: Any,
         external_wake_accessible: Any = False,
+        _projection: OwnerBackedWakeViability | None = None,
     ) -> SleepCompletionAuthorization:
         """Emet une preuve seulement apres re-evaluation du checkpoint persiste.
 
@@ -294,6 +296,18 @@ class SleepTerminationFoundationService:
             "elapsed_seconds": elapsed,
             "external_wake_accessible": False,
         }
+        if _projection is not None:
+            if _projection.world_id != world or _projection.character_key != character \
+                    or _projection.canonical_at != at:
+                raise SleepTerminationError(
+                    "projection de viabilite hors provenance", code="invalid_wake_provenance"
+                )
+            evidence.update({
+                "model_key": _projection.model_key,
+                "model_version": _projection.model_version,
+                "provenance": _projection.provenance,
+                "input_fingerprint": _projection.input_fingerprint,
+            })
         wire = _json(evidence, field="preuve d'autorisation")
         existing = self._conn.execute(
             "SELECT id,checkpoint_id,activity_id,boundary_at,evaluation_json,consumed_event_id "
@@ -324,3 +338,30 @@ class SleepTerminationFoundationService:
         if created is None:
             raise SleepTerminationError("autorisation non persistée", code="authorization_missing")
         return self._authorization(created)
+
+    def authorize_completion_owner_backed(
+        self,
+        world_id: Any,
+        character_key: Any,
+        *,
+        at_time: Any,
+    ) -> SleepCompletionAuthorization:
+        """Raccord V1 : seule une projection physiologique owner-backed est admise."""
+        try:
+            projection = SleepPhysiologyService(self._conn, clock=self._clock).project_wake_viability_owner_backed(
+                world_id, character_key, at_time=at_time
+            )
+        except Exception as exc:
+            if isinstance(exc, SleepTerminationError):
+                raise
+            raise SleepTerminationError(
+                str(exc), code=getattr(exc, "code", "invalid_wake_provenance")
+            ) from exc
+        return self.authorize_completion(
+            world_id,
+            character_key,
+            at_time=projection.canonical_at,
+            wake_viability_milli=projection.value_milli,
+            external_wake_accessible=False,
+            _projection=projection,
+        )

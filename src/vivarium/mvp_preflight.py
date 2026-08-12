@@ -17,7 +17,10 @@ import sqlite3
 from typing import Any
 
 from .integration_world import INITIAL_RESIDENTS, INITIAL_SHARED_FACTS
+from .circadian_shadow import LEGACY_CONSUMERS
 from .migrations import load_migrations
+from .sleep_physiology import SleepPhysiologyService, V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY
+from .sleep_termination import SleepTerminationFoundationService
 from .repro import (
     materialization_chain_audit,
     structural_event_audit,
@@ -184,6 +187,88 @@ def _physiology_system_check(conn: sqlite3.Connection, world_id: int) -> Preflig
     return _check("sleep_physiology", False, f"statut physiologique inconnu : {status!r}")
 
 
+def _active_physical_load_check(
+    conn: sqlite3.Connection, world_id: int, status: str
+) -> PreflightCheck:
+    """Refuse les classes absentes ou inconnues uniquement au gate active."""
+    if status != "active":
+        return _check("physical_load_classes", True, "legacy-compatible ; verification active differee")
+    rows = conn.execute(
+        "SELECT activity_type, physical_load_class FROM activity_definition "
+        "WHERE world_id=? ORDER BY activity_type", (world_id,)
+    ).fetchall()
+    present = {row["activity_type"] for row in rows}
+    expected_missing = sorted(set(V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY) - present)
+    missing = [row["activity_type"] for row in rows if row["physical_load_class"] is None]
+    unknown = [row["activity_type"] for row in rows if row["activity_type"] not in V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY]
+    mismatched = [
+        row["activity_type"] for row in rows
+        if row["activity_type"] in V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY
+        and row["physical_load_class"] != V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY[row["activity_type"]]
+    ]
+    passed = bool(rows) and not (expected_missing or missing or unknown or mismatched)
+    detail = "classes V1 completes" if passed else (
+        f"expected_missing={expected_missing}; missing={missing}; "
+        f"unknown={unknown}; mismatched={mismatched}"
+    )
+    return _check("physical_load_classes", passed, detail)
+
+
+def _active_assignment_check(conn: sqlite3.Connection, world_id: int, status: str) -> PreflightCheck:
+    if status != "active":
+        return _check("physiology_assignments", True, "legacy-compatible ; verification active differee")
+    required = (
+        ("world_physical_capacity_policy_assignment", "physical capacity policy"),
+        ("world_action_arbitration_policy_assignment", "action arbitration policy"),
+        ("world_sleep_termination_policy_assignment", "sleep termination policy"),
+    )
+    missing = [label for table, label in required if conn.execute(
+        f"SELECT 1 FROM {table} WHERE world_id=? LIMIT 1", (world_id,)
+    ).fetchone() is None]
+    open_sessions = conn.execute(
+        "SELECT COUNT(*) FROM runtime_session WHERE world_id=? AND stopped_at IS NULL",
+        (world_id,),
+    ).fetchone()[0]
+    if open_sessions:
+        missing.append(f"open runtime sessions={open_sessions}")
+    return _check(
+        "physiology_assignments",
+        not missing,
+        "policies assignees et aucune session ouverte" if not missing else repr(missing),
+    )
+
+
+def _active_legacy_guard_check(conn: sqlite3.Connection, world_id: int, status: str) -> PreflightCheck:
+    """Le gate active refuse tant que les consumers comportementaux legacy existent."""
+    if status != "active":
+        return _check("legacy_runtime_guard", True, "legacy autorise hors active")
+    forbidden = tuple(
+        entry.key for entry in LEGACY_CONSUMERS
+        if entry.role in {"behavior", "physical_cost", "projection"}
+    )
+    return _check(
+        "legacy_runtime_guard",
+        False,
+        "consommateurs legacy actifs non commutes: " + ",".join(forbidden),
+    )
+
+
+def _owner_backed_contract_check(status: str) -> PreflightCheck:
+    available = all((
+        callable(getattr(SleepPhysiologyService, "resolve_light_source_owner_backed", None)),
+        callable(getattr(SleepPhysiologyService, "project_wake_viability_owner_backed", None)),
+        callable(getattr(SleepTerminationFoundationService, "authorize_completion_owner_backed", None)),
+    ))
+    return _check(
+        "owner_backed_contracts",
+        available,
+        "resolver lumiere, projection viabilite et external wake CLOSED disponibles"
+        if available and status == "active" else
+        "contrats disponibles mais inactifs" if available else
+        "contrat owner-backed incomplet",
+    )
+
+
 def inspect_mvp_preflight(
     conn: sqlite3.Connection, *, world_id: int | None = None
 ) -> MVPPreflightReport:
@@ -264,6 +349,17 @@ def inspect_mvp_preflight(
         )
     )
     checks.append(_physiology_system_check(conn, selected_world_id))
+    physiology_row = conn.execute(
+        "SELECT status FROM world_physiology_system WHERE world_id=?",
+        (selected_world_id,),
+    ).fetchone()
+    physiology_status = "inactive" if physiology_row is None else physiology_row["status"]
+    checks.extend((
+        _active_physical_load_check(conn, selected_world_id, physiology_status),
+        _active_assignment_check(conn, selected_world_id, physiology_status),
+        _active_legacy_guard_check(conn, selected_world_id, physiology_status),
+        _owner_backed_contract_check(physiology_status),
+    ))
 
     origins = conn.execute(
         "SELECT c.key AS character_key, t.key AS template_key, o.template_version "
