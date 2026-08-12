@@ -64,14 +64,18 @@ def test_policy_assignment_is_immutable_and_creates_no_checkpoint_or_canonical_e
     with pytest.raises(Exception,match="append-only"): conn.execute("DELETE FROM world_sleep_termination_policy_assignment WHERE world_id=?",(world,))
 
 
-def test_policy_requires_explicit_valid_hysteresis_and_no_default_calibration(setup):
+def test_policy_requires_explicit_strict_hysteresis_and_no_default_calibration(setup):
     _conn,_world,service,_policy_value=setup
     missing=_policy(); missing.pop("hard_cap_seconds")
     with pytest.raises(SleepTerminationError) as absent: service.register_policy("synthetic.missing.v1",1,missing,"test")
     assert absent.value.code == "invalid_configuration"
-    invalid=_policy(); invalid["wake_admissible_exit_milli"]=70_000
-    with pytest.raises(SleepTerminationError) as hysteresis: service.register_policy("synthetic.invalid.v1",1,invalid,"test")
-    assert hysteresis.value.code == "invalid_configuration"
+    above=_policy(); above["wake_admissible_exit_milli"]=70_000
+    with pytest.raises(SleepTerminationError) as invalid_above: service.register_policy("synthetic.above.v1",1,above,"test")
+    assert invalid_above.value.code == "invalid_configuration"
+    equal=_policy(); equal["wake_admissible_exit_milli"]=65_000
+    with pytest.raises(SleepTerminationError) as invalid_equal: service.register_policy("synthetic.equal.v1",1,equal,"test")
+    assert invalid_equal.value.code == "invalid_configuration"
+    assert service.register_policy("synthetic.strict.v1",1,_policy(),"test").wake_admissible_exit_milli < 65_000
 
 
 def test_checkpoint_schema_binds_only_a_sleep_activity_to_its_world_policy(setup):
@@ -97,6 +101,75 @@ def test_checkpoint_schema_binds_only_a_sleep_activity_to_its_world_policy(setup
         conn.execute("DELETE FROM activity_sleep_checkpoint WHERE activity_id=?",(activity_id,))
 
 
+def test_checkpoint_identity_is_immutable_but_its_planning_state_can_advance(setup):
+    conn,world,service,policy=setup
+    service.assign_policy(world,policy.policy_key,policy.version,"synthetic_world_setup")
+    rows=conn.execute(
+        "SELECT ch.id AS character_id,l.id AS location_id,p.id AS policy_id,ch.key "
+        "FROM character ch JOIN location l ON l.world_id=ch.world_id "
+        "JOIN sleep_termination_policy p WHERE ch.world_id=? AND ch.key IN ('sophie','erika') ORDER BY ch.key",(world,)
+    ).fetchall()
+    by_key={row["key"]:row for row in rows}; now=to_iso(T0)
+    activity_ids={}
+    for key in ("sophie","erika"):
+        row=by_key[key]
+        conn.execute(
+            "INSERT INTO activity (public_id,world_id,character_id,type,location_id,started_at,planned_end_at,status,created_at,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",(new_uuid(),world,row["character_id"],"sleep",row["location_id"],now,now,"active",now,now)
+        )
+        activity_ids[key]=conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    sophie=by_key["sophie"]
+    conn.execute(
+        "INSERT INTO activity_sleep_checkpoint (public_id,world_id,character_id,activity_id,policy_id,next_reassessment_at,previous_band,hard_cap_at,created_at,updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",(new_uuid(),world,sophie["character_id"],activity_ids["sophie"],sophie["policy_id"],now,"continue_sleep",now,now,now)
+    )
+    checkpoint_id=conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    for column,value in (("public_id",new_uuid()),("activity_id",activity_ids["erika"]),("character_id",by_key["erika"]["character_id"]),("policy_id",999_999),("hard_cap_at","2026-08-12T12:00:00.000+00:00")):
+        with pytest.raises(Exception,match="identity is immutable"):
+            conn.execute(f"UPDATE activity_sleep_checkpoint SET {column}=? WHERE id=?",(value,checkpoint_id))
+    conn.execute(
+        "UPDATE activity_sleep_checkpoint SET next_reassessment_at=?, previous_band='wake_admissible', updated_at=? WHERE id=?",("2026-08-11T12:15:00.000+00:00","2026-08-11T12:15:00.000+00:00",checkpoint_id)
+    )
+    current=conn.execute("SELECT next_reassessment_at,previous_band FROM activity_sleep_checkpoint WHERE id=?",(checkpoint_id,)).fetchone()
+    assert tuple(current)==("2026-08-11T12:15:00.000+00:00","wake_admissible")
+
+
+def test_hard_cap_audit_rejects_crossed_checkpoint_identity(setup):
+    conn,world,service,policy=setup
+    service.assign_policy(world,policy.policy_key,policy.version,"synthetic_world_setup")
+    rows=conn.execute(
+        "SELECT ch.id AS character_id,l.id AS location_id,p.id AS policy_id,ch.key "
+        "FROM character ch JOIN location l ON l.world_id=ch.world_id "
+        "JOIN sleep_termination_policy p WHERE ch.world_id=? AND ch.key IN ('sophie','erika') ORDER BY ch.key",(world,)
+    ).fetchall()
+    by_key={row["key"]:row for row in rows}; now=to_iso(T0)
+    activity_ids={}
+    for key in ("sophie","erika"):
+        row=by_key[key]
+        conn.execute(
+            "INSERT INTO activity (public_id,world_id,character_id,type,location_id,started_at,planned_end_at,status,created_at,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",(new_uuid(),world,row["character_id"],"sleep",row["location_id"],now,now,"active",now,now)
+        )
+        activity_ids[key]=conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    sophie=by_key["sophie"]
+    conn.execute(
+        "INSERT INTO activity_sleep_checkpoint (public_id,world_id,character_id,activity_id,policy_id,next_reassessment_at,previous_band,hard_cap_at,created_at,updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",(new_uuid(),world,sophie["character_id"],activity_ids["sophie"],sophie["policy_id"],now,"continue_sleep",now,now,now)
+    )
+    checkpoint_id=conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    erika=by_key["erika"]
+    with pytest.raises(Exception,match="checkpoint mismatch"):
+        conn.execute(
+            "INSERT INTO sleep_termination_audit (public_id,world_id,character_id,activity_id,checkpoint_id,operation,details_json,recorded_at) "
+            "VALUES (?,?,?,?,?,'hard_cap_protective','{}',?)",(new_uuid(),world,erika["character_id"],activity_ids["erika"],checkpoint_id,now)
+        )
+    conn.execute(
+        "INSERT INTO sleep_termination_audit (public_id,world_id,character_id,activity_id,checkpoint_id,operation,details_json,recorded_at) "
+        "VALUES (?,?,?,?,?,'hard_cap_protective','{}',?)",(new_uuid(),world,sophie["character_id"],activity_ids["sophie"],checkpoint_id,now)
+    )
+    assert conn.execute("SELECT COUNT(*) FROM sleep_termination_audit WHERE checkpoint_id=?",(checkpoint_id,)).fetchone()[0] == 1
+
+
 def test_pure_checkpoint_hysteresis_requires_reassessment_without_legacy_needs(setup):
     _conn,_world,_service,policy=setup
     low=evaluate_sleep_checkpoint(policy,elapsed_seconds=900,wake_viability_milli=64_999,previous_band="continue_sleep")
@@ -119,12 +192,12 @@ def test_external_wake_requires_explicit_access_and_hard_cap_never_completes_sle
     assert hard_cap.reason_code == "hard_cap_protective" and hard_cap.hard_cap_reached and not hard_cap.completion_eligible
 
 
-def test_forward_migration_from_51_creates_no_policy_checkpoint_audit_or_canonical_history():
+def test_forward_migration_from_52_creates_no_policy_checkpoint_audit_or_canonical_history():
     conn=connect_database(":memory:")
     try:
-        _apply_through(conn,51); world=IntegrationWorldService(conn,clock=FakeClock()).create_initial_world()
+        _apply_through(conn,52); world=IntegrationWorldService(conn,clock=FakeClock()).create_initial_world()
         before=conn.execute("SELECT COUNT(*),MAX(seq) FROM canonical_event WHERE world_id=?",(world["id"],)).fetchone()
-        assert ensure_schema(conn) == 52
+        assert ensure_schema(conn) == 53
         for table in ("sleep_termination_policy","world_sleep_termination_policy_assignment","activity_sleep_checkpoint","sleep_termination_audit"):
             assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
         after=conn.execute("SELECT COUNT(*),MAX(seq) FROM canonical_event WHERE world_id=?",(world["id"],)).fetchone()

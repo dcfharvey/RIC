@@ -80,7 +80,7 @@ def _payload(value: Any) -> dict[str, int]:
     hard_cap = _integer(value["hard_cap_seconds"], field="hard cap", minimum=interval)
     enter = _integer(value["wake_admissible_enter_milli"], field="entree reveil", minimum=0, maximum=100_000)
     exit_ = _integer(value["wake_admissible_exit_milli"], field="sortie reveil", minimum=0, maximum=100_000)
-    if exit_ > enter:
+    if exit_ >= enter:
         raise SleepTerminationError("hysterese de reveil invalide", code="invalid_configuration")
     return {
         "schema_version": 1,
