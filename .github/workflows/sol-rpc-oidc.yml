@@ -56,7 +56,7 @@ jobs:
 
   relay:
     needs: prepare
-    uses: dcfharvey/RIC/.github/workflows/ric-dev-trusted.yml@2b4485c10b601b8d9adb79fc15c5f9d3807ee67c
+    uses: dcfharvey/RIC/.github/workflows/ric-dev-trusted.yml@8f579240575e283c6b12539e1b3a6dc2ccb3fd74
     with:
       request_json: ${{ needs.prepare.outputs.request_json }}
     secrets:
