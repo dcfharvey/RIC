@@ -21,9 +21,9 @@ TRUSTED_WORKFLOW_SHA = "bcf38918c0ed746bf3d9440b91b2e325b3860530"
 TRUSTED_WORKFLOW_REF = (
     "dcfharvey/RIC/.github/workflows/ric-dev-trusted.yml@" + TRUSTED_WORKFLOW_SHA
 )
-CALLER_REF = "refs/heads/bridge/sol-rpc-v2"
+CALLER_REF = "refs/heads/bridge/sol-rpc-final"
 CALLER_WORKFLOW_REF = (
-    "dcfharvey/RIC/.github/workflows/sol-rpc-oidc.yml@refs/heads/bridge/sol-rpc-v2"
+    "dcfharvey/RIC/.github/workflows/sol-rpc-oidc.yml@refs/heads/bridge/sol-rpc-final"
 )
 REPOSITORY = "dcfharvey/RIC"
 REPOSITORY_ID = "1328282903"
