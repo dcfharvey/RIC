@@ -8,27 +8,20 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
-path = Path("bridge_control/ric_bridge_control.py")
-text = path.read_text(encoding="utf-8")
+repo_path = Path("bridge_control/repo_git.py")
+text = repo_path.read_text(encoding="utf-8")
 text = replace_once(
     text,
-    "        self._audit_lock = threading.Lock()\n",
-    "        self._audit_lock = threading.Lock()\n        self._write_lock = threading.RLock()\n",
-    "writer lock",
+    '                "commit", "--no-verify", "-m", message.strip(),\n            ])\n',
+    '                "commit", "--no-verify", "-m", message.strip(), "--only", "--", *sorted(staged),\n            ])\n',
+    "git commit exact paths",
 )
-old_atomic = '''    def _atomic_replace(self, target: Path, raw: bytes) -> None:\n        temporary = target.with_name(f".{target.name}.ric-write-{uuid.uuid4().hex}.tmp")\n        try:\n            with temporary.open("xb") as handle:\n                handle.write(raw)\n                handle.flush()\n                os.fsync(handle.fileno())\n            if _is_link_like(target):\n                raise ControlError("target became a reparse point", code="reparse_point_denied", status=403)\n            os.replace(temporary, target)\n        except ControlError:\n            try:\n                temporary.unlink(missing_ok=True)\n            finally:\n                raise\n        except OSError as exc:\n            try:\n                temporary.unlink(missing_ok=True)\n            finally:\n                raise ControlError("atomic write failed", code="filesystem_error", status=500) from exc\n'''
-new_atomic = '''    def _atomic_replace(self, target: Path, raw: bytes, expected: str) -> None:\n        temporary = target.with_name(f".{target.name}.ric-write-{uuid.uuid4().hex}.tmp")\n        try:\n            with temporary.open("xb") as handle:\n                handle.write(raw)\n                handle.flush()\n                os.fsync(handle.fileno())\n            with self._write_lock:\n                if _is_link_like(target):\n                    raise ControlError("target became a reparse point", code="reparse_point_denied", status=403)\n                # Revalidate immediately before replacement. This serializes bridge writers and\n                # narrows the external-process race without pretending to be an OS-level CAS.\n                self._read_current(target, expected)\n                os.replace(temporary, target)\n        except ControlError:\n            try:\n                temporary.unlink(missing_ok=True)\n            finally:\n                raise\n        except OSError as exc:\n            try:\n                temporary.unlink(missing_ok=True)\n            finally:\n                raise ControlError("atomic write failed", code="filesystem_error", status=500) from exc\n'''
-text = replace_once(text, old_atomic, new_atomic, "atomic CAS")
-count = text.count("            self._atomic_replace(target, raw)\n")
-if count != 2:
-    raise SystemExit(f"atomic call sites: expected 2, got {count}")
-text = text.replace("            self._atomic_replace(target, raw)\n", "            self._atomic_replace(target, raw, expected)\n")
-path.write_text(text, encoding="utf-8")
+repo_path.write_text(text, encoding="utf-8")
 
 
-test_path = Path("tests/test_dev_bridge_control.py")
+test_path = Path("tests/test_bridge_repo_git.py")
 test = test_path.read_text(encoding="utf-8")
-if "test_atomic_replace_revalidates_expected_hash_at_commit_boundary" in test:
-    raise SystemExit("CAS falsification already present")
-test += '''\n\ndef test_atomic_replace_revalidates_expected_hash_at_commit_boundary(tmp_path):\n    writer, root = _writer(tmp_path)\n    target = root / "src" / "vivarium" / "race.py"\n    target.write_text("before\\n", encoding="utf-8")\n    expected = hashlib.sha256(target.read_bytes()).hexdigest()\n    target.write_text("external-change\\n", encoding="utf-8")\n\n    with pytest.raises(ControlError) as stale:\n        writer._atomic_replace(target, b"bridge-change\\n", expected)\n\n    assert stale.value.code == "stale_file"\n    assert target.read_text(encoding="utf-8") == "external-change\\n"\n    assert not list(target.parent.glob(".race.py.ric-write-*.tmp"))\n'''
+if "test_repo_git_commit_does_not_capture_concurrently_staged_outsider" in test:
+    raise SystemExit("concurrent staging falsification already present")
+test += '''\n\ndef test_repo_git_commit_does_not_capture_concurrently_staged_outsider(tmp_path):\n    repo, root, _remote = _repo(tmp_path)\n    repo.create_branch({"branch": "chatgpt/concurrent-stage"})\n    requested = root / "src" / "requested.py"\n    requested.write_text("REQUESTED = True\\n", encoding="utf-8")\n    outsider = root / "tests" / "outsider.py"\n    outsider.write_text("OUTSIDER = True\\n", encoding="utf-8")\n\n    original_run = repo._run\n    injected = False\n\n    def wrapped(args, *, timeout=90, ok=(0,)):\n        nonlocal injected\n        if "commit" in args and not injected:\n            injected = True\n            _run(root, "add", "tests/outsider.py")\n        return original_run(args, timeout=timeout, ok=ok)\n\n    repo._run = wrapped\n    result = repo.commit({"message": "feat: requested only", "paths": ["src/requested.py"]})\n    assert result["paths"] == ["src/requested.py"]\n    names = _run(root, "show", "--pretty=format:", "--name-only", "HEAD").splitlines()\n    assert "src/requested.py" in names\n    assert "tests/outsider.py" not in names\n    assert _run(root, "diff", "--cached", "--name-only") == "tests/outsider.py"\n'''
 test_path.write_text(test, encoding="utf-8")
