@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import hashlib
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import timedelta, timezone
 from typing import Any, Literal, Mapping
 
@@ -36,6 +36,7 @@ from .circadian_model import (
     wake_stability,
 )
 from .db import transaction
+from .world import WorldEngine
 from .util import Clock, new_uuid, parse_iso, to_iso
 
 
@@ -118,6 +119,7 @@ class OwnerBackedRegulationProjection:
     source: RegulationInput
     provenance: str
     input_fingerprint: str
+    assignment_metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -1349,8 +1351,27 @@ class SleepPhysiologyService:
         world = self._world_id(world_id)
         location = _key(location_key, field="lieu")
         at = _at(at_time)
+        source, _metadata = self._resolve_light_source_values(
+            world, location, at, state=state, occluded=occluded, stimulation=stimulation
+        )
+        return source
+
+    def _resolve_light_source_values(
+        self,
+        world: int,
+        location: str,
+        at: str,
+        *,
+        state: Literal["wake", "rest", "sleep"],
+        occluded: bool = False,
+        stimulation: float = 0.0,
+    ) -> tuple[RegulationInput, dict[str, Any]]:
+        """Lit les assignments lumineux et retourne leur provenance."""
         schedule = self._conn.execute(
-            "SELECT p.schedule_json FROM world_light_schedule_assignment a "
+            "SELECT a.id AS assignment_id, a.public_id AS assignment_public_id, "
+            "a.effective_at, p.id AS profile_id, p.public_id AS profile_public_id, "
+            "p.profile_key, p.version, p.schedule_json "
+            "FROM world_light_schedule_assignment a "
             "JOIN light_schedule_profile p ON p.id = a.profile_id "
             "WHERE a.world_id = ? AND a.effective_at <= ? "
             "ORDER BY a.effective_at DESC, a.id DESC LIMIT 1",
@@ -1359,7 +1380,10 @@ class SleepPhysiologyService:
         if schedule is None:
             raise SleepPhysiologyError("calendrier lumineux absent", code="light_schedule_missing")
         profile = self._conn.execute(
-            "SELECT p.exposure_milli FROM world_location_light_assignment a "
+            "SELECT a.id AS assignment_id, a.public_id AS assignment_public_id, "
+            "a.effective_at, p.id AS profile_id, p.public_id AS profile_public_id, "
+            "p.profile_key, p.version, p.exposure_milli, p.properties_json "
+            "FROM world_location_light_assignment a "
             "JOIN location l ON l.id = a.location_id AND l.world_id = a.world_id "
             "JOIN location_light_profile p ON p.id = a.profile_id "
             "WHERE a.world_id = ? AND l.key = ? AND a.effective_at <= ? "
@@ -1372,13 +1396,43 @@ class SleepPhysiologyService:
             schedule_payload = json.loads(schedule["schedule_json"])
         except (TypeError, ValueError) as exc:
             raise SleepPhysiologyError("calendrier lumineux illisible", code="invalid_light_schedule") from exc
-        return RegulationInput(
+        source = RegulationInput(
             state=state,
             environmental_light_milli=self._schedule_light(schedule_payload, at),
             location_exposure_milli=int(profile["exposure_milli"]),
             occluded=occluded,
             stimulation=stimulation,
         )
+        return source, {
+            "canonical_at": at,
+            "location_key": location,
+            "state": state,
+            "schedule_assignment": {
+                "id": int(schedule["assignment_id"]),
+                "public_id": schedule["assignment_public_id"],
+                "effective_at": schedule["effective_at"],
+                "profile_id": int(schedule["profile_id"]),
+                "profile_public_id": schedule["profile_public_id"],
+                "profile_key": schedule["profile_key"],
+                "version": int(schedule["version"]),
+                "schedule": schedule_payload,
+            },
+            "location_assignment": {
+                "id": int(profile["assignment_id"]),
+                "public_id": profile["assignment_public_id"],
+                "effective_at": profile["effective_at"],
+                "profile_id": int(profile["profile_id"]),
+                "profile_public_id": profile["profile_public_id"],
+                "profile_key": profile["profile_key"],
+                "version": int(profile["version"]),
+                "exposure_milli": int(profile["exposure_milli"]),
+                "properties": json.loads(profile["properties_json"]),
+            },
+            "environmental_light_milli": source.environmental_light_milli,
+            "location_exposure_milli": source.location_exposure_milli,
+            "occluded": source.occluded,
+            "stimulation": source.stimulation,
+        }
 
     def resolve_light_source_owner_backed(
         self,
@@ -1401,12 +1455,10 @@ class SleepPhysiologyService:
         if self._conn.execute("SELECT 1 FROM worlds WHERE id=?", (world,)).fetchone() is None:
             raise SleepPhysiologyError("monde introuvable", code="world_not_found")
         row = self._character(world, character_key)
-        canonical_row = self._conn.execute(
-            "SELECT simulated_now FROM canonical_clock WHERE world_id=?", (world,)
-        ).fetchone()
-        if canonical_row is None:
-            raise SleepPhysiologyError("horloge canonique absente", code="canonical_clock_missing")
-        canonical_at = _at(canonical_row["simulated_now"])
+        try:
+            canonical_at = _at(WorldEngine(self._conn, clock=self._clock).read_canonical_time(world))
+        except KeyError as exc:
+            raise SleepPhysiologyError("horloge canonique absente", code="canonical_clock_missing") from exc
         if at_time is not None and _at(at_time) != canonical_at:
             raise SleepPhysiologyError(
                 "projection hors ancre canonique", code="stale_canonical_anchor"
@@ -1433,7 +1485,7 @@ class SleepPhysiologyService:
         state: Literal["wake", "rest", "sleep"] = (
             "sleep" if activity_type == "sleep" else "rest" if activity_type == "rest" else "wake"
         )
-        source = self.resolve_light_source_synthetic(
+        source, assignment_metadata = self._resolve_light_source_values(
             world, location["key"], canonical_at, state=state
         )
         payload = {
@@ -1442,15 +1494,14 @@ class SleepPhysiologyService:
             "canonical_at": canonical_at,
             "location_key": location["key"],
             "activity_type": activity_type,
-            "state": source.state,
-            "environmental_light_milli": source.environmental_light_milli,
-            "location_exposure_milli": source.location_exposure_milli,
+            "assignment_metadata": assignment_metadata,
         }
         wire = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         return OwnerBackedRegulationProjection(
             world, character_key, canonical_at, source,
             "SleepPhysiologyService.owner_backed_light_v1",
             hashlib.sha256(wire.encode("utf-8")).hexdigest(),
+            assignment_metadata,
         )
 
     def project_synthetic(
@@ -1481,8 +1532,32 @@ class SleepPhysiologyService:
         source = self.resolve_light_source_owner_backed(
             world_id, character_key, at_time=at_time
         )
+        state = self.read_state(world_id, character_key)
+        if state.anchor_at != source.canonical_at:
+            raise SleepPhysiologyError(
+                "etat physiologique hors ancre courante",
+                code="stale_physiology_anchor",
+            )
         projection = self.project_synthetic(world_id, character_key, source.source)
+        parameters = self.parameters_for_character(world_id, character_key)
         value = round((1.0 - projection.stability.instability) * 100_000)
+        viability_payload = {
+            "regulation_fingerprint": source.input_fingerprint,
+            "model_key": projection.state.model_key,
+            "model_version": projection.state.model_version,
+            "physiology_anchor": projection.state.anchor_at,
+            "state": {
+                "homeostatic_load": projection.state.regulation.homeostatic_load,
+                "circadian_phase": projection.state.regulation.circadian_phase,
+                "previous_stability_band": projection.state.previous_stability_band,
+                "homeostatic_load_residue": projection.state.homeostatic_load_residue,
+                "circadian_phase_residue": projection.state.circadian_phase_residue,
+            },
+            "parameters": asdict(parameters),
+        }
+        viability_wire = json.dumps(
+            viability_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
         return OwnerBackedWakeViability(
             source.world_id,
             source.character_key,
@@ -1491,7 +1566,7 @@ class SleepPhysiologyService:
             projection.state.model_version,
             value,
             source.provenance,
-            source.input_fingerprint,
+            hashlib.sha256(viability_wire.encode("utf-8")).hexdigest(),
         )
 
     @staticmethod

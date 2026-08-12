@@ -1,7 +1,7 @@
 """Falsifications du raccord causal arbitre, sans runtime ni residence reelle."""
 
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -16,6 +16,7 @@ from vivarium.repro import max_seq
 from vivarium.sleep_physiology import (
     ADDITIVE_MODEL_KEY,
     SleepPhysiologyFoundationService,
+    SleepPhysiologyError,
     SleepPhysiologyService,
 )
 from vivarium.synthetic_action_arbitration import (
@@ -31,11 +32,14 @@ T0 = datetime(2026, 8, 11, 12, tzinfo=timezone.utc)
 
 
 class FakeClock:
+    def __init__(self):
+        self.current = T0
+
     def now(self):
-        return T0
+        return self.current
 
     def now_iso(self):
-        return to_iso(T0)
+        return to_iso(self.current)
 
 
 def _profile_payload():
@@ -387,33 +391,96 @@ def test_owner_backed_light_projection_rejects_free_or_stale_inputs():
     conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
     try:
         physiology = SleepPhysiologyService(conn, clock=clock)
-        source = physiology.resolve_light_source_owner_backed(
-            world_id, "sophie", at_time=to_iso(T0)
-        )
+        source = physiology.resolve_light_source_owner_backed(world_id, "sophie", at_time=to_iso(T0))
         assert source.provenance == "SleepPhysiologyService.owner_backed_light_v1"
         assert source.source.occluded is False
         assert source.source.stimulation == 0.0
+        assert source.assignment_metadata["schedule_assignment"]["profile_key"] == "causal.day.v1"
+        assert source.assignment_metadata["location_assignment"]["profile_key"] == "causal.interior.v1"
         viability = physiology.project_wake_viability_owner_backed(
             world_id, "sophie", at_time=to_iso(T0)
         )
         assert viability.world_id == world_id
         assert viability.character_key == "sophie"
-        assert viability.input_fingerprint == source.input_fingerprint
-        with pytest.raises(Exception) as raised:
-            physiology.resolve_light_source_owner_backed(
-                world_id, "sophie", at_time="2026-08-11T12:00:01.000+00:00"
+        assert viability.input_fingerprint != source.input_fingerprint
+
+        clock.current = T0 + timedelta(seconds=5)
+        current = to_iso(clock.current)
+        current_source = physiology.resolve_light_source_owner_backed(
+            world_id, "sophie", at_time=current
+        )
+        assert current_source.canonical_at == current
+        with pytest.raises(SleepPhysiologyError) as stale_physiology:
+            physiology.project_wake_viability_owner_backed(
+                world_id, "sophie", at_time=current
             )
-        assert getattr(raised.value, "code", None) == "stale_canonical_anchor"
-        with pytest.raises(Exception) as unknown_character:
+        assert stale_physiology.value.code == "stale_physiology_anchor"
+        with pytest.raises(SleepPhysiologyError) as raised:
             physiology.resolve_light_source_owner_backed(
-                world_id, "not_a_character", at_time=to_iso(T0)
+                world_id, "sophie", at_time=to_iso(T0)
             )
-        assert getattr(unknown_character.value, "code", None) == "character_not_found"
-        with pytest.raises(Exception) as unknown_world:
+        assert raised.value.code == "stale_canonical_anchor"
+        with pytest.raises(SleepPhysiologyError) as unknown_character:
             physiology.resolve_light_source_owner_backed(
-                world_id + 999, "sophie", at_time=to_iso(T0)
+                world_id, "not_a_character", at_time=current
             )
-        assert getattr(unknown_world.value, "code", None) == "world_not_found"
+        assert unknown_character.value.code == "character_not_found"
+        with pytest.raises(SleepPhysiologyError) as unknown_world:
+            physiology.resolve_light_source_owner_backed(
+                world_id + 999, "sophie", at_time=current
+            )
+        assert unknown_world.value.code == "world_not_found"
+    finally:
+        conn.close()
+
+
+def test_owner_backed_wake_viability_fingerprint_covers_physiology_state():
+    conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
+    try:
+        physiology = SleepPhysiologyService(conn, clock=clock)
+        first = physiology.project_wake_viability_owner_backed(
+            world_id, "sophie", at_time=to_iso(T0)
+        )
+        character_id = conn.execute(
+            "SELECT id FROM character WHERE world_id=? AND key='sophie'", (world_id,)
+        ).fetchone()[0]
+        with transaction(conn) as tx:
+            tx.execute(
+                "UPDATE sleep_regulation_state SET homeostatic_load_milli=? "
+                "WHERE world_id=? AND character_id=?",
+                (85_000, world_id, character_id),
+            )
+        second = physiology.project_wake_viability_owner_backed(
+            world_id, "sophie", at_time=to_iso(T0)
+        )
+        assert first.value_milli != second.value_milli
+        assert first.input_fingerprint != second.input_fingerprint
+    finally:
+        conn.close()
+
+
+def test_owner_backed_wake_viability_stale_anchor_is_read_only():
+    conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
+    try:
+        clock.current = T0 + timedelta(seconds=5)
+        before_events = max_seq(conn, world_id)
+        before = tuple(conn.execute(
+            "SELECT homeostatic_load_milli, circadian_phase_milli, anchor_at "
+            "FROM sleep_regulation_state WHERE world_id=? ORDER BY character_id",
+            (world_id,),
+        ).fetchall())
+        with pytest.raises(SleepPhysiologyError) as raised:
+            SleepPhysiologyService(conn, clock=clock).project_wake_viability_owner_backed(
+                world_id, "sophie", at_time=to_iso(clock.current)
+            )
+        assert raised.value.code == "stale_physiology_anchor"
+        after = tuple(conn.execute(
+            "SELECT homeostatic_load_milli, circadian_phase_milli, anchor_at "
+            "FROM sleep_regulation_state WHERE world_id=? ORDER BY character_id",
+            (world_id,),
+        ).fetchall())
+        assert before == after
+        assert max_seq(conn, world_id) == before_events
     finally:
         conn.close()
 
