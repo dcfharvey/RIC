@@ -1,0 +1,46 @@
+name: OIDC trusted workflow POC
+
+on:
+  workflow_call:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  claims:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Print bounded non-secret OIDC claims
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          audience = "ric-dev-bridge"
+          base = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
+          token = os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
+          separator = "&" if "?" in base else "?"
+          url = base + separator + urllib.parse.urlencode({"audience": audience})
+          request = urllib.request.Request(url, headers={"Authorization": f"bearer {token}"})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              oidc = json.loads(response.read().decode("utf-8"))["value"]
+          parts = oidc.split(".")
+          if len(parts) != 3:
+              raise RuntimeError("unexpected JWT format")
+          payload = parts[1] + "=" * (-len(parts[1]) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload).decode("utf-8"))
+          allowed = [
+              "iss", "aud", "sub", "repository", "repository_id", "repository_owner_id",
+              "actor_id", "event_name", "ref", "sha", "workflow_ref", "workflow_sha",
+              "job_workflow_ref", "job_workflow_sha", "runner_environment", "run_id",
+              "run_attempt", "iat", "nbf", "exp",
+          ]
+          print("OIDC_CLAIMS=" + json.dumps({key: claims.get(key) for key in allowed}, sort_keys=True, separators=(",", ":")))
+          PY
