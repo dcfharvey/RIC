@@ -1,1 +1,1 @@
-{"active":false,"method":"GET","payload":{},"request_id":"77777777-7777-4777-8777-777777777777","route":"/health","schema_version":1}
+{"active":true,"method":"POST","payload":{"operation":"status"},"request_id":"b7f3e9e4-0d6e-4f7f-8c70-1f6abbd75b12","route":"/dev/git","schema_version":1}
