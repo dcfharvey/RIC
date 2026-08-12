@@ -1,5 +1,6 @@
 """Banc d'integration sommeil/activite, hors residence et hors runtime."""
 
+import sqlite3
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 
@@ -15,7 +16,7 @@ from vivarium.sleep_physiology import (
     ADDITIVE_MODEL_KEY,
     SleepPhysiologyFoundationService,
 )
-from vivarium.sleep_termination import SleepTerminationFoundationService
+from vivarium.sleep_termination import SleepTerminationError, SleepTerminationFoundationService
 from vivarium.synthetic_sleep_integration import (
     SyntheticSleepActivityCoordinator,
     SyntheticSleepIntegrationError,
@@ -196,9 +197,78 @@ def test_checkpoint_completes_sleep_once_and_exposes_rearbitration_boundary(synt
     assert result.activity_completed and result.re_arbitration_required
     assert ActivityEngine(conn, clock=clock).activity_sheet(world_id, "sophie") is None
     event = conn.execute(
-        "SELECT event_type,payload FROM canonical_event WHERE world_id=? ORDER BY seq DESC LIMIT 1", (world_id,)
+        "SELECT id,event_type,payload FROM canonical_event WHERE world_id=? ORDER BY seq DESC LIMIT 1",
+        (world_id,),
     ).fetchone()
     assert event["event_type"] == "activity_completed" and "sleep_checkpoint" in event["payload"]
+    authorization = conn.execute(
+        "SELECT boundary_at,consumed_event_id FROM sleep_completion_authorization"
+    ).fetchone()
+    assert authorization is not None
+    assert authorization["boundary_at"] == first
+    assert authorization["consumed_event_id"] == event["id"]
+
+
+def test_direct_sleep_completion_without_authorization_rolls_back_canonical_mutation(synthetic_world):
+    """Falsification du bypass : checkpoint present ne veut pas dire reveil autorise."""
+    conn, world_id, clock = synthetic_world
+    _set_state(conn, world_id, anchor=to_iso(T0), h=10_000, phase=0)
+    _start_sleep(conn, world_id, clock)
+    coordinator = SyntheticSleepActivityCoordinator(conn, clock=clock)
+    due = to_iso(T0 + timedelta(seconds=600))
+    coordinator.attach_checkpoint(
+        world_id, "sophie", first_reassessment_at=due,
+        hard_cap_at=to_iso(T0 + timedelta(seconds=1800)),
+    )
+    engine = ActivityEngine(conn, clock=clock)
+    before_seq = max_seq(conn, world_id)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        engine.complete_sleep_from_checkpoint(world_id, "sophie", at_time=due)
+
+    active = engine.activity_sheet(world_id, "sophie")
+    assert active is not None and active["type"] == "sleep"
+    assert max_seq(conn, world_id) == before_seq
+    assert conn.execute("SELECT COUNT(*) FROM sleep_completion_authorization").fetchone()[0] == 0
+
+
+def test_completion_authorization_cannot_be_minted_before_due_boundary(synthetic_world):
+    conn, world_id, clock = synthetic_world
+    _start_sleep(conn, world_id, clock)
+    coordinator = SyntheticSleepActivityCoordinator(conn, clock=clock)
+    due = to_iso(T0 + timedelta(seconds=600))
+    coordinator.attach_checkpoint(
+        world_id, "sophie", first_reassessment_at=due,
+        hard_cap_at=to_iso(T0 + timedelta(seconds=1800)),
+    )
+    service = SleepTerminationFoundationService(conn, clock=clock)
+    with pytest.raises(SleepTerminationError) as raised:
+        service.authorize_completion(
+            world_id, "sophie", at_time=to_iso(T0 + timedelta(seconds=599)),
+            wake_viability_milli=100_000,
+        )
+    assert raised.value.code == "checkpoint_not_due"
+    assert conn.execute("SELECT COUNT(*) FROM sleep_completion_authorization").fetchone()[0] == 0
+
+
+def test_completion_authorization_refuses_unowned_external_wake_cause(synthetic_world):
+    """Le pur evaluateur peut modeliser le cas; la preuve persistante ne peut pas l'inventer."""
+    conn, world_id, clock = synthetic_world
+    _start_sleep(conn, world_id, clock)
+    coordinator = SyntheticSleepActivityCoordinator(conn, clock=clock)
+    due = to_iso(T0 + timedelta(seconds=600))
+    coordinator.attach_checkpoint(
+        world_id, "sophie", first_reassessment_at=due,
+        hard_cap_at=to_iso(T0 + timedelta(seconds=1800)),
+    )
+    service = SleepTerminationFoundationService(conn, clock=clock)
+    with pytest.raises(SleepTerminationError) as raised:
+        service.authorize_completion(
+            world_id, "sophie", at_time=due, wake_viability_milli=0,
+            external_wake_accessible=True,
+        )
+    assert raised.value.code == "external_wake_not_supported"
+    assert conn.execute("SELECT COUNT(*) FROM sleep_completion_authorization").fetchone()[0] == 0
 
 
 def test_hard_cap_is_private_idempotent_and_never_completes_sleep(synthetic_world):
@@ -220,6 +290,7 @@ def test_hard_cap_is_private_idempotent_and_never_completes_sleep(synthetic_worl
     assert second.evaluation.hard_cap_reached and not second.hard_cap_reported and not second.activity_completed
     assert ActivityEngine(conn, clock=clock).activity_sheet(world_id, "sophie")["type"] == "sleep"
     assert conn.execute("SELECT COUNT(*) FROM sleep_termination_audit").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM sleep_completion_authorization").fetchone()[0] == 0
 
 
 def test_critical_stability_interrupts_once_then_requires_a_new_arbitration_frame(synthetic_world):
@@ -273,3 +344,4 @@ def test_checkpoint_refuses_early_processing_without_materializing_physiology(sy
         "SELECT anchor_at FROM sleep_regulation_state r JOIN character ch ON ch.id=r.character_id "
         "WHERE r.world_id=? AND ch.key='sophie'", (world_id,)
     ).fetchone()[0] == before
+    assert conn.execute("SELECT COUNT(*) FROM sleep_completion_authorization").fetchone()[0] == 0
