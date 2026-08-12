@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ric-sol-rpc-bootstrap
+  cancel-in-progress: false
+
 jobs:
   relay:
     runs-on: ubuntu-latest
@@ -20,8 +24,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       REPOSITORY: ${{ github.repository }}
       RPC_BRANCH: bridge/sol-rpc
+      REQUEST_SHA: ${{ github.sha }}
     steps:
-      - name: Relay one bounded request and publish one bounded result
+      - name: Relay one immutable bounded request and publish one bounded result
         shell: bash
         run: |
           set -euo pipefail
@@ -30,17 +35,18 @@ jobs:
           import json
           import os
           import urllib.error
+          import urllib.parse
           import urllib.request
           import uuid
 
           API = "https://api.github.com"
           repo = os.environ["REPOSITORY"]
           branch = os.environ["RPC_BRANCH"]
+          request_sha = os.environ["REQUEST_SHA"]
           token = os.environ["GH_TOKEN"]
           base = os.environ.get("BASE_URL", "").rstrip("/")
           bearer = os.environ.get("BEARER_TOKEN", "")
           request_path = ".ric-bridge/request.json"
-          result_path = ".ric-bridge/result.json"
 
           def github(method, path, body=None):
               data = None if body is None else json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
@@ -53,7 +59,8 @@ jobs:
               with urllib.request.urlopen(req, timeout=30) as response:
                   return json.loads(response.read().decode())
 
-          request_doc = github("GET", f"/repos/{repo}/contents/{request_path}?ref={branch}")
+          immutable_ref = urllib.parse.quote(request_sha, safe="")
+          request_doc = github("GET", f"/repos/{repo}/contents/{request_path}?ref={immutable_ref}")
           request_raw = base64.b64decode(request_doc["content"].replace("\n", ""))
           if len(request_raw) > 64 * 1024:
               raise RuntimeError("request exceeds size limit")
@@ -63,7 +70,7 @@ jobs:
               raise RuntimeError("request is not valid JSON") from exc
 
           request_id = request.get("request_id") if isinstance(request, dict) else None
-          result = {"schema_version": 1, "request_id": request_id, "status": "rejected"}
+          result = {"schema_version": 1, "request_id": request_id, "request_sha": request_sha, "status": "rejected"}
           allowed = {
               ("GET", "/health"), ("GET", "/capabilities"),
               ("POST", "/dev/fs"), ("POST", "/dev/exec"), ("POST", "/dev/jobs"),
@@ -113,16 +120,21 @@ jobs:
 
           result_raw = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
           if len(result_raw) > 512 * 1024:
-              result = {"schema_version": 1, "request_id": request_id, "status": "error", "error": "result_too_large"}
+              result = {"schema_version": 1, "request_id": request_id, "request_sha": request_sha,
+                        "status": "error", "error": "result_too_large"}
               result_raw = json.dumps(result, sort_keys=True, separators=(",", ":")).encode()
+
+          safe_result_id = request_id if valid_request_id else f"invalid-{os.environ.get('GITHUB_RUN_ID', 'unknown')}"
+          result_path = f".ric-bridge/results/{safe_result_id}.json"
           existing = None
           try:
-              existing = github("GET", f"/repos/{repo}/contents/{result_path}?ref={branch}")
-          except urllib.error.HTTPError:
-              existing = None
-          update = {"message": f"bridge: result {request_id or 'invalid'}", "content": base64.b64encode(result_raw).decode(), "branch": branch}
+              existing = github("GET", f"/repos/{repo}/contents/{result_path}?ref={urllib.parse.quote(branch, safe='')}")
+          except urllib.error.HTTPError as exc:
+              if exc.code != 404:
+                  raise
+          update = {"message": f"bridge: result {safe_result_id}", "content": base64.b64encode(result_raw).decode(), "branch": branch}
           if existing and existing.get("sha"):
               update["sha"] = existing["sha"]
           github("PUT", f"/repos/{repo}/contents/{result_path}", update)
-          print(f"RPC result published: request_id={request_id!s} status={result.get('status')}")
+          print(f"RPC result published: request_id={request_id!s} request_sha={request_sha} status={result.get('status')}")
           PY
