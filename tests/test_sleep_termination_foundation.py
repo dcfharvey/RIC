@@ -1,6 +1,6 @@
 """Politique de fin de sommeil : fondation pure/inactive, sans runtime."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import pytest
 
@@ -12,6 +12,7 @@ from vivarium.sleep_termination import (
     SleepTerminationFoundationService,
     evaluate_sleep_checkpoint,
 )
+from vivarium.sleep_physiology import OwnerBackedWakeViability, SleepPhysiologyService
 from vivarium.util import new_uuid, to_iso
 
 
@@ -198,6 +199,77 @@ def test_owner_backed_authorization_does_not_accept_free_viability_or_external_w
         service.authorize_completion_owner_backed(
             world, "sophie", at_time=to_iso(T0), wake_viability_milli=80_000
         )
+
+
+def test_owner_backed_authorization_holds_writer_lock_across_projection_and_insert(tmp_path, monkeypatch):
+    path = tmp_path / "atomic-owner-backed.sqlite"
+    conn = connect_database(str(path))
+    writer = None
+    try:
+        ensure_schema(conn)
+        clock = FakeClock()
+        world = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
+        service = SleepTerminationFoundationService(conn, clock=clock)
+        policy = service.register_policy(
+            "synthetic.atomic.v1", 1,
+            {**_policy(), "wake_admissible_enter_milli": 65_000},
+            "synthetic_test",
+        )
+        service.assign_policy(world, policy.policy_key, policy.version, "synthetic_test")
+        row = conn.execute(
+            "SELECT ch.id AS character_id,l.id AS location_id,p.id AS policy_id "
+            "FROM character ch JOIN location l ON l.world_id=ch.world_id "
+            "JOIN sleep_termination_policy p "
+            "WHERE ch.world_id=? AND ch.key='sophie'",
+            (world,),
+        ).fetchone()
+        now = to_iso(T0)
+        hard_cap = to_iso(T0 + timedelta(hours=8))
+        conn.execute(
+            "INSERT INTO activity (public_id,world_id,character_id,type,location_id,started_at,planned_end_at,status,created_at,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (new_uuid(), world, row["character_id"], "sleep", row["location_id"], now, hard_cap, "active", now, now),
+        )
+        activity_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            "INSERT INTO activity_sleep_checkpoint (public_id,world_id,character_id,activity_id,policy_id,next_reassessment_at,previous_band,hard_cap_at,created_at,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (new_uuid(), world, row["character_id"], activity_id, row["policy_id"], now, "continue_sleep", hard_cap, now, now),
+        )
+        projection = OwnerBackedWakeViability(
+            world_id=world, character_key="sophie", canonical_at=now,
+            canonical_event_seq=0, model_key="ric.sleep.additive.v1", model_version=1,
+            value_milli=80_000, provenance="test", input_fingerprint="a" * 64,
+            regulation_fingerprint="b" * 64,
+        )
+        def projected_inside_transaction(self, world_id, character_key, *, at_time=None, expected_event_seq=None):
+            assert self._conn.in_transaction
+            writer.execute(
+                "UPDATE sleep_termination_policy SET provenance='interposed' "
+                "WHERE policy_key='synthetic.atomic.v1'"
+            )
+            return projection
+
+        writer = connect_database(str(path))
+        writer.execute("PRAGMA busy_timeout=0")
+        monkeypatch.setattr(
+            SleepPhysiologyService,
+            "project_wake_viability_owner_backed",
+            projected_inside_transaction,
+        )
+        with pytest.raises(SleepTerminationError) as raised:
+            service.authorize_completion_owner_backed(world, "sophie", at_time=now)
+        assert raised.value.code == "invalid_wake_provenance"
+        assert conn.execute(
+            "SELECT COUNT(*) FROM sleep_completion_authorization"
+        ).fetchone()[0] == 0
+        assert conn.execute(
+            "SELECT provenance FROM sleep_termination_policy WHERE policy_key='synthetic.atomic.v1'"
+        ).fetchone()[0] == "synthetic_test"
+    finally:
+        if writer is not None:
+            writer.close()
+        conn.close()
 
 
 def test_forward_migration_from_52_creates_no_policy_checkpoint_audit_or_canonical_history():

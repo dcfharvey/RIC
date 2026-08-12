@@ -307,6 +307,8 @@ class SleepTerminationFoundationService:
                 "model_version": _projection.model_version,
                 "provenance": _projection.provenance,
                 "input_fingerprint": _projection.input_fingerprint,
+                "canonical_event_seq": _projection.canonical_event_seq,
+                "regulation_fingerprint": _projection.regulation_fingerprint,
             })
         wire = _json(evidence, field="preuve d'autorisation")
         existing = self._conn.execute(
@@ -347,21 +349,27 @@ class SleepTerminationFoundationService:
         at_time: Any,
     ) -> SleepCompletionAuthorization:
         """Raccord V1 : seule une projection physiologique owner-backed est admise."""
+        # La projection et la relecture du checkpoint/politique doivent rester
+        # dans la même transaction courte : BEGIN IMMEDIATE empêche un writer
+        # canonique/configuration de s'intercaler entre la frame et la preuve.
         try:
-            projection = SleepPhysiologyService(self._conn, clock=self._clock).project_wake_viability_owner_backed(
-                world_id, character_key, at_time=at_time
-            )
+            with transaction(self._conn):
+                projection = SleepPhysiologyService(
+                    self._conn, clock=self._clock
+                ).project_wake_viability_owner_backed(
+                    world_id, character_key, at_time=at_time
+                )
+                return self.authorize_completion(
+                    world_id,
+                    character_key,
+                    at_time=projection.canonical_at,
+                    wake_viability_milli=projection.value_milli,
+                    external_wake_accessible=False,
+                    _projection=projection,
+                )
         except Exception as exc:
             if isinstance(exc, SleepTerminationError):
                 raise
             raise SleepTerminationError(
                 str(exc), code=getattr(exc, "code", "invalid_wake_provenance")
             ) from exc
-        return self.authorize_completion(
-            world_id,
-            character_key,
-            at_time=projection.canonical_at,
-            wake_viability_milli=projection.value_milli,
-            external_wake_accessible=False,
-            _projection=projection,
-        )
