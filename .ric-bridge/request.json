@@ -1,1 +1,1 @@
-{"active":true,"method":"POST","payload":{"operation":"rev-parse","ref":"HEAD"},"request_id":"66666666-6666-4666-8666-666666666666","route":"/dev/git","schema_version":1}
+{"active":true,"method":"GET","payload":{},"request_id":"44444444-4444-4444-8444-444444444444","route":"/capabilities","schema_version":1}
