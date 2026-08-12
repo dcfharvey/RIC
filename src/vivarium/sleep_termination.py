@@ -230,9 +230,18 @@ class SleepTerminationFoundationService:
         a la frontiere exacte. Elle n'applique aucune transition canonique. Le
         trigger de migration 0055 exige ensuite cette preuve lors de l'evenement
         ``activity_completed`` et la consomme dans la meme transaction.
+
+        Tant qu'aucun owner Reality/Interaction ne fournit un evenement de reveil
+        accessible type, cette API refuse explicitement de fabriquer cette cause.
         """
         world = self._world_id(world_id)
         character = _key(character_key, field="personnage")
+        if not isinstance(external_wake_accessible, bool):
+            raise SleepTerminationError("reveil externe invalide", code="invalid_checkpoint")
+        if external_wake_accessible:
+            raise SleepTerminationError(
+                "reveil externe non raccorde", code="external_wake_not_supported"
+            )
         try:
             at = to_iso(parse_iso(at_time))
         except (TypeError, ValueError) as exc:
@@ -262,7 +271,7 @@ class SleepTerminationFoundationService:
             raise SleepTerminationError("politique de checkpoint desynchronisee", code="policy_mismatch")
         policy = self.world_policy(world)
         elapsed_exact = (parse_iso(at) - parse_iso(row["started_at"])).total_seconds()
-        if elapsed_exact < 0 or not elapsed_exact.is_integer():
+        if elapsed_exact < 0:
             raise SleepTerminationError("duree de checkpoint invalide", code="invalid_checkpoint")
         elapsed = int(elapsed_exact)
         evaluation = evaluate_sleep_checkpoint(
@@ -270,7 +279,7 @@ class SleepTerminationFoundationService:
             elapsed_seconds=elapsed,
             wake_viability_milli=wake_viability_milli,
             previous_band=row["previous_band"],
-            external_wake_accessible=external_wake_accessible,
+            external_wake_accessible=False,
         )
         if not evaluation.completion_eligible:
             raise SleepTerminationError("completion non autorisee", code="completion_not_authorized")
@@ -283,7 +292,7 @@ class SleepTerminationFoundationService:
             ),
             "previous_band": row["previous_band"],
             "elapsed_seconds": elapsed,
-            "external_wake_accessible": external_wake_accessible,
+            "external_wake_accessible": False,
         }
         wire = _json(evidence, field="preuve d'autorisation")
         existing = self._conn.execute(
