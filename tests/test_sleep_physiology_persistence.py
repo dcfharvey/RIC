@@ -632,7 +632,7 @@ def test_0047_and_0048_preserve_prepared_foundation_and_canonical_history():
             )
         )
 
-        assert ensure_schema(conn) == 50
+        assert ensure_schema(conn) == 51
 
         prepared = conn.execute(
             "SELECT status, activated_at, activated_by FROM world_physiology_system WHERE world_id = ?",
@@ -707,7 +707,7 @@ def test_0048_backfills_zero_precision_residues_without_canonical_history():
             )
         )
 
-        assert ensure_schema(conn) == 50
+        assert ensure_schema(conn) == 51
 
         precision = conn.execute(
             "SELECT homeostatic_load_residue, circadian_phase_residue, anchor_at "

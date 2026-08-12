@@ -9,6 +9,7 @@ sa provenance à l'événement canonique qui a réellement modifié le monde.
 from __future__ import annotations
 
 import json
+import hashlib
 import sqlite3
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -59,6 +60,34 @@ def _frozen_params(value: Any, action_kind: str = ACTION_TRAVERSE) -> Mapping[st
         raise ActionContractError("paramètres d'intention invalides", code="invalid_action_contract")
     params = {name: _key(value[name], name) for name in sorted(expected)}
     return MappingProxyType(params)
+
+
+@dataclass(frozen=True)
+class ActionSpecification:
+    """Identite pure d'une action du vocabulaire moteur ferme.
+
+    ``action_key`` est un digest technique du tuple normalise
+    ``(action_kind, params)``. Il ne constitue ni un catalogue concurrent ni
+    une proposition executable et ne peut donc pas muter le canon.
+    """
+
+    action_kind: str
+    params: Mapping[str, str]
+    action_key: str
+
+
+def normalize_action_specification(action_kind: Any, params: Any) -> ActionSpecification:
+    """Valide le seul vocabulaire executable et en derive une identite stable."""
+    if action_kind not in {ACTION_TRAVERSE, ACTION_START_ACTIVITY}:
+        raise ActionContractError("type d'action non supporte", code="unsupported_action")
+    frozen = _frozen_params(params, action_kind)
+    normalized = {"action_kind": action_kind, "params": dict(frozen)}
+    wire = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return ActionSpecification(
+        action_kind=action_kind,
+        params=frozen,
+        action_key=hashlib.sha256(wire.encode("utf-8")).hexdigest(),
+    )
 
 
 def _deep_freeze(value: Any) -> Any:
