@@ -10,11 +10,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
 import time
 import uuid
+from collections import deque
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -28,8 +30,12 @@ from .world import WorldEngine
 
 
 MAX_RESPONSE_BYTES = 512 * 1024
+MAX_RECORD_BYTES = 16 * 1024
 MAX_FILE_BYTES = 256 * 1024
 MAX_SEARCH_MATCHES = 200
+MAX_SEARCH_FILES = 2000
+MAX_SEARCH_BYTES = 64 * 1024 * 1024
+MAX_SEARCH_SECONDS = 5
 MAX_TREE_ENTRIES = 500
 MAX_EXEC_OUTPUT = 512 * 1024
 MAX_EXEC_SECONDS = 120
@@ -45,18 +51,25 @@ _SECRET_NAME = re.compile(
 _SECRET_EXTENSIONS = {".pem", ".key", ".p12", ".pfx", ".secret"}
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 _READ_ONLY_GIT = {"status", "diff", "log", "branch", "rev-parse", "show", "ls-files"}
-_FORBIDDEN_GIT = {
-    "add", "apply", "clean", "checkout", "cherry-pick", "commit", "config",
-    "fetch", "merge", "mv", "pull", "push", "rebase", "reset", "restore",
-    "rm", "switch", "tag",
-}
-_ALLOWED_EXECUTABLES = {"python", "python.exe", "py", "py.exe", "pytest", "pytest.exe", "git", "git.exe", "rg", "rg.exe"}
+_ALLOWED_EXECUTABLES = {"python", "python.exe", "py", "py.exe", "pytest", "pytest.exe"}
+_GIT_REF = re.compile(r"^[A-Za-z0-9._/@-]{1,256}$")
+_SEARCH_SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "node_modules"}
 
 
 class BridgeError(ValueError):
     def __init__(self, message: str, *, code: str = "invalid_request", status: int = 400) -> None:
         super().__init__(message)
         self.code, self.status = code, status
+
+
+def _bounded_limit(value: Any, default: int, maximum: int) -> int:
+    try:
+        result = int(value)
+    except (TypeError, ValueError) as exc:
+        raise BridgeError("invalid limit", code="invalid_limit") from exc
+    if not 1 <= result <= maximum:
+        raise BridgeError("limit outside allowed range", code="invalid_limit")
+    return result
 
 
 def _json_safe(value: Any, *, limit: int = MAX_RESPONSE_BYTES) -> Any:
@@ -74,6 +87,13 @@ def _json_safe(value: Any, *, limit: int = MAX_RESPONSE_BYTES) -> Any:
     if value is None or isinstance(value, (bool, int, float)):
         return value
     return repr(value)[:limit]
+
+
+def _json_record(value: Any) -> Any:
+    safe = _json_safe(value, limit=MAX_RECORD_BYTES)
+    if len(json.dumps(safe, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) > MAX_RECORD_BYTES:
+        return {"truncated": True}
+    return safe
 
 
 class RootLock:
@@ -115,9 +135,7 @@ class FilesystemTools:
 
     def list_tree(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         base = self.root.path(payload.get("path", "."))
-        limit = min(int(payload.get("limit", MAX_TREE_ENTRIES)), MAX_TREE_ENTRIES)
-        if limit < 1:
-            raise BridgeError("limit must be positive")
+        limit = _bounded_limit(payload.get("limit", MAX_TREE_ENTRIES), MAX_TREE_ENTRIES, MAX_TREE_ENTRIES)
         entries: list[dict[str, Any]] = []
         hidden = 0
         stack = [base]
@@ -174,18 +192,38 @@ class FilesystemTools:
         if not isinstance(query, str) or not query or len(query) > 4096:
             raise BridgeError("query must be a bounded non-empty string")
         base = self.root.path(payload.get("path", "."))
-        limit = min(int(payload.get("limit", MAX_SEARCH_MATCHES)), MAX_SEARCH_MATCHES)
+        limit = _bounded_limit(payload.get("limit", MAX_SEARCH_MATCHES), MAX_SEARCH_MATCHES, MAX_SEARCH_MATCHES)
         matches: list[dict[str, Any]] = []
-        candidates = [base] if base.is_file() else [item for item in base.rglob("*") if item.is_file()]
-        for path in candidates:
+        pending = deque([base])
+        inspected_files = 0
+        inspected_bytes = 0
+        deadline = time.monotonic() + MAX_SEARCH_SECONDS
+        scan_limited = False
+        while pending:
+            if inspected_files >= MAX_SEARCH_FILES or inspected_bytes >= MAX_SEARCH_BYTES or time.monotonic() >= deadline:
+                scan_limited = True
+                break
+            path = pending.popleft()
+            try:
+                if path.is_dir():
+                    for child in path.iterdir():
+                        if child.is_dir() and child.name in _SEARCH_SKIP_DIRS:
+                            continue
+                        pending.append(child)
+                    continue
+            except OSError:
+                continue
+            inspected_files += 1
             try:
                 path = self.root.path(self.root.relative(path))
             except BridgeError:
                 continue
             try:
                 raw = path.read_bytes()
-                if len(raw) > MAX_FILE_BYTES:
+                if len(raw) > MAX_FILE_BYTES or inspected_bytes + len(raw) > MAX_SEARCH_BYTES:
+                    scan_limited = True
                     continue
+                inspected_bytes += len(raw)
                 text = raw.decode("utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
@@ -193,8 +231,10 @@ class FilesystemTools:
                 if query in line:
                     matches.append({"path": self.root.relative(path), "line": line_number, "text": line[:MAX_DIAGNOSTIC_STRING]})
                     if len(matches) >= limit:
-                        return {"matches": matches, "truncated": True}
-        return {"matches": matches, "truncated": False}
+                        return {"matches": matches, "truncated": True, "scan_limited": scan_limited,
+                                "files_inspected": inspected_files, "bytes_inspected": inspected_bytes}
+        return {"matches": matches, "truncated": bool(pending) or scan_limited, "scan_limited": scan_limited,
+                "files_inspected": inspected_files, "bytes_inspected": inspected_bytes}
 
 
 def _bounded_text(raw: bytes, cap: int) -> tuple[str, bool]:
@@ -219,7 +259,75 @@ def _safe_process_env(root: Path | None = None) -> dict[str, str]:
     return env
 
 
-def _run_bounded_process(process: subprocess.Popen[bytes], timeout: int, cap: int) -> tuple[bytes, bytes, bool]:
+class _ProcessTree:
+    """Windows Job Object wrapper with kill-on-close semantics."""
+
+    def __init__(self, process: subprocess.Popen[bytes]) -> None:
+        self.process = process
+        self.handle: int | None = None
+
+    def attach(self) -> None:
+        if os.name != "nt":
+            raise BridgeError("process tree isolation unavailable", code="process_isolation_unavailable", status=503)
+        import ctypes
+        self._ctypes = ctypes
+
+        class _Basic(ctypes.Structure):
+            _fields_ = [
+                ("PerProcessUserTime", ctypes.c_longlong), ("PerJobUserTime", ctypes.c_longlong),
+                ("LimitFlags", ctypes.c_uint32), ("MinimumWorkingSetSize", ctypes.c_void_p),
+                ("MaximumWorkingSetSize", ctypes.c_void_p), ("ActiveProcessLimit", ctypes.c_uint32),
+                ("Affinity", ctypes.c_void_p), ("PriorityClass", ctypes.c_uint32),
+                ("SchedulingClass", ctypes.c_uint32),
+            ]
+
+        class _Io(ctypes.Structure):
+            _fields_ = [("ReadOperationCount", ctypes.c_ulonglong), ("WriteOperationCount", ctypes.c_ulonglong),
+                        ("OtherOperationCount", ctypes.c_ulonglong), ("ReadTransferCount", ctypes.c_ulonglong),
+                        ("WriteTransferCount", ctypes.c_ulonglong), ("OtherTransferCount", ctypes.c_ulonglong)]
+
+        class _Extended(ctypes.Structure):
+            _fields_ = [("BasicLimitInformation", _Basic), ("IoInfo", _Io),
+                        ("ProcessMemoryLimit", ctypes.c_void_p), ("JobMemoryLimit", ctypes.c_void_p),
+                        ("PeakProcessMemoryUsed", ctypes.c_void_p), ("PeakJobMemoryUsed", ctypes.c_void_p)]
+
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.CreateJobObjectW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p]
+        kernel.CreateJobObjectW.restype = ctypes.c_void_p
+        kernel.SetInformationJobObject.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+        kernel.SetInformationJobObject.restype = ctypes.c_int
+        kernel.AssignProcessToJobObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        kernel.AssignProcessToJobObject.restype = ctypes.c_int
+        kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+        kernel.CloseHandle.restype = ctypes.c_int
+        handle = kernel.CreateJobObjectW(None, None)
+        if not handle:
+            raise BridgeError("cannot create process job", code="process_isolation_unavailable", status=503)
+        info = _Extended()
+        info.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not kernel.SetInformationJobObject(handle, 9, ctypes.byref(info), ctypes.sizeof(info)) \
+                or not kernel.AssignProcessToJobObject(handle, ctypes.c_void_p(self.process._handle)):
+            kernel.CloseHandle(handle)
+            raise BridgeError("cannot isolate process tree", code="process_isolation_unavailable", status=503)
+        self.handle = int(handle)
+        self._kernel = kernel
+
+    def terminate(self) -> None:
+        if self.handle:
+            self._kernel.TerminateJobObject(self._ctypes.c_void_p(self.handle), 1)
+        else:
+            self.process.terminate()
+
+    def kill(self) -> None:
+        self.terminate()
+
+    def close(self) -> None:
+        if self.handle:
+            self._kernel.CloseHandle(self._ctypes.c_void_p(self.handle))
+            self.handle = None
+
+
+def _run_bounded_process(process: subprocess.Popen[bytes], timeout: int, cap: int, tree: _ProcessTree) -> tuple[bytes, bytes, bool]:
     """Drain both pipes concurrently while retaining only cap+1 bytes each."""
     captured: dict[str, bytearray] = {"stdout": bytearray(), "stderr": bytearray()}
 
@@ -243,11 +351,11 @@ def _run_bounded_process(process: subprocess.Popen[bytes], timeout: int, cap: in
         process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         timed_out = True
-        process.terminate()
+        tree.terminate()
         try:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            process.kill()
+            tree.kill()
             process.wait()
     for reader in readers:
         reader.join(timeout=5)
@@ -270,25 +378,16 @@ class CommandRunner:
             raise BridgeError("argv must be a non-empty string array", code="invalid_argv")
         if len(argv) > 32 or sum(len(item) for item in argv) > 64 * 1024:
             raise BridgeError("argv exceeds limits", code="invalid_argv")
-        executable = Path(argv[0]).name.casefold()
+        executable = argv[0].casefold()
         if executable not in _ALLOWED_EXECUTABLES:
             raise BridgeError("executable is not allowlisted", code="executable_denied", status=403)
         argv = list(argv)
         if executable in {"python", "python.exe", "py", "py.exe"}:
-            # Keep Sol on the tested workspace interpreter rather than an
-            # unrelated PATH installation; this remains process-scoped.
-            argv[0] = sys.executable
-        if executable.startswith(("python", "py")):
-            if "-c" in argv or "-" in argv[1:]:
-                raise BridgeError("inline or stdin Python is denied", code="unsafe_exec", status=403)
-            if "-m" in argv:
-                index = argv.index("-m")
-                if index + 1 >= len(argv) or argv[index + 1] != "pytest":
-                    raise BridgeError("only python -m pytest is allowed", code="unsafe_exec", status=403)
-        if executable.startswith("git"):
-            commands = [item for item in argv[1:] if not item.startswith("-")]
-            if not commands or commands[0] not in _READ_ONLY_GIT or commands[0] in _FORBIDDEN_GIT:
-                raise BridgeError("git write operation is denied", code="git_write_denied", status=403)
+            if len(argv) < 3 or argv[1:3] != ["-m", "pytest"]:
+                raise BridgeError("only python -m pytest is allowed", code="unsafe_exec", status=403)
+            argv = [sys.executable, *argv[1:]]
+        elif executable in {"pytest", "pytest.exe"}:
+            argv = [sys.executable, "-m", "pytest", *argv[1:]]
         for item in argv[1:]:
             if "\x00" in item or re.search(r"(^|[\\/])\.\.([\\/]|$)", item) or re.match(r"^[A-Za-z]:[\\/]", item):
                 raise BridgeError("argv path escapes workspace root", code="path_outside_root", status=403)
@@ -325,7 +424,17 @@ class CommandRunner:
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
         )
-        stdout, stderr, timed_out = _run_bounded_process(process, timeout, output_limit)
+        tree = _ProcessTree(process)
+        try:
+            tree.attach()
+        except BridgeError:
+            process.terminate()
+            process.wait(timeout=5)
+            raise
+        try:
+            stdout, stderr, timed_out = _run_bounded_process(process, timeout, output_limit, tree)
+        finally:
+            tree.close()
         out, out_truncated = _bounded_text(stdout, output_limit)
         err, err_truncated = _bounded_text(stderr, output_limit)
         return {
@@ -344,6 +453,7 @@ class _Job:
     timeout: int
     output_limit: int
     process: subprocess.Popen[bytes]
+    tree: _ProcessTree
     started: float
     stdout: str = ""
     stderr: str = ""
@@ -384,13 +494,23 @@ class JobManager:
                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
             )
-            job = _Job(uuid.uuid4().hex, argv, cwd, timeout, output_limit, process, time.monotonic())
+            tree = _ProcessTree(process)
+            try:
+                tree.attach()
+            except BridgeError:
+                process.terminate()
+                process.wait(timeout=5)
+                raise
+            job = _Job(uuid.uuid4().hex, argv, cwd, timeout, output_limit, process, tree, time.monotonic())
             self._jobs[job.job_id] = job
         threading.Thread(target=self._watch, args=(job,), daemon=True).start()
         return {"job_id": job.job_id, "status": "running"}
 
     def _watch(self, job: _Job) -> None:
-        stdout, stderr, job.timed_out = _run_bounded_process(job.process, job.timeout, job.output_limit)
+        try:
+            stdout, stderr, job.timed_out = _run_bounded_process(job.process, job.timeout, job.output_limit, job.tree)
+        finally:
+            job.tree.close()
         out, out_truncated = _bounded_text(stdout, job.output_limit)
         err, err_truncated = _bounded_text(stderr, job.output_limit)
         with self._lock:
@@ -419,23 +539,94 @@ class JobManager:
     def cancel(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         job = self._get(payload.get("job_id"))
         if not job.finished:
-            job.process.terminate()
+            job.tree.terminate()
         return {"job_id": job.job_id, "status": "cancellation_requested"}
+
+
+class GitReadOnly:
+    def __init__(self, root: RootLock, *, redactions: tuple[str, ...] = ()) -> None:
+        executable = shutil.which("git")
+        if not executable:
+            raise BridgeError("git executable unavailable", code="git_unavailable", status=503)
+        self.root = root
+        self.executable = str(Path(executable).resolve())
+        self.redactions = redactions
+
+    @staticmethod
+    def _ref(value: Any) -> str:
+        if not isinstance(value, str) or not value or value.startswith("-") or not _GIT_REF.fullmatch(value):
+            raise BridgeError("invalid git ref", code="invalid_git_ref", status=400)
+        if any(token in value for token in ("..", "@{", ":", "^", "~", "\\")):
+            raise BridgeError("invalid git ref", code="invalid_git_ref", status=400)
+        return value
+
+    def _run(self, args: list[str], *, timeout: int = 30) -> dict[str, Any]:
+        process = subprocess.Popen(
+            [self.executable, *args], cwd=str(self.root.root), env=_safe_process_env(self.root.root),
+            shell=False, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+        )
+        tree = _ProcessTree(process)
+        try:
+            try:
+                tree.attach()
+            except BridgeError:
+                process.terminate()
+                process.wait(timeout=5)
+                raise
+            stdout, stderr, timed_out = _run_bounded_process(process, timeout, MAX_EXEC_OUTPUT, tree)
+        finally:
+            tree.close()
+        out, out_truncated = _bounded_text(stdout, MAX_EXEC_OUTPUT)
+        err, err_truncated = _bounded_text(stderr, MAX_EXEC_OUTPUT)
+        for redaction in self.redactions:
+            out, err = out.replace(redaction, "[REDACTED]"), err.replace(redaction, "[REDACTED]")
+        return {"exit_code": None if timed_out else process.returncode, "stdout": out, "stderr": err,
+                "truncated": out_truncated or err_truncated, "timed_out": timed_out}
+
+    def dispatch(self, operation: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        if operation == "status":
+            args = ["status", "--short", "--branch", "--untracked-files=normal"]
+        elif operation == "diff":
+            args = ["diff", "--no-ext-diff", "--binary"]
+        elif operation == "log":
+            limit = min(max(int(payload.get("limit", 30)), 1), 100)
+            args = ["log", "--oneline", "--decorate", f"-{limit}"]
+        elif operation == "branch":
+            args = ["branch", "-vv"]
+        elif operation == "rev-parse":
+            ref = self._ref(payload.get("ref", "HEAD"))
+            args = ["rev-parse", "--verify", f"{ref}^{{commit}}"]
+        elif operation == "show":
+            ref = self._ref(payload.get("ref", "HEAD"))
+            args = ["show", "--stat", "--oneline", ref]
+        elif operation == "ls-files":
+            args = ["ls-files", "--cached", "--others", "--exclude-standard"]
+        else:
+            raise BridgeError("git operation unavailable", code="operation_not_found", status=404)
+        return self._run(args)
 
 
 def _tail_jsonl(path: Path, limit: int) -> list[Any]:
     if not path.exists():
         return []
     try:
-        lines = path.read_bytes().splitlines()[-limit:]
+        lines: deque[bytes] = deque(maxlen=limit)
+        total = 0
+        with path.open("rb") as handle:
+            for line in handle:
+                total += len(line)
+                if total > MAX_RESPONSE_BYTES * 2:
+                    break
+                lines.append(line.rstrip(b"\r\n"))
     except OSError as exc:
         raise BridgeError("log cannot be read", code="filesystem_error", status=404) from exc
     result = []
     for line in lines:
         try:
-            result.append(_json_safe(json.loads(line.decode("utf-8"))))
+            result.append(_json_record(json.loads(line.decode("utf-8"))))
         except (UnicodeDecodeError, ValueError):
-            result.append({"raw": line.decode("utf-8", errors="replace")[:MAX_DIAGNOSTIC_STRING]})
+            result.append(_json_record({"raw": line.decode("utf-8", errors="replace")[:MAX_DIAGNOSTIC_STRING]}))
     return result
 
 
@@ -474,7 +665,7 @@ class RicInspector:
             rows = conn.execute(
                 "SELECT c.key AS character_key,a.type,a.started_at,a.planned_end_at,a.status "
                 "FROM activity a JOIN character c ON c.id=a.character_id "
-                "WHERE a.world_id=? AND a.status='active' ORDER BY c.key,a.id",
+                "WHERE a.world_id=? AND a.status='active' ORDER BY c.key,a.id LIMIT 500",
                 (self._world(payload),),
             ).fetchall()
             return {"activities": [dict(row) for row in rows]}
@@ -500,20 +691,20 @@ class RicInspector:
     def arbitration_audit(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         conn = self._conn()
         try:
-            limit = min(int(payload.get("limit", 50)), 200)
+            limit = _bounded_limit(payload.get("limit", 50), 50, 200)
             rows = conn.execute(
                 "SELECT id,world_id,frame_digest,options_json,sources_json,result_json,canonical_at,reason_code,recorded_at "
                 "FROM action_arbitration_audit WHERE world_id=? ORDER BY id DESC LIMIT ?",
                 (self._world(payload), limit),
             ).fetchall()
-            return {"audits": [_json_safe(dict(row)) for row in rows]}
+            return {"audits": [_json_record(dict(row)) for row in rows]}
         finally:
             conn.close()
 
     def canonical_events_since(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         conn = self._conn()
         try:
-            after = int(payload.get("after_seq", 0)); limit = min(int(payload.get("limit", 100)), 500)
+            after = int(payload.get("after_seq", 0)); limit = _bounded_limit(payload.get("limit", 100), 100, 500)
             if after < 0 or limit < 1:
                 raise BridgeError("invalid event bounds")
             rows = conn.execute(
@@ -521,7 +712,7 @@ class RicInspector:
                 "WHERE world_id=? AND seq>? ORDER BY seq LIMIT ?",
                 (self._world(payload), after, limit),
             ).fetchall()
-            return {"events": [_json_safe(dict(row)) for row in rows], "truncated": len(rows) >= limit}
+            return {"events": [_json_record(dict(row)) for row in rows], "truncated": len(rows) >= limit}
         finally:
             conn.close()
 
@@ -534,15 +725,15 @@ class RicInspector:
 
     def diagnostics_tail(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         path = self.root.path(payload.get("path", "logs/llm_diagnostics.jsonl"), allow_root=False)
-        return {"records": _tail_jsonl(path, min(int(payload.get("limit", 50)), 200))}
+        return {"records": _tail_jsonl(path, _bounded_limit(payload.get("limit", 50), 50, 200))}
 
     def runtime_outcomes_tail(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         path = self.root.path(payload.get("path", "logs/runtime_outcomes.jsonl"), allow_root=False)
-        return {"records": _tail_jsonl(path, min(int(payload.get("limit", 50)), 200))}
+        return {"records": _tail_jsonl(path, _bounded_limit(payload.get("limit", 50), 50, 200))}
 
     def guardian_report(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         path = self.root.path(payload.get("path", "logs/guardian.jsonl"), allow_root=False)
-        return {"records": _tail_jsonl(path, min(int(payload.get("limit", 20)), 100)), "read_only": True}
+        return {"records": _tail_jsonl(path, _bounded_limit(payload.get("limit", 20), 20, 100)), "read_only": True}
 
     def dispatch(self, operation: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         operations = {
@@ -569,6 +760,7 @@ class DevBridgeService:
         self.fs = FilesystemTools(lock)
         self.runner = CommandRunner(lock, redactions=(token,))
         self.jobs = JobManager(self.runner)
+        self.git = GitReadOnly(lock, redactions=(token,))
         self.inspector = RicInspector(lock, db_path)
         self.root = lock
 
@@ -579,28 +771,23 @@ class DevBridgeService:
     def capabilities(self) -> dict[str, Any]:
         return {
             "permissions": {"READ": "ALLOW", "TEST_EXEC": "ALLOW", **self.FUTURE_PERMISSIONS},
+            "security": {
+                "loopback_only": True,
+                "subprocess": "approved pytest commands only; not an OS filesystem sandbox",
+                "process_tree": "Windows Job Object kill-on-close",
+                "aggregate_response_bytes": MAX_RESPONSE_BYTES,
+            },
             "tools": {
                 "filesystem": {"permission": "READ", "operations": ["list_tree", "read_file", "stat", "search_text"]},
-                "exec": {"permission": "TEST_EXEC", "operations": ["exec"], "allowlist": sorted(_ALLOWED_EXECUTABLES)},
+                "exec": {"permission": "TEST_EXEC", "operations": ["exec"], "allowlist": sorted(_ALLOWED_EXECUTABLES), "mode": "server-pinned pytest"},
                 "jobs": {"permission": "TEST_EXEC", "operations": ["start_job", "job_status", "job_output", "cancel_job"], "max_concurrent": MAX_JOBS},
-                "git": {"permission": "READ", "operations": sorted(_READ_ONLY_GIT)},
+                "git": {"permission": "READ", "operations": sorted(_READ_ONLY_GIT), "structured_only": True},
                 "ric_inspector": {"permission": "READ", "operations": ["guardian_report", "telemetry_snapshot", "world_status", "active_activities", "diagnostics_tail", "runtime_outcomes_tail", "physiology_snapshot", "arbitration_audit", "canonical_events_since"]},
             },
         }
 
     def _git(self, operation: str, payload: Mapping[str, Any]) -> dict[str, Any]:
-        args = ["git", operation]
-        # Keep status bounded even when the workspace contains large
-        # untracked worktrees or generated directories.
-        if operation == "status": args += ["--short", "--branch", "--untracked-files=normal"]
-        elif operation == "diff": args += ["--no-ext-diff", "--binary"]
-        elif operation == "log": args += ["--oneline", "--decorate", f"-{min(int(payload.get('limit', 30)), 100)}"]
-        elif operation == "branch": args += ["-vv"]
-        elif operation == "rev-parse": args += [str(payload.get("ref", "HEAD"))]
-        elif operation == "show": args += ["--stat", "--oneline", str(payload.get("ref", "HEAD"))]
-        elif operation == "ls-files": args += ["--cached", "--others", "--exclude-standard"]
-        else: raise BridgeError("git operation unavailable", code="operation_not_found", status=404)
-        return self.runner.run({"argv": args, "cwd": ".", "timeout_seconds": 30, "output_limit": MAX_EXEC_OUTPUT})
+        return self.git.dispatch(operation, payload)
 
     def dispatch(self, route: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         started = time.monotonic()
@@ -623,4 +810,8 @@ class DevBridgeService:
             result = self.inspector.dispatch(str(payload.get("operation")), payload)
         else:
             raise BridgeError("route unavailable", code="route_not_found", status=404)
-        return {"ok": True, "operation": payload.get("operation"), "result": _json_safe(result), "duration_ms": round((time.monotonic() - started) * 1000)}
+        response = {"ok": True, "operation": payload.get("operation"), "result": _json_safe(result),
+                    "duration_ms": round((time.monotonic() - started) * 1000)}
+        if len(json.dumps(response, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) > MAX_RESPONSE_BYTES:
+            raise BridgeError("response exceeds aggregate limit", code="response_too_large", status=413)
+        return response

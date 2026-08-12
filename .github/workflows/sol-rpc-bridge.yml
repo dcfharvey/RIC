@@ -1,0 +1,128 @@
+name: RIC Sol RPC bridge
+
+on:
+  push:
+    branches:
+      - bridge/sol-rpc
+    paths:
+      - .ric-bridge/request.json
+
+permissions:
+  contents: write
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_URL: ${{ secrets.RIC_LOCAL_LLM_BASE_URL }}
+      BEARER_TOKEN: ${{ secrets.RIC_LOCAL_LLM_BEARER_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      RPC_BRANCH: bridge/sol-rpc
+    steps:
+      - name: Relay one bounded request and publish one bounded result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+          import uuid
+
+          API = "https://api.github.com"
+          repo = os.environ["REPOSITORY"]
+          branch = os.environ["RPC_BRANCH"]
+          token = os.environ["GH_TOKEN"]
+          base = os.environ.get("BASE_URL", "").rstrip("/")
+          bearer = os.environ.get("BEARER_TOKEN", "")
+          request_path = ".ric-bridge/request.json"
+          result_path = ".ric-bridge/result.json"
+
+          def github(method, path, body=None):
+              data = None if body is None else json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+              req = urllib.request.Request(API + path, data=data, method=method, headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  **({"Content-Type": "application/json"} if data is not None else {}),
+              })
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  return json.loads(response.read().decode())
+
+          request_doc = github("GET", f"/repos/{repo}/contents/{request_path}?ref={branch}")
+          request_raw = base64.b64decode(request_doc["content"].replace("\n", ""))
+          if len(request_raw) > 64 * 1024:
+              raise RuntimeError("request exceeds size limit")
+          try:
+              request = json.loads(request_raw.decode("utf-8"))
+          except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+              raise RuntimeError("request is not valid JSON") from exc
+
+          request_id = request.get("request_id") if isinstance(request, dict) else None
+          result = {"schema_version": 1, "request_id": request_id, "status": "rejected"}
+          allowed = {
+              ("GET", "/health"), ("GET", "/capabilities"),
+              ("POST", "/dev/fs"), ("POST", "/dev/exec"), ("POST", "/dev/jobs"),
+              ("POST", "/dev/git"), ("POST", "/dev/ric"),
+          }
+          try:
+              valid_request_id = isinstance(request_id, str) and uuid.UUID(request_id).version == 4
+          except (ValueError, AttributeError):
+              valid_request_id = False
+          if not isinstance(request, dict) or request.get("schema_version") != 1:
+              result["error"] = "unsupported_schema"
+          elif request.get("active") is False:
+              result["status"] = "disabled"
+          elif not valid_request_id:
+              result["error"] = "request_id_must_be_uuid4"
+          elif not isinstance(request.get("method"), str) or not isinstance(request.get("route"), str) \
+                  or (request["method"], request["route"]) not in allowed:
+              result["error"] = "route_not_allowlisted"
+          elif "url" in request or "base_url" in request or "token" in request:
+              result["error"] = "url_or_secret_fields_forbidden"
+          elif not isinstance(request.get("payload", {}), dict) or len(json.dumps(request.get("payload", {}))) > 64 * 1024:
+              result["error"] = "payload_invalid_or_too_large"
+          elif not base.startswith("https://") or "?" in base or "#" in base or len(bearer) < 32:
+              result["error"] = "gateway_secret_configuration_invalid"
+          else:
+              route = request["route"]
+              body = None if request["method"] == "GET" else json.dumps(request.get("payload", {}), sort_keys=True, separators=(",", ":")).encode()
+              headers = {"Accept": "application/json", "Authorization": f"Bearer {bearer}"}
+              if body is not None:
+                  headers["Content-Type"] = "application/json"
+              relay = urllib.request.Request(base + route, data=body, headers=headers, method=request["method"])
+              try:
+                  with urllib.request.urlopen(relay, timeout=90) as response:
+                      raw = response.read(512 * 1024 + 1)
+                      status = response.status
+              except urllib.error.HTTPError as exc:
+                  raw = exc.read(512 * 1024 + 1)
+                  status = exc.code
+              if len(raw) > 512 * 1024:
+                  result.update({"status": "error", "http_status": status, "error": "response_too_large"})
+              else:
+                  try:
+                      response_doc = json.loads(raw.decode("utf-8"))
+                  except (UnicodeDecodeError, json.JSONDecodeError):
+                      response_doc = {"raw": raw.decode("utf-8", errors="replace")[:4096]}
+                  result.update({"status": "ok" if status == 200 else "error", "http_status": status, "response": response_doc})
+
+          result_raw = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+          if len(result_raw) > 512 * 1024:
+              result = {"schema_version": 1, "request_id": request_id, "status": "error", "error": "result_too_large"}
+              result_raw = json.dumps(result, sort_keys=True, separators=(",", ":")).encode()
+          existing = None
+          try:
+              existing = github("GET", f"/repos/{repo}/contents/{result_path}?ref={branch}")
+          except urllib.error.HTTPError:
+              existing = None
+          update = {"message": f"bridge: result {request_id or 'invalid'}", "content": base64.b64encode(result_raw).decode(), "branch": branch}
+          if existing and existing.get("sha"):
+              update["sha"] = existing["sha"]
+          github("PUT", f"/repos/{repo}/contents/{result_path}", update)
+          print(f"RPC result published: request_id={request_id!s} status={result.get('status')}")
+          PY
