@@ -1,6 +1,6 @@
 # Work order — contrats exécutables avant cutover circadien V1
 
-**Statut :** conception technique et bancs inactifs à revoir par Sol avant code comportemental.
+**Statut :** accepté et clos par Sol ; implémentation inactive autorisée ; cutover comportemental/résidence réelle toujours interdit.
 
 **Base auditée :** `098c4302a6edd503a9857447fdebeeb6c97e481f` (`main`), schéma de code 48.
 **Hors périmètre absolu :** runtime réel, `data/vivarium-rodage.sqlite`, recovery de la session 4, migration réelle, `prepare_world()`, activation, conversion `repos -> H` / `energie -> P`, et tout cutover.

@@ -67,23 +67,26 @@ SEED_NEEDS: list[tuple[str, str, int, int, int, int]] = [
 
 # Activités de base (Sous-lot 3.2B) — calibration provisoire.
 # (activity_type, min_duration_seconds, max_duration_seconds,
-#  satiete_rate, repos_rate, energie_rate, hygiene_rate)  -- tous /36 par seconde
-SEED_ACTIVITIES: list[tuple[str, int, int, int, int, int, int]] = [
+#  satiete_rate, repos_rate, energie_rate, hygiene_rate,
+#  requires_sustained_wakefulness)  -- tous les taux /36 par seconde.
+# `physical_load_class` reste volontairement NULL jusqu'à la politique
+# versionnée de calibration : aucune classe n'est déduite de `energie`.
+SEED_ACTIVITIES: list[tuple[str, int, int, int, int, int, int, bool]] = [
     # idle : durée dynamique (portée par Intent, 1..MAX_IDLE) ; ici plage de sécurité
-    ("idle", 1, 28800, -80, -60, -50, -30),
-    ("eat", 1800, 1800, 1200, -60, 32, -30),
-    ("rest", 3600, 3600, -80, 30, 27, -30),
-    ("clean", 900, 900, -80, -60, -50, 2400),
-    ("sleep", 0, 28800, -32, 80, 50, -18),
+    ("idle", 1, 28800, -80, -60, -50, -30, False),
+    ("eat", 1800, 1800, 1200, -60, 32, -30, True),
+    ("rest", 3600, 3600, -80, 30, 27, -30, False),
+    ("clean", 900, 900, -80, -60, -50, 2400, True),
+    ("sleep", 0, 28800, -32, 80, 50, -18, False),
     # Activites choisies subjectivement. Leurs effets restent volontairement
     # ceux du regime passif pour ce premier rodage : le moteur atteste que
     # l'activite a lieu, sans inventer encore une physiologie fine.
-    ("gaming", 1800, 1800, -80, -60, -50, -30),
-    ("photography", 1800, 1800, -80, -60, -50, -30),
-    ("sport", 1800, 1800, -80, -60, -50, -30),
-    ("girly_care", 1800, 1800, -80, -60, -50, -30),
-    ("watch_tv", 1800, 1800, -80, -60, -50, -30),
-    ("socialize", 1800, 1800, -80, -60, -50, -30),
+    ("gaming", 1800, 1800, -80, -60, -50, -30, True),
+    ("photography", 1800, 1800, -80, -60, -50, -30, True),
+    ("sport", 1800, 1800, -80, -60, -50, -30, True),
+    ("girly_care", 1800, 1800, -80, -60, -50, -30, True),
+    ("watch_tv", 1800, 1800, -80, -60, -50, -30, True),
+    ("socialize", 1800, 1800, -80, -60, -50, -30, True),
 ]
 
 # Lieux autorisés par activité (key OU kind, jamais les deux).

@@ -91,3 +91,26 @@ def test_conflicting_existing_rule_is_never_silently_overwritten():
         assert conn.execute("SELECT rate_num FROM need_definition WHERE world_id = ? AND need_key = 'satiete'", (world_id,)).fetchone()[0] == 999
     finally:
         conn.close()
+
+
+def test_standard_rules_install_explicit_wakefulness_and_defer_physical_classification():
+    conn = connect_database(":memory:")
+    try:
+        ensure_schema(conn)
+        clock = FakeClock()
+        world_id = _empty_residence(conn, clock)
+        WorldRuleService(conn, clock=clock).install_standard_residence_rules(world_id)
+
+        actual = {
+            row["activity_type"]: (
+                row["requires_sustained_wakefulness"], row["physical_load_class"],
+            )
+            for row in conn.execute(
+                "SELECT activity_type, requires_sustained_wakefulness, physical_load_class "
+                "FROM activity_definition WHERE world_id = ?", (world_id,)
+            )
+        }
+        expected = {activity[0]: (int(activity[-1]), None) for activity in SEED_ACTIVITIES}
+        assert actual == expected
+    finally:
+        conn.close()

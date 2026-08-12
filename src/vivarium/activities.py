@@ -475,16 +475,33 @@ def upgrade_dev_activities(
                 (world_id,),
             )
         }
-        for typ, min_d, max_d, s, rp, e, h in SEED_ACTIVITIES:
+        has_metadata = any(
+            row["name"] == "requires_sustained_wakefulness"
+            for row in c.execute("PRAGMA table_info(activity_definition)")
+        )
+        for typ, min_d, max_d, s, rp, e, h, sustained_wakefulness in SEED_ACTIVITIES:
             if typ in existing:
                 continue
-            c.execute(
-                "INSERT INTO activity_definition "
-                "(public_id, world_id, activity_type, min_duration_seconds, "
-                " max_duration_seconds, satiete_rate, repos_rate, energie_rate, "
-                " hygiene_rate, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (new_uuid(), world_id, typ, min_d, max_d, s, rp, e, h, now_utc()),
-            )
+            if has_metadata:
+                c.execute(
+                    "INSERT INTO activity_definition "
+                    "(public_id, world_id, activity_type, min_duration_seconds, "
+                    " max_duration_seconds, satiete_rate, repos_rate, energie_rate, "
+                    " hygiene_rate, requires_sustained_wakefulness, physical_load_class, "
+                    " created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        new_uuid(), world_id, typ, min_d, max_d, s, rp, e, h,
+                        int(sustained_wakefulness), None, now_utc(),
+                    ),
+                )
+            else:
+                c.execute(
+                    "INSERT INTO activity_definition "
+                    "(public_id, world_id, activity_type, min_duration_seconds, "
+                    " max_duration_seconds, satiete_rate, repos_rate, energie_rate, "
+                    " hygiene_rate, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (new_uuid(), world_id, typ, min_d, max_d, s, rp, e, h, now_utc()),
+                )
             created += 1
         rules = c.execute(
             "SELECT activity_type, location_key, location_kind FROM activity_allowed_location "

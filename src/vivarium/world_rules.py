@@ -119,17 +119,41 @@ class WorldRuleService:
     def _install_activities(self, conn: sqlite3.Connection, world_id: int) -> int:
         now = self._clock.now_iso()
         added = 0
-        for activity_type, minimum, maximum, satiete, repos, energie, hygiene in SEED_ACTIVITIES:
-            row = conn.execute(
-                "SELECT min_duration_seconds, max_duration_seconds, satiete_rate, repos_rate, energie_rate, hygiene_rate "
-                "FROM activity_definition WHERE world_id = ? AND activity_type = ?", (world_id, activity_type)
-            ).fetchone()
-            expected = (minimum, maximum, satiete, repos, energie, hygiene)
-            if row is None:
-                conn.execute(
-                    "INSERT INTO activity_definition (public_id, world_id, activity_type, min_duration_seconds, max_duration_seconds, satiete_rate, repos_rate, energie_rate, hygiene_rate, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (new_uuid(), world_id, activity_type, *expected, now),
+        has_metadata = any(
+            row["name"] == "requires_sustained_wakefulness"
+            for row in conn.execute("PRAGMA table_info(activity_definition)")
+        )
+        for (
+            activity_type, minimum, maximum, satiete, repos, energie, hygiene,
+            sustained_wakefulness,
+        ) in SEED_ACTIVITIES:
+            if has_metadata:
+                row = conn.execute(
+                    "SELECT min_duration_seconds, max_duration_seconds, satiete_rate, repos_rate, energie_rate, hygiene_rate, "
+                    "requires_sustained_wakefulness, physical_load_class "
+                    "FROM activity_definition WHERE world_id = ? AND activity_type = ?", (world_id, activity_type)
+                ).fetchone()
+                expected = (
+                    minimum, maximum, satiete, repos, energie, hygiene,
+                    int(sustained_wakefulness), None,
                 )
+            else:
+                row = conn.execute(
+                    "SELECT min_duration_seconds, max_duration_seconds, satiete_rate, repos_rate, energie_rate, hygiene_rate "
+                    "FROM activity_definition WHERE world_id = ? AND activity_type = ?", (world_id, activity_type)
+                ).fetchone()
+                expected = (minimum, maximum, satiete, repos, energie, hygiene)
+            if row is None:
+                if has_metadata:
+                    conn.execute(
+                        "INSERT INTO activity_definition (public_id, world_id, activity_type, min_duration_seconds, max_duration_seconds, satiete_rate, repos_rate, energie_rate, hygiene_rate, requires_sustained_wakefulness, physical_load_class, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (new_uuid(), world_id, activity_type, *expected, now),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO activity_definition (public_id, world_id, activity_type, min_duration_seconds, max_duration_seconds, satiete_rate, repos_rate, energie_rate, hygiene_rate, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (new_uuid(), world_id, activity_type, *expected, now),
+                    )
                 added += 1
             elif tuple(row) != expected:
                 raise WorldRuleError(f"définition d'activité incompatible : {activity_type}", code="activity_definition_conflict")
