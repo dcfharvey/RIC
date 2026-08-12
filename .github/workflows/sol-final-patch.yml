@@ -33,6 +33,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add bridge_control/ric_bridge_control.py tests/test_dev_bridge_control.py
-          git commit -m "fix: revalidate optimistic file CAS before replace"
+          git add bridge_control/repo_git.py tests/test_bridge_repo_git.py
+          git commit -m "fix: constrain commit to requested paths"
           git push origin HEAD:chatgpt/dev-bridge-final
