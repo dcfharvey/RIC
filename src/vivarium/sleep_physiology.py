@@ -570,13 +570,40 @@ class SleepPhysiologyFoundationService:
             row["provenance"], row["created_at"],
         )
 
-    def _assert_manifest_recordable(self, world_id: int) -> None:
+    def _frozen_manifest_t0(self, world_id: int) -> str:
+        """Lit l'ancre durable sans deriver un « maintenant » mural.
+
+        Le T0 admissible provient du dernier arret propre du runtime : la
+        session a deja materialise ``simulated_now`` et marque l'horloge
+        ``stopped``. Cette lecture SQL ne peut pas faire progresser le temps.
+        """
+        clock = self._conn.execute(
+            "SELECT simulated_now,runtime_state FROM canonical_clock WHERE world_id=?", (world_id,)
+        ).fetchone()
+        if clock is None or clock["runtime_state"] != "stopped":
+            raise SleepPhysiologyError("T0 canonique non gele", code="canonical_t0_not_frozen")
+        session = self._conn.execute(
+            "SELECT stop_kind,last_canonical_at FROM runtime_session WHERE world_id=? "
+            "ORDER BY id DESC LIMIT 1", (world_id,)
+        ).fetchone()
+        if session is None or session["stop_kind"] != "clean":
+            raise SleepPhysiologyError("T0 sans arret propre", code="canonical_t0_not_frozen")
+        frozen = _at(clock["simulated_now"])
+        if _at(session["last_canonical_at"]) != frozen:
+            raise SleepPhysiologyError("T0 canonique incoherent", code="canonical_t0_not_frozen")
+        return frozen
+
+    def _assert_manifest_recordable(self, world_id: int, *, anchor_at: Any | None = None) -> str:
         if self._conn.execute(
             "SELECT 1 FROM runtime_session WHERE world_id=? AND stopped_at IS NULL", (world_id,)
         ).fetchone() is not None:
             raise SleepPhysiologyError("session runtime ouverte", code="runtime_session_open")
         if self.system_status(world_id) == "active":
             raise SleepPhysiologyError("monde physiologique actif", code="invalid_system_status")
+        frozen = self._frozen_manifest_t0(world_id)
+        if anchor_at is not None and _at(anchor_at) != frozen:
+            raise SleepPhysiologyError("ancre de manifeste hors T0 gele", code="canonical_t0_mismatch")
+        return frozen
 
     def create_initial_physiology_manifest(
         self, world_id: Any, manifest_key: Any, version: Any, policy_key: Any, policy_version: Any,
@@ -585,8 +612,8 @@ class SleepPhysiologyFoundationService:
         """Cree l'en-tete immuable d'un manifeste T0 sans etat physiologique."""
         world = self._world_id(world_id)
         self._require_world(world)
-        self._assert_manifest_recordable(world)
         key, ver, anchor = _key(manifest_key, field="manifeste"), _version(version), _at(anchor_at)
+        self._assert_manifest_recordable(world, anchor_at=anchor)
         policy = self.initial_physiology_policy(policy_key, policy_version)
         phase_rule = self.t0_phase_rule(phase_rule_key, phase_rule_version)
         origin = _key(provenance, field="provenance")
@@ -709,6 +736,7 @@ class SleepPhysiologyFoundationService:
     ) -> None:
         """Ajoute une entree validee; le manifeste ne devient utilisable qu'au scellement."""
         manifest = self.initial_physiology_manifest(world_id, manifest_key, manifest_version)
+        self._assert_manifest_recordable(manifest["world_id"], anchor_at=manifest["anchor_at"])
         if manifest["sealed_at"] is not None:
             raise SleepPhysiologyError("manifeste initial scelle", code="manifest_sealed")
         policy = self.initial_physiology_policy(manifest["policy_key"], manifest["policy_version"])
@@ -735,6 +763,7 @@ class SleepPhysiologyFoundationService:
     ) -> tuple[str, ...]:
         """Revalide la couverture et les causes T0; lecture pure, sans activation."""
         manifest = self.initial_physiology_manifest(world_id, manifest_key, version)
+        self._assert_manifest_recordable(manifest["world_id"], anchor_at=manifest["anchor_at"])
         policy = self.initial_physiology_policy(manifest["policy_key"], manifest["policy_version"])
         phase_rule = self.t0_phase_rule(manifest["phase_rule_key"], manifest["phase_rule_version"])
         rows = self._conn.execute(
@@ -767,6 +796,7 @@ class SleepPhysiologyFoundationService:
     def seal_initial_physiology_manifest(self, world_id: Any, manifest_key: Any, version: Any) -> dict[str, Any]:
         """Scelle un manifeste complet apres sa validation pure; ne l'applique jamais."""
         manifest = self.initial_physiology_manifest(world_id, manifest_key, version)
+        self._assert_manifest_recordable(manifest["world_id"], anchor_at=manifest["anchor_at"])
         if manifest["sealed_at"] is not None:
             raise SleepPhysiologyError("manifeste initial deja scelle", code="manifest_sealed")
         characters = self.validate_initial_physiology_manifest(world_id, manifest_key, version)

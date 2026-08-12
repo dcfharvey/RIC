@@ -1,6 +1,7 @@
 """Fondations inactives du manifeste physiologique initial T0."""
 
 from dataclasses import asdict, replace
+from datetime import datetime, timezone
 
 import pytest
 
@@ -15,6 +16,7 @@ from vivarium.sleep_physiology import (
     SleepPhysiologyError,
     SleepPhysiologyFoundationService,
 )
+from vivarium.util import to_iso
 
 
 ANCHOR = "2026-08-11T12:00:00+00:00"
@@ -43,6 +45,14 @@ SCHEDULE = {
 }
 
 
+class FixedClock:
+    def now(self):
+        return datetime(2026, 8, 11, 12, tzinfo=timezone.utc)
+
+    def now_iso(self):
+        return to_iso(self.now())
+
+
 def _profile_payload():
     payload = asdict(calibration_profiles()["human_reference_candidate.v1"])
     for key in ("profile_key", "version", "evidence_class"):
@@ -54,8 +64,10 @@ def _profile_payload():
 def manifest_world():
     conn = connect_database(":memory:")
     ensure_schema(conn)
-    world_id = IntegrationWorldService(conn).create_initial_world()["id"]
-    service = SleepPhysiologyFoundationService(conn)
+    clock = FixedClock()
+    world_id = IntegrationWorldService(conn, clock=clock).create_initial_world()["id"]
+    RuntimeSessionService(conn, clock=clock).stop(RuntimeSessionService(conn, clock=clock).start(world_id).session_id)
+    service = SleepPhysiologyFoundationService(conn, clock=clock)
     service.register_light_schedule("manifest.day.v1", 1, SCHEDULE)
     service.register_location_light_profile("manifest.interior.v1", 1, 25_000, {"kind": "interior"})
     service.register_biology_profile("manifest.human.v1", 1, "human_reference", _profile_payload())
@@ -72,10 +84,10 @@ def manifest_world():
         conn.close()
 
 
-def _create_manifest(service, world_id):
+def _create_manifest(service, world_id, anchor_at=ANCHOR):
     return service.create_initial_physiology_manifest(
         world_id, "residence.t0.v1", 1, "manifest.regions.v1", 1,
-        "manifest.light_phase.v1", 1, ANCHOR, "post_migration_initialization", "condition initiale de modele approuvee",
+        "manifest.light_phase.v1", 1, anchor_at, "post_migration_initialization", "condition initiale de modele approuvee",
     )
 
 
@@ -167,6 +179,42 @@ def test_manifest_refuses_an_open_runtime_session_without_touching_it(manifest_w
         assert caught.value.code == "runtime_session_open"
     finally:
         RuntimeSessionService(_conn).stop(session.session_id)
+
+
+def test_manifest_cycle_refuses_runtime_reopening_without_writing_physiology_or_canon(manifest_world):
+    conn, world_id, service = manifest_world
+    _create_manifest(service, world_id)
+    before = {
+        table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        for table in ("initial_physiology_manifest_entry", "initial_physiology_manifest_completion", "sleep_regulation_state", "physical_capacity_state", "canonical_event")
+    }
+    session = RuntimeSessionService(conn).start(world_id)
+    try:
+        with pytest.raises(SleepPhysiologyError) as caught:
+            service.append_initial_physiology_manifest_entry(world_id, "residence.t0.v1", 1, _entry("sophie"))
+        assert caught.value.code == "runtime_session_open"
+        with pytest.raises(SleepPhysiologyError) as caught:
+            service.validate_initial_physiology_manifest(world_id, "residence.t0.v1", 1)
+        assert caught.value.code == "runtime_session_open"
+        with pytest.raises(SleepPhysiologyError) as caught:
+            service.seal_initial_physiology_manifest(world_id, "residence.t0.v1", 1)
+        assert caught.value.code == "runtime_session_open"
+        assert {
+            table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            for table in before
+        } == before
+    finally:
+        RuntimeSessionService(conn).stop(session.session_id)
+
+
+def test_manifest_anchor_must_match_the_frozen_canonical_t0(manifest_world):
+    _conn, world_id, service = manifest_world
+    with pytest.raises(SleepPhysiologyError) as caught:
+        _create_manifest(service, world_id, "2026-08-11T12:00:01+00:00")
+    assert caught.value.code == "canonical_t0_mismatch"
+
+    manifest = _create_manifest(service, world_id)
+    assert manifest["anchor_at"] == to_iso(FixedClock().now())
 
 
 def test_forward_migration_from_schema_53_preserves_history_and_creates_no_manifest_or_state():
