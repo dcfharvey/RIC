@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import hashlib
 import sqlite3
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import timedelta, timezone
 from typing import Any, Literal, Mapping
 
@@ -116,6 +116,7 @@ class OwnerBackedRegulationProjection:
     world_id: int
     character_key: str
     canonical_at: str
+    canonical_event_seq: int
     source: RegulationInput
     provenance: str
     input_fingerprint: str
@@ -129,11 +130,13 @@ class OwnerBackedWakeViability:
     world_id: int
     character_key: str
     canonical_at: str
+    canonical_event_seq: int
     model_key: str
     model_version: int
     value_milli: int
     provenance: str
     input_fingerprint: str
+    regulation_fingerprint: str = ""
 
     def __post_init__(self) -> None:
         if not 0 <= self.value_milli <= 100_000:
@@ -1440,12 +1443,14 @@ class SleepPhysiologyService:
         character_key: Any,
         *,
         at_time: Any | None = None,
+        expected_event_seq: Any | None = None,
     ) -> OwnerBackedRegulationProjection:
         """Resolve V1 depuis les seuls owners canoniques deja presents.
 
         Contrairement a ``resolve_light_source_synthetic``, l'appelant ne peut
-        fournir ni lieu, ni etat, ni occlusion, ni stimulation. L'instant doit
-        etre l'instant canonique courant : une projection stale est refusee.
+        fournir ni lieu, ni etat, ni occlusion, ni stimulation. ``at_time``
+        represente une frontiere explicite; ``canonical_event_seq`` en est le
+        jeton de contexte pour une reutilisation apres raisonnement externe.
         Cette API est un contrat futur/preflight et n'est appelee par aucun
         runtime dans ce lot.
         """
@@ -1456,12 +1461,37 @@ class SleepPhysiologyService:
             raise SleepPhysiologyError("monde introuvable", code="world_not_found")
         row = self._character(world, character_key)
         try:
-            canonical_at = _at(WorldEngine(self._conn, clock=self._clock).read_canonical_time(world))
+            live_canonical_at = _at(WorldEngine(self._conn, clock=self._clock).read_canonical_time(world))
         except KeyError as exc:
             raise SleepPhysiologyError("horloge canonique absente", code="canonical_clock_missing") from exc
-        if at_time is not None and _at(at_time) != canonical_at:
+        if expected_event_seq is not None and (
+            isinstance(expected_event_seq, bool)
+            or not isinstance(expected_event_seq, int)
+            or expected_event_seq < 0
+        ):
+            raise SleepPhysiologyError("sequence canonique invalide", code="invalid_canonical_boundary")
+        latest = self._conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) AS seq, "
+            "(SELECT occurred_at FROM canonical_event WHERE world_id=? "
+            "ORDER BY seq DESC LIMIT 1) AS occurred_at "
+            "FROM canonical_event WHERE world_id=?",
+            (world, world),
+        ).fetchone()
+        canonical_event_seq = int(latest["seq"] if latest is not None else 0)
+        if expected_event_seq is not None and expected_event_seq != canonical_event_seq:
             raise SleepPhysiologyError(
-                "projection hors ancre canonique", code="stale_canonical_anchor"
+                "contexte canonique modifie depuis la frame",
+                code="stale_canonical_context",
+            )
+        canonical_at = live_canonical_at if at_time is None else _at(at_time)
+        if parse_iso(canonical_at) > parse_iso(live_canonical_at):
+            raise SleepPhysiologyError(
+                "frontiere canonique future", code="stale_canonical_anchor"
+            )
+        if latest is not None and latest["occurred_at"] is not None \
+                and parse_iso(latest["occurred_at"]) > parse_iso(canonical_at):
+            raise SleepPhysiologyError(
+                "frontiere canonique depassee", code="stale_canonical_anchor"
             )
         status = self._conn.execute(
             "SELECT status FROM world_physiology_system WHERE world_id=?", (world,)
@@ -1492,13 +1522,14 @@ class SleepPhysiologyService:
             "world_id": world,
             "character_key": character_key,
             "canonical_at": canonical_at,
+            "canonical_event_seq": canonical_event_seq,
             "location_key": location["key"],
             "activity_type": activity_type,
             "assignment_metadata": assignment_metadata,
         }
         wire = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         return OwnerBackedRegulationProjection(
-            world, character_key, canonical_at, source,
+            world, character_key, canonical_at, canonical_event_seq, source,
             "SleepPhysiologyService.owner_backed_light_v1",
             hashlib.sha256(wire.encode("utf-8")).hexdigest(),
             assignment_metadata,
@@ -1527,10 +1558,12 @@ class SleepPhysiologyService:
         character_key: Any,
         *,
         at_time: Any | None = None,
+        expected_event_seq: Any | None = None,
     ) -> OwnerBackedWakeViability:
         """Construit la viabilite depuis une source owner-backed validee."""
         source = self.resolve_light_source_owner_backed(
-            world_id, character_key, at_time=at_time
+            world_id, character_key, at_time=at_time,
+            expected_event_seq=expected_event_seq,
         )
         state = self.read_state(world_id, character_key)
         if state.anchor_at != source.canonical_at:
@@ -1542,7 +1575,6 @@ class SleepPhysiologyService:
         parameters = self.parameters_for_character(world_id, character_key)
         value = round((1.0 - projection.stability.instability) * 100_000)
         viability_payload = {
-            "regulation_fingerprint": source.input_fingerprint,
             "model_key": projection.state.model_key,
             "model_version": projection.state.model_version,
             "physiology_anchor": projection.state.anchor_at,
@@ -1553,7 +1585,18 @@ class SleepPhysiologyService:
                 "homeostatic_load_residue": projection.state.homeostatic_load_residue,
                 "circadian_phase_residue": projection.state.circadian_phase_residue,
             },
-            "parameters": asdict(parameters),
+            "source": {"stimulation": source.source.stimulation},
+            "parameters": {
+                "profile_key": parameters.profile_key,
+                "version": parameters.version,
+                "homeostatic_stability_weight": parameters.homeostatic_stability_weight,
+                "circadian_stability_weight": parameters.circadian_stability_weight,
+                "max_stimulation_relief": parameters.max_stimulation_relief,
+                "fragile_enter": parameters.fragile_enter,
+                "fragile_exit": parameters.fragile_exit,
+                "critical_enter": parameters.critical_enter,
+                "critical_exit": parameters.critical_exit,
+            },
         }
         viability_wire = json.dumps(
             viability_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
@@ -1562,11 +1605,13 @@ class SleepPhysiologyService:
             source.world_id,
             source.character_key,
             source.canonical_at,
+            source.canonical_event_seq,
             projection.state.model_key,
             projection.state.model_version,
             value,
             source.provenance,
             hashlib.sha256(viability_wire.encode("utf-8")).hexdigest(),
+            source.input_fingerprint,
         )
 
     @staticmethod
