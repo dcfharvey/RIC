@@ -74,6 +74,9 @@ def _policy() -> OIDCTrustPolicy:
         actor_id="314814044",
         job_workflow_ref=TRUSTED_REF,
         job_workflow_sha=TRUSTED_SHA,
+        caller_ref="refs/heads/bridge/sol-rpc-v2",
+        caller_workflow_ref="dcfharvey/RIC/.github/workflows/sol-rpc-oidc.yml@refs/heads/bridge/sol-rpc-v2",
+        event_name="push",
     )
 
 
@@ -87,6 +90,10 @@ def _claims(audience: str, *, jti: str | None = None, workflow_sha: str = TRUSTE
         "actor_id": "314814044",
         "job_workflow_ref": f"dcfharvey/RIC/.github/workflows/ric-dev-trusted.yml@{workflow_sha}",
         "job_workflow_sha": workflow_sha,
+        "ref": "refs/heads/bridge/sol-rpc-v2",
+        "workflow_ref": "dcfharvey/RIC/.github/workflows/sol-rpc-oidc.yml@refs/heads/bridge/sol-rpc-v2",
+        "event_name": "push",
+        "repository_visibility": "private",
         "runner_environment": "github-hosted",
         "iat": NOW,
         "nbf": NOW - 30,
@@ -147,6 +154,9 @@ def _config(root: Path) -> ControlConfig:
         actor_id="314814044",
         trusted_workflow_ref=TRUSTED_REF,
         trusted_workflow_sha=TRUSTED_SHA,
+        caller_ref="refs/heads/bridge/sol-rpc-v2",
+        caller_workflow_ref="dcfharvey/RIC/.github/workflows/sol-rpc-oidc.yml@refs/heads/bridge/sol-rpc-v2",
+        event_name="push",
         write_roots=("src", "tests", "tools", "docs"),
         write_files=("README.md", "pyproject.toml"),
         protected_paths=("src/vivarium/dev_bridge.py", "tools/ric_dev_gateway.py"),
@@ -256,6 +266,9 @@ def test_control_config_requires_immutable_workflow_ref(tmp_path):
         "actor_id": "314814044",
         "trusted_workflow_ref": "dcfharvey/RIC/.github/workflows/ric-dev-trusted.yml@refs/heads/main",
         "trusted_workflow_sha": "a" * 40,
+        "caller_ref": "refs/heads/bridge/sol-rpc-v2",
+        "caller_workflow_ref": "dcfharvey/RIC/.github/workflows/sol-rpc-oidc.yml@refs/heads/bridge/sol-rpc-v2",
+        "event_name": "push",
         "write_roots": ["src"],
         "write_files": ["README.md"],
         "protected_paths": ["src/vivarium/dev_bridge.py"],
@@ -264,3 +277,26 @@ def test_control_config_requires_immutable_workflow_ref(tmp_path):
     path.write_text(json.dumps(config), encoding="utf-8")
     with pytest.raises(ControlError, match="pinned"):
         ControlConfig.load(path)
+
+
+def test_repo_writer_protected_paths_are_case_insensitive(tmp_path):
+    writer, root = _writer(tmp_path)
+    protected = root / "src" / "vivarium" / "dev_bridge.py"
+    protected.write_text("LOCK = True\n", encoding="utf-8")
+    before = protected.read_bytes()
+    with pytest.raises(ControlError) as denied:
+        writer.dispatch({"operation": "write_file", "path": "SRC/VIVARIUM/DEV_BRIDGE.PY",
+                         "expected_sha256": hashlib.sha256(before).hexdigest(), "content": "LOCK = False\n"},
+                        request_id=str(uuid.uuid4()))
+    assert denied.value.code in {"protected_path", "file_missing", "path_outside_root"}
+    assert protected.read_bytes() == before
+
+
+def test_oidc_rejects_wrong_caller_branch_even_with_valid_trusted_workflow():
+    request_id = str(uuid.uuid4())
+    audience = request_audience(request_id, "GET", "/health", b"")
+    claims = _claims(audience)
+    claims["ref"] = "refs/heads/attacker"
+    verifier = GitHubOIDCVerifier(_policy(), urlopen=_urlopen, clock=lambda: NOW)
+    with pytest.raises(OIDCError, match="ref"):
+        verifier.verify(_sign(claims), expected_audience=audience)

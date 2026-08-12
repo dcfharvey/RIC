@@ -11,6 +11,7 @@ import base64
 import hashlib
 import hmac
 import json
+import re
 import threading
 import time
 import urllib.error
@@ -21,6 +22,7 @@ from typing import Any, Callable, Mapping
 
 ISSUER = "https://token.actions.githubusercontent.com"
 JWKS_URI = "https://token.actions.githubusercontent.com/.well-known/jwks"
+_B64URL = re.compile(r"^[A-Za-z0-9_-]+$")
 _RSA_SHA256_DIGEST_INFO_PREFIX = bytes.fromhex("3031300d060960864801650304020105000420")
 
 
@@ -29,7 +31,7 @@ class OIDCError(ValueError):
 
 
 def _b64url_decode(value: str) -> bytes:
-    if not isinstance(value, str) or not value:
+    if not isinstance(value, str) or not value or not _B64URL.fullmatch(value):
         raise OIDCError("invalid base64url field")
     try:
         return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
@@ -50,7 +52,7 @@ def _json_segment(value: str) -> Mapping[str, Any]:
 def _rsa_rs256_verify(signing_input: bytes, signature: bytes, jwk: Mapping[str, Any]) -> bool:
     if jwk.get("kty") != "RSA":
         return False
-    if jwk.get("alg") not in {None, "RS256"}:
+    if jwk.get("alg") not in {None, "RS256"} or jwk.get("use") not in {None, "sig"}:
         return False
     try:
         n = int.from_bytes(_b64url_decode(str(jwk["n"])), "big")
@@ -85,6 +87,10 @@ class OIDCTrustPolicy:
     repository_owner_id: str
     job_workflow_ref: str
     job_workflow_sha: str
+    caller_ref: str
+    caller_workflow_ref: str
+    event_name: str
+    repository_visibility: str = "private"
     actor_id: str | None = None
     runner_environment: str = "github-hosted"
     max_lifetime_seconds: int = 600
@@ -165,6 +171,10 @@ class GitHubOIDCVerifier:
             "repository_owner_id": policy.repository_owner_id,
             "job_workflow_ref": policy.job_workflow_ref,
             "job_workflow_sha": policy.job_workflow_sha,
+            "ref": policy.caller_ref,
+            "workflow_ref": policy.caller_workflow_ref,
+            "event_name": policy.event_name,
+            "repository_visibility": policy.repository_visibility,
             "runner_environment": policy.runner_environment,
         }
         if policy.actor_id is not None:

@@ -34,6 +34,11 @@ try:  # Installed pinned copy.
 except ImportError:  # Repository test/import path.
     from vivarium.dev_bridge_auth import GitHubOIDCVerifier, OIDCError, OIDCTrustPolicy
 
+try:  # Installed pinned copy.
+    from repo_git import RepoGit, RepoGitError
+except ImportError:  # Repository test/import path.
+    from bridge_control.repo_git import RepoGit, RepoGitError
+
 
 LISTEN_HOST = "127.0.0.1"
 DEFAULT_LISTEN_PORT = 8788
@@ -54,6 +59,7 @@ READ_POST_ROUTES = {
     "/v1/responses",
 }
 WRITE_ROUTE = "/dev/write"
+REPO_ROUTE = "/dev/repo"
 
 _SECRET_NAME = re.compile(
     r"(^|[._-])(env|secret|secrets|token|tokens|password|credential|credentials|private|key)([._-]|$)",
@@ -118,6 +124,9 @@ class ControlConfig:
     actor_id: str
     trusted_workflow_ref: str
     trusted_workflow_sha: str
+    caller_ref: str
+    caller_workflow_ref: str
+    event_name: str
     write_roots: tuple[str, ...]
     write_files: tuple[str, ...]
     protected_paths: tuple[str, ...]
@@ -171,6 +180,9 @@ class ControlConfig:
             actor_id=required_string("actor_id"),
             trusted_workflow_ref=workflow_ref,
             trusted_workflow_sha=workflow_sha,
+            caller_ref=required_string("caller_ref"),
+            caller_workflow_ref=required_string("caller_workflow_ref"),
+            event_name=required_string("event_name"),
             write_roots=string_list("write_roots", DEFAULT_WRITE_ROOTS),
             write_files=string_list("write_files", DEFAULT_WRITE_FILES),
             protected_paths=string_list("protected_paths", DEFAULT_PROTECTED_PATHS),
@@ -187,9 +199,10 @@ class RepoWriter:
         self.root = config.workspace_root
         self.audit_path = audit_path
         self._audit_lock = threading.Lock()
-        self._write_roots = set(config.write_roots)
-        self._write_files = {Path(item).as_posix() for item in config.write_files}
-        self._protected = {Path(item).as_posix() for item in config.protected_paths}
+        self._write_roots = {item.casefold() for item in config.write_roots}
+        self._write_files = {Path(item).as_posix().casefold() for item in config.write_files}
+        self._protected = {Path(item).as_posix().casefold() for item in config.protected_paths}
+        self._protected_existing = [self.root / item for item in config.protected_paths]
 
     def _path(self, value: Any, *, must_exist: bool | None = None) -> Path:
         if not isinstance(value, str) or not value or "\x00" in value:
@@ -198,11 +211,12 @@ class RepoWriter:
         if lexical.is_absolute() or any(part in {"", ".", ".."} for part in lexical.parts):
             raise ControlError("absolute/traversal paths forbidden", code="path_outside_root", status=403)
         relative = lexical.as_posix()
-        if relative in self._protected:
+        relative_key = relative.casefold()
+        if relative_key in self._protected:
             raise ControlError("bridge security boundary is immutable", code="protected_path", status=403)
         if any(_SECRET_NAME.search(part) for part in lexical.parts) or lexical.suffix.lower() in _SECRET_EXTENSIONS:
             raise ControlError("sensitive paths are denied", code="sensitive_path_denied", status=403)
-        if lexical.parts[0] not in self._write_roots and relative not in self._write_files:
+        if lexical.parts[0].casefold() not in self._write_roots and relative_key not in self._write_files:
             raise ControlError("path outside repository write scope", code="write_scope_denied", status=403)
 
         current = self.root
@@ -228,6 +242,19 @@ class RepoWriter:
             raise ControlError("target already exists", code="file_exists", status=409)
         if target.exists() and not target.is_file():
             raise ControlError("target is not a regular file", code="invalid_path")
+        try:
+            canonical_key = target.relative_to(self.root).as_posix().casefold()
+        except ValueError as exc:
+            raise ControlError("path escapes workspace", code="path_outside_root", status=403) from exc
+        if canonical_key in self._protected:
+            raise ControlError("bridge security boundary is immutable", code="protected_path", status=403)
+        if target.exists():
+            for protected in self._protected_existing:
+                try:
+                    if protected.exists() and os.path.samefile(target, protected):
+                        raise ControlError("bridge security boundary is immutable", code="protected_path", status=403)
+                except OSError:
+                    continue
         return target
 
     def _content(self, value: Any) -> bytes:
@@ -373,6 +400,7 @@ class ControlServer(ThreadingHTTPServer):
         self.config = config
         self.inner_token = inner_token
         self.writer = RepoWriter(config, install_dir / "control_audit.jsonl")
+        self.repo_git = RepoGit(config.workspace_root, lambda value: self.writer._path(value, must_exist=True))
         policy = OIDCTrustPolicy(
             repository=config.repository,
             repository_id=config.repository_id,
@@ -380,6 +408,9 @@ class ControlServer(ThreadingHTTPServer):
             actor_id=config.actor_id,
             job_workflow_ref=config.trusted_workflow_ref,
             job_workflow_sha=config.trusted_workflow_sha,
+            caller_ref=config.caller_ref,
+            caller_workflow_ref=config.caller_workflow_ref,
+            event_name=config.event_name,
         )
         self.verifier = GitHubOIDCVerifier(policy)
 
@@ -476,7 +507,7 @@ class ControlHandler(BaseHTTPRequestHandler):
         except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             raise ControlError("inner capabilities invalid", code="inner_unavailable", status=502) from exc
         permissions = dict(result.get("permissions", {}))
-        permissions["REPO_WRITE"] = "ALLOW_OIDC_CAS"
+        permissions["REPO_WRITE"] = "ALLOW_OIDC_CAS_GIT"
         result["permissions"] = permissions
         security = dict(result.get("security", {}))
         security.update({
@@ -492,6 +523,13 @@ class ControlHandler(BaseHTTPRequestHandler):
             "max_bytes": MAX_WRITE_BYTES,
             "write_roots": list(self.server.config.write_roots),
             "protected_paths": list(self.server.config.protected_paths),
+        }
+        tools["repo_git"] = {
+            "permission": "REPO_WRITE",
+            "operations": ["create_branch", "commit", "push"],
+            "branch_namespace": "chatgpt/",
+            "force_push": False,
+            "merge_reset_clean_delete": False,
         }
         result["tools"] = tools
         return result
@@ -530,7 +568,7 @@ class ControlHandler(BaseHTTPRequestHandler):
         route = self._route()
         if route is None:
             return
-        if route not in READ_POST_ROUTES and route != WRITE_ROUTE:
+        if route not in READ_POST_ROUTES and route not in {WRITE_ROUTE, REPO_ROUTE}:
             self._json(404, {"ok": False, "error": {"code": "route_not_found", "message": "route not found"}})
             return
         body = self._read_body()
@@ -554,10 +592,21 @@ class ControlHandler(BaseHTTPRequestHandler):
                 result = self.server.writer.dispatch(payload, request_id=request_id)
                 self._json(200, {"ok": True, "operation": payload.get("operation"), "result": result,
                                  "duration_ms": round((time.monotonic() - started) * 1000)})
+            elif route == REPO_ROUTE:
+                try:
+                    payload = json.loads(body.decode("utf-8")) if body else {}
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise ControlError("invalid JSON", code="invalid_json") from exc
+                if not isinstance(payload, Mapping):
+                    raise ControlError("JSON object required", code="invalid_json")
+                started = time.monotonic()
+                result = self.server.repo_git.dispatch(str(payload.get("operation")), payload)
+                self._json(200, {"ok": True, "operation": payload.get("operation"), "result": result,
+                                 "duration_ms": round((time.monotonic() - started) * 1000)})
             else:
                 status, raw, content_type = self.server.proxy_inner("POST", route, body)
                 self._raw(status, raw, content_type)
-        except ControlError as exc:
+        except (ControlError, RepoGitError) as exc:
             self._json(exc.status, {"ok": False, "error": {"code": exc.code, "message": str(exc)}})
         except Exception:
             self._json(500, {"ok": False, "error": {"code": "control_error", "message": "control operation failed"}})
