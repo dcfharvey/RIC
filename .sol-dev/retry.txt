@@ -1,1 +1,0 @@
-retry with process-scoped VIVARIUM_LLM_MODEL=gemma-local
