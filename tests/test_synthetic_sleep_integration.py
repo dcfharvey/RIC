@@ -377,6 +377,6 @@ def test_stale_completion_authorization_cannot_survive_checkpoint_advance(synthe
     assert max_seq(conn, world_id) == before
     stored = conn.execute(
         "SELECT consumed_event_id FROM sleep_completion_authorization WHERE id=?",
-        (authorization.authorization_id,),
+        (authorization.id,),
     ).fetchone()
     assert stored is not None and stored["consumed_event_id"] is None
