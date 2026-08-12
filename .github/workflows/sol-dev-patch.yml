@@ -6,6 +6,7 @@ on:
       - chatgpt/dev-bridge-phase-a-final
     paths:
       - .sol-dev/patch.py
+      - .sol-dev/retry.txt
 
 permissions:
   contents: write
