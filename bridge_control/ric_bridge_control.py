@@ -199,6 +199,7 @@ class RepoWriter:
         self.root = config.workspace_root
         self.audit_path = audit_path
         self._audit_lock = threading.Lock()
+        self._write_lock = threading.RLock()
         self._write_roots = {item.casefold() for item in config.write_roots}
         self._write_files = {Path(item).as_posix().casefold() for item in config.write_files}
         self._protected = {Path(item).as_posix().casefold() for item in config.protected_paths}
@@ -282,16 +283,20 @@ class RepoWriter:
             raise ControlError("stale file hash", code="stale_file", status=409)
         return raw
 
-    def _atomic_replace(self, target: Path, raw: bytes) -> None:
+    def _atomic_replace(self, target: Path, raw: bytes, expected: str) -> None:
         temporary = target.with_name(f".{target.name}.ric-write-{uuid.uuid4().hex}.tmp")
         try:
             with temporary.open("xb") as handle:
                 handle.write(raw)
                 handle.flush()
                 os.fsync(handle.fileno())
-            if _is_link_like(target):
-                raise ControlError("target became a reparse point", code="reparse_point_denied", status=403)
-            os.replace(temporary, target)
+            with self._write_lock:
+                if _is_link_like(target):
+                    raise ControlError("target became a reparse point", code="reparse_point_denied", status=403)
+                # Revalidate immediately before replacement. This serializes bridge writers and
+                # narrows the external-process race without pretending to be an OS-level CAS.
+                self._read_current(target, expected)
+                os.replace(temporary, target)
         except ControlError:
             try:
                 temporary.unlink(missing_ok=True)
@@ -346,7 +351,7 @@ class RepoWriter:
             expected = self._expected(payload.get("expected_sha256"))
             self._read_current(target, expected)
             raw = self._content(payload.get("content"))
-            self._atomic_replace(target, raw)
+            self._atomic_replace(target, raw, expected)
             after = _sha256(raw)
             self._audit(request_id, operation, target, expected, after)
             return {"path": target.relative_to(self.root).as_posix(), "before_sha256": expected,
@@ -372,7 +377,7 @@ class RepoWriter:
             raw = text.replace(old, new, 1).encode("utf-8")
             if len(raw) > MAX_WRITE_BYTES:
                 raise ControlError("result exceeds byte limit", code="write_too_large", status=413)
-            self._atomic_replace(target, raw)
+            self._atomic_replace(target, raw, expected)
             after = _sha256(raw)
             self._audit(request_id, operation, target, expected, after)
             return {"path": target.relative_to(self.root).as_posix(), "before_sha256": expected,

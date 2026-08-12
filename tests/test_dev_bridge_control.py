@@ -300,3 +300,18 @@ def test_oidc_rejects_wrong_caller_branch_even_with_valid_trusted_workflow():
     verifier = GitHubOIDCVerifier(_policy(), urlopen=_urlopen, clock=lambda: NOW)
     with pytest.raises(OIDCError, match="ref"):
         verifier.verify(_sign(claims), expected_audience=audience)
+
+
+def test_atomic_replace_revalidates_expected_hash_at_commit_boundary(tmp_path):
+    writer, root = _writer(tmp_path)
+    target = root / "src" / "vivarium" / "race.py"
+    target.write_text("before\n", encoding="utf-8")
+    expected = hashlib.sha256(target.read_bytes()).hexdigest()
+    target.write_text("external-change\n", encoding="utf-8")
+
+    with pytest.raises(ControlError) as stale:
+        writer._atomic_replace(target, b"bridge-change\n", expected)
+
+    assert stale.value.code == "stale_file"
+    assert target.read_text(encoding="utf-8") == "external-change\n"
+    assert not list(target.parent.glob(".race.py.ric-write-*.tmp"))
