@@ -1,8 +1,10 @@
 # Passation courante — RIC
 
-**Mise à jour :** 11 août 2026
+**Mise à jour :** 12 août 2026
 **But :** point d'entrée opérationnel obligatoire pour toute nouvelle instance de Codex.  
 **Projet :** RIC — Reality · Interaction · Cognition (anciennement Vivarium social).
+
+> **Mise au point prioritaire — 12 août 2026 :** les photographies techniques plus anciennes conservées ci-dessous sont historiques. Au moment de la validation WO86, `main` est resté sur `a171a2111fdb2a5f5b85796cdc2e8647c24c72b8` (schéma 54). Une implantation candidate isolée porte le schéma 55 et a obtenu **974/974 tests réussis** sous Python 3.12.13. Elle reste strictement synthétique : aucun cutover, runtime actif ou accès à la résidence réelle n'est autorisé. Lire l'addendum WO86 en fin de fichier et `docs/86_WORK_ORDER_CONTRATS_CUTOVER_CIRCADIEN_V1.md` avant toute suite.
 
 > Commencer ici. Ne pas reconstruire l'histoire du projet à partir des anciens lots.
 > Vérifier le dépôt réel avant toute écriture.
@@ -337,7 +339,6 @@ est déterministe et optionnel; les plans structurés manuels restent le fallbac
 Patoune est observé comme `character` non-sapient, sans cognition inventée.
 
 ## Addendum opérationnel — état du rodage et instrumentation préparatoire
-
 Le burn-in nocturne a été techniquement réussi. Son autopsie a confirmé et
 fermé les défauts de classe A corrigés par `da30d5d`. Deux signaux de classe C
 restent volontairement non résolus : la répétition dialogique importante et les
@@ -400,3 +401,19 @@ retourne un statut qualitatif et zéro ou plusieurs candidates génériques;
 `social_appraisal` reste le propriétaire de cet état et aucune candidate n'est
 appliquée à l'affect, aux croyances, aux relations, aux buts, aux actions ou au
 canon. SCC-3 reste hors lot.
+
+## Addendum opérationnel — WO86 raccord causal synthétique (12 août 2026)
+
+Cet addendum prévaut sur les anciennes photographies HEAD/schéma/tests de cette passation lorsqu'il s'agit du lot circadien courant.
+
+Au moment de la validation :
+
+- `main` est resté sur `a171a2111fdb2a5f5b85796cdc2e8647c24c72b8`, schéma de code 54 ;
+- la candidate WO86 isolée porte la migration `0055_sleep_completion_authorization.sql`, donc le schéma 55 ;
+- la suite complète a été exécutée sur GitHub Actions avec Python 3.12.13 : **974 tests réussis, 0 échec** ;
+- aucun workflow de test temporaire n'est conservé dans l'arbre de passation ;
+- aucune résidence persistante, session runtime réelle ou donnée locale n'a été modifiée.
+
+Le lot matérialise et falsifie le raccord causal **synthétique** : H/phi/P restent séparés, P ne devient jamais une cause de sommeil, les plans subjectifs opaques ne sont pas parsés en actions, les mappings identité et activités physiquement non classées échouent fermés, et la complétion canonique d'un sommeil de checkpoint exige désormais une autorisation privée consommable et atomique.
+
+Le cutover reste **NO-GO**. À soumettre à Codex avant toute promotion production : provenance owner-backed de `wake_viability_milli`, résolution production de `wake_source`, owner/accessibilité des réveils externes, classification/calibration des charges physiques, scheduler/frontières runtime et commutation atomique des consommateurs legacy. Ne pas combler ces trous par défauts implicites ou en promouvant les APIs `_synthetic`.
