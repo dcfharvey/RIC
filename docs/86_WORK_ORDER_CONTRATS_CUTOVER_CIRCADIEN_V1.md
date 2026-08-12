@@ -142,3 +142,19 @@ Cette preuve ne change pas le NO-GO comportemental. Les points suivants restent 
 5. le scheduler runtime, les consommateurs legacy actifs et le débit P production par les moteurs demandeurs ne sont pas commutés par ce lot.
 
 **Verdict de cette implantation :** GO pour revue technique et poursuite sur mondes synthétiques/copies contrôlées ; **NO-GO pour runtime actif, résidence réelle ou cutover**.
+
+### 9.1 Clôture de la revue WO86 — 12 août 2026
+
+La branche `luna/wo86-owner-backed-preflight` a été revue et acceptée jusqu'au
+commit `dea3a1639c3567f39424e1b1453d23b4c0f0f5ac`. Le lot reste strictement
+**inactif / preflight-only** : aucun runtime physiologique, cutover, scheduler,
+résidence réelle ou débit P n'est activé.
+
+La revue a validé le raccord owner-backed de la source lumineuse, la frontière
+`canonical_at + canonical_event_seq`, la provenance/fingerprint de viabilité,
+les gardes fail-closed et l'atomicité de l'autorisation de complétion. La
+suite locale finale est de **984 tests réussis**.
+
+Les décisions runtime restantes (cutover par monde, external wake, scheduler,
+commutation coordonnée des consommateurs legacy et calibration P) restent
+hors de ce lot et ne doivent pas être déduites de ces contrats inactifs.

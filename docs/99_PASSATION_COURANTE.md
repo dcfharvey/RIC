@@ -417,3 +417,16 @@ Au moment de la validation :
 Le lot matérialise et falsifie le raccord causal **synthétique** : H/phi/P restent séparés, P ne devient jamais une cause de sommeil, les plans subjectifs opaques ne sont pas parsés en actions, les mappings identité et activités physiquement non classées échouent fermés, et la complétion canonique d'un sommeil de checkpoint exige désormais une autorisation privée consommable et atomique.
 
 Le cutover reste **NO-GO**. À soumettre à Codex avant toute promotion production : provenance owner-backed de `wake_viability_milli`, résolution production de `wake_source`, owner/accessibilité des réveils externes, classification/calibration des charges physiques, scheduler/frontières runtime et commutation atomique des consommateurs legacy. Ne pas combler ces trous par défauts implicites ou en promouvant les APIs `_synthetic`.
+
+### Mise à jour de clôture WO86 — 12 août 2026
+
+La revue Sol a accepté et clos le lot owner-backed preflight au commit
+`dea3a1639c3567f39424e1b1453d23b4c0f0f5ac`. La validation finale compte
+**984 tests réussis**. Cette clôture ne constitue pas un cutover : le runtime
+physiologique, la résidence réelle, le scheduler et les débits P restent
+inactifs; `external wake` reste fermé et le gate legacy continue de refuser
+fail-closed les mondes actifs non commutés.
+
+Une branche candidate d’intégration est préparée depuis `main` et conserve le
+workflow temporaire `.github/workflows/local-llm-smoke.yml` pour le bridge. Elle
+ne doit pas être mergée vers `main` sans revue d’intégration distincte.
