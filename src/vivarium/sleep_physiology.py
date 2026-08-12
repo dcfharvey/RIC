@@ -40,6 +40,7 @@ from .util import Clock, new_uuid, parse_iso, to_iso
 
 ADDITIVE_MODEL_KEY = "ric.sleep.additive.v1"
 _STABILITY_BANDS = {"stable", "fragile", "critical"}
+_PHYSICAL_LOAD_CLASSES = frozenset({"none", "light", "moderate", "vigorous"})
 # Quantum de banc, lié à la résolution canonique de ce raccord synthétique.
 # Il garantit que l'hystérésis n'est pas fonction du découpage demandé par
 # l'appelant. Ce n'est ni une cadence runtime ni une constante biologique.
@@ -102,6 +103,24 @@ class SyntheticRegulationSegment:
     source: RegulationInput
 
 
+@dataclass(frozen=True)
+class PhysicalCapacityPolicy:
+    """Politique P versionnée, validée mais jamais exécutée dans ce lot.
+
+    Les coefficients sont des entrées de calibration [C/D] du catalogue. Ce
+    type n'installe aucune valeur par défaut et ne matérialise jamais P.
+    """
+
+    policy_key: str
+    version: int
+    activity_cost_per_hour_milli: Mapping[str, int]
+    minimum_capacity_milli: Mapping[str, int]
+    traversal_cost_per_edge_milli: int
+    recovery_per_hour_milli: Mapping[str, int]
+    provenance: str
+    created_at: str
+
+
 def _json(value: Any, *, field: str) -> str:
     if not isinstance(value, Mapping):
         raise SleepPhysiologyError(f"{field} doit être un objet", code="invalid_configuration")
@@ -130,6 +149,56 @@ def _at(value: Any) -> str:
         return to_iso(parse_iso(value))
     except (TypeError, ValueError) as exc:
         raise SleepPhysiologyError("instant canonique invalide", code="invalid_canonical_time") from exc
+
+
+def _capacity_milli(value: Any, *, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100000:
+        raise SleepPhysiologyError(f"{field} invalide", code="invalid_configuration")
+    return value
+
+
+def _physical_capacity_policy_payload(value: Any) -> dict[str, Any]:
+    """Valide le contrat de forme sans choisir de calibration.
+
+    La politique ne contient que des coefficients explicitement fournis. Les
+    noms de classes sont un vocabulaire de contrat; leurs valeurs restent des
+    paramètres versionnés, jamais des constantes cachées du moteur.
+    """
+    if not isinstance(value, Mapping):
+        raise SleepPhysiologyError("politique de capacité invalide", code="invalid_configuration")
+    required = {
+        "schema_version", "activity_cost_per_hour_milli", "minimum_capacity_milli",
+        "traversal_cost_per_edge_milli", "recovery_per_hour_milli",
+    }
+    if set(value) != required or value["schema_version"] != 1:
+        raise SleepPhysiologyError("politique de capacité invalide", code="invalid_configuration")
+    activity_cost = value["activity_cost_per_hour_milli"]
+    minimum = value["minimum_capacity_milli"]
+    recovery = value["recovery_per_hour_milli"]
+    if not isinstance(activity_cost, Mapping) or set(activity_cost) != _PHYSICAL_LOAD_CLASSES:
+        raise SleepPhysiologyError("coûts d'activité incomplets", code="invalid_configuration")
+    if not isinstance(minimum, Mapping) or set(minimum) != _PHYSICAL_LOAD_CLASSES:
+        raise SleepPhysiologyError("seuils physiques incomplets", code="invalid_configuration")
+    if not isinstance(recovery, Mapping) or set(recovery) != {"rest", "sleep"}:
+        raise SleepPhysiologyError("récupérations physiques incomplètes", code="invalid_configuration")
+    return {
+        "schema_version": 1,
+        "activity_cost_per_hour_milli": {
+            key: _capacity_milli(activity_cost[key], field=f"coût {key}")
+            for key in sorted(_PHYSICAL_LOAD_CLASSES)
+        },
+        "minimum_capacity_milli": {
+            key: _capacity_milli(minimum[key], field=f"seuil {key}")
+            for key in sorted(_PHYSICAL_LOAD_CLASSES)
+        },
+        "traversal_cost_per_edge_milli": _capacity_milli(
+            value["traversal_cost_per_edge_milli"], field="coût de traversée"
+        ),
+        "recovery_per_hour_milli": {
+            key: _capacity_milli(recovery[key], field=f"récupération {key}")
+            for key in ("rest", "sleep")
+        },
+    }
 
 
 class SleepPhysiologyFoundationService:
@@ -288,6 +357,110 @@ class SleepPhysiologyFoundationService:
             "evidence_class": row["evidence_class"], "parameters": json.loads(row["parameters_json"]),
             "created_at": row["created_at"],
         }
+
+    def register_physical_capacity_policy(
+        self, policy_key: Any, version: Any, policy: Any, provenance: Any
+    ) -> PhysicalCapacityPolicy:
+        """Ajoute une politique P immutable sans l'assigner ni l'exécuter."""
+        key = _key(policy_key, field="politique de capacité")
+        ver = _version(version)
+        payload = _physical_capacity_policy_payload(policy)
+        origin = _key(provenance, field="provenance")
+        now = self._now()
+        try:
+            with transaction(self._conn) as conn:
+                conn.execute(
+                    "INSERT INTO physical_capacity_policy "
+                    "(public_id, policy_key, version, policy_json, provenance, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (new_uuid(), key, ver, _json(payload, field="politique de capacité"), origin, now),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise SleepPhysiologyError("politique de capacité déjà enregistrée", code="duplicate_profile") from exc
+        return self.physical_capacity_policy(key, ver)
+
+    def physical_capacity_policy(self, policy_key: Any, version: Any) -> PhysicalCapacityPolicy:
+        key = _key(policy_key, field="politique de capacité")
+        ver = _version(version)
+        row = self._conn.execute(
+            "SELECT policy_key, version, policy_json, provenance, created_at "
+            "FROM physical_capacity_policy WHERE policy_key = ? AND version = ?", (key, ver)
+        ).fetchone()
+        if row is None:
+            raise SleepPhysiologyError("politique de capacité introuvable", code="profile_not_found")
+        payload = _physical_capacity_policy_payload(json.loads(row["policy_json"]))
+        return PhysicalCapacityPolicy(
+            policy_key=row["policy_key"], version=int(row["version"]),
+            activity_cost_per_hour_milli=payload["activity_cost_per_hour_milli"],
+            minimum_capacity_milli=payload["minimum_capacity_milli"],
+            traversal_cost_per_edge_milli=payload["traversal_cost_per_edge_milli"],
+            recovery_per_hour_milli=payload["recovery_per_hour_milli"],
+            provenance=row["provenance"], created_at=row["created_at"],
+        )
+
+    def assign_physical_capacity_policy(
+        self, world_id: Any, policy_key: Any, version: Any, provenance: Any
+    ) -> PhysicalCapacityPolicy:
+        """Lie un monde à une politique P, sans modifier H/phi/P ni le canon."""
+        world = self._world_id(world_id)
+        self._require_world(world)
+        policy = self.physical_capacity_policy(policy_key, version)
+        origin = _key(provenance, field="provenance")
+        policy_id = self._conn.execute(
+            "SELECT id FROM physical_capacity_policy WHERE policy_key = ? AND version = ?",
+            (policy.policy_key, policy.version),
+        ).fetchone()["id"]
+        now = self._now()
+        try:
+            with transaction(self._conn) as conn:
+                conn.execute(
+                    "INSERT INTO world_physical_capacity_policy_assignment "
+                    "(public_id, world_id, policy_id, assigned_at, provenance, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (new_uuid(), world, policy_id, now, origin, now),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise SleepPhysiologyError("politique de capacité déjà assignée", code="duplicate_assignment") from exc
+        return policy
+
+    def world_physical_capacity_policy(self, world_id: Any) -> PhysicalCapacityPolicy:
+        world = self._world_id(world_id)
+        self._require_world(world)
+        row = self._conn.execute(
+            "SELECT p.policy_key, p.version FROM world_physical_capacity_policy_assignment a "
+            "JOIN physical_capacity_policy p ON p.id = a.policy_id WHERE a.world_id = ?", (world,)
+        ).fetchone()
+        if row is None:
+            raise SleepPhysiologyError("politique de capacité absente", code="physical_policy_missing")
+        return self.physical_capacity_policy(row["policy_key"], int(row["version"]))
+
+    def validate_physical_capacity_configuration(self, world_id: Any) -> PhysicalCapacityPolicy:
+        """Valide purement le futur contrat P d'un monde non activé.
+
+        Cette lecture n'active aucun gate, ne matérialise aucun état et ne
+        déduit jamais une charge physique de `energie` ou d'un type d'activité.
+        """
+        policy = self.world_physical_capacity_policy(world_id)
+        world = self._world_id(world_id)
+        rows = self._conn.execute(
+            "SELECT activity_type, requires_sustained_wakefulness, physical_load_class "
+            "FROM activity_definition WHERE world_id = ?", (world,)
+        ).fetchall()
+        for row in rows:
+            if row["requires_sustained_wakefulness"] not in (0, 1):
+                raise SleepPhysiologyError(
+                    "classification de veille absente", code="activity_wakefulness_missing"
+                )
+            load_class = row["physical_load_class"]
+            if load_class not in _PHYSICAL_LOAD_CLASSES:
+                raise SleepPhysiologyError(
+                    "classification physique absente", code="activity_physical_class_missing"
+                )
+            if load_class not in policy.activity_cost_per_hour_milli:
+                raise SleepPhysiologyError(
+                    "classe physique sans politique", code="physical_policy_class_missing"
+                )
+        return policy
 
     def assign_light_schedule(
         self, world_id: Any, profile_key: Any, version: Any, effective_at: Any, provenance: Any
