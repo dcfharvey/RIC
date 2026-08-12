@@ -101,3 +101,14 @@ def test_repo_git_never_accepts_other_branch_names_or_branch_mismatch(tmp_path):
     with pytest.raises(RepoGitError) as mismatch:
         repo.push({"branch": "chatgpt/other"})
     assert mismatch.value.code == "branch_mismatch"
+
+
+def test_repo_git_refuses_oversized_commit_file(tmp_path):
+    repo, root, _remote = _repo(tmp_path)
+    repo.create_branch({"branch": "chatgpt/large"})
+    large = root / "src" / "large.py"
+    large.write_bytes(b"x" * (128 * 1024 + 1))
+    with pytest.raises(RepoGitError) as denied:
+        repo.commit({"message": "feat: too large", "paths": ["src/large.py"]})
+    assert denied.value.code == "commit_file_too_large"
+    assert _run(root, "diff", "--cached", "--name-only") == ""
