@@ -23,13 +23,15 @@ Ces écarts sont des manques techniques normaux. Ils interdisent de promouvoir l
 
 ### 2.1 Owner et frontière épistémique
 
-Créer un `ActionArbitrationService` déterministe, appelé par `SimulationEngine` seulement dans le chemin d'un monde physiologique `active`. Il construit une `ActionArbitrationFrame` depuis : physiologie (H/phi -> propension additive, P -> éligibilité physique), besoins actifs de satiété/hygiène, objectifs/intention subjectifs lus via `GoalService`, activité canonique courante et faisabilité Reality/Interaction.
+Créer un `ActionArbitrationService` déterministe, appelé par `SimulationEngine` seulement dans le chemin d'un monde physiologique `active`. Il construit une `ActionArbitrationFrame` depuis : physiologie (H/phi -> propension additive, P -> éligibilité physique et, si bas, récupération physique), besoins actifs de satiété/hygiène, objectifs/intention subjectifs lus via `GoalService`, activité canonique courante et faisabilité Reality/Interaction.
 
 Le service ne persiste aucune cognition et n'applique aucune activité. `ActivityEngine` valide l'action gagnante et demeure owner de la mutation canonique. LLM, Motivation, Attention et providers ne peuvent ni écrire H/phi/P ni appliquer l'action. `DecisionFrameService` ne doit pas être réutilisé comme arbitre : sa hiérarchie actuelle est une projection legacy incompatible.
 
 ### 2.2 Contributions, corrélation et résultat
 
 Une frame compare des **actions candidates**, chacune soutenue par des `ArbitrationContribution` : `action_key`, source brute, owner, `correlation_group`, transformation versionnée, provenance, faisabilité et score transformé. H et C sont déjà combinés dans une unique contribution `sleep_regulation` issue de la propension additive ; ils ne sont jamais double-comptés.
+
+P sert d'abord à la faisabilité/limitation des actions physiquement coûteuses. Sous la région de capacité définie par la politique, il peut aussi produire une contribution `physical_recovery` vers l'action `rest`, avec son mapping versionné et sa provenance propres. P ne produit jamais `sleep_regulation`, aucune contribution directe vers `sleep`, ni aucune lecture de `energie`. Une même frame peut donc déclarer une action coûteuse non faisable et soutenir `rest`, sans modifier la contribution sommeil.
 
 Le profil immutable/versionné `action_arbitration_policy`, assigné au monde, définit mappings vers l'échelle d'ingénierie commune, groupes corrélés, agrégation saturante des groupes indépendants, inertie bornée de l'action courante, seuil de quasi-égalité et horizon de réévaluation. Forme candidate à banc : maximum dans chaque groupe corrélé, puis agrégation saturante monotone des groupes indépendants. Mappings, plafond d'inertie, poids et bande d'égalité restent [D].
 
@@ -39,7 +41,9 @@ Le résultat porte toutes les contributions, la politique/version et la raison d
 
 Le plan et `resume_context_json` actuels sont opaques. Il est interdit de les parser heuristiquement pour inventer « finir le boss » ou toute autre action. Ajouter `subjective_intention_action_link`, append-only et owned par `GoalService` : une intention déclare explicitement une ou plusieurs actions candidates validables par le moteur, avec contribution subjective et provenance. Une intention legacy sans lien ne produit aucune contribution exécutable ; elle reste subjective sans privilège caché.
 
-Le lien référence une action du catalogue moteur et ses contraintes, pas du texte libre. `GoalService` garde l'ownership du lien ; `ActionArbitrationService` le lit et le transforme selon la politique. Ainsi, deux agentes peuvent diverger à physiologie égale sans faire d'une valeur subjective un fait canonique.
+Le lien référence le vocabulaire exécutable unique du contrat d'action v2 : `IntentProposal.action_kind` et ses paramètres fermés (`traverse` avec connecteur/destination, ou `start_activity` avec activité/destination). Son `action_key` est seulement l'identité normalisée dérivée de ce tuple, jamais un second catalogue. `GoalService` garde l'ownership du lien ; `ActionArbitrationService` le lit et le transforme selon la politique. Ainsi, deux agentes peuvent diverger à physiologie égale sans faire d'une valeur subjective un fait canonique.
+
+L'action gagnante qui implique une transition devient un `IntentProposal` déterministe, avec une origine distincte à ajouter au contrat, puis passe par `ActionOrchestrator.execute()`. Cet orchestrateur revalide immédiatement le contexte/sequence et délègue transactionnellement à `TraversalEngine` ou `ActivityEngine` avant toute mutation canonique. Les résultats `continue_current_until_boundary` et `reassess_at_boundary` ne créent aucune proposition. `ActionOptionService` reste un filtre étroit d'options visibles au LLM : il n'est ni le catalogue exhaustif de l'arbitre, ni une seconde sémantique d'action.
 
 ### 2.4 Audit privé
 
@@ -49,13 +53,13 @@ Le détail des contributions peut contenir des données subjectives. Ajouter un 
 
 `SleepPhysiologyService` fournit une projection H/phi et une viabilité de veille pure. `ActivityEngine` possède le cycle de **son** activité `sleep`, ses checkpoints, sa complétion et ses interruptions. La mémoire d'hystérésis de sortie est donc un état de planification d'activité : `activity_sleep_checkpoint`, lié à l'activité active, contient `next_reassessment_at`, la bande `continue_sleep|wake_admissible` et le garde-fou technique. Ce n'est pas un second état H/phi. `previous_band` de stabilité de veille reste physiologique et détenu par `SleepPhysiologyService`.
 
-Au checkpoint, dans une transaction : matérialiser le segment de sommeil, lire projection et bande, appliquer l'hystérésis sommeil/veille, puis compléter `sleep`, ou poursuivre avec un prochain checkpoint, ou accepter un réveil externe réellement perceptible, ou signaler le hard cap au runtime/Guardian. Le hard cap ne termine ni ne réveille l'activité. Après complétion, une nouvelle frame décide de la suite ; se réveiller ne signifie pas décider de se lever.
+Au checkpoint, dans une transaction : matérialiser le segment de sommeil, lire projection et bande, appliquer l'hystérésis sommeil/veille, puis compléter `sleep`, ou poursuivre avec un prochain checkpoint, ou accepter un réveil externe réellement perceptible, ou signaler le hard cap au runtime/Guardian. Le hard cap ne termine ni ne réveille l'activité. Son signal Guardian est seulement diagnostic/observabilité : `LocalGuardian` reste read-only et ne produit ni complétion, ni réveil, ni autre mutation canonique. Après complétion, une nouvelle frame décide de la suite ; se réveiller ne signifie pas décider de se lever.
 
 Le code actuel ne possède pas d'événement externe typé avec contrat d'accessibilité pour le réveil. V1 doit donc garder cette extension vide/pluggable plutôt que transformer tout `canonical_event` en réveil omniscient. Les engagements temporels restent absents.
 
 ## 4. Définition générique des activités et P
 
-Étendre `activity_definition` avec `requires_sustained_wakefulness` (booléen) et `physical_load_class` (`none`, `light`, `moderate`, `vigorous`). La classe est une propriété générique, non un coût chiffré.
+Étendre `activity_definition` avec `requires_sustained_wakefulness` (booléen) et `physical_load_class` (`none`, `light`, `moderate`, `vigorous`). La classe est une propriété générique, non un coût chiffré. Sa représentation réelle est une colonne nullable : `NULL` signifie explicitement « non classée », est tolérée dans un monde legacy et refusée par le préflight d'un monde actif ; aucune valeur textuelle `unclassified` ne rejoint le vocabulaire de production.
 
 Créer un profil immutable/versionné `physical_capacity_policy`, assigné au monde, qui traduit classe d'activité, `rest`, `sleep` et traversée d'arête en coûts/récupérations P. Il remplace l'unique coût synthétique de tout `wake`, qui ne peut pas devenir le régime production par défaut.
 
@@ -75,6 +79,8 @@ Ajouter `initial_physiology_manifest` et `initial_physiology_manifest_entry`, ca
 
 Il est enregistré pendant la fenêtre runtime arrêtée, seulement après recovery officielle et arrêt propre, lorsque T0 est connu. `SleepPhysiologyFoundationService` valide couverture, profils, bornes, ancre et absence de session ; `SleepPhysiologyService` l'appliquera atomiquement lors d'une activation future. C'est une condition initiale [D], auditée comme `post_migration_initialization`, jamais un événement vécu ou une reconstruction.
 
+`previous_band` peut être persistée dans le manifeste mais n'est pas une variable initiale libre : le validateur résout à T0 le profil, H/phi, le lieu, le calendrier/lumière effective et l'état canonique pertinent, puis applique une règle de bootstrap d'hystérésis versionnée. P est validée séparément comme capacité et n'est pas introduite artificiellement dans la stabilité de veille. Toute bande déclarée incompatible est rejetée. Une `T0PhaseRule` versionnée choisit phi à partir de la relation au cycle lumineux canonique à T0 ; un override exige provenance et justification explicites. Le banc fixe une région initiale H neutre/non extrême et P normale/haute, sans les présenter comme constantes biologiques. Résidus et reste P restent numériques et ne peuvent encoder une histoire pré-T0.
+
 Les résidus sont explicites et ne peuvent encoder une histoire absente. Candidat parcimonieux à banc : H/phi/P choisis à précision persistée, résidus H/phi et reste P zéro, puis première intégration seulement après T0. Le manifeste, pas un fallback caché, décide les valeurs finales.
 
 ## 6. Migrations forward-only et ordre de code
@@ -93,10 +99,10 @@ Le gate existant `inactive|prepared|active` est le commutateur unique. Il passe 
 
 | Banc | Paramètres testables [C/D] | Falsifications minimales |
 |---|---|---|
-| `action_arbitration_lab` | mappings, saturation, corrélation, inertie, égalité | aucune priorité de catégorie ; H/C comptés une fois ; deux profils subjectifs divergent ; P ne crée pas sommeil ; égalité continue ou réévalue sans tie-break |
+| `action_arbitration_lab` | mappings, saturation, corrélation, inertie, égalité, seuil de récupération P | aucune priorité de catégorie ; H/C comptés une fois ; deux profils subjectifs divergent ; à H/phi égaux, P bas peut soutenir `rest` plus que P haut ; P bas ne modifie pas `sleep_regulation` ; P peut rendre une action coûteuse impossible tout en soutenant `rest` ; égalité continue ou réévalue sans tie-break |
 | `sleep_termination_lab` | seuils/bandes, horizon checkpoint, garde technique | aucune cible legacy/durée fixe ; réveil stable ; pas d'oscillation ; wake externe inaccessible refusé ; hard cap sans `activity_completed` fictif |
 | `physical_capacity_lab` | classes, coût/arête, récupération, limite effort | attente sans coût arbitraire ; activité/mouvement limitent P ; rest/sleep restaurent P ; rest ne baisse pas H ; P faible ne propose jamais sommeil |
-| `initial_manifest_lab` | valeurs T0, résidus, profils | couverture complète ; T0 commun ; aucun besoin legacy ; aucun événement vécu ; restart fidèle à l'ancre |
+| `initial_manifest_lab` | régions T0 H/P, règle phi/lumière, bootstrap de bande, résidus, profils | couverture complète ; T0 commun ; rejet d'une bande incompatible ; falsification de cohérence phi/lumière sauf override sourcé ; validation des régions H/P ; aucun besoin legacy ; aucun événement vécu ; restart fidèle à l'ancre |
 | intégration synthétique | contrats ci-dessus | critical au plus une fois ; abort -> nouvelle frame ; lecture pure ; partitions/restart ; zéro chemin legacy actif |
 
 Les paramètres explorables ici sont seulement ceux des politiques et bancs : mappings, saturation/inertie/égalité, seuils/horizon de fin sommeil, hard cap, charges/récupérations P et valeurs T0. Aucun réglage ne touche le runtime vivant ou la résidence.
