@@ -1,1 +1,1 @@
-{"active":true,"method":"POST","payload":{"argv":["python","-m","pytest","tests/test_dev_bridge.py","-q","--basetemp=.pytest-rpc-sol-review"],"cwd":".","output_limit":65536,"timeout_seconds":120},"request_id":"7bdfdf1c-c8cd-4dd3-a72f-880251fbaefc","route":"/dev/exec","schema_version":1}
+{"active":true,"method":"POST","payload":{"operation":"rev-parse","ref":"HEAD"},"request_id":"d3ca7109-cf58-45ee-9d1a-8ecfd72cf268","route":"/dev/git","schema_version":1}
