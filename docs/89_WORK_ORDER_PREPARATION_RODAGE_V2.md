@@ -1,6 +1,6 @@
 # Work order 89 — préparation pré-rodage V2
 
-**Statut :** OUVERT.
+**Statut :** OUVERT — **89A FERMÉ**; prochaine étape autorisée : 89B seulement.
 
 **Base documentaire de départ :** `bbdac5c737c6fa0b28f23657b826b008b5b12fd2` (`docs: close WO88 formally`).
 
@@ -9,6 +9,34 @@
 **État de référence au départ :** package `0.1.0a15`; schéma de code 55; dernière migration `0055_sleep_completion_authorization.sql`; WO88 fermé; aucun cutover de résidence persistante autorisé.
 
 **Dépendance fermée :** `docs/88_WORK_ORDER_RUNTIME_CIRCADIEN_ACTIF_V1.md`.
+
+## 0A. Verdict 89A — photographie de release
+
+89A est fermé sur la photographie suivante :
+
+- branche distante de travail : `chatgpt/wo89-pre-rodage-v2` ;
+- HEAD documentaire de 89A avant consignation : `a5ef14d6b7d4a3c61d6d4305ee338319582d211c` ;
+- dernier checkout local confirmé avant l'ouverture de WO89 : branche `chatgpt/wo88-final-validation`, HEAD `bbdac5c737c6fa0b28f23657b826b008b5b12fd2`, fichiers suivis propres ; l'alignement local vers la base de rodage appartient à 89B ;
+- version déclarée dans `pyproject.toml` : `0.1.0a15` ; `src/vivarium/__init__.py` expose également `0.1.0a15` ;
+- schéma de code : **55** ; le runner `migrations.py` définit le registre de migrations comme autorité de version et la dernière migration présente est `0055_sleep_completion_authorization.sql` ;
+- baseline fonctionnelle héritée : HEAD `fe1d24a0cd5f32463c594d2de6bf2e3ba7ad0667`, compilation verte et **1029 tests réussis** ; les commits de fermeture WO88 postérieurs à ce HEAD n'ont pas modifié `src/` ni `tests/` ;
+- `README.md` contient encore une photographie présentée comme courante au schéma 39 / 767 tests ;
+- `docs/15_ROADMAP_ACTIVE.md` contient, sous son bloc prioritaire WO88, une ancienne section « État actuel » au schéma 48 / 929 tests ;
+- `docs/99_PASSATION_COURANTE.md` contient, sous son bloc prioritaire WO88, une ancienne photographie technique au schéma 48 / 929 tests ;
+- `CHANGELOG.md` conserve correctement l'historique `0.1.0a15`, mais son sommet ne contient pas encore une entrée de release correspondant à la fermeture WO88 et au futur Rodage V2 ;
+- ces divergences sont documentaires : elles ne changent pas la hiérarchie de vérité HEAD + migrations + tests, mais elles devront être harmonisées avant fermeture de WO89.
+
+### Décision de version 89A
+
+**Version produit retenue pour la base du Rodage V2 : `0.2.0a1`.**
+
+Motif produit : l'activation H/φ/P comme causes runtime owner-backed, combinée à un T0 neuf et à une nouvelle histoire persistante, constitue une séparation fonctionnelle suffisamment nette avec le cycle `0.1.0aN` pour mériter un nouveau jalon alpha mineur. Ce numéro ne prétend ni à une stabilité API, ni à une maturité bêta, ni à une rupture de compatibilité imposée par SemVer ; il sert de marqueur produit traçable pour le nouveau cycle de rodage.
+
+Le bump n'est **pas** appliqué pendant 89A : la photographie doit précéder les changements de métadonnées. Les sources de version seront synchronisées dans la séquence WO89 après stabilisation de la base Git et avant fermeture 89E.
+
+### Critère de sortie 89A
+
+**SATISFAIT.** Version cible choisie : `0.2.0a1`; photographie HEAD/schéma/migration/tests et portée des documents historiques enregistrées. Aucune base SQLite de rodage n'a été touchée.
 
 ## 0. Intention
 
@@ -52,7 +80,7 @@ Ce lot est principalement un lot d'ingénierie/release et d'observabilité. Il n
 
 Aucune préférence de branche ou de structure de code décrite ici ne doit être interprétée comme une prescription silencieuse à Codex.
 
-## 3. Lot 89A — identité de release et photographie de référence
+## 3. Lot 89A — identité de release et photographie de référence — FERMÉ
 
 Avant tout autre changement fonctionnel :
 
@@ -66,16 +94,18 @@ Avant tout autre changement fonctionnel :
 
 Le numéro de version est un marqueur produit, pas un compteur de work orders.
 
-Deux familles restent acceptables au départ :
+Deux familles étaient acceptables au départ :
 
-- poursuivre l'alpha `0.1.0aN` si le nouveau rodage est considéré comme une évolution interne du même MVP ;
-- ouvrir `0.2.0a1` si l'activation H/φ/P et le nouveau T0 sont considérés comme une nouvelle génération fonctionnelle de l'alpha.
+- poursuivre l'alpha `0.1.0aN` si le nouveau rodage était considéré comme une évolution interne du même MVP ;
+- ouvrir `0.2.0a1` si l'activation H/φ/P et le nouveau T0 étaient considérés comme une nouvelle génération fonctionnelle de l'alpha.
 
-Codex doit fournir l'état réel et les conséquences techniques; **le propriétaire tranche le numéro produit**. Aucun bump ne doit être utilisé pour masquer un état de dépôt ambigu.
+**Décision 89A : `0.2.0a1`.**
 
 ### Critère de sortie 89A
 
 Une photographie unique est enregistrée : version choisie, HEAD candidat, schéma, dernière migration, suite de tests de référence et portée exacte des documents historiques conservés.
+
+**Verdict : satisfait.**
 
 ## 4. Lot 89B — base Git canonique du prochain rodage
 
@@ -216,4 +246,4 @@ Un échec découvert à une étape bloque la suivante jusqu'à correction et rev
 
 ## 10. Première action autorisée
 
-Commencer par **89A uniquement** : vérifier le dépôt réel et produire la photographie de release. Ne pas modifier encore le numéro de version, ne pas intégrer de branche et ne pas toucher à une base de rodage tant que cette photographie n'est pas établie.
+89A est fermé. La prochaine action autorisée est **89B uniquement** : établir une base Git canonique et stable pour le futur Rodage V2. Ne pas toucher encore à une base de rodage et ne pas commencer 89C tant que 89B n'est pas fermé.
