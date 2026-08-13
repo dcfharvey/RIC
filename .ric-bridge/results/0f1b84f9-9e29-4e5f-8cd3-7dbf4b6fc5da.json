@@ -1,0 +1,1 @@
+{"http_status":200,"request_id":"0f1b84f9-9e29-4e5f-8cd3-7dbf4b6fc5da","request_sha":"a2d4782284253602363cf577c234b14c161f409f","response":{"duration_ms":39,"ok":true,"operation":"rev-parse","result":{"exit_code":0,"stderr":"","stdout":"361fc171a2eff6c42b18aac2819cfdbf77e92f8b\n","timed_out":false,"truncated":false}},"schema_version":1,"status":"ok"}
