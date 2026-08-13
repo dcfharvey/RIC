@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"list_tree","path":"data","limit":100},"request_id":"a9e4f7c2-54d8-4be4-9914-2d3bcbb03f87","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"status"},"request_id":"7eec3a16-632f-43a9-a1b3-21e6ad89a05b","route":"/dev/git","schema_version":2}
