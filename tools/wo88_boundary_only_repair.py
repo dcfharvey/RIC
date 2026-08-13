@@ -31,11 +31,5 @@ replace_once(
     '''  assert report.reached_target and report.last_time==target;assert WorldEngine(conn,clock=clock).read_canonical_time(wid)==target\n  last_boundary=to_iso(T0_DT+timedelta(seconds=60))\n  assert all(SleepPhysiologyService(conn,clock=clock).read_state(wid,k).anchor_at==last_boundary for k in ("sophie","erika","luna","chuu"));assert legacy_snapshot(conn,wid)==before\n''',
 )
 
-replace_once(
-    "tests/test_active_runtime_cutover.py",
-    '''  assert frozen==to_iso(clock.current);assert legacy_snapshot(conn,wid)==before\n  for key in ("chuu","erika","luna","sophie"):\n   assert SleepPhysiologyService(conn,clock=clock).read_state(wid,key).anchor_at==frozen\n''',
-    '''  assert frozen==to_iso(clock.current);assert legacy_snapshot(conn,wid)==before\n  for key in ("chuu","erika","luna","sophie"):\n   assert SleepPhysiologyService(conn,clock=clock).read_state(wid,key).anchor_at==T0\n''',
-)
-
 with (ROOT / "tests/test_active_runtime_cutover.py").open("a", encoding="utf-8", newline="\n") as handle:
     handle.write('''\n\ndef test_wall_pulse_before_first_causal_boundary_writes_no_physiology_or_canon():\n conn,wid,clock=active_world()\n try:\n  engine=ActiveSimulationEngine(conn,clock=clock)\n  target=to_iso(T0_DT+timedelta(seconds=20))\n  before_states={key:SleepPhysiologyService(conn,clock=clock).read_state(wid,key) for key in ("chuu","erika","luna","sophie")}\n  before_events=conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id=?",(wid,)).fetchone()[0]\n  assert engine.is_due(wid,target) is False\n  report=engine.run_to(wid,target)\n  assert report.transitions==0 and report.last_time==target\n  assert conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id=?",(wid,)).fetchone()[0]==before_events\n  for key,before in before_states.items():\n   assert SleepPhysiologyService(conn,clock=clock).read_state(wid,key)==before\n finally:conn.close()\n''')
