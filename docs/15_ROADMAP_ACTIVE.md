@@ -1,9 +1,11 @@
 # Roadmap active — du moteur au Vivarium MVP
 
-**Version :** 1.4
-**Mise à jour :** 11 août 2026
+**Version :** 1.5
+**Mise à jour :** 13 août 2026
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
+
+> **Mise au point prioritaire — fermeture WO88 (13 août 2026) :** WO88 — runtime circadien actif V1 est **FERMÉ**. Le HEAD fonctionnel exact `fe1d24a0cd5f32463c594d2de6bf2e3ba7ad0667` a passé la compilation et la suite complète Windows/Python 3.12.10 avec **1029 tests réussis en 392,09 s, 0 échec**. Le chemin `physiology=active` utilise H/φ/P et les sources owner-backed; `repos`/`energie` ne sont plus des causes actives, et l'arbitrage runtime ne traverse plus `project_synthetic()`. Les mondes `inactive`/`prepared` restent legacy. Aucun cutover de la résidence persistante ni modification de `data/vivarium-rodage.sqlite` n'a été effectué. Les workflows/scripts de réparation WO88 ont été retirés après validation. **Prochain jalon immédiat : Rodage V2 sur base neuve, avec manifeste T0 explicite et politiques complètes, sans migration de l'ancien rodage par défaut.** Les photographies techniques antérieures ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
 
 ## Principe de conduite
 
