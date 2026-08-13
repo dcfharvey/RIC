@@ -1,0 +1,28 @@
+name: WO94 active sleep coverage audit
+on:
+  push:
+    branches: [chatgpt/wo94-debloat-physiology]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Find active coverage of retired synthetic sleep scenarios
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          terms=('complete_sleep_from_checkpoint','authorize_completion_owner_backed','report_sleep_hard_cap','wake_stability_critical','sleep_hard_cap','sleep_checkpoint_missing','checkpoint_not_due','completion_authorization','hard_cap_protective')
+          for p in Path('tests').glob('test_*.py'):
+            if p.name == 'test_synthetic_sleep_integration.py': continue
+            lines=p.read_text(encoding='utf-8').splitlines()
+            hits=[]
+            for i,line in enumerate(lines,1):
+              if any(t in line for t in terms): hits.append((i,line.strip()))
+            if hits:
+              print(f'=== {p} ===')
+              for i,line in hits: print(f'{i}: {line}')
+          PY
