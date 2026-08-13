@@ -4,7 +4,7 @@
 
 **Base :** `ce3bec5d7d9825784f397c8db9c77239f3886b13` (`0.2.0a2`, schéma 56, WO90 fermé).
 
-**HEAD fonctionnel WO91 :** `20291d4b8b9a72ceab786eb7f4dc37312cc4d5c8` (`0.2.0a3`, schéma 57).
+**HEAD fonctionnel WO91 :** `20291d43be6ab8264c556b1029c7ca1bfb75809e` (`0.2.0a3`, schéma 57).
 
 ## 1. Pourquoi WO91 existe
 

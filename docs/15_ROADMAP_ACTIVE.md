@@ -5,7 +5,7 @@
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
 
-> **Mise au point prioritaire — WO91 fermé (13 août 2026) :** porte de démarrage réel **FERMÉE**. Version `0.2.0a3`, schéma 57, migration `0057_location_plan_resolution.sql`, FUNCTIONAL_HEAD `20291d4b8b9a72ceab786eb7f4dc37312cc4d5c8`. Validation complète : **1036 passed, 1 skipped, 0 failed en 243,21 s**; skip attendu `tests/test_dev_bridge.py:59`. Le scheduler temporel générique, `work`, la provenance T0 par politiques et le point d'entrée one-shot sont qualifiés. Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé. **Prochain jalon immédiat : exécution explicite du point d'entrée sur une base neuve après décision du propriétaire.** Les photographies techniques antérieures ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
+> **Mise au point prioritaire — WO91 fermé (13 août 2026) :** porte de démarrage réel **FERMÉE**. Version `0.2.0a3`, schéma 57, migration `0057_location_plan_resolution.sql`, FUNCTIONAL_HEAD `20291d43be6ab8264c556b1029c7ca1bfb75809e`. Validation complète : **1036 passed, 1 skipped, 0 failed en 243,21 s**; skip attendu `tests/test_dev_bridge.py:59`. Le scheduler temporel générique, `work`, la provenance T0 par politiques et le point d'entrée one-shot sont qualifiés. Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé. **Prochain jalon immédiat : exécution explicite du point d'entrée sur une base neuve après décision du propriétaire.** Les photographies techniques antérieures ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
 
 ## Principe de conduite
 
@@ -29,7 +29,7 @@ tests et documentation après un lot à conséquences étendues.
 
 **Version logicielle actuelle :** `0.2.0a3` — schéma de code 57, migration
 `0057_location_plan_resolution.sql`, FUNCTIONAL_HEAD
-`20291d4b8b9a72ceab786eb7f4dc37312cc4d5c8`, validation complète **1036 passed, 1 skipped, 0 failed
+`20291d43be6ab8264c556b1029c7ca1bfb75809e`, validation complète **1036 passed, 1 skipped, 0 failed
 en 243,21 s**. WO89, WO90 et WO91 sont fermés; le bootstrap T0 jetable et le
 point d'entrée one-shot sont qualifiés. Aucun ancien SQLite n'a été migré et
 aucune histoire officielle Rodage V2 n'a commencé.

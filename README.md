@@ -6,7 +6,7 @@ Photographie active WO91 — 13 août 2026.
 - Import Python : `vivarium` (inchangé).
 - Version logicielle courante : `0.2.0a3`.
 - Schéma SQLite du code : **57** ; dernière migration : `0057_location_plan_resolution.sql`.
-- FUNCTIONAL_HEAD : `20291d4b8b9a72ceab786eb7f4dc37312cc4d5c8`.
+- FUNCTIONAL_HEAD : `20291d43be6ab8264c556b1029c7ca1bfb75809e`.
 - Validation complète : **1036 passed, 1 skipped, 0 failed** en `243.21s` ; skip attendu `tests/test_dev_bridge.py:59`.
 - WO91 est fermé. Le scheduler temporel, le bootstrap officiel one-shot et le T0 jetable sont qualifiés ; Rodage V2 officiel autorisé mais non démarré.
 
