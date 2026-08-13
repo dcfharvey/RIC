@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"commit","message":"docs: close WO88 runtime circadian cutover","paths":["docs/15_ROADMAP_ACTIVE.md","docs/88_WORK_ORDER_RUNTIME_CIRCADIEN_ACTIF_V1.md","docs/99_PASSATION_COURANTE.md"]},"request_id":"bf6453af-d719-4327-99dd-e448c87b58ec","route":"/dev/repo","schema_version":2}
+{"method":"POST","payload":{"operation":"status"},"request_id":"d0db4234-7519-43d1-b67c-907a6aee8a1c","route":"/dev/git","schema_version":2}
