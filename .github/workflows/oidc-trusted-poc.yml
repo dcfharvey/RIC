@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Print bounded non-secret OIDC claims
+      - name: Print bounded non-secret OIDC claim shape
         shell: bash
         run: |
           set -euo pipefail
@@ -36,11 +36,12 @@ jobs:
               raise RuntimeError("unexpected JWT format")
           payload = parts[1] + "=" * (-len(parts[1]) % 4)
           claims = json.loads(base64.urlsafe_b64decode(payload).decode("utf-8"))
-          allowed = [
-              "iss", "aud", "sub", "repository", "repository_id", "repository_owner_id",
-              "actor_id", "event_name", "ref", "sha", "workflow_ref", "workflow_sha",
-              "job_workflow_ref", "job_workflow_sha", "runner_environment", "run_id",
-              "run_attempt", "iat", "nbf", "exp",
-          ]
-          print("OIDC_CLAIMS=" + json.dumps({key: claims.get(key) for key in allowed}, sort_keys=True, separators=(",", ":")))
+          shape = {
+              "jti_present": isinstance(claims.get("jti"), str) and bool(claims.get("jti")),
+              "jti_length": len(claims.get("jti", "")) if isinstance(claims.get("jti"), str) else 0,
+              "repository_visibility": claims.get("repository_visibility"),
+              "job_workflow_sha_present": isinstance(claims.get("job_workflow_sha"), str),
+              "workflow_ref_present": isinstance(claims.get("workflow_ref"), str),
+          }
+          print("OIDC_SHAPE=" + json.dumps(shape, sort_keys=True, separators=(",", ":")))
           PY
