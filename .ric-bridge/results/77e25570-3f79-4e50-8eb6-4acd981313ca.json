@@ -1,0 +1,1 @@
+{"http_status":200,"request_id":"77e25570-3f79-4e50-8eb6-4acd981313ca","response":{"duration_ms":3,"ok":true,"operation":"create_file","result":{"after_sha256":"81839d2e0a9428ff19e40a26153934be62f8d5adde0601d4f0905e7bbf9e29d6","before_sha256":null,"bytes":393,"path":"tests/test_wo88_owner_backed_arbitration_regression.py"}},"schema_version":2,"status":"ok"}
