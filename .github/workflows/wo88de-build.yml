@@ -8,6 +8,8 @@ on:
       - tools/wo88de_apply.py
       - tools/wo88de_prepare.py
       - tools/wo88de_world_fix.py
+      - tools/wo88de_runtime_fix.py
+      - tools/wo88de_test_fix.py
       - .github/workflows/wo88de-build.yml
 
 permissions:
@@ -30,6 +32,8 @@ jobs:
           python tools/wo88de_prepare.py
           python tools/wo88de_apply.py
           python tools/wo88de_world_fix.py
+          python tools/wo88de_runtime_fix.py
+          python tools/wo88de_test_fix.py
       - name: Install
         run: python -m pip install -e . pytest
       - name: Targeted tests
