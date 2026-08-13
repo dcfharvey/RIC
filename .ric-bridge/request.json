@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"status"},"request_id":"31c7ed39-2a10-4af8-9c85-64d1958cc563","route":"/dev/git","schema_version":2}
+{"method":"POST","payload":{"operation":"search_text","path":"src/vivarium","query":"integration_world","limit":100},"request_id":"0bb0d19c-d13d-4b72-bcd6-84c0ed51d852","route":"/dev/fs","schema_version":2}
