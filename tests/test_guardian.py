@@ -1,5 +1,9 @@
 from datetime import datetime, timedelta, timezone
 import json
+import sqlite3
+
+import pytest
+
 from vivarium.activities import ActivityEngine
 from vivarium.db import connect_database
 from vivarium.guardian import LocalGuardian
@@ -144,23 +148,15 @@ def test_guardian_rejects_a_replaced_runtime_session(tmp_path):
     conn.close()
 
 
-def test_guardian_rejects_multiple_open_runtime_sessions(tmp_path):
+def test_runtime_schema_rejects_multiple_open_sessions(tmp_path):
     clock = Clock()
     conn, world_id = _world(clock)
-    session = RuntimeSessionService(conn, clock=clock).start(world_id)
-    conn.execute(
-        "INSERT INTO runtime_session "
-        "(public_id, world_id, started_at, last_heartbeat_at, last_canonical_at) "
-        "VALUES ('guardian-second-session', ?, ?, ?, ?)",
-        (world_id, clock.now_iso(), clock.now_iso(), clock.now_iso()),
-    )
-    conn.commit()
-    report = LocalGuardian(
-        conn, world_id, log_path=tmp_path / "guardian.jsonl", clock=clock,
-        runtime_session_id=session.session_id,
-    ).inspect()
-    assert report.status == "CRITIQUE"
-    consistency = next(check for check in report.checks if check.key == "runtime_consistency")
-    assert consistency.level == "critical"
-    assert "2 sessions" in consistency.detail
+    RuntimeSessionService(conn, clock=clock).start(world_id)
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO runtime_session "
+            "(public_id, world_id, started_at, last_heartbeat_at, last_canonical_at) "
+            "VALUES ('guardian-second-session', ?, ?, ?, ?)",
+            (world_id, clock.now_iso(), clock.now_iso(), clock.now_iso()),
+        )
     conn.close()
