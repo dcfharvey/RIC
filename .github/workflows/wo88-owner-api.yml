@@ -1,0 +1,46 @@
+name: WO88 owner-backed physiology APIs
+
+on:
+  push:
+    branches:
+      - chatgpt/wo88-final-validation
+    paths:
+      - tools/wo88_owner_api_repair.py
+      - .github/workflows/wo88-owner-api.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/wo88-final-validation
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply deterministic repair
+        run: python tools/wo88_owner_api_repair.py
+      - name: Install
+        run: python -m pip install -e . pytest
+      - name: Targeted owner-backed tests
+        run: >-
+          python -m pytest -q
+          tests/test_active_runtime_cutover.py
+          tests/test_sleep_physiology_persistence.py
+          tests/test_synthetic_causal_arbitration.py
+          tests/test_synthetic_causal_arbitration_guards.py
+      - name: Commit generated repair
+        shell: pwsh
+        run: |
+          git config user.name "RIC WO88 Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add src tests
+          git diff --cached --check
+          if (git diff --cached --quiet) { exit 0 }
+          git commit -m "wo88e: keep active runtime on owner-backed physiology APIs"
+          git push origin HEAD:chatgpt/wo88-final-validation
