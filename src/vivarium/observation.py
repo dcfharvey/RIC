@@ -15,6 +15,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from .sleep_physiology import SleepPhysiologyService
 from .util import parse_iso
 from .world import WorldEngine
 
@@ -173,6 +174,11 @@ class HuginMuninObservationService:
             tuple(params),
         ).fetchall()
         now = WorldEngine(self.conn).read_canonical_time(world_id)
+        system_row = self.conn.execute(
+            "SELECT status FROM world_physiology_system WHERE world_id=?", (world_id,)
+        ).fetchone()
+        physiology_status = "inactive" if system_row is None else system_row["status"]
+        physiology_service = SleepPhysiologyService(self.conn) if physiology_status == "active" else None
         for row in rows:
             ref = f"current_character:{row['key']}"
             last_move = self.conn.execute(
@@ -183,10 +189,30 @@ class HuginMuninObservationService:
             duration_seconds = None
             if last_move is not None:
                 duration_seconds = max(0, int((parse_iso(now) - parse_iso(last_move["occurred_at"])).total_seconds()))
+            physiology = {
+                "status": physiology_status,
+                "canonical_now": now,
+                "wake_sleep_state": "sleep" if row["activity_type"] == "sleep" else "wake",
+                "persisted": None,
+                "projection": None,
+                "projection_evaluated_at": None,
+                "projection_policy": "not_extrapolated_by_read_model",
+            }
+            if physiology_service is not None:
+                state = physiology_service.read_state(world_id, row["key"])
+                physiology["persisted"] = {
+                    "model_key": state.model_key,
+                    "model_version": state.model_version,
+                    "anchor_at": state.anchor_at,
+                    "homeostatic_load_milli": state.regulation.homeostatic_load_milli,
+                    "circadian_phase_milli": state.regulation.circadian_phase_milli,
+                    "physical_capacity_milli": state.regulation.physical_capacity_milli,
+                    "previous_stability_band": state.hysteresis.previous_band,
+                }
             data = {"character_key": row["key"], "name": row["name"], "location_key": row["location_key"],
                     "location_name": row["location_name"], "activity_type": row["activity_type"],
                     "activity_started_at": row["activity_started_at"], "canonical_now": now,
-                    "duration_seconds": duration_seconds,
+                    "duration_seconds": duration_seconds, "physiology": physiology,
                     "last_transition": None if last_move is None else {"public_id": last_move["public_id"], "occurred_at": last_move["occurred_at"]}}
             evidence.append(self._evidence(ref, "current_canonical_state", "canon", None, data))
             activity = f"; activite courante: {row['activity_type']}" if row["activity_type"] else ""
