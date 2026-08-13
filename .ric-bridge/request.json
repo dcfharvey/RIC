@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"search_text","path":"src/vivarium","query":"integration_world","limit":100},"request_id":"0bb0d19c-d13d-4b72-bcd6-84c0ed51d852","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"search_text","path":"src/vivarium","query":"initial_physiology_manifest","limit":100},"request_id":"a5919c7a-1060-4cf6-a630-5eef3bbfd6c9","route":"/dev/fs","schema_version":2}
