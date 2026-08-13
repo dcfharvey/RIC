@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"branch"},"request_id":"5cffd1d6-6b61-491e-8624-1417c55884c9","route":"/dev/git","schema_version":2}
+{"method":"POST","payload":{"operation":"stat","path":"src/vivarium/action_arbitration_runtime.py"},"request_id":"b6967be0-bf76-421d-8163-eb3069569aec","route":"/dev/fs","schema_version":2}
