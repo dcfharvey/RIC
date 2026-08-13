@@ -1,0 +1,1 @@
+{"http_status":200,"request_id":"f2c8c849-e941-4a8c-9f6a-778a5382a6f9","response":{"duration_ms":84,"ok":true,"operation":"create_branch","result":{"branch":"chatgpt/bridge-e2e-smoke","created":true}},"schema_version":2,"status":"ok"}
