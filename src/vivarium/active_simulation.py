@@ -14,6 +14,7 @@ from datetime import timedelta
 from typing import Any, Literal
 
 from .activities import ActivityEngine
+from .action_arbitration_runtime import ActionArbitrationService, CausalArbitrationBuilder
 from .db import transaction
 from .injury import InjuryEngine
 from .needs import NeedsEngine
@@ -38,7 +39,7 @@ class ActiveSimulationError(RuntimeError):
 
 class ActiveSimulationEngine:
     def __init__(self,conn:sqlite3.Connection,clock:Clock|None=None)->None:
-        self._conn,self._clock=conn,clock or Clock();self._activities=ActivityEngine(conn,clock=self._clock);self._physiology=SleepPhysiologyService(conn,clock=self._clock)
+        self._conn,self._clock=conn,clock or Clock();self._activities=ActivityEngine(conn,clock=self._clock);self._physiology=SleepPhysiologyService(conn,clock=self._clock);self._arbitration=CausalArbitrationBuilder(conn,clock=self._clock);self._arbiter=ActionArbitrationService()
     def _require_active(self,world_id:int)->None:
         if SleepPhysiologyFoundationService(self._conn,clock=self._clock).system_status(world_id)!="active":
             raise ActiveSimulationError("scheduler actif exige physiology=active",code="physiology_not_active")
@@ -59,6 +60,8 @@ class ActiveSimulationEngine:
                 candidates.append((active["planned_end_at"],"activity_end"))
         light=self._physiology.next_light_boundary_owner_backed(world_id,character_key,until=limit)
         if light is not None:candidates.append((light,"light_change"))
+        reassess=self._arbitration.next_reassessment_at(world_id,character_key)
+        if parse_iso(state.anchor_at)<parse_iso(reassess)<=parse_iso(limit):candidates.append((reassess,"arbitration_reassessment"))
         if active is not None and active["type"] not in {"sleep","rest"} and self._sustained(world_id,active["type"]):
             horizon=min([parse_iso(limit)]+[parse_iso(v) for v,_ in candidates if parse_iso(v)>parse_iso(state.anchor_at)])
             critical=self._physiology.next_critical_boundary_owner_backed(
@@ -92,19 +95,29 @@ class ActiveSimulationEngine:
             self._activities.report_sleep_hard_cap(world_id,key,at_time=at);return
         assert evaluation.next_reassessment_after_seconds is not None
         self._activities.advance_sleep_checkpoint(world_id,key,at_time=at,next_reassessment_at=to_iso(parse_iso(at)+timedelta(seconds=evaluation.next_reassessment_after_seconds)),previous_band=evaluation.band)
+    def _arbitrate(self,world_id:int,key:str,at:str)->None:
+        current=self._arbitration.current_action_key(world_id,key)
+        frame=self._arbitration.build_owner_backed(
+            world_id,key,canonical_at=at,current_action_key=current
+        )
+        decision,validation=self._arbiter.execute(self._conn,frame,clock=self._clock)
+        self._arbitration.audit_decision(frame,decision,validation=validation)
     def _process(self,world_id:int,boundary:ActiveBoundary)->None:
         key,at=boundary.character_key,boundary.at;reasons=set(boundary.reasons)
         # Materialize exactly once under causes that held before this boundary.
         self._physiology.materialize_owner_backed(world_id,key,at)
+        should_arbitrate=bool({"arbitration_reassessment","light_change"}&reasons)
         active=self._activities.activity_sheet(world_id,key)
         if "wake_stability_critical" in reasons and active is not None and self._sustained(world_id,active["type"]):
             if self._physiology.read_state(world_id,key).previous_stability_band=="critical":
-                self._activities.abort_activity(world_id,key,sim_now=at,reason_code="wake_stability_critical",_reanchor_clock=False);return
+                self._activities.abort_activity(world_id,key,sim_now=at,reason_code="wake_stability_critical",_reanchor_clock=False);should_arbitrate=True
         active=self._activities.activity_sheet(world_id,key)
         if active is not None and active["type"]=="sleep" and ({"sleep_checkpoint","sleep_hard_cap"}&reasons):
-            self._sleep_checkpoint(world_id,key,at);return
+            before=active["id"];self._sleep_checkpoint(world_id,key,at);after=self._activities.activity_sheet(world_id,key);should_arbitrate=should_arbitrate or after is None or after.get("id")!=before
+        active=self._activities.activity_sheet(world_id,key)
         if active is not None and active["type"]!="sleep" and "activity_end" in reasons:
-            self._activities.advance_to(world_id,key,at,_reanchor_clock=False)
+            self._activities.advance_to(world_id,key,at,_reanchor_clock=False);should_arbitrate=True
+        if should_arbitrate:self._arbitrate(world_id,key,at)
     def run_to(self,world_id:int,target_time:str,max_transitions:int=1000)->SimulationReport:
         self._require_active(world_id)
         if not isinstance(max_transitions,int) or isinstance(max_transitions,bool) or max_transitions<1:raise ActiveSimulationError("borne invalide",code="invalid_transition_limit")

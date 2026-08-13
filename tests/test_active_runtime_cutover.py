@@ -5,6 +5,7 @@ from datetime import datetime,timezone,timedelta
 import pytest
 
 from vivarium.activities import ActivityEngine
+from vivarium.action_arbitration import ActionArbitrationFoundationService
 from vivarium.active_simulation import ActiveSimulationEngine
 from vivarium.circadian_model import calibration_profiles
 from vivarium.db import connect_database,transaction
@@ -34,7 +35,8 @@ def active_world():
  for r in conn.execute("SELECT key FROM character WHERE world_id=?",(wid,)):f.assign_biology_profile(wid,r["key"],"runtime.human.v1",1,"test")
  f.assign_physical_capacity_policy(wid,"runtime.p.v1",1,"test")
  for typ,load in V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY.items():conn.execute("UPDATE activity_definition SET physical_load_class=? WHERE world_id=? AND activity_type=?",(load,wid,typ))
- term=SleepTerminationFoundationService(conn,clock=clock);term.register_policy("runtime.sleep.v1",1,{"schema_version":1,"checkpoint_interval_seconds":30,"hard_cap_seconds":300,"wake_admissible_enter_milli":65000,"wake_admissible_exit_milli":55000},"test");term.assign_policy(wid,"runtime.sleep.v1",1,"test");f.prepare_world(wid,ADDITIVE_MODEL_KEY,1,"test")
+ term=SleepTerminationFoundationService(conn,clock=clock);term.register_policy("runtime.sleep.v1",1,{"schema_version":1,"checkpoint_interval_seconds":30,"hard_cap_seconds":300,"wake_admissible_enter_milli":65000,"wake_admissible_exit_milli":55000},"test");term.assign_policy(wid,"runtime.sleep.v1",1,"test")
+ arb=ActionArbitrationFoundationService(conn,clock=clock);ap=arb.register_policy("runtime.arb.v1",1,{"schema_version":1,"source_mappings":{"sleep_regulation":{"transform":"linear_clamped_milli.v1","correlation_group":"sleep","input_low_milli":60000,"input_high_milli":100000,"direction":"ascending"},"physical_recovery":{"transform":"linear_clamped_milli.v1","correlation_group":"recovery","input_low_milli":20000,"input_high_milli":80000,"direction":"descending"},"subjective_intention":{"transform":"linear_clamped_milli.v1","correlation_group":"subjective","input_low_milli":0,"input_high_milli":100000,"direction":"ascending"}},"correlation_groups":{"kind":"declared_by_source_mapping.v1"},"aggregation":{"kind":"max_per_group_then_saturating_sum.v1"},"current_action_inertia":{"max_bonus_milli":0},"quasi_equality":{"band_milli":100000},"reassessment":{"interval_seconds":60}},"test");arb.assign_policy(wid,ap.policy_key,ap.version,"test");f.prepare_world(wid,ADDITIVE_MODEL_KEY,1,"test")
  with transaction(conn) as tx:
   tx.execute("UPDATE world_physiology_system SET status='active',activated_at=?,activated_by=?,updated_at=? WHERE world_id=?",(T0,"test",T0,wid))
   for r in tx.execute("SELECT id FROM character WHERE world_id=?",(wid,)):
@@ -111,3 +113,32 @@ def test_active_runtime_paths_do_not_call_public_synthetic_physiology_apis(monke
    wid,"sophie",until=to_iso(T0_DT+timedelta(seconds=20))
   )
  finally:conn.close()
+
+
+def test_arbitration_reassessment_is_a_causal_private_boundary():
+ conn,wid,clock=active_world()
+ try:
+  before_events=conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id=?",(wid,)).fetchone()[0]
+  boundary=ActiveSimulationEngine(conn,clock=clock).next_boundary(
+   wid,"sophie",until=to_iso(T0_DT+timedelta(seconds=61))
+  )
+  assert boundary is not None and boundary.at==to_iso(T0_DT+timedelta(seconds=60))
+  assert "arbitration_reassessment" in boundary.reasons
+  clock.current=T0_DT+timedelta(seconds=61)
+  ActiveSimulationEngine(conn,clock=clock).run_to(wid,to_iso(clock.current))
+  audit_actors=tuple(sorted(
+   r["actor"] for r in conn.execute(
+    "SELECT json_extract(result_json,'$.actor_key') AS actor FROM action_arbitration_audit "
+    "WHERE world_id=? AND reason_code='active_causal_arbitration'",(wid,)
+   )
+  ))
+  expected=tuple(r["key"] for r in conn.execute("SELECT key FROM character WHERE world_id=? ORDER BY key",(wid,)))
+  assert audit_actors==expected
+  assert conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id=?",(wid,)).fetchone()[0]==before_events
+ finally:conn.close()
+
+
+def test_active_scheduler_imports_no_synthetic_arbitration_module():
+ import inspect
+ import vivarium.active_simulation as module
+ assert "synthetic_action_arbitration" not in inspect.getsource(module)
