@@ -5,7 +5,7 @@
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
 
-> **Mise au point prioritaire — durcissement provider WO91 (13 août 2026) :** WO91 reste **FERMÉ**. Version `0.2.0a4`, schéma 57, migration `0057_location_plan_resolution.sql`, FUNCTIONAL_HEAD `b272006bb5c72085487816b2fab2cf12800f0fa5`. Validation complète : **1044 passed, 1 skipped, 0 failed en 242,01 s**; skip attendu `tests/test_dev_bridge.py:59`. Le launcher exige maintenant la preuve native LM Studio `quantization.name=Q4_K_M` et une unique `loaded_instance` avant toute création SQLite. Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé. **Prochain jalon immédiat : rendre LM Studio Qwen3-14B Q4_K_M disponible puis exécuter explicitement le point d'entrée sur une base neuve.** Les photographies techniques antérieures ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
+> **Mise au point prioritaire — démarrage Rodage V2 (13 août 2026) :** WO91 reste **FERMÉ**. Version corrective `0.2.0a5`, schéma 57, migration `0057_location_plan_resolution.sql`. La correction ancre le manifeste sur la frontière canonique effectivement gelée par `stop()`; validation complète : **1045 passed, 1 skipped, 0 failed en 240,88 s**; skip attendu `tests/test_dev_bridge.py:59`. Qwen3-14B Q4_K_M est chargé et vérifié nativement. Le démarrage officiel a réussi sur `data/vivarium-rodage-v2.sqlite` (world `1`, session `2`, T0 `2026-08-13T19:20:22.071+00:00`); préflight et Hugin ont passé avant ouverture. L'ancien SQLite reste hors portée.
 
 ## Principe de conduite
 
@@ -27,10 +27,10 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.2.0a4` — schéma de code 57, migration
+**Version logicielle actuelle :** `0.2.0a5` — schéma de code 57, migration
 `0057_location_plan_resolution.sql`, FUNCTIONAL_HEAD
-`b272006bb5c72085487816b2fab2cf12800f0fa5`, validation complète **1044 passed, 1 skipped, 0 failed
-en 242,01 s**. WO89, WO90 et WO91 sont fermés; le bootstrap T0 jetable, le
+`1a55ce5056309e416865d9bd095e24821c3ef99d`, validation complète **1045 passed, 1 skipped, 0 failed
+en 240,88 s**. WO89, WO90 et WO91 sont fermés; le bootstrap T0 jetable, le
 point d'entrée one-shot et le garde provider Qwen3-14B Q4_K_M sont qualifiés.
 Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé.
 
@@ -105,6 +105,7 @@ Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a
 | `0.2.0a2` | Atteint | Bootstrap WO90 : topologie externe générique, sommeil dans tout lieu canonique accessible, plans de retour et T0 jetable complet qualifiés; histoire officielle non encore démarrée. |
 | `0.2.0a3` | Atteint | WO91 : scheduler temporel générique, retour causal à 16 h, manifeste T0 provenancé et point d'entrée one-shot qualifiés; histoire officielle non encore démarrée. |
 | `0.2.0a4` | Atteint | Durcissement du provider officiel : preuve structurée Qwen3-14B Q4_K_M et instance LM Studio chargée vérifiées avant création SQLite; histoire officielle non encore démarrée. |
+| `0.2.0a5` | Atteint | Correction de l’ancre T0 du manifeste sur la frontière canonique gelée par l’arrêt technique; qualification complète verte. |
 | `0.0.0.dev0` | État actuel | Pré-alpha : fondations rigoureuses, mais pas encore de boucle sociale complète. |
 | `0.0.1.dev0` | Jalon atteint après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
 | `0.0.2.dev0` | État actuel, après le monde d'intégration | Les cinq vraies configurations peuvent être assemblées et réinitialisées sans histoire officielle. |

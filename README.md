@@ -1,15 +1,15 @@
 # RIC — Reality · Interaction · Cognition
 
-Photographie active — durcissement provider WO91, 13 août 2026.
+Photographie active — démarrage Rodage V2, 13 août 2026.
 
 - Distribution technique : `vivarium-social` (inchangée).
 - Import Python : `vivarium` (inchangé).
-- Version logicielle courante : `0.2.0a4`.
+- Version logicielle courante : `0.2.0a5`.
 - Schéma SQLite du code : **57** ; dernière migration : `0057_location_plan_resolution.sql`.
-- FUNCTIONAL_HEAD : `b272006bb5c72085487816b2fab2cf12800f0fa5`.
-- Validation complète : **1044 passed, 1 skipped, 0 failed** en `242.01s` ; skip attendu `tests/test_dev_bridge.py:59`.
-- Le launcher officiel exige désormais la preuve structurée LM Studio `quantization.name=Q4_K_M` et une unique `loaded_instance` pour Qwen3-14B, avant toute création SQLite.
-- WO91 reste fermé et le Rodage V2 officiel n'est pas démarré : la porte locale est actuellement refusée tant que LM Studio n'expose pas l'instance attendue.
+- FUNCTIONAL_HEAD : `1a55ce5056309e416865d9bd095e24821c3ef99d`.
+- Validation complète avant correction : **1044 passed, 1 skipped, 0 failed** en `242.01s` ; après correction : **1045 passed, 1 skipped, 0 failed** en `240.88s` ; skip attendu `tests/test_dev_bridge.py:59`.
+- Le launcher exige la preuve structurée LM Studio `quantization.name=Q4_K_M`, une unique `loaded_instance` et ancre le manifeste sur la frontière canonique effectivement gelée par `stop()`.
+- Rodage V2 officiel démarré sur base neuve : `data/vivarium-rodage-v2.sqlite`, world `1`, session `2`, T0 `2026-08-13T19:20:22.071+00:00` (15:20:22 EDT). Préflight et Hugin ont passé avant l’ouverture de la session.
 
 ## Reprise d'un travail existant
 

@@ -1,11 +1,12 @@
 # Work order 91 — porte de démarrage réel du Rodage V2
 
-**Statut : FERMÉ — WO91 satisfait; le démarrage officiel est préparé mais non exécuté.**
+**Statut : FERMÉ — WO91 satisfait; le Rodage V2 officiel a été démarré sur base neuve.**
 
-### Addendum provider — 0.2.0a4
+### Addendum provider et frontière T0 — 0.2.0a5
 
 Le correctif final du launcher est qualifié dans FUNCTIONAL_HEAD
-`b272006bb5c72085487816b2fab2cf12800f0fa5`. Avant toute création de la base
+`1a55ce5056309e416865d9bd095e24821c3ef99d`.
+frontière T0. Avant toute création de la base
 officielle, le contrôle lit l'API native LM Studio et exige simultanément :
 
 - la clé configurée correspondant à Qwen3-14B;
@@ -14,9 +15,9 @@ officielle, le contrôle lit l'API native LM Studio et exige simultanément :
 
 Une autre quantification, un autre modèle, une instance absente/ambiguë ou une
 API inaccessible refuse le lancement sans créer de SQLite partiel. La suite
-complète de ce build est **1044 passed, 1 skipped, 0 failed en 242,01 s**;
+complète de ce build est **1045 passed, 1 skipped, 0 failed en 240,88 s**;
 le skip attendu reste `tests/test_dev_bridge.py:59`. La base officielle V2 n'a
-pas été créée et l'ancien rodage n'a pas été modifié.
+pas été créée avant la porte; elle est maintenant ouverte à `data/vivarium-rodage-v2.sqlite` (world `1`, session `2`, T0 `2026-08-13T19:20:22.071+00:00`). L'ancien rodage n'a pas été modifié.
 
 **Base :** `ce3bec5d7d9825784f397c8db9c77239f3886b13` (`0.2.0a2`, schéma 56, WO90 fermé).
 

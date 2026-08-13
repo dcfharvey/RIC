@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0a5 — 13 août 2026
+
+- Corrige l’ancrage T0 du launcher : le manifeste physiologique utilise désormais la frontière canonique réellement gelée par l’arrêt technique, même si l’horloge murale avance pendant la préparation.
+- Validation complète : 1045 tests réussis, 1 skip connu (`tests/test_dev_bridge.py:59`), 0 échec en 240,88 s.
+- Démarrage officiel exécuté sur une base V2 neuve à 15:20:22 EDT avec Qwen3-14B Q4_K_M; world `1`, session `2`; l’ancien rodage reste inchangé.
+
 ## 0.2.0a4 — 13 août 2026
 
 - Durcit le point d'entrée officiel : Qwen3-14B doit être identifié par la clé configurée, exposer `quantization.name=Q4_K_M` et posséder exactement une `loaded_instance` dans l'API native LM Studio.
