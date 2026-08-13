@@ -1,0 +1,50 @@
+name: Cleanup WO94B dead test helpers
+on:
+  push:
+    branches: [chatgpt/wo94b-debloat-physiology]
+permissions:
+  contents: write
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/wo94b-debloat-physiology
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Remove orphaned helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path('tests/test_sleep_physiology_persistence.py')
+          text=p.read_text(encoding='utf-8'); lines=text.splitlines(keepends=True); tree=ast.parse(text)
+          targets={'_physiology_snapshot','_set_synthetic_state'}
+          ranges=[]; found=set()
+          for node in tree.body:
+              if isinstance(node,ast.FunctionDef) and node.name in targets:
+                  found.add(node.name); start=node.lineno-1
+                  while start>0 and not lines[start-1].strip(): start-=1
+                  ranges.append((start,node.end_lineno))
+          if found != targets: raise SystemExit(f'missing helpers: {sorted(targets-found)}')
+          keep=[True]*len(lines)
+          for a,b in ranges:
+              for i in range(a,b): keep[i]=False
+          text=''.join(line for i,line in enumerate(lines) if keep[i])
+          text=text.replace('''from vivarium.circadian_model import (\n    RegulationInput,\n    advance_regulation,\n    calibration_profiles,\n    effective_light_drive,\n)\n''','''from vivarium.circadian_model import calibration_profiles\n''')
+          text=text.replace('"""Raccord persistant inactif : lectures, gate et ownership."""','"""Raccord persistant owner-backed : lectures, gate et ownership."""')
+          p.write_text(text,encoding='utf-8')
+          PY
+          git rm .github/workflows/wo94b-cleanup.yml
+          git config user.name 'RIC debloat bot'
+          git config user.email 'noreply@github.com'
+          git add tests/test_sleep_physiology_persistence.py
+          git diff --cached --check
+          python -m compileall -q src tests
+          git commit -m 'test: remove orphaned synthetic physiology helpers'
+          git push origin HEAD:chatgpt/wo94b-debloat-physiology
