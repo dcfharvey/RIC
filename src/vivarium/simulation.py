@@ -39,7 +39,7 @@ from .util import Clock, now_utc, parse_iso, to_iso
 from .world import WorldEngine
 
 NEED_KEYS = ("satiete", "repos", "energie", "hygiene")
-ACTIVITY_TYPES = ("idle", "eat", "clean", "sleep", "rest")
+ACTIVITY_TYPES = ("idle", "eat", "clean", "sleep", "rest", "work")
 DEFAULT_MAX_TRANSITIONS = 2000
 DEFAULT_FALLBACK_LIMIT = 50
 

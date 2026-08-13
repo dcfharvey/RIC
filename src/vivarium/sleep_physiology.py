@@ -62,6 +62,7 @@ V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY: Mapping[str, str] = {
     "socialize": "none",
     "watch_tv": "none",
     "photography": "light",
+    "work": "light",
     "girly_care": "light",
     "clean": "moderate",
     "sport": "vigorous",
@@ -831,6 +832,48 @@ class SleepPhysiologyFoundationService:
                 )
         except sqlite3.IntegrityError as exc:
             raise SleepPhysiologyError("entree de manifeste deja presente", code="duplicate_manifest_entry") from exc
+
+    def derive_initial_manifest_entry(
+        self, world_id: Any, manifest_key: Any, manifest_version: Any, character_key: Any,
+        *, provenance: str = "t0.policy_center.v1",
+        justification: str = "centre déterministe de la politique T0; aucun passé reconstruit",
+    ) -> InitialPhysiologyManifestEntry:
+        """Dérive une entrée T0 parcimonieuse depuis les politiques assignées.
+
+        H/P sont les centres des régions versionnées; phi est le milieu de la
+        fenêtre compatible avec la lumière canonique au T0. La bande est
+        calculée par ``wake_stability`` et les résidus restent nuls.
+        """
+        manifest = self.initial_physiology_manifest(world_id, manifest_key, manifest_version)
+        policy = self.initial_physiology_policy(manifest["policy_key"], manifest["policy_version"])
+        phase_rule = self.t0_phase_rule(manifest["phase_rule_key"], manifest["phase_rule_version"])
+        row = self._conn.execute(
+            "SELECT c.id,p.profile_key,p.version,p.evidence_class,p.parameters_json FROM character c "
+            "JOIN character_sleep_biology_assignment a ON a.world_id=c.world_id AND a.character_id=c.id "
+            "JOIN sleep_biology_profile p ON p.id=a.profile_id WHERE c.world_id=? AND c.key=?",
+            (manifest["world_id"], character_key),
+        ).fetchone()
+        if row is None:
+            raise SleepPhysiologyError("profil biologique absent", code="biology_profile_missing")
+        source = self._manifest_source(manifest["world_id"], int(row["id"]), manifest["anchor_at"])
+        region = policy.homeostatic_load_min_milli + policy.homeostatic_load_max_milli
+        homeostatic = region // 2
+        capacity = (policy.physical_capacity_min_milli + policy.physical_capacity_max_milli) // 2
+        windows = phase_rule.light_phase_windows if source.environmental_light_milli > 0 else phase_rule.dark_phase_windows
+        if not windows:
+            raise SleepPhysiologyError("fenêtre T0 absente", code="invalid_initial_manifest")
+        phase = (windows[0][0] + windows[0][1]) // 2
+        parameters = SleepPhysiologyService._parameters_from_row(row)
+        expected = wake_stability(
+            RegulationState(homeostatic / 100_000.0, phase / (PHASE_TURNS - 1), capacity / 100_000.0),
+            source, parameters, previous_band="stable",
+        ).band
+        entry = InitialPhysiologyManifestEntry(
+            character_key, row["profile_key"], int(row["version"]), homeostatic, phase,
+            capacity, expected, provenance, justification,
+        )
+        self._validate_initial_manifest_entry(manifest, policy, phase_rule, entry)
+        return entry
 
     def validate_initial_physiology_manifest(
         self, world_id: Any, manifest_key: Any, version: Any

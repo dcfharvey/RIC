@@ -15,6 +15,7 @@ from typing import Any, Literal
 
 from .activities import ActivityEngine
 from .action_arbitration_runtime import ActionArbitrationService, CausalArbitrationBuilder
+from .character import CharacterEngine, CharacterError
 from .db import transaction
 from .injury import InjuryEngine
 from .needs import NeedsEngine
@@ -25,6 +26,7 @@ from .sleep_termination import (
 )
 from .util import Clock, parse_iso, to_iso
 from .world import WorldEngine
+from .location_plans import LocationPlanService
 
 _ACTIVE_NEEDS=frozenset({"satiete","hygiene"})
 
@@ -50,6 +52,11 @@ class ActiveSimulationEngine:
     def next_boundary(self,world_id:int,character_key:str,*,until:str)->ActiveBoundary|None:
         self._require_active(world_id);limit=to_iso(parse_iso(until));state=self._physiology.read_state(world_id,character_key);candidates=[]
         active=self._activities.activity_sheet(world_id,character_key)
+        plan_at = LocationPlanService(self._conn, clock=self._clock).next_due_at(
+            world_id, after=state.anchor_at, until=limit
+        )
+        if plan_at is not None:
+            candidates.append((plan_at, "location_plan"))
         if active is not None:
             if active["type"]=="sleep":
                 cp=self._activities.sleep_checkpoint(world_id,character_key)
@@ -102,6 +109,40 @@ class ActiveSimulationEngine:
         )
         decision,validation=self._arbiter.execute(self._conn,frame,clock=self._clock)
         self._arbitration.audit_decision(frame,decision,validation=validation)
+    def _resolve_location_plans(self, world_id: int, key: str, at: str) -> None:
+        plans = [p for p in LocationPlanService(self._conn, clock=self._clock).due(world_id, at)
+                 if p["character_key"] == key]
+        for plan in plans:
+            service = LocationPlanService(self._conn, clock=self._clock)
+            active = self._activities.activity_sheet(world_id, key)
+            current = self._conn.execute(
+                "SELECT l.key FROM character c JOIN location l ON l.id=c.current_location_id "
+                "WHERE c.world_id=? AND c.key=?", (world_id, key)
+            ).fetchone()
+            if current is None:
+                service.resolve(world_id, plan["id"], outcome="refused", resolved_at=at,
+                                reason_code="character_not_found")
+                continue
+            if active is not None:
+                service.resolve(world_id, plan["id"], outcome="refused", resolved_at=at,
+                                reason_code="activity_active", details={"activity": active["type"]})
+                continue
+            if current["key"] == plan["target_location_key"]:
+                service.resolve(world_id, plan["id"], outcome="fulfilled", resolved_at=at,
+                                reason_code="already_at_target", details={"target": current["key"]})
+                continue
+            try:
+                with transaction(self._conn) as c:
+                    path = self._activities._path(world_id, current["key"], plan["target_location_key"])
+                    engine = CharacterEngine(self._conn, clock=self._clock)
+                    for step in path[1:]:
+                        engine._move(c, world_id, key, step, sim_now=at)
+                    service.resolve(world_id, plan["id"], outcome="fulfilled", resolved_at=at,
+                                    reason_code="canonical_traversal", details={"path": path})
+            except (CharacterError, ValueError) as exc:
+                service.resolve(world_id, plan["id"], outcome="refused", resolved_at=at,
+                                reason_code=getattr(exc, "code", "transition_rejected"),
+                                details={"error": str(exc)})
     def _process(self,world_id:int,boundary:ActiveBoundary)->None:
         key,at=boundary.character_key,boundary.at;reasons=set(boundary.reasons)
         # Materialize exactly once under causes that held before this boundary.
@@ -117,6 +158,8 @@ class ActiveSimulationEngine:
         active=self._activities.activity_sheet(world_id,key)
         if active is not None and active["type"]!="sleep" and "activity_end" in reasons:
             self._activities.advance_to(world_id,key,at,_reanchor_clock=False);should_arbitrate=True
+        if "location_plan" in reasons:
+            self._resolve_location_plans(world_id, key, at)
         if should_arbitrate:self._arbitrate(world_id,key,at)
     def run_to(self,world_id:int,target_time:str,max_transitions:int=1000)->SimulationReport:
         self._require_active(world_id)

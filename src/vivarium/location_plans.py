@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Any
 
 from .db import transaction
 from .registry import _KEY_RE
 from .util import Clock, new_uuid
-from .world import SOURCE_SYSTEM, WorldEngine, _append_event
+from .world import SOURCE_ENGINE, SOURCE_SYSTEM, WorldEngine, _append_event
 
 
 class LocationPlanError(ValueError):
@@ -82,9 +83,12 @@ class LocationPlanService:
 
     def read(self, world_id: int, plan_id: int) -> dict[str, Any]:
         row = self._conn.execute(
-            "SELECT p.id,p.plan_kind,p.planned_at,p.status,p.provenance,c.key AS character_key,l.key AS target_location_key "
+            "SELECT p.id,p.plan_kind,p.planned_at,p.status,p.provenance,c.key AS character_key,l.key AS target_location_key, "
+            "r.outcome AS resolution_outcome,r.resolved_at,r.reason_code AS resolution_reason "
             "FROM character_location_plan p JOIN character c ON c.id=p.character_id "
-            "JOIN location l ON l.id=p.target_location_id WHERE p.world_id=? AND p.id=?",
+            "JOIN location l ON l.id=p.target_location_id "
+            "LEFT JOIN character_location_plan_resolution r ON r.world_id=p.world_id AND r.plan_id=p.id "
+            "WHERE p.world_id=? AND p.id=?",
             (world_id, plan_id),
         ).fetchone()
         if row is None:
@@ -94,9 +98,79 @@ class LocationPlanService:
     def list_for_character(self, world_id: int, character_key: str) -> list[dict[str, Any]]:
         character_key = self._key(character_key, "personnage")
         rows = self._conn.execute(
-            "SELECT p.id,p.plan_kind,p.planned_at,p.status,p.provenance,c.key AS character_key,l.key AS target_location_key "
+            "SELECT p.id,p.plan_kind,p.planned_at,p.status,p.provenance,c.key AS character_key,l.key AS target_location_key, "
+            "r.outcome AS resolution_outcome,r.resolved_at,r.reason_code AS resolution_reason "
             "FROM character_location_plan p JOIN character c ON c.id=p.character_id "
-            "JOIN location l ON l.id=p.target_location_id WHERE p.world_id=? AND c.key=? ORDER BY p.planned_at,p.id",
+            "JOIN location l ON l.id=p.target_location_id "
+            "LEFT JOIN character_location_plan_resolution r ON r.world_id=p.world_id AND r.plan_id=p.id "
+            "WHERE p.world_id=? AND c.key=? ORDER BY p.planned_at,p.id",
             (world_id, character_key),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def due(self, world_id: int, at_time: str) -> list[dict[str, Any]]:
+        """Retourne les engagements échus et encore sans résolution."""
+        rows = self._conn.execute(
+            "SELECT p.id,p.plan_kind,p.planned_at,p.provenance,c.key AS character_key, "
+            "l.key AS target_location_key FROM character_location_plan p "
+            "JOIN character c ON c.world_id=p.world_id AND c.id=p.character_id "
+            "JOIN location l ON l.world_id=p.world_id AND l.id=p.target_location_id "
+            "LEFT JOIN character_location_plan_resolution r ON r.world_id=p.world_id AND r.plan_id=p.id "
+            "WHERE p.world_id=? AND p.status='planned' AND r.id IS NULL AND p.planned_at<=? "
+            "ORDER BY p.planned_at,c.key,p.id",
+            (world_id, at_time),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def next_due_at(self, world_id: int, *, after: str, until: str) -> str | None:
+        rows = self._conn.execute(
+            "SELECT p.planned_at FROM character_location_plan p "
+            "LEFT JOIN character_location_plan_resolution r ON r.world_id=p.world_id AND r.plan_id=p.id "
+            "WHERE p.world_id=? AND p.status='planned' AND r.id IS NULL AND p.planned_at<=? "
+            "ORDER BY p.planned_at,p.id",
+            (world_id, until),
+        ).fetchall()
+        if not rows:
+            return None
+        return max(rows[0]["planned_at"], after, key=lambda value: value)
+
+    def resolve(
+        self, world_id: int, plan_id: int, *, outcome: str, resolved_at: str,
+        reason_code: str, details: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Ajoute une résolution idempotente sans muter le plan original."""
+        if outcome not in {"fulfilled", "refused", "cancelled", "deferred"}:
+            raise LocationPlanError("issue de résolution invalide")
+        if not isinstance(reason_code, str) or not reason_code.strip():
+            raise LocationPlanError("motif de résolution invalide")
+        payload = details or {}
+        if not isinstance(payload, dict):
+            raise LocationPlanError("détails de résolution invalides")
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        with transaction(self._conn) as conn:
+            plan = conn.execute(
+                "SELECT id FROM character_location_plan WHERE world_id=? AND id=?",
+                (world_id, plan_id),
+            ).fetchone()
+            if plan is None:
+                raise LocationPlanError("plan introuvable", code="not_found")
+            existing = conn.execute(
+                "SELECT outcome,resolved_at,reason_code,details_json FROM character_location_plan_resolution "
+                "WHERE world_id=? AND plan_id=?", (world_id, plan_id)
+            ).fetchone()
+            if existing is not None:
+                return dict(existing)
+            now = self._clock.now_iso()
+            conn.execute(
+                "INSERT INTO character_location_plan_resolution "
+                "(public_id,world_id,plan_id,outcome,resolved_at,reason_code,details_json,created_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (new_uuid(), world_id, plan_id, outcome, resolved_at, reason_code, encoded, now),
+            )
+            _append_event(
+                conn, world_id, SOURCE_ENGINE, "character_location_plan_resolved",
+                {"plan_id": plan_id, "outcome": outcome, "reason_code": reason_code,
+                 "details": payload}, occurred_at=resolved_at, recorded_at=now,
+            )
+            return {"outcome": outcome, "resolved_at": resolved_at,
+                    "reason_code": reason_code, "details_json": encoded}

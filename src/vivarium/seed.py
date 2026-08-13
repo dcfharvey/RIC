@@ -83,6 +83,8 @@ SEED_ACTIVITIES: list[tuple[str, int, int, int, int, int, int, bool]] = [
     # l'activite a lieu, sans inventer encore une physiologie fine.
     ("gaming", 1800, 1800, -80, -60, -50, -30, True),
     ("photography", 1800, 1800, -80, -60, -50, -30, True),
+    # ``work`` exprime l'engagement professionnel sans inventer le sous-geste.
+    ("work", 3600, 3600, -80, -60, -50, -30, True),
     ("sport", 1800, 1800, -80, -60, -50, -30, True),
     ("girly_care", 1800, 1800, -80, -60, -50, -30, True),
     ("watch_tv", 1800, 1800, -80, -60, -50, -30, True),
@@ -105,6 +107,7 @@ SEED_ACTIVITY_ALLOWED: list[tuple[str, str | None, str | None]] = [
     ("photography", "cour_arriere", None),
     ("photography", "entree_exterieure", None),
     ("photography", None, "external"),
+    ("work", None, "external"),
     ("sport", "cour_arriere", None),
     ("girly_care", "salle_de_bain", None),
     ("girly_care", None, "bedroom"),

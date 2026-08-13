@@ -159,7 +159,7 @@ def test_forward_migration_from_schema_44_preserves_history_and_leaves_persisten
             "SELECT COUNT(*), MAX(seq) FROM canonical_event WHERE world_id = ?", (world["id"],)
         ).fetchone()
 
-        assert ensure_schema(conn) == 56
+        assert ensure_schema(conn) == 57
 
         after = conn.execute(
             "SELECT COUNT(*), MAX(seq) FROM canonical_event WHERE world_id = ?", (world["id"],)
