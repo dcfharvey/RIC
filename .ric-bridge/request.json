@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"max_tokens":16,"messages":[{"content":"Reply with exactly PONG and nothing else.","role":"user"}],"model":"qwen3-14b","temperature":0},"request_id":"2a635ec5-786e-4dc6-9052-aa25a87f6157","route":"/v1/chat/completions","schema_version":2}
+{"method":"POST","payload":{"max_tokens":64,"messages":[{"content":"Reply with exactly PONG and nothing else.","role":"user"}],"model":"qwen3-14b","temperature":0},"request_id":"85a4f09a-226b-4e74-8eae-a72d47d8f6d0","route":"/v1/chat/completions","schema_version":2}
