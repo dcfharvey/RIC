@@ -1,0 +1,1 @@
+{"http_status":200,"request_id":"34967c8f-db8b-480a-912f-cebdb8584ee3","response":{"duration_ms":1,"ok":true,"operation":"read_file","result":{"content":"ref: refs/heads/chatgpt/rodage-v2-live\n","path":".git/HEAD","truncated":false}},"schema_version":2,"status":"ok"}
