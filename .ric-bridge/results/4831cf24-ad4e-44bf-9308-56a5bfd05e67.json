@@ -1,0 +1,1 @@
+{"http_status":200,"request_id":"4831cf24-ad4e-44bf-9308-56a5bfd05e67","response":{"duration_ms":1,"ok":true,"operation":"search_text","result":{"bytes_inspected":0,"files_inspected":1,"matches":[],"scan_limited":false,"truncated":false}},"schema_version":2,"status":"ok"}
