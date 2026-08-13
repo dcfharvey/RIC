@@ -12,7 +12,6 @@ from pathlib import Path
 import sqlite3
 from typing import Any, Callable, Protocol
 
-from .mvp_preflight import _active_assignment_issues, inspect_mvp_preflight
 from .telemetry import inspect_rodage
 from .util import Clock, parse_iso, to_iso
 from .world import WorldEngine
@@ -76,40 +75,56 @@ class LocalGuardian:
         self._clock = clock or Clock()
         self._runtime_session_id = runtime_session_id
         self._next_check_at = None
-        self._last_event_seq: int | None = None
-
-    def _event_seq(self) -> int:
-        row = self._conn.execute(
-            "SELECT COALESCE(MAX(seq), 0) FROM canonical_event WHERE world_id = ?",
-            (self._world_id,),
-        ).fetchone()
-        return int(row[0])
 
     def due(self) -> bool:
-        return (
-            self._next_check_at is None
-            or self._clock.now() >= self._next_check_at
-            or self._event_seq() != self._last_event_seq
+        """Le gardien est périodique; les événements canoniques ne déclenchent pas un audit."""
+        return self._next_check_at is None or self._clock.now() >= self._next_check_at
+
+    def _runtime_consistency(self) -> GuardianCheck:
+        """Vérifie seulement les invariants opérationnels nécessaires au runtime vivant."""
+        world = self._conn.execute(
+            "SELECT status FROM worlds WHERE id = ?", (self._world_id,)
+        ).fetchone()
+        if world is None:
+            return GuardianCheck("runtime_consistency", "critical", "monde introuvable")
+        if world["status"] not in {"active", "paused"}:
+            return GuardianCheck(
+                "runtime_consistency", "critical", f"statut monde invalide: {world['status']!r}"
+            )
+
+        clock = self._conn.execute(
+            "SELECT runtime_state FROM canonical_clock WHERE world_id = ?", (self._world_id,)
+        ).fetchone()
+        if clock is None:
+            return GuardianCheck("runtime_consistency", "critical", "horloge canonique absente")
+
+        open_sessions = self._conn.execute(
+            "SELECT id FROM runtime_session WHERE world_id=? AND stopped_at IS NULL ORDER BY id",
+            (self._world_id,),
+        ).fetchall()
+        if len(open_sessions) > 1:
+            return GuardianCheck(
+                "runtime_consistency", "critical",
+                f"{len(open_sessions)} sessions runtime ouvertes",
+            )
+        if self._runtime_session_id is not None:
+            if len(open_sessions) != 1 or int(open_sessions[0]["id"]) != self._runtime_session_id:
+                return GuardianCheck(
+                    "runtime_consistency", "critical", "session runtime propriétaire absente ou remplacée"
+                )
+            if clock["runtime_state"] != "running":
+                return GuardianCheck(
+                    "runtime_consistency", "critical",
+                    f"horloge runtime incohérente: {clock['runtime_state']!r}",
+                )
+
+        return GuardianCheck(
+            "runtime_consistency", "ok", "monde, horloge et session runtime cohérents"
         )
 
     def inspect(self) -> GuardianReport:
         checked_at = self._clock.now_iso()
-        checks: list[GuardianCheck] = []
-        preflight = inspect_mvp_preflight(self._conn, world_id=self._world_id)
-        own_open_session = False
-        if self._runtime_session_id is not None:
-            issues = _active_assignment_issues(self._conn, self._world_id, "active")
-            rows = self._conn.execute(
-                "SELECT id FROM runtime_session WHERE world_id=? AND stopped_at IS NULL",
-                (self._world_id,),
-            ).fetchall()
-            own_open_session = issues == ("open_runtime_session",) \
-                and len(rows) == 1 and int(rows[0]["id"]) == self._runtime_session_id
-        if preflight.healthy or own_open_session:
-            checks.append(GuardianCheck("canonical_integrity", "ok", "prévol structurel sain"))
-        else:
-            detail = "; ".join(f"{item.key}: {item.detail}" for item in preflight.failures)
-            checks.append(GuardianCheck("canonical_integrity", "critical", detail))
+        checks: list[GuardianCheck] = [self._runtime_consistency()]
 
         canonical_now = parse_iso(
             WorldEngine(self._conn, clock=self._clock).read_canonical_time(self._world_id)
@@ -174,7 +189,6 @@ class LocalGuardian:
         status = "CRITIQUE" if "critical" in levels else "ATTENTION" if "attention" in levels else "SAIN"
         report = GuardianReport(checked_at, self._world_id, status, tuple(checks))
         self._append(report)
-        self._last_event_seq = self._event_seq()
         self._next_check_at = self._clock.now() + timedelta(seconds=self._interval_seconds)
         return report
 

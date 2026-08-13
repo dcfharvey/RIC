@@ -1,12 +1,11 @@
 from datetime import datetime, timedelta, timezone
 import json
-import pytest
-
 from vivarium.activities import ActivityEngine
 from vivarium.db import connect_database
 from vivarium.guardian import LocalGuardian
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
+from vivarium.runtime_session import RuntimeSessionService
 from vivarium.util import to_iso
 from vivarium.world import WorldEngine
 
@@ -58,13 +57,15 @@ def test_guardian_is_hourly_logged_and_non_generative(tmp_path):
     conn.close()
 
 
-def test_guardian_rechecks_immediately_after_a_canonical_event(tmp_path):
+def test_guardian_does_not_recheck_between_intervals_after_a_canonical_event(tmp_path):
     clock = Clock()
     conn, world_id = _world(clock)
     guardian = LocalGuardian(conn, world_id, log_path=tmp_path / "guardian.jsonl", clock=clock)
     assert guardian.run_if_due() is not None
     assert guardian.run_if_due() is None
     WorldEngine(conn, clock=clock).rename_world(world_id, "Événement surveillé")
+    assert guardian.run_if_due() is None
+    clock.advance(3600)
     assert guardian.run_if_due() is not None
     conn.close()
 
@@ -115,67 +116,51 @@ def test_guardian_marks_a_dead_control_server_critical(tmp_path):
     conn.close()
 
 
-def test_guardian_accepts_the_runtime_session_it_owns(tmp_path, monkeypatch):
+def test_guardian_accepts_the_runtime_session_it_owns(tmp_path):
     clock = Clock()
     conn, world_id = _world(clock)
-    conn.execute(
-        "INSERT INTO runtime_session "
-        "(public_id, world_id, started_at, last_heartbeat_at, last_canonical_at) "
-        "VALUES ('guardian-own-session', ?, ?, ?, ?)",
-        (world_id, clock.now_iso(), clock.now_iso(), clock.now_iso()),
-    )
-    conn.commit()
-    session_id = conn.execute("SELECT id FROM runtime_session WHERE world_id=?", (world_id,)).fetchone()[0]
-    from vivarium.mvp_preflight import MVPPreflightReport, PreflightCheck
-    monkeypatch.setattr(
-        "vivarium.guardian.inspect_mvp_preflight",
-        lambda *_args, **_kwargs: MVPPreflightReport(
-            world_id=world_id,
-            world_name="test",
-            checks=(PreflightCheck("physiology_assignments", False, "['open runtime sessions=1']"),),
-        ),
-    )
-    monkeypatch.setattr(
-        "vivarium.guardian._active_assignment_issues",
-        lambda *_args, **_kwargs: ("open_runtime_session",),
-    )
+    session = RuntimeSessionService(conn, clock=clock).start(world_id)
     report = LocalGuardian(
         conn, world_id, log_path=tmp_path / "guardian.jsonl", clock=clock,
-        runtime_session_id=session_id,
+        runtime_session_id=session.session_id,
     ).inspect()
     assert report.status == "SAIN"
+    consistency = next(check for check in report.checks if check.key == "runtime_consistency")
+    assert consistency.level == "ok"
     conn.close()
 
 
-@pytest.mark.parametrize("issue", [
-    "physical_capacity_policy_missing",
-    "arbitration_policy_missing",
-    "sleep_termination_policy_missing",
-    "multiple_open_runtime_sessions",
-])
-def test_guardian_does_not_hide_other_assignment_defects(tmp_path, monkeypatch, issue):
+def test_guardian_rejects_a_replaced_runtime_session(tmp_path):
     clock = Clock()
     conn, world_id = _world(clock)
+    session = RuntimeSessionService(conn, clock=clock).start(world_id)
+    report = LocalGuardian(
+        conn, world_id, log_path=tmp_path / "guardian.jsonl", clock=clock,
+        runtime_session_id=session.session_id + 1,
+    ).inspect()
+    assert report.status == "CRITIQUE"
+    consistency = next(check for check in report.checks if check.key == "runtime_consistency")
+    assert consistency.level == "critical"
+    conn.close()
+
+
+def test_guardian_rejects_multiple_open_runtime_sessions(tmp_path):
+    clock = Clock()
+    conn, world_id = _world(clock)
+    session = RuntimeSessionService(conn, clock=clock).start(world_id)
     conn.execute(
         "INSERT INTO runtime_session "
         "(public_id, world_id, started_at, last_heartbeat_at, last_canonical_at) "
-        "VALUES ('guardian-other-session', ?, ?, ?, ?)",
+        "VALUES ('guardian-second-session', ?, ?, ?, ?)",
         (world_id, clock.now_iso(), clock.now_iso(), clock.now_iso()),
     )
     conn.commit()
-    session_id = conn.execute("SELECT id FROM runtime_session WHERE world_id=?", (world_id,)).fetchone()[0]
-    from vivarium.mvp_preflight import MVPPreflightReport, PreflightCheck
-    monkeypatch.setattr(
-        "vivarium.guardian.inspect_mvp_preflight",
-        lambda *_a, **_k: MVPPreflightReport(
-            world_id=world_id, world_name="test",
-            checks=(PreflightCheck("physiology_assignments", False, "structured failure"),),
-        ),
-    )
-    monkeypatch.setattr("vivarium.guardian._active_assignment_issues", lambda *_a, **_k: (issue, "open_runtime_session"))
     report = LocalGuardian(
         conn, world_id, log_path=tmp_path / "guardian.jsonl", clock=clock,
-        runtime_session_id=session_id,
+        runtime_session_id=session.session_id,
     ).inspect()
     assert report.status == "CRITIQUE"
+    consistency = next(check for check in report.checks if check.key == "runtime_consistency")
+    assert consistency.level == "critical"
+    assert "2 sessions" in consistency.detail
     conn.close()
