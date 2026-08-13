@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"search_text","path":"src","query":"create_world","limit":100},"request_id":"8ce85757-7f5a-4a58-8c76-1bb195f1ac3a","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"status"},"request_id":"31c7ed39-2a10-4af8-9c85-64d1958cc563","route":"/dev/git","schema_version":2}
