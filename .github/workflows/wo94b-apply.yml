@@ -1,0 +1,128 @@
+name: Apply WO94B physiology debloat
+on:
+  push:
+    branches: [chatgpt/wo94b-debloat-physiology]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/wo94b-debloat-physiology
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Remove retired synthetic physiology path
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          def start_line(node, lines):
+              starts=[node.lineno, *[d.lineno for d in getattr(node,'decorator_list',())]]
+              start=min(starts)-1
+              while start>0 and not lines[start-1].strip():
+                  start-=1
+              return start
+
+          def remove_top_level(path, names):
+              p=Path(path)
+              text=p.read_text(encoding='utf-8')
+              lines=text.splitlines(keepends=True)
+              tree=ast.parse(text)
+              ranges=[]
+              found=set()
+              for node in tree.body:
+                  if isinstance(node,(ast.ClassDef,ast.FunctionDef,ast.AsyncFunctionDef)) and node.name in names:
+                      found.add(node.name)
+                      ranges.append((start_line(node,lines),node.end_lineno))
+                  if isinstance(node,ast.ClassDef):
+                      for child in node.body:
+                          if isinstance(child,(ast.FunctionDef,ast.AsyncFunctionDef)) and child.name in names:
+                              found.add(child.name)
+                              ranges.append((start_line(child,lines),child.end_lineno))
+              missing=set(names)-found
+              if missing:
+                  raise SystemExit(f'{path}: missing targets {sorted(missing)}')
+              keep=[True]*len(lines)
+              for a,b in ranges:
+                  for i in range(a,b):
+                      keep[i]=False
+              p.write_text(''.join(line for i,line in enumerate(lines) if keep[i]),encoding='utf-8')
+
+          sleep_path='src/vivarium/sleep_physiology.py'
+          targets={
+              'InitialPhysiologyState','SyntheticMaterialization','SyntheticRegulationSegment',
+              'validate_initial_states','resolve_light_source_synthetic','project_synthetic',
+              '_capacity_rate_milli_per_hour','_advance_capacity','materialize_synthetic',
+              'materialize_segments_synthetic','next_critical_boundary_synthetic',
+          }
+          remove_top_level(sleep_path,targets)
+          p=Path(sleep_path)
+          text=p.read_text(encoding='utf-8').replace(
+              'SYNTHETIC_INTEGRATION_QUANTUM_SECONDS','INTEGRATION_QUANTUM_SECONDS'
+          )
+          text=text.replace(
+              'Fondations canoniques inactives de la physiologie veille-sommeil.',
+              'Physiologie veille-sommeil persistante et owner-backed.'
+          )
+          text=text.replace(
+              'Raccord persistant, déterministe et encore sans branchement runtime.',
+              'Owner runtime déterministe des états H/phase/P et de leur hystérésis.'
+          )
+          p.write_text(text,encoding='utf-8')
+
+          # Remove tests whose purpose is exclusively the retired synthetic API.
+          p=Path('tests/test_sleep_physiology_persistence.py')
+          text=p.read_text(encoding='utf-8')
+          lines=text.splitlines(keepends=True)
+          tree=ast.parse(text)
+          synthetic_tokens=(
+              'resolve_light_source_synthetic','project_synthetic','materialize_synthetic',
+              'materialize_segments_synthetic','next_critical_boundary_synthetic',
+              'SyntheticRegulationSegment',
+          )
+          names=set()
+          for node in tree.body:
+              if isinstance(node,ast.FunctionDef) and node.name.startswith('test_'):
+                  segment=''.join(lines[node.lineno-1:node.end_lineno])
+                  if any(token in segment for token in synthetic_tokens):
+                      names.add(node.name)
+          if not names:
+              raise SystemExit('no synthetic persistence tests identified')
+          remove_top_level(p,names)
+          text=p.read_text(encoding='utf-8').replace('    SyntheticRegulationSegment,\n','')
+          p.write_text(text,encoding='utf-8')
+
+          p=Path('tests/test_sleep_physiology_foundation.py')
+          remove_top_level(p,{'test_initial_state_validation_is_read_only_and_requires_every_character'})
+          text=p.read_text(encoding='utf-8').replace('    InitialPhysiologyState,\n','')
+          p.write_text(text,encoding='utf-8')
+
+          p=Path('tests/test_active_runtime_cutover.py')
+          remove_top_level(p,{'test_active_runtime_paths_do_not_call_public_synthetic_physiology_apis'})
+          with p.open('a',encoding='utf-8') as stream:
+              stream.write(
+                  '\n\ndef test_active_runtime_exposes_no_public_synthetic_physiology_apis():\n'
+                  '    assert not hasattr(SleepPhysiologyService, "project_synthetic")\n'
+                  '    assert not hasattr(SleepPhysiologyService, "next_critical_boundary_synthetic")\n'
+                  '    assert not hasattr(SleepPhysiologyService, "materialize_synthetic")\n'
+                  '    assert not hasattr(SleepPhysiologyService, "resolve_light_source_synthetic")\n'
+              )
+          PY
+
+          git rm src/vivarium/synthetic_sleep_integration.py tests/test_synthetic_sleep_integration.py
+          git rm .github/workflows/wo94b-apply.yml
+
+          git config user.name 'RIC debloat bot'
+          git config user.email 'noreply@github.com'
+          git add src tests
+          git diff --cached --check
+          python -m compileall -q src tests
+          git commit -m 'refactor: remove retired synthetic physiology path'
+          git push origin HEAD:chatgpt/wo94b-debloat-physiology
