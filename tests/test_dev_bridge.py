@@ -130,33 +130,65 @@ def test_jobs_start_poll_cancel_and_concurrency_limit(tmp_path):
 
 def test_process_tree_cancel_and_timeout_kill_descendants(tmp_path):
     sentinel_cancel = tmp_path / "cancel-sentinel.txt"
-    sentinel_timeout = tmp_path / "timeout-sentinel.txt"
+    ready_cancel = tmp_path / "cancel-ready.txt"
+    release_cancel = tmp_path / "cancel-release.txt"
+    cancel_child = _script(tmp_path, "cancel_child.py", f"""import pathlib, time
+release = pathlib.Path(r'{release_cancel}')
+while not release.exists():
+    time.sleep(0.05)
+pathlib.Path(r'{sentinel_cancel}').write_text('survived')
+""")
     parent = _script(tmp_path, "test_parent.py", f"""def test_parent():
  import pathlib, subprocess, sys, time
- child = subprocess.Popen([sys.executable, '-c', "import pathlib,time; time.sleep(2); pathlib.Path(r'{sentinel_cancel}').write_text('late')"])
- time.sleep(10)
+ subprocess.Popen([sys.executable, r'{tmp_path / cancel_child}'])
+ pathlib.Path(r'{ready_cancel}').write_text('ready')
+ time.sleep(30)
 """)
     runner = CommandRunner(RootLock(tmp_path))
     jobs = JobManager(runner)
     job = jobs.start({"argv": ["python", "-m", "pytest", parent, "-q"], "cwd": ".", "timeout_seconds": 30})
-    time.sleep(0.5)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and not ready_cancel.exists() and jobs.status(job)["status"] != "finished":
+        time.sleep(0.05)
+    assert ready_cancel.exists(), jobs.output(job)
     jobs.cancel(job)
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline and jobs.status(job)["status"] != "finished":
         time.sleep(0.05)
-    time.sleep(2.5)
+    assert jobs.output(job)["status"] == "finished"
+    release_cancel.write_text("release", encoding="utf-8")
+    time.sleep(0.5)
     assert not sentinel_cancel.exists()
 
+    sentinel_timeout = tmp_path / "timeout-sentinel.txt"
+    ready_timeout = tmp_path / "timeout-ready.txt"
+    release_timeout = tmp_path / "timeout-release.txt"
+    timeout_child = _script(tmp_path, "timeout_child.py", f"""import pathlib, time
+release = pathlib.Path(r'{release_timeout}')
+while not release.exists():
+    time.sleep(0.05)
+pathlib.Path(r'{sentinel_timeout}').write_text('survived')
+""")
     parent_timeout = _script(tmp_path, "test_parent_timeout.py", f"""def test_parent_timeout():
  import pathlib, subprocess, sys, time
- subprocess.Popen([sys.executable, '-c', "import pathlib,time; time.sleep(2); pathlib.Path(r'{sentinel_timeout}').write_text('late')"])
- time.sleep(10)
+ subprocess.Popen([sys.executable, r'{tmp_path / timeout_child}'])
+ pathlib.Path(r'{ready_timeout}').write_text('ready')
+ time.sleep(30)
 """)
-    result = runner.run({"argv": ["python", "-m", "pytest", parent_timeout, "-q"], "cwd": ".", "timeout_seconds": 1})
-    time.sleep(2.5)
-    assert result["timed_out"] is True
+    timeout_job = jobs.start({"argv": ["python", "-m", "pytest", parent_timeout, "-q"], "cwd": ".", "timeout_seconds": 6})
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and not ready_timeout.exists() and jobs.status(timeout_job)["status"] != "finished":
+        time.sleep(0.05)
+    assert ready_timeout.exists(), jobs.output(timeout_job)
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline and jobs.status(timeout_job)["status"] != "finished":
+        time.sleep(0.05)
+    result = jobs.output(timeout_job)
+    assert result["status"] == "finished"
+    assert result["timed_out"] is True, result
+    release_timeout.write_text("release", encoding="utf-8")
+    time.sleep(0.5)
     assert not sentinel_timeout.exists()
-
 
 def test_service_auth_capabilities_and_read_only_inspector(tmp_path):
     db_path = tmp_path / "inspect.sqlite"
