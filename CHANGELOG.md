@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0a2 — 13 août 2026
+
+- Ajoute une extension générique de topologie vers des lieux extérieurs hors propriété, sans omniscience perceptive.
+- Autorise le sommeil dans tout lieu canonique accessible sans modèle de qualité de couchage.
+- Ajoute les plans de retour/arrivée append-only et le bootstrap T0 composable sur base jetable.
+- Représente hygiène, hydratation et possession d’effets personnels via les mécanismes génériques existants, sans jauge persistante de confort.
+- Schéma 56 (`0056_location_plan.sql`); aucune histoire officielle Rodage V2 démarrée.
+
 ## 0.2.0a1 — 13 août 2026
 
 - Nouvelle génération alpha destinée au Rodage V2.

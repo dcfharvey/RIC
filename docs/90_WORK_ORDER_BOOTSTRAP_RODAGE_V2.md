@@ -1,8 +1,10 @@
 # Work order 90 — bootstrap Rodage V2
 
-**Statut : OUVERT — correctifs de représentation requis avant le premier événement persistant.**
+**Statut : FERMÉ — WO90 satisfait; Rodage V2 autorisé mais non démarré.**
 
-Base : `9dd02538c54e06a771423e1c00a5272260b2d0d5` (`0.2.0a1`, schéma 55).
+Base : `b03a1ae93375e623207b58a39250aa044156bfca` (`0.2.0a1`, schéma 55).
+
+Fonctionnel WO90 : `989188fb01087878a581bd51f861014a82554a20` (`0.2.0a2`, schéma 56).
 
 ## Intention
 
@@ -77,8 +79,28 @@ L'implantation choisie par Codex doit démontrer :
 
 Puis tests ciblés, `compileall`, suite complète, état Git propre et photographie exacte du HEAD/version/schéma/migration.
 
+## Verdict de fermeture WO90
+
+La fermeture est **SATISFAITE**. L'implantation retenue reste générique et inactive
+vis-à-vis de l'histoire officielle : `ExternalLocationService` ajoute des lieux
+hors propriété et leurs arêtes canoniques sans créer de connecteurs de perception;
+`ActivityEngine` rend `sleep` légal dans tout lieu canonique accessible; les plans
+de retour/arrivée sont append-only dans `character_location_plan`; et
+`RodageV2BootstrapService` compose lieux, activités, plans et possession sans
+branche propre à un personnage. H/φ/P restent les propriétaires de la physiologie
+active; l'hygiène et l'hydratation passent par les mécanismes génériques existants,
+sans jauge persistante de confort.
+
+La répétition T0 sur SQLite neuf et jetable a représenté Sophie au travail avec
+retour prévu à 16 h, Erika au jeu dans le salon, Patoune endormi dans le salon,
+Chuu dans la salle de bain avec hydratation et Luna avec un sac d'effets personnels.
+Le préflight read-only est sain et l'observation Hugin H/φ/P est répétable; aucune
+histoire officielle n'a été créée. Les contrôles dédiés WO90 sont verts; compilation
+`PASS`; suite complète : **1033 passed, 1 skipped, 0 failed en 236,58 s** sous
+Python 3.13.11 / pytest 9.1.1. Skip connu : `tests/test_dev_bridge.py:59`.
+
 ## Porte de fermeture
 
-WO90 ferme seulement si les trois limites sont levées génériquement, les tests sont verts, le T0 est répétable sur base jetable et aucun SQLite officiel n'a encore reçu d'histoire Rodage V2.
+WO90 est fermé : les trois limites sont levées génériquement, les tests sont verts, le T0 est répétable sur base jetable et aucun SQLite officiel n'a encore reçu d'histoire Rodage V2.
 
 La fermeture de WO90 autorise le premier bootstrap persistant réel du Rodage V2.

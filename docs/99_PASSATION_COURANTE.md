@@ -6,6 +6,8 @@
 
 > **Mise au point prioritaire — fermeture WO89 (13 août 2026) :** WO89 est **FERMÉ**. FUNCTIONAL_HEAD `fcc574c182dc40abef0d6255e5587ecab0a1266c`; version `0.2.0a1`; schéma 55; migration `0055_sleep_completion_authorization.sql`; validation complète **1030 passed, 1 skipped, 0 failed en 235,76 s** (skip attendu `tests/test_dev_bridge.py:59`). 89C et 89D sont fermés. Le nom technique `vivarium-social` et l'import `vivarium` sont conservés. Aucune migration/reprise de l'ancien rodage n'a été effectuée et aucune histoire officielle Rodage V2 n'a commencé. **Prochaine étape autorisée : construction du vrai T0 neuf et démarrage explicite du Rodage V2.**
 
+> **Mise au point prioritaire — fermeture WO90 (13 août 2026) :** WO90 est **FERMÉ**. FUNCTIONAL_HEAD `989188fb01087878a581bd51f861014a82554a20`; version `0.2.0a2`; schéma 56; migration `0056_location_plan.sql`; validation complète **1033 passed, 1 skipped, 0 failed en 236,58 s** (skip attendu `tests/test_dev_bridge.py:59`). La topologie externe générique, le sommeil dans tout lieu canonique accessible, les plans de retour et le bootstrap T0 jetable sont qualifiés. Le nom technique `vivarium-social` et l'import `vivarium` sont conservés. Aucune migration/reprise de l'ancien rodage n'a été effectuée et aucune histoire officielle Rodage V2 n'a commencé. **Prochaine étape autorisée : construction du vrai T0 neuf et démarrage explicite du Rodage V2.**
+
 > **Mise au point prioritaire — fermeture WO88 (13 août 2026) :** `docs/88_WORK_ORDER_RUNTIME_CIRCADIEN_ACTIF_V1.md` est fermé. Le HEAD fonctionnel exact `fe1d24a0cd5f32463c594d2de6bf2e3ba7ad0667` a passé `python -m compileall -q src tests` puis la suite complète GitHub Actions sur Windows Server 2025 / Python 3.12.10 : **1029 tests réussis en 392,09 s, 0 échec**. Le runtime `physiology=active` utilise H/φ/P depuis les owners canoniques; `repos`/`energie` ne sont plus des causes actives et l'arbitrage owner-backed n'appelle plus `project_synthetic()`. Les mondes `inactive` et `prepared` conservent le chemin legacy. L'activation T0 atomique appartient au service de fondation physiologique; après activation, `SleepPhysiologyService` est l'écrivain runtime de H/φ/P/résidus/hystérésis. Aucun cutover de la résidence persistante, aucune migration de l'ancien rodage et aucune modification de `data/vivarium-rodage.sqlite` n'ont été effectués. Les workflows/scripts WO88 jetables ont été retirés après validation. **Prochaine étape autorisée : Rodage V2 sur base neuve, manifeste T0 explicite, politiques complètes, sans migration de l'ancien rodage par défaut.** Les photographies plus anciennes ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
 
 > **Mise au point prioritaire — 12 août 2026 :** les photographies techniques plus anciennes conservées ci-dessous sont historiques. Au moment de la validation WO86, `main` est resté sur `a171a2111fdb2a5f5b85796cdc2e8647c24c72b8` (schéma 54). Une implantation candidate isolée porte le schéma 55 et a obtenu **974/974 tests réussis** sous Python 3.12.13. Elle reste strictement synthétique : aucun cutover, runtime actif ou accès à la résidence réelle n'est autorisé. Lire l'addendum WO86 en fin de fichier et `docs/86_WORK_ORDER_CONTRATS_CUTOVER_CIRCADIEN_V1.md` avant toute suite.
@@ -98,11 +100,11 @@ Pour les compteurs de version ou la photographie de HEAD, vérifier toujours `py
 
 Référence fonctionnelle actuelle :
 
-- version logicielle : **`0.2.0a1`**;
-- schéma SQLite du **code** : **55**;
-- dernière migration : `0055_sleep_completion_authorization.sql`;
-- dernière validation complète : **1030 passed, 1 skipped, 0 failed en 235,76 s** (skip attendu `tests/test_dev_bridge.py:59`);
-- HEAD fonctionnel courant : `fcc574c182dc40abef0d6255e5587ecab0a1266c` (`release: bump RIC to 0.2.0a1`);
+- version logicielle : **`0.2.0a2`**;
+- schéma SQLite du **code** : **56**;
+- dernière migration : `0056_location_plan.sql`;
+- dernière validation complète : **1033 passed, 1 skipped, 0 failed en 236,58 s** (skip attendu `tests/test_dev_bridge.py:59`);
+- HEAD fonctionnel courant : `989188fb01087878a581bd51f861014a82554a20` (`feat: prepare generic Rodage V2 bootstrap`);
 - `1cf8278` est la photographie documentaire R&D SCC-1B; les commits `.gitignore` historiques ne font pas partie de l'état fonctionnel courant.
 
 Toujours revérifier localement avant d'agir :
