@@ -1,4 +1,4 @@
-"""Fondations canoniques inactives de la physiologie veille-sommeil.
+"""Physiologie veille-sommeil persistante et owner-backed.
 
 Ce module possède les registres de lumière, les profils biologiques et la
 préparation technique d'un futur cutover. Son raccord persistant peut relire
@@ -70,7 +70,7 @@ V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY: Mapping[str, str] = {
 # Quantum de banc, lié à la résolution canonique de ce raccord synthétique.
 # Il garantit que l'hystérésis n'est pas fonction du découpage demandé par
 # l'appelant. Ce n'est ni une cadence runtime ni une constante biologique.
-SYNTHETIC_INTEGRATION_QUANTUM_SECONDS = 1
+INTEGRATION_QUANTUM_SECONDS = 1
 
 
 class SleepPhysiologyError(ValueError):
@@ -79,15 +79,6 @@ class SleepPhysiologyError(ValueError):
     def __init__(self, message: str, *, code: str) -> None:
         super().__init__(message)
         self.code = code
-
-
-@dataclass(frozen=True)
-class InitialPhysiologyState:
-    """Valeurs à valider pour le futur cutover atomique, sans les écrire."""
-
-    homeostatic_load_milli: int
-    circadian_phase_milli: int
-    physical_capacity_milli: int
 
 
 @dataclass(frozen=True)
@@ -160,22 +151,6 @@ class OwnerBackedMaterialization:
     changed: bool
     input_fingerprint: str
     physical_load_class: Literal["none", "light", "moderate", "vigorous"]
-
-
-@dataclass(frozen=True)
-class SyntheticMaterialization:
-    """Résultat d'un segment de banc ; jamais une activité ou un événement."""
-
-    projection: PhysiologyProjection
-    changed: bool
-
-
-@dataclass(frozen=True)
-class SyntheticRegulationSegment:
-    """Cause de banc constante jusqu'à une frontière canonique explicite."""
-
-    end_at: str
-    source: RegulationInput
 
 
 @dataclass(frozen=True)
@@ -1283,34 +1258,6 @@ class SleepPhysiologyFoundationService:
                 raise SleepPhysiologyError("état physiologique incompatible", code="invalid_system_status")
         return {"world_id": world, "status": "prepared", "model_key": key, "model_version": ver}
 
-    def validate_initial_states(
-        self, world_id: Any, states: Mapping[str, InitialPhysiologyState]
-    ) -> tuple[str, ...]:
-        """Valide des valeurs de cutover sans les persister ni créer d'audit."""
-        world = self._world_id(world_id)
-        self._require_world(world)
-        if not isinstance(states, Mapping):
-            raise SleepPhysiologyError("états initiaux invalides", code="invalid_initial_state")
-        characters = tuple(
-            row["key"] for row in self._conn.execute(
-                "SELECT key FROM character WHERE world_id = ? ORDER BY key", (world,)
-            )
-        )
-        if set(states) != set(characters):
-            raise SleepPhysiologyError("états initiaux incomplets", code="incomplete_initial_state")
-        for character_key in characters:
-            state = states[character_key]
-            if not isinstance(state, InitialPhysiologyState):
-                raise SleepPhysiologyError("état initial invalide", code="invalid_initial_state")
-            for value, maximum in (
-                (state.homeostatic_load_milli, 100000),
-                (state.physical_capacity_milli, 100000),
-                (state.circadian_phase_milli, 999999),
-            ):
-                if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= maximum:
-                    raise SleepPhysiologyError("valeur initiale hors bornes", code="invalid_initial_state")
-        return characters
-
     def _assert_preparable(self, world_id: int) -> None:
         if self._conn.execute(
             "SELECT 1 FROM runtime_session WHERE world_id = ? AND stopped_at IS NULL", (world_id,)
@@ -1347,7 +1294,7 @@ class SleepPhysiologyFoundationService:
 
 
 class SleepPhysiologyService:
-    """Raccord persistant, déterministe et encore sans branchement runtime.
+    """Owner runtime déterministe des états H/phase/P et de leur hystérésis.
 
     Le service est le seul lecteur normalisé des états H/phase/P et de la
     mémoire d'hystérésis. Il n'expose aucune activation, aucune intégration et
@@ -1527,30 +1474,6 @@ class SleepPhysiologyService:
             if start <= second < end:
                 return light
         raise SleepPhysiologyError("calendrier lumineux hors plage", code="invalid_light_schedule")
-
-    def resolve_light_source_synthetic(
-        self,
-        world_id: Any,
-        location_key: Any,
-        at_time: Any,
-        *,
-        state: Literal["wake", "rest", "sleep"],
-        occluded: bool = False,
-        stimulation: float = 0.0,
-    ) -> RegulationInput:
-        """Résout une cause lumineuse de banc sans dépendre du runtime.
-
-        Ce lecteur accepte un lieu et une frontière canonique explicites. Il ne
-        déduit pas un « maintenant » et ne rend pas l'assignation de profil
-        rétroactive.
-        """
-        world = self._world_id(world_id)
-        location = _key(location_key, field="lieu")
-        at = _at(at_time)
-        source, _metadata = self._resolve_light_source_values(
-            world, location, at, state=state, occluded=occluded, stimulation=stimulation
-        )
-        return source
 
     def _resolve_light_source_values(
         self,
@@ -1817,12 +1740,6 @@ class SleepPhysiologyService:
             ),
         )
 
-    def project_synthetic(
-        self, world_id: Any, character_key: Any, source: RegulationInput
-    ) -> PhysiologyProjection:
-        """API de banc: projection depuis une cause explicitement injectée."""
-        return self._project(world_id, character_key, source)
-
     def project_owner_backed(
         self, world_id: Any, character_key: Any, *, at_time: Any | None = None,
         expected_event_seq: Any | None = None,
@@ -1906,38 +1823,6 @@ class SleepPhysiologyService:
         if seconds < 0:
             raise SleepPhysiologyError("retour temporel physiologique interdit", code="time_reversal")
         return int(seconds) if seconds.is_integer() else seconds
-
-    @staticmethod
-    def _capacity_rate_milli_per_hour(source: RegulationInput, parameters: CircadianParameters) -> int:
-        if source.state == "sleep":
-            return round(parameters.sleep_capacity_recovery_per_hour * 100000)
-        if source.state == "rest":
-            return round(parameters.rest_capacity_recovery_per_hour * 100000)
-        return -round(parameters.active_capacity_cost_per_hour * 100000)
-
-    @classmethod
-    def _advance_capacity(
-        cls,
-        capacity_milli: int,
-        remainder: int,
-        source: RegulationInput,
-        duration_seconds: int,
-        parameters: CircadianParameters,
-    ) -> tuple[int, int]:
-        """Avance P en milli-unités avec reste rationnel et bornes explicites."""
-        if not 0 <= remainder < 3600:
-            raise SleepPhysiologyError("reste de capacité invalide", code="invalid_capacity_remainder")
-        numerator = (
-            cls._capacity_rate_milli_per_hour(source, parameters) * duration_seconds
-            + remainder
-        )
-        delta, remainder = divmod(numerator, 3600)
-        next_capacity = capacity_milli + delta
-        if next_capacity <= 0:
-            return 0, 0
-        if next_capacity >= 100000:
-            return 100000, 0
-        return next_capacity, remainder
 
     @staticmethod
     def _precision_projection(regulation: RegulationState) -> tuple[int, int, float, float]:
@@ -2156,7 +2041,7 @@ class SleepPhysiologyService:
             stability = wake_stability(regulation, source, parameters, previous_band=band)
             remaining = duration
             while remaining > 0:
-                quantum = min(SYNTHETIC_INTEGRATION_QUANTUM_SECONDS, remaining)
+                quantum = min(INTEGRATION_QUANTUM_SECONDS, remaining)
                 advanced = advance_regulation(regulation, source, quantum, parameters)
                 regulation = RegulationState(
                     advanced.homeostatic_load, advanced.circadian_phase,
@@ -2222,129 +2107,6 @@ class SleepPhysiologyService:
         )
         return OwnerBackedMaterialization(projection, True, fingerprint, load)
 
-    def materialize_synthetic(
-        self,
-        world_id: Any,
-        character_key: Any,
-        at_time: Any,
-        source: RegulationInput,
-    ) -> SyntheticMaterialization:
-        """Matérialise un segment de banc dans un monde synthétique ``active``.
-
-        Cette API est explicitement hors runtime. Ses causes libres sont
-        admissibles seulement pour les bancs : le futur raccord causal devra
-        recevoir lumière, activité, occlusion et stimulation de leurs owners
-        objectifs/moteur respectifs.
-        """
-        world = self._world_id(world_id)
-        target = _at(at_time)
-        with transaction(self._conn) as conn:
-            state = self.read_state(world, character_key)
-            duration = self._seconds_between(state.anchor_at, target)
-            if duration == 0:
-                return SyntheticMaterialization(self.project_synthetic(world, character_key, source), False)
-            parameters = self.parameters_for_character(world, character_key)
-            regulation = state.regulation
-            capacity_milli = regulation.physical_capacity_milli
-            remainder = state.physical_capacity_remainder
-            band = state.previous_stability_band
-            stability = wake_stability(regulation, source, parameters, previous_band=band)
-            remaining = duration
-            while remaining > 0:
-                quantum = min(SYNTHETIC_INTEGRATION_QUANTUM_SECONDS, remaining)
-                advanced = advance_regulation(regulation, source, quantum, parameters)
-                capacity_milli, remainder = self._advance_capacity(
-                    capacity_milli, remainder, source, quantum, parameters
-                )
-                regulation = RegulationState(
-                    advanced.homeostatic_load,
-                    advanced.circadian_phase,
-                    capacity_milli / 100000.0,
-                )
-                stability = wake_stability(regulation, source, parameters, previous_band=band)
-                band = stability.band
-                remaining -= quantum
-            (
-                homeostatic_milli,
-                phase_milli,
-                homeostatic_residue,
-                phase_residue,
-            ) = self._precision_projection(regulation)
-            character = self._character(world, character_key)
-            now = self._now()
-            conn.execute(
-                "UPDATE sleep_regulation_state SET homeostatic_load_milli = ?, "
-                "circadian_phase_milli = ?, anchor_at = ?, updated_at = ? "
-                "WHERE world_id = ? AND character_id = ?",
-                (
-                    homeostatic_milli,
-                    phase_milli,
-                    target,
-                    now,
-                    world,
-                    character["id"],
-                ),
-            )
-            conn.execute(
-                "UPDATE physical_capacity_state SET capacity_milli = ?, rate_remainder = ?, "
-                "anchor_at = ?, updated_at = ? WHERE world_id = ? AND character_id = ?",
-                (capacity_milli, remainder, target, now, world, character["id"]),
-            )
-            updated = conn.execute(
-                "UPDATE sleep_wake_hysteresis_state SET previous_band = ?, anchor_at = ?, updated_at = ? "
-                "WHERE world_id = ? AND character_id = ?",
-                (band, target, now, world, character["id"]),
-            )
-            if updated.rowcount != 1:
-                raise SleepPhysiologyError(
-                    "mémoire d'hystérésis absente", code="hysteresis_state_missing"
-                )
-            precision = conn.execute(
-                "UPDATE sleep_regulation_precision_state SET homeostatic_load_residue = ?, "
-                "circadian_phase_residue = ?, anchor_at = ?, updated_at = ? "
-                "WHERE world_id = ? AND character_id = ?",
-                (homeostatic_residue, phase_residue, target, now, world, character["id"]),
-            )
-            if precision.rowcount != 1:
-                raise SleepPhysiologyError(
-                    "résidu d'intégration absent", code="precision_state_missing"
-                )
-        return SyntheticMaterialization(
-            PhysiologyProjection(
-                state=PersistedPhysiologyState(
-                    model_key=state.model_key,
-                    model_version=state.model_version,
-                    regulation=regulation,
-                    anchor_at=target,
-                    physical_capacity_remainder=remainder,
-                    homeostatic_load_residue=homeostatic_residue,
-                    circadian_phase_residue=phase_residue,
-                    previous_stability_band=band,
-                ),
-                propensity=sleep_propensity(regulation, parameters, family="additive"),
-                stability=stability,
-            ),
-            True,
-        )
-
-    def materialize_segments_synthetic(
-        self,
-        world_id: Any,
-        character_key: Any,
-        segments: tuple[SyntheticRegulationSegment, ...],
-    ) -> tuple[SyntheticMaterialization, ...]:
-        """Applique explicitement des frontières causales de banc dans l'ordre."""
-        if not isinstance(segments, tuple):
-            raise SleepPhysiologyError("segments synthétiques invalides", code="invalid_segments")
-        results: list[SyntheticMaterialization] = []
-        for segment in segments:
-            if not isinstance(segment, SyntheticRegulationSegment):
-                raise SleepPhysiologyError("segment synthétique invalide", code="invalid_segments")
-            results.append(
-                self.materialize_synthetic(world_id, character_key, segment.end_at, segment.source)
-            )
-        return tuple(results)
-
     def _next_critical_boundary(
         self, world_id: Any, character_key: Any, source: RegulationInput, until: Any
     ) -> str | None:
@@ -2359,7 +2121,7 @@ class SleepPhysiologyService:
         if band == "critical":
             return state.anchor_at
         while remaining > 0:
-            duration = min(SYNTHETIC_INTEGRATION_QUANTUM_SECONDS, remaining)
+            duration = min(INTEGRATION_QUANTUM_SECONDS, remaining)
             advanced = advance_regulation(regulation, source, duration, parameters)
             regulation = RegulationState(
                 advanced.homeostatic_load,
@@ -2373,12 +2135,6 @@ class SleepPhysiologyService:
             band = stability.band
             remaining -= duration
         return None
-
-    def next_critical_boundary_synthetic(
-        self, world_id: Any, character_key: Any, source: RegulationInput, until: Any
-    ) -> str | None:
-        """API de banc pour une source injectée explicitement."""
-        return self._next_critical_boundary(world_id, character_key, source, until)
 
     def next_critical_boundary_owner_backed(
         self, world_id: Any, character_key: Any, *, until: Any

@@ -9,7 +9,6 @@ from vivarium.mvp_preflight import inspect_mvp_preflight
 from vivarium.runtime_session import RuntimeSessionService
 from vivarium.sleep_physiology import (
     ADDITIVE_MODEL_KEY,
-    InitialPhysiologyState,
     SleepPhysiologyError,
     SleepPhysiologyFoundationService,
 )
@@ -102,32 +101,6 @@ def test_profile_catalogues_and_assignments_are_immutable(prepared_world):
         conn.execute("UPDATE light_schedule_profile SET schedule_json = '{}' WHERE id = ?", (profile_id,))
     with pytest.raises(Exception, match="append-only"):
         conn.execute("DELETE FROM world_light_schedule_assignment WHERE id = ?", (assignment_id,))
-
-
-def test_initial_state_validation_is_read_only_and_requires_every_character(prepared_world):
-    conn, world_id, service = prepared_world
-    characters = [row["key"] for row in conn.execute(
-        "SELECT key FROM character WHERE world_id = ? ORDER BY key", (world_id,)
-    )]
-    values = {
-        key: InitialPhysiologyState(50000, index * 1000, 75000)
-        for index, key in enumerate(characters)
-    }
-    before = {
-        table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        for table in ("sleep_regulation_state", "physical_capacity_state", "sleep_physiology_audit", "canonical_event")
-    }
-
-    assert service.validate_initial_states(world_id, values) == tuple(characters)
-    assert {
-        table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        for table in before
-    } == before
-
-    values.pop(characters[0])
-    with pytest.raises(SleepPhysiologyError) as caught:
-        service.validate_initial_states(world_id, values)
-    assert caught.value.code == "incomplete_initial_state"
 
 
 def test_no_character_identity_is_interpreted_by_the_biology_owner(prepared_world):
