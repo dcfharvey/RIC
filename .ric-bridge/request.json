@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"create_branch","branch":"chatgpt/rodage-v2-live"},"request_id":"d4d44c12-36c3-4f41-9d33-a329e66e1c61","route":"/dev/repo","schema_version":2}
+{"method":"POST","payload":{"operation":"search_text","path":"src/vivarium","query":"activate","limit":200},"request_id":"0cd6dfce-bd20-4674-b783-78463a4315fa","route":"/dev/fs","schema_version":2}
