@@ -6,7 +6,6 @@ on:
       - chatgpt/wo88f-build
     paths:
       - tools/wo88f_apply.py
-      - tools/wo88f_fix.py
       - .github/workflows/wo88f-build.yml
 
 permissions:
@@ -25,9 +24,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Apply deterministic patch
-        run: |
-          python tools/wo88f_apply.py
-          python tools/wo88f_fix.py
+        run: python tools/wo88f_apply.py
       - name: Install
         run: python -m pip install -e . pytest
       - name: Targeted tests
@@ -46,5 +43,9 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add src tests
           git diff --cached --check
+          if (git diff --cached --quiet) {
+            Write-Host "Generated candidate already present; nothing to commit."
+            exit 0
+          }
           git commit -m "wo88f: generated atomic physiology activation patch"
           git push origin HEAD:chatgpt/wo88f-build
