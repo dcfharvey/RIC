@@ -1,1 +1,1 @@
-{"method":"GET","payload":{},"request_id":"4e1bf3c6-3c2f-49f7-9294-76d55564f40b","route":"/capabilities","schema_version":2}
+{"method":"POST","payload":{"operation":"search_text","path":"src/vivarium","query":"create_branch","limit":100},"request_id":"82caa7e2-f7d7-46d2-91f6-f5455ce16ebc","route":"/dev/fs","schema_version":2}
