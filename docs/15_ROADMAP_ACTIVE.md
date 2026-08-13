@@ -5,7 +5,7 @@
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
 
-> **Mise au point prioritaire — fermeture WO88 (13 août 2026) :** WO88 — runtime circadien actif V1 est **FERMÉ**. Le HEAD fonctionnel exact `fe1d24a0cd5f32463c594d2de6bf2e3ba7ad0667` a passé la compilation et la suite complète Windows/Python 3.12.10 avec **1029 tests réussis en 392,09 s, 0 échec**. Le chemin `physiology=active` utilise H/φ/P et les sources owner-backed; `repos`/`energie` ne sont plus des causes actives, et l'arbitrage runtime ne traverse plus `project_synthetic()`. Les mondes `inactive`/`prepared` restent legacy. Aucun cutover de la résidence persistante ni modification de `data/vivarium-rodage.sqlite` n'a été effectué. Les workflows/scripts de réparation WO88 ont été retirés après validation. **Prochain jalon immédiat : Rodage V2 sur base neuve, avec manifeste T0 explicite et politiques complètes, sans migration de l'ancien rodage par défaut.** Les photographies techniques antérieures ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
+> **Mise au point prioritaire — WO89 fermé (13 août 2026) :** préparation pré-Rodage V2 **FERMÉE**. Version `0.2.0a1`, schéma 55, migration `0055_sleep_completion_authorization.sql`, FUNCTIONAL_HEAD `fcc574c182dc40abef0d6255e5587ecab0a1266c`. Validation complète : **1030 passed, 1 skipped, 0 failed en 235,76 s**; skip attendu `tests/test_dev_bridge.py:59`. 89C — H/φ/P opérateur read-only — est qualifié; 89D — répétition T0 neuve et jetable — est réussi. Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé. **Prochain jalon immédiat : démarrage explicite du Rodage V2 sur base neuve après décision du propriétaire sur le vrai T0.** Les photographies techniques antérieures ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
 
 ## Principe de conduite
 
@@ -27,12 +27,10 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a15` — schéma de code 48 (résidence réelle
-intentionnellement maintenue au schéma 44), 929 tests rapportés pour le lot 4
-(à revalider avant nouveau code). Les fondations circadiennes V1 et le shadow
-du lot 4 et le work order de cutover atomique sont acceptés sans cutover
-comportemental ; le prochain jalon est la revue des contrats techniques
-d'arbitrage, de sommeil, de P et du manifeste T0.
+**Version logicielle actuelle :** `0.2.0a1` — schéma de code 55, migration
+`0055_sleep_completion_authorization.sql`, validation complète **1030 passed, 1
+skipped, 0 failed**. WO89 est fermé; 89C et 89D sont qualifiés. Aucun ancien
+SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
@@ -101,6 +99,7 @@ d'arbitrage, de sommeil, de P et du manifeste T0.
 
 | Version | Place dans la roadmap | Signification |
 | --- | --- | --- |
+| `0.2.0a1` | Atteint | Base alpha du Rodage V2 : physiologie active owner-backed H/φ/P, observabilité opérateur et bootstrap T0 neuf qualifiés; histoire officielle non encore démarrée. |
 | `0.0.0.dev0` | État actuel | Pré-alpha : fondations rigoureuses, mais pas encore de boucle sociale complète. |
 | `0.0.1.dev0` | Jalon atteint après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
 | `0.0.2.dev0` | État actuel, après le monde d'intégration | Les cinq vraies configurations peuvent être assemblées et réinitialisées sans histoire officielle. |

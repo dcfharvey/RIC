@@ -1,8 +1,14 @@
-# Vivarium social artificiel — paquet destiné à une IA programmeuse
+# RIC — Reality · Interaction · Cognition
 
-Version documentaire 1.8, 6 août 2026. État logiciel courant : `0.1.0a15`,
-schéma SQLite 39, migration `0039_scc1b_provider_provenance.sql`, SCC-1B1 livré,
-767 tests validés; baseline SCC-1B1 clôturée avant SCC-1B2.
+Photographie active WO89E — 13 août 2026.
+
+- Distribution technique : `vivarium-social` (inchangée).
+- Import Python : `vivarium` (inchangé).
+- Version logicielle courante : `0.2.0a1`.
+- Schéma SQLite du code : **55** ; dernière migration : `0055_sleep_completion_authorization.sql`.
+- FUNCTIONAL_HEAD : `fcc574c182dc40abef0d6255e5587ecab0a1266c`.
+- Validation complète : **1030 passed, 1 skipped, 0 failed** en `235.76s` ; skip attendu `tests/test_dev_bridge.py:59`.
+- WO89 est fermé. Rodage V2 autorisé mais non démarré ; aucune reprise/migration de l’ancien rodage n’a été faite.
 
 ## Reprise d'un travail existant
 

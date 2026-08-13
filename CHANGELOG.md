@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0a1 — 13 août 2026
+
+- Nouvelle génération alpha destinée au Rodage V2.
+- Runtime `physiology=active` owner-backed H/φ/P qualifié.
+- `repos`/`energie` exclus comme causes physiologiques actives.
+- Observation opérateur H/φ/P read-only avec distinction persisté/projection.
+- Répétition T0 neuve et jetable validée sur schéma 55.
+- `mvp-preflight` réel validé en lecture seule.
+- Aucune migration de l’ancien rodage.
+- Aucune histoire persistante Rodage V2 démarrée.
+- Nom technique `vivarium-social` / import `vivarium` conservés.
+
 ## Lot 4 circadien — compatibilité et shadow (11 août 2026)
 
 - Audite exhaustivement les consommateurs legacy de `repos` et `energie` et

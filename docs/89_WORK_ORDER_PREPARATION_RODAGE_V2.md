@@ -1,6 +1,12 @@
 # Work order 89 — préparation pré-rodage V2
 
-**Statut :** OUVERT — **89A, 89B et 89C FERMÉS**; **89D est la seule étape active**.
+**Statut :** FERMÉ — **89A, 89B, 89C, 89D et 89E satisfaits; Rodage V2 autorisé mais non démarré.**
+
+**Photographie finale WO89E :** version `0.2.0a1`; schéma 55; migration
+`0055_sleep_completion_authorization.sql`; FUNCTIONAL_HEAD
+`fcc574c182dc40abef0d6255e5587ecab0a1266c`; suite complète **1030 passed, 1
+skipped, 0 failed en 235,76 s**; aucun SQLite réel modifié; aucune histoire
+officielle Rodage V2 commencée.
 
 **Base documentaire de départ :** `bbdac5c737c6fa0b28f23657b826b008b5b12fd2` (`docs: close WO88 formally`).
 
@@ -128,19 +134,34 @@ Exigences satisfaites : un seul HEAD candidat vérifiable; aucun changement suiv
 
 Le système physiologique actif n'est plus une boîte noire pour le prochain rodage. Le contrat détaillé et les preuves de validation sont consignés au verdict 0C ci-dessus.
 
-## 7. Lot 89D — répétition générale T0 sur base jetable — ACTIF
+## 7. Lot 89D — répétition générale T0 sur base jetable — FERMÉ
 
 Sur une base neuve et jetable : appliquer les migrations réelles; construire résidence et habitantes par les chemins supportés; fixer un T0 explicite; installer les politiques; préparer/activer la physiologie depuis un manifeste T0 scellé; exécuter `mvp-preflight`; vérifier l'observation 89C; effectuer au besoin un smoke runtime court; classer ensuite la base comme artefact jetable.
 
+**Verdict 89D : SATISFAIT.** Répétition effectuée sur SQLite neuf et jetable, schéma 55,
+manifeste T0 explicite/scellé, physiologie active H/φ/P, cinq personnages
+`chuu`, `erika`, `luna`, `patoune`, `sophie`; `mvp-preflight` CLI exécuté en
+lecture seule; les 16 contrôles de préflight ont passé; observation Hugin H/φ/P
+répétable; test final 89D : **1 passed in 0.52s**; `fixture_not_product_canon=true`;
+`official_history_started=false`; aucune reprise de l'ancien rodage.
+
 Aucun état physiologique historique ne vient de l'ancien rodage. Toute valeur T0 nécessitant encore une décision produit est remontée au propriétaire plutôt qu'inventée.
 
-## 8. Lot 89E — validation et fermeture
+## 8. Lot 89E — validation et fermeture — FERMÉ
 
-Après 89A–D : tests ciblés; `python -m compileall -q src tests`; suite complète sur le HEAD exact; dépôt suivi propre; aucun SQLite réel modifié; harmonisation roadmap/passation/changelog/README/métadonnées de version; enregistrement du HEAD, version, schéma, migration, compte de tests et environnement; retrait uniquement des artefacts WO89 réellement jetables.
+Après 89A–D : tests ciblés; `.venv\Scripts\python.exe -m compileall -q src tests`; suite complète sur le HEAD exact; dépôt suivi propre; aucun SQLite réel modifié; harmonisation roadmap/passation/changelog/README/métadonnées de version; enregistrement du HEAD, version, schéma, migration, compte de tests et environnement; retrait uniquement des artefacts WO89 réellement jetables.
+
+**Verdict 89E : SATISFAIT.** Version finale `0.2.0a1`; distribution technique
+`vivarium-social` et import `vivarium` conservés; schéma 55; migration
+`0055_sleep_completion_authorization.sql`; FUNCTIONAL_HEAD
+`fcc574c182dc40abef0d6255e5587ecab0a1266c`; tests ciblés : **3 passed in 0.08s**;
+compileall : **PASS**; suite complète : **1030 passed, 1 skipped, 0 failed en
+235,76 s**; Python **3.13.11**; pytest **9.1.1**; aucun SQLite réel modifié;
+aucune histoire Rodage V2 commencée.
 
 ## 9. Porte de fermeture
 
-WO89 est fermé seulement si : identité/version cohérentes; HEAD Git final unique; H/φ/P observables read-only avec persisté/dérivé distincts; répétition T0 neuve réussie; tests/compilation/suite complète verts; aucun SQLite réel touché; documentation active harmonisée; preuves consignées.
+WO89 est fermé seulement si : identité/version cohérentes; HEAD Git final unique; H/φ/P observables read-only avec persisté/dérivé distincts; répétition T0 neuve réussie; tests/compilation/suite complète verts; aucun SQLite réel touché; documentation active harmonisée; preuves consignées. **Porte de fermeture : SATISFAITE.**
 
 **La fermeture de WO89 autorise seulement le démarrage du Rodage V2. Elle n'est pas le premier événement de cette histoire.**
 
@@ -149,6 +170,6 @@ WO89 est fermé seulement si : identité/version cohérentes; HEAD Git final uni
 1. 89A — FERMÉ ;
 2. 89B — FERMÉ ;
 3. 89C — FERMÉ ;
-4. 89D — ACTIF ;
-5. 89E — après fermeture 89D seulement ;
+4. 89D — FERMÉ ;
+5. 89E — FERMÉ ;
 6. seulement ensuite : Rodage V2 officiel.
