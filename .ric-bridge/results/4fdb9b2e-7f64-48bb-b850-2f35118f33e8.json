@@ -1,0 +1,1 @@
+{"http_status":200,"request_id":"4fdb9b2e-7f64-48bb-b850-2f35118f33e8","response":{"duration_ms":0,"ok":true,"operation":"health","result":{"auth":"github-oidc-request-bound","repo_write":true,"request_id":"4fdb9b2e-7f64-48bb-b850-2f35118f33e8","service":"ric-bridge-control"}},"schema_version":2,"status":"ok"}
