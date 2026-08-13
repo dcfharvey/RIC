@@ -34,6 +34,20 @@ Le gain d'hygiène doit passer par un mécanisme générique d'activité/effet. 
 
 Toute interaction de l'eau avec une ressource particulière d'un personnage doit passer par les mécanismes génériques de propriétés/ressources, jamais par un test sur l'identité du personnage.
 
+## T0 produit approuvé
+
+Le T0 exact est fixé uniquement lors du bootstrap persistant finalement autorisé. Il doit correspondre à l'heure EDT réelle de ce démarrage; aucun événement officiel n'a été écrit à 12 h 24 et aucun faux passé ne doit être reconstruit.
+
+Conditions initiales à rendre fidèlement représentables :
+
+- Sophie est absente du domicile, à son travail de photographe journalistique, avec retour prévu à 16 h locale. Son métier est déjà canonique. Elle travaille par choix même si les habitantes reçoivent une allocation et que les dépenses ménagères sont couvertes. Employeur, média, affectation, collègues et autres détails non décidés restent indéterminés.
+- Erika est assise dans le salon et joue à des jeux vidéo. Le jeu précis reste indéterminé.
+- Patoune est endormi dans le salon, blotti contre Erika. Le divan existe canoniquement; « sur le divan » ne doit être matérialisé comme relation physique que si un mécanisme générique réellement supporté le permet.
+- Chuu est dans le bain, se détend et se réhydrate, et s'apprête à sortir. Le bain existe canoniquement. Aucune jauge de confort ne doit être inventée; toute hydratation causale doit passer par le propriétaire générique de la ressource correspondante.
+- Luna arrive sur les lieux pour la première fois en taxi, avec un sac d'effets personnels en main. Le contenu du sac reste indéterminé. Le taxi n'a pas besoin de devenir une entité persistante s'il n'est pas nécessaire au fait canonique de l'arrivée.
+
+Ces conditions sont volontairement asymétriques. Le bootstrap ne doit pas les neutraliser en remplaçant les activités significatives par un même `idle`, en plaçant tout le monde au même endroit ou en donnant à tous le même contexte circonstanciel.
+
 ## Vocabulaire futur d'actions
 
 WO90 ne doit pas cataloguer toutes les actions possibles. Un chantier ultérieur devra faire évoluer la liste plate d'activités vers un vocabulaire composable : famille fonctionnelle, modalité, cible/objet, affordances requises, contraintes spatiales, durée/interruptibilité, charge physique, effets causaux, règles sociales/permission/consentement, signaux subjectifs et conséquences perceptibles.
