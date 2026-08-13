@@ -1,0 +1,1 @@
+{"http_status":200,"request_id":"e0139f9a-b7e2-4a8a-9962-5d75a5d93194","response":{"duration_ms":28,"ok":true,"operation":"show","result":{"exit_code":0,"stderr":"","stdout":"4070c74 test: prove Sol bridge end-to-end write\n docs/_SOL_BRIDGE_E2E_SMOKE.txt | 3 +++\n 1 file changed, 3 insertions(+)\n","timed_out":false,"truncated":false}},"schema_version":2,"status":"ok"}
