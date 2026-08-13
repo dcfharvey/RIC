@@ -11,12 +11,12 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 import sqlite3
-from typing import Callable
+from typing import Callable, Mapping
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .action_arbitration import ActionArbitrationFoundationService
 from .circadian_model import calibration_profiles
-from .cognition import LMStudioProvider, LocalLLMSettings
+from .cognition import CognitionError, LMStudioProvider, LocalLLMSettings
 from .db import connect_database
 from .integration_world import IntegrationWorldService
 from .location_plans import LocationPlanService
@@ -149,6 +149,10 @@ def bootstrap_official(
     if local.hour >= 16:
         raise OfficialBootstrapError("T0 >= 16:00 EDT : scénario Sophie obsolète", code="t0_after_return_deadline")
     t0 = to_iso(now)
+    # La validation provider est une précondition de création : une instance
+    # officielle ne doit jamais être créée si le modèle réellement chargé ne
+    # peut pas être prouvé. Les tests peuvent injecter un checker déterministe.
+    expected_model = provider_checker() if provider_checker is not None else _check_provider()
     conn: sqlite3.Connection | None = None
     created = False
     try:
@@ -196,7 +200,6 @@ def bootstrap_official(
         hugin_ok = len(hugin.get("evidence", ())) >= 5
         if not hugin_ok:
             raise OfficialBootstrapError("observation Hugin incomplète", code="hugin_failed")
-        expected_model = provider_checker() if provider_checker is not None else _check_provider()
         session_id = None
         if launch_runtime:
             session_id = RuntimeSessionService(conn, clock=clock).start(world_id).session_id
@@ -218,12 +221,41 @@ def bootstrap_official(
 
 def _check_provider() -> str:
     settings = LocalLLMSettings.from_environment(require_model=True)
-    records = LMStudioProvider(settings).list_model_records()
-    if not any(record.get("key") == settings.model_id for record in records):
+    try:
+        records = LMStudioProvider(settings).list_model_records()
+    except CognitionError as exc:
+        raise OfficialBootstrapError(str(exc), code=exc.code) from exc
+    matching = next((record for record in records if record.get("key") == settings.model_id), None)
+    if matching is None:
         raise OfficialBootstrapError("modèle LLM attendu indisponible", code="llm_model_unavailable")
-    if "qwen3-14b" not in settings.model_id.casefold():
+    key = matching.get("key")
+    if not isinstance(key, str) or "qwen3-14b" not in key.casefold():
         raise OfficialBootstrapError("modèle configuré différent de Qwen3-14B", code="unexpected_llm_model")
-    return settings.model_id
+
+    quantization = matching.get("quantization")
+    if not isinstance(quantization, Mapping) or not isinstance(quantization.get("name"), str):
+        raise OfficialBootstrapError(
+            "LM Studio n'expose pas une quantification structurée vérifiable",
+            code="provider_quantization_unknown",
+        )
+    if quantization["name"].casefold() != "q4_k_m":
+        raise OfficialBootstrapError(
+            f"quantification provider inattendue : {quantization['name']}",
+            code="unexpected_quantization",
+        )
+
+    instances = matching.get("loaded_instances")
+    if not isinstance(instances, (list, tuple)) or not instances:
+        raise OfficialBootstrapError(
+            "le modèle Qwen3-14B Q4_K_M n'est pas chargé dans LM Studio",
+            code="provider_model_not_loaded",
+        )
+    if len(instances) != 1 or not isinstance(instances[0], Mapping) or not isinstance(instances[0].get("id"), str):
+        raise OfficialBootstrapError(
+            "l'instance LM Studio chargée est absente ou ambiguë",
+            code="provider_instance_ambiguous",
+        )
+    return key
 
 
 def main(argv: list[str] | None = None) -> int:
