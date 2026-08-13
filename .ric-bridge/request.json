@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"read_file","path":".runtime-18h.stdout.log"},"request_id":"7f275d08-7d14-45bd-86ad-f33d3ee7c445","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"read_file","path":".runtime-18h.stderr.log"},"request_id":"4af94d2b-12e3-4e0e-917c-3caa5fb26631","route":"/dev/fs","schema_version":2}
