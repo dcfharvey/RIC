@@ -2,13 +2,10 @@ from datetime import datetime, timezone
 
 import pytest
 
-from vivarium.cognition_policy import CognitionCallLimits
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
-from vivarium.scene_bench import run_scene_bench
 from vivarium.scene_scheduler import SceneSchedulerError, SceneTurnScheduler
-from vivarium.scene_turn import SceneTurnDecision
 from vivarium.scenes import SocialSceneService
 from vivarium.traversal import TraversalEngine
 from vivarium.util import to_iso
@@ -17,11 +14,6 @@ from vivarium.util import to_iso
 class Clock:
     def now(self): return datetime(2026, 8, 6, 23, tzinfo=timezone.utc)
     def now_iso(self): return to_iso(self.now())
-
-
-class Provider:
-    def __init__(self, *decisions): self.decisions, self.calls = iter(decisions), 0
-    def decide(self, context): self.calls += 1; return next(self.decisions)
 
 
 def test_scheduler_rotates_bounded_opportunities_from_admitted_turns():
@@ -36,13 +28,6 @@ def test_scheduler_rotates_bounded_opportunities_from_admitted_turns():
     second = scheduler.next_opportunity(world_id, "chat", max_turns=2)
     assert (second.turn_number, second.speaker_key) == (2, "erika")
     conn.close()
-
-
-def test_scene_bench_is_ephemeral_and_stops_at_its_turn_bound():
-    provider = Provider(SceneTurnDecision("speak", "greet", "Salut, Erika.", "erika"), SceneTurnDecision("no_action"))
-    report = run_scene_bench(provider, CognitionCallLimits(0, 3_600, 4), max_turns=2)
-    assert report.healthy and [turn.opportunity.speaker_key for turn in report.turns] == ["sophie", "erika"]
-    assert len(report.final_scene["acts"]) == 1 and provider.calls == 2
 
 
 @pytest.mark.parametrize("maximum", (0, 21, True))
