@@ -1,14 +1,14 @@
 # RIC — Reality · Interaction · Cognition
 
-Photographie active WO90 — 13 août 2026.
+Photographie active WO91 — 13 août 2026.
 
 - Distribution technique : `vivarium-social` (inchangée).
 - Import Python : `vivarium` (inchangé).
-- Version logicielle courante : `0.2.0a2`.
-- Schéma SQLite du code : **56** ; dernière migration : `0056_location_plan.sql`.
-- FUNCTIONAL_HEAD : `989188fb01087878a581bd51f861014a82554a20`.
-- Validation complète : **1033 passed, 1 skipped, 0 failed** en `236.58s` ; skip attendu `tests/test_dev_bridge.py:59`.
-- WO90 est fermé. Le bootstrap T0 est qualifié sur base jetable ; Rodage V2 officiel autorisé mais non démarré.
+- Version logicielle courante : `0.2.0a3`.
+- Schéma SQLite du code : **57** ; dernière migration : `0057_location_plan_resolution.sql`.
+- FUNCTIONAL_HEAD : `20291d4b8b9a72ceab786eb7f4dc37312cc4d5c8`.
+- Validation complète : **1036 passed, 1 skipped, 0 failed** en `243.21s` ; skip attendu `tests/test_dev_bridge.py:59`.
+- WO91 est fermé. Le scheduler temporel, le bootstrap officiel one-shot et le T0 jetable sont qualifiés ; Rodage V2 officiel autorisé mais non démarré.
 
 ## Reprise d'un travail existant
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0a3 — 13 août 2026
+
+- Scheduler temporel minimal générique raccordé aux frontières canoniques des activités et plans futurs, avec résolution append-only idempotente.
+- Représentation générique `work` sans inventer de sous-geste photographique.
+- Manifeste T0 dérivé des politiques versionnées : profils humains, félin générique et baseline fictionnelle explicitement provenancée, résidus nuls et aucun passé reconstruit.
+- Point d'entrée local one-shot `vivarium.rodage_v2_official` préparé pour `data/vivarium-rodage-v2.sqlite`, avec refus de cible existante, garde horaire, préflight, Hugin et vérification Qwen3-14B avant session.
+- Schéma 57 (`0057_location_plan_resolution.sql`); aucune base officielle V2 ni histoire persistante démarrée.
+
 ## 0.2.0a2 — 13 août 2026
 
 - Ajoute une extension générique de topologie vers des lieux extérieurs hors propriété, sans omniscience perceptive.

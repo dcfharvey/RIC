@@ -5,7 +5,7 @@
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
 
-> **Mise au point prioritaire — WO90 fermé (13 août 2026) :** préparation du bootstrap Rodage V2 **FERMÉE**. Version `0.2.0a2`, schéma 56, migration `0056_location_plan.sql`, FUNCTIONAL_HEAD `989188fb01087878a581bd51f861014a82554a20`. Validation complète : **1033 passed, 1 skipped, 0 failed en 236,58 s**; skip attendu `tests/test_dev_bridge.py:59`. WO89 reste fermé; WO90 qualifie la topologie externe générique, le sommeil dans tout lieu canonique accessible, les plans de retour et le bootstrap T0 jetable. Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé. **Prochain jalon immédiat : construction du vrai T0 neuf et démarrage explicite du Rodage V2 après décision du propriétaire.** Les photographies techniques antérieures ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
+> **Mise au point prioritaire — WO91 fermé (13 août 2026) :** porte de démarrage réel **FERMÉE**. Version `0.2.0a3`, schéma 57, migration `0057_location_plan_resolution.sql`, FUNCTIONAL_HEAD `20291d4b8b9a72ceab786eb7f4dc37312cc4d5c8`. Validation complète : **1036 passed, 1 skipped, 0 failed en 243,21 s**; skip attendu `tests/test_dev_bridge.py:59`. Le scheduler temporel générique, `work`, la provenance T0 par politiques et le point d'entrée one-shot sont qualifiés. Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé. **Prochain jalon immédiat : exécution explicite du point d'entrée sur une base neuve après décision du propriétaire.** Les photographies techniques antérieures ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
 
 ## Principe de conduite
 
@@ -27,12 +27,12 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.2.0a2` — schéma de code 56, migration
-`0056_location_plan.sql`, FUNCTIONAL_HEAD
-`989188fb01087878a581bd51f861014a82554a20`, validation complète **1033 passed,
-1 skipped, 0 failed en 236,58 s**. WO89 et WO90 sont fermés; le bootstrap T0
-jetable est qualifié. Aucun ancien SQLite n'a été migré et aucune histoire
-officielle Rodage V2 n'a commencé.
+**Version logicielle actuelle :** `0.2.0a3` — schéma de code 57, migration
+`0057_location_plan_resolution.sql`, FUNCTIONAL_HEAD
+`20291d4b8b9a72ceab786eb7f4dc37312cc4d5c8`, validation complète **1036 passed, 1 skipped, 0 failed
+en 243,21 s**. WO89, WO90 et WO91 sont fermés; le bootstrap T0 jetable et le
+point d'entrée one-shot sont qualifiés. Aucun ancien SQLite n'a été migré et
+aucune histoire officielle Rodage V2 n'a commencé.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
@@ -103,6 +103,7 @@ officielle Rodage V2 n'a commencé.
 | --- | --- | --- |
 | `0.2.0a1` | Atteint | Base alpha du Rodage V2 : physiologie active owner-backed H/φ/P, observabilité opérateur et bootstrap T0 neuf qualifiés; histoire officielle non encore démarrée. |
 | `0.2.0a2` | Atteint | Bootstrap WO90 : topologie externe générique, sommeil dans tout lieu canonique accessible, plans de retour et T0 jetable complet qualifiés; histoire officielle non encore démarrée. |
+| `0.2.0a3` | Atteint | WO91 : scheduler temporel générique, retour causal à 16 h, manifeste T0 provenancé et point d'entrée one-shot qualifiés; histoire officielle non encore démarrée. |
 | `0.0.0.dev0` | État actuel | Pré-alpha : fondations rigoureuses, mais pas encore de boucle sociale complète. |
 | `0.0.1.dev0` | Jalon atteint après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
 | `0.0.2.dev0` | État actuel, après le monde d'intégration | Les cinq vraies configurations peuvent être assemblées et réinitialisées sans histoire officielle. |

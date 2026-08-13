@@ -1,8 +1,10 @@
 # Work order 91 — porte de démarrage réel du Rodage V2
 
-**Statut : OUVERT — aucun SQLite Rodage V2 officiel ne doit être créé avant fermeture.**
+**Statut : FERMÉ — WO91 satisfait; le démarrage officiel est préparé mais non exécuté.**
 
 **Base :** `ce3bec5d7d9825784f397c8db9c77239f3886b13` (`0.2.0a2`, schéma 56, WO90 fermé).
+
+**HEAD fonctionnel WO91 :** `20291d4b8b9a72ceab786eb7f4dc37312cc4d5c8` (`0.2.0a3`, schéma 57).
 
 ## 1. Pourquoi WO91 existe
 
@@ -13,6 +15,21 @@ WO90 a correctement rendu représentables la topologie hors propriété, le somm
 3. Le banc physiologique jetable assigne volontairement le profil humain aux cinq personnages. Cette commodité de qualification n'est pas un canon biologique acceptable pour le vrai T0. Le catalogue quantitatif actuel ne fournit que `human_reference_candidate.v1` et `generic_feline_hypothesis.v1`, alors que le casting comprend deux humaines, une louve anthropomorphe, une slime et une chatte domestique.
 
 WO91 ferme uniquement ces écarts et fournit un point d'entrée opérateur sûr. Il ne doit pas devenir le chantier général d'ontologie des actions ou de physiologie comparée.
+
+## Clarification temporelle — contrat générique de frontières
+
+`character_location_plan` n'est pas un cas particulier Sophie : il constitue la
+première instance d'un mécanisme générique d'engagements temporels. Le scheduler
+réutilise l'horloge canonique et les frontières déjà présentes des activités et
+checkpoints. Une action en cours expose sa prochaine frontière (`planned_end_at`,
+réévaluation ou checkpoint); un plan futur expose `planned_at`, une cible, une
+provenance et une résolution append-only. À l'échéance, le moteur revalide la
+transition et produit `fulfilled`, `refused`, `cancelled` ou `deferred`; un plan
+prévu n'est jamais considéré comme un fait accompli avant cette résolution.
+
+La résolution est idempotente et déterministe : elle ne dépend ni du LLM, ni d'un
+polling subjectif, ni d'une seconde horloge. Une traversée refusée produit un
+diagnostic explicite sans téléportation ni écriture partielle.
 
 ## 2. Faits produit du T0 à préserver
 
@@ -136,9 +153,28 @@ Avant fermeture :
 
 Le code réel, les migrations éventuelles, la version et l'ordre d'implantation restent de l'autorité de Codex.
 
+## Verdict de fermeture WO91
+
+La porte de fermeture est **SATISFAITE**. Le scheduler actif raccorde les plans
+de lieu aux frontières canoniques existantes : Sophie reste au travail avant
+16 h EDT et atteint causalement l'entrée du foyer à l'échéance, une seule fois.
+`work` exprime l'engagement professionnel sans inventer une photographie; les
+profils T0 sont `human_reference` pour Sophie/Erika, `generic_feline` pour
+Patoune et `fictional_canon` pour Luna/Chuu, avec H/P aux centres des politiques,
+phi dérivée de la lumière et résidus nuls. Le point d'entrée local exact est :
+
+```text
+.venv\Scripts\python.exe -m vivarium.rodage_v2_official --db data/vivarium-rodage-v2.sqlite
+```
+
+Il refuse une cible existante ou un T0 devenu obsolète, vérifie Qwen3-14B, le
+préflight et Hugin, puis ouvre la session seulement après ces contrôles. La
+répétition jetable, la compilation et la suite complète sont vertes; aucun
+SQLite officiel n'a été créé.
+
 ## 9. Porte de fermeture
 
-WO91 ferme seulement lorsque :
+WO91 est fermé :
 
 - le retour à 16 h est causal, pas seulement enregistré;
 - « travailler » est représenté sans surspécification;
