@@ -1,0 +1,32 @@
+name: Update WO93 README
+on:
+  push:
+    branches: [chatgpt/wo93-debloat-scaffolding]
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/wo93-debloat-scaffolding
+      - name: Update active command documentation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('README.md'); text=p.read_text(encoding='utf-8')
+          text=text.replace('.venv/Scripts/python -m vivarium mvp-run --db data/vivarium-alpha.sqlite --enable-local-llm\n.venv/Scripts/python -m vivarium social-interpretation-bench --level T0\n.venv/Scripts/python -m vivarium sleep-calibration-bench\n', '.venv/Scripts/python -m vivarium mvp-run --db data/vivarium-alpha.sqlite --enable-local-llm\n.venv/Scripts/python -m vivarium llm-status\n')
+          old='''- `social-interpretation-bench --level T0` exécute le banc SCC-1B2A déterministe;\n  `--level T1` lance un smoke LM Studio borné et `--report <fichier>` écrit un\n  rapport JSON technique. `--level T2 --trials 5` lance la campagne T2a réelle\n  bornée; T2b et l'admission cognitive restent désactivés.\n- `llm-inventory` exporte les model keys et métadonnées réellement exposées par\n  LM Studio; `social-interpretation-screen --model-id <key>` est l'opération\n  Screen-47 model-specific, limitée aux modèles déjà chargés et sans\n  chargement/déchargement automatique.\n- `sleep-calibration-bench` exécute le noyau circadien déterministe sur des\n  profils candidats versionnés. Il n'ouvre aucune résidence, aucun LLM et\n  n'active pas la physiologie ; voir `docs/81_BANC_CALIBRATION_CIRCADIEN_V1.md`.\n'''
+          new='''- `llm-status` vérifie en lecture seule LM Studio et le modèle actuellement chargé.\n- Les bancs jetables de qualification SCC-1B et circadiens ont été retirés du\n  paquet exécutable après fermeture de leurs qualifications. Leurs protocoles,\n  résultats et décisions restent traçables dans `docs/73_R_D_SCC1B_PROVIDER_ET_CALIBRATION.md`,\n  `docs/76_R_D_SCREENING_MULTI_MODELES_SCC1B.md`, `docs/81_BANC_CALIBRATION_CIRCADIEN_V1.md`,\n  `docs/82_SELECTION_ROBUSTESSE_CALIBRATION_CIRCADIEN_V1.md` et\n  `docs/84_AUDIT_COMPATIBILITE_SHADOW_CIRCADIEN_V1.md`.\n'''
+          if old not in text: raise SystemExit('README qualification block not found')
+          p.write_text(text.replace(old,new),encoding='utf-8')
+          PY
+          git rm .github/workflows/wo93-readme.yml
+          git config user.name 'RIC debloat bot'
+          git config user.email 'noreply@github.com'
+          git add README.md
+          git diff --cached --check
+          git commit -m 'docs: retire qualification bench commands'
+          git push origin HEAD:chatgpt/wo93-debloat-scaffolding
