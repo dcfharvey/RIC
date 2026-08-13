@@ -1,0 +1,25 @@
+name: WO94A validation
+on:
+  push:
+    branches: [chatgpt/wo94a-validation-ci]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pytest
+      - name: Targeted arbitration tests
+        run: python -m pytest -q tests/test_action_arbitration_runtime.py tests/test_action_arbitration_runtime_guards.py tests/test_owner_backed_causal_arbitration.py tests/test_active_runtime_cutover.py
+      - name: Broad suite
+        run: >-
+          python -m pytest -q
+          --deselect=tests/test_dev_bridge.py::test_exec_allowlist_shell_injection_timeout_output_cap_and_scoped_env
+          --deselect=tests/test_dev_bridge.py::test_jobs_start_poll_cancel_and_concurrency_limit
+          --deselect=tests/test_dev_bridge.py::test_process_tree_cancel_and_timeout_kill_descendants
+          --deselect=tests/test_dev_bridge.py::test_git_surface_is_read_only_and_sees_untracked_workspace
