@@ -1,0 +1,100 @@
+name: WO94 remove synthetic arbitration facade
+on:
+  push:
+    branches: [chatgpt/wo94-debloat-physiology]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/wo94-debloat-physiology
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Apply arbitration cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          def remove_top_level_function(path, name):
+              p=Path(path); text=p.read_text(encoding='utf-8'); lines=text.splitlines(keepends=True); tree=ast.parse(text)
+              node=next((n for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef)) and n.name==name),None)
+              if node is None: raise SystemExit(f'{path}: {name} missing')
+              start=node.lineno-1
+              while start>0 and lines[start-1].strip()=='': start-=1
+              p.write_text(''.join(lines[:start]+lines[node.end_lineno:]),encoding='utf-8')
+
+          p=Path('src/vivarium/action_arbitration_runtime.py'); text=p.read_text(encoding='utf-8')
+          text=text.replace('"""Arbitrage causal neutre partage par le runtime actif et les bancs.\n\nLe module ne possede aucun etat canonique. Il lit les owners etablis, produit\nune frame deterministe, puis toute transition passe par ``ActionOrchestrator``.\nLes API runtime publiques ne recoivent jamais de ``RegulationInput`` libre.\n"""', '"""Arbitrage causal neutre du runtime actif.\n\nLe module ne possede aucun etat canonique. Il lit les owners etablis, produit\nune frame deterministe, puis toute transition passe par ``ActionOrchestrator``.\n"""')
+          text=text.replace('from .circadian_model import RegulationInput\n','')
+          old='''    def _build_from_source(\n        self,\n        world_id: int,\n        actor_key: str,\n        *,\n        canonical_at: str,\n        sleep_specification: ActionSpecification,\n        rest_specification: ActionSpecification,\n        wake_source: RegulationInput | None = None,\n        physiology_projection: Any | None = None,\n        current_action_key: str | None = None,\n    ) -> ActionArbitrationFrame:\n        """Noyau partage; la source explicite reste privee aux adaptateurs de banc."""\n'''
+          new='''    def _build_from_projection(\n        self,\n        world_id: int,\n        actor_key: str,\n        *,\n        canonical_at: str,\n        sleep_specification: ActionSpecification,\n        rest_specification: ActionSpecification,\n        physiology_projection: Any,\n        current_action_key: str | None = None,\n    ) -> ActionArbitrationFrame:\n        """Construit la frame depuis une projection déjà validée par son owner."""\n'''
+          if old not in text: raise SystemExit('builder signature block missing')
+          text=text.replace(old,new)
+          old='''        state = self._physiology.read_state(world_id, actor)\n        if physiology_projection is not None:\n            if wake_source is not None:\n                raise ActionArbitrationRuntimeError(\n                    "projection et source causale mutuellement exclusives",\n                    code="invalid_causal_source",\n                )\n            projection = physiology_projection\n        else:\n            if wake_source is None:\n                raise ActionArbitrationRuntimeError(\n                    "source causale absente", code="invalid_causal_source"\n                )\n            projection = self._physiology.project_synthetic(world_id, actor, wake_source)\n        capacity = state.regulation.physical_capacity_milli\n'''
+          new='''        state = self._physiology.read_state(world_id, actor)\n        projection = physiology_projection\n        capacity = state.regulation.physical_capacity_milli\n'''
+          if old not in text: raise SystemExit('free-source branch missing')
+          text=text.replace(old,new).replace('return self._build_from_source(\n','return self._build_from_projection(\n')
+          p.write_text(text,encoding='utf-8')
+          remove_top_level_function(p,'action_specification')
+
+          # Generic arbitration tests: keep the coverage, remove the compatibility facade.
+          p=Path('tests/test_synthetic_action_arbitration.py'); text=p.read_text(encoding='utf-8')
+          start=text.index('from vivarium.synthetic_action_arbitration import (')
+          end=text.index(')\n',start)+2
+          block='''from vivarium.action_arbitration_runtime import (\n    ActionArbitrationFrame,\n    ActionArbitrationRuntimeError,\n    ActionArbitrationService,\n    ArbitrationContribution,\n    ArbitrationRuntimePolicy,\n    PhysicalCostRequest,\n    evaluate_physical_cost,\n)\n'''
+          text=text[:start]+block+text[end:]
+          text=text.replace('SyntheticActionArbitrationError','ActionArbitrationRuntimeError')
+          text=text.replace('SyntheticArbitrationPolicy','ArbitrationRuntimePolicy')
+          text=text.replace('synthetic_specification','normalize_action_specification')
+          text=text.replace('.execute_synthetic(','.execute(')
+          text=text.replace('from vivarium.action_contract import ACTION_START_ACTIVITY, ACTION_TRAVERSE\n','from vivarium.action_contract import ACTION_START_ACTIVITY, ACTION_TRAVERSE, normalize_action_specification\n')
+          p.write_text(text,encoding='utf-8')
+
+          # Causal tests now exercise only the owner-backed builder.
+          p=Path('tests/test_synthetic_causal_arbitration.py'); text=p.read_text(encoding='utf-8')
+          text=text.replace('from vivarium.action_contract import ACTION_START_ACTIVITY, ActionOrchestrator, IntentProposal\n','from vivarium.action_contract import ACTION_START_ACTIVITY, ActionOrchestrator, IntentProposal, normalize_action_specification\n')
+          start=text.index('from vivarium.synthetic_action_arbitration import (')
+          end=text.index(')\n',start)+2
+          block='''from vivarium.action_arbitration_runtime import (\n    ActionArbitrationRuntimeError,\n    ActionArbitrationService,\n    CausalArbitrationBuilder,\n)\n'''
+          text=text[:start]+block+text[end:]
+          text=text.replace('SyntheticActionArbitrationError','ActionArbitrationRuntimeError')
+          text=text.replace('SyntheticCausalArbitrationBuilder','CausalArbitrationBuilder')
+          text=text.replace('synthetic_specification','normalize_action_specification')
+          free='''        physiology = SleepPhysiologyService(conn, clock=clock)\n        wake_source = physiology.resolve_light_source_synthetic(\n            world_id, "salon", to_iso(T0), state="wake"\n        )\n'''
+          text=text.replace(free,'')
+          text=text.replace('builder.build(\n','builder.build_owner_backed(\n')
+          text=text.replace('CausalArbitrationBuilder(conn, clock=clock).build(\n','CausalArbitrationBuilder(conn, clock=clock).build_owner_backed(\n')
+          text=text.replace('            wake_source=wake_source,\n','')
+          text=text.replace('test_identity_mapping_is_accepted_by_legacy_lab_but_refused_by_causal_builder','test_identity_mapping_is_refused_by_owner_backed_causal_builder')
+          p.write_text(text,encoding='utf-8')
+
+          p=Path('tests/test_synthetic_causal_arbitration_guards.py'); text=p.read_text(encoding='utf-8')
+          start=text.index('from vivarium.synthetic_action_arbitration import (')
+          end=text.index(')\n',start)+2
+          block='''from vivarium.action_arbitration_runtime import (\n    ActionArbitrationRuntimeError,\n    CausalArbitrationBuilder,\n)\nfrom vivarium.action_contract import normalize_action_specification\n'''
+          text=text[:start]+block+text[end:]
+          text=text.replace('SyntheticActionArbitrationError','ActionArbitrationRuntimeError')
+          text=text.replace('SyntheticCausalArbitrationBuilder','CausalArbitrationBuilder')
+          text=text.replace('synthetic_specification','normalize_action_specification')
+          p.write_text(text,encoding='utf-8')
+          PY
+
+          git rm src/vivarium/synthetic_action_arbitration.py
+          git mv tests/test_synthetic_action_arbitration.py tests/test_action_arbitration_runtime.py
+          git mv tests/test_synthetic_causal_arbitration.py tests/test_owner_backed_causal_arbitration.py
+          git mv tests/test_synthetic_causal_arbitration_guards.py tests/test_action_arbitration_runtime_guards.py
+          git rm .github/workflows/wo94-arbitration-apply.yml
+          git config user.name 'RIC debloat bot'
+          git config user.email 'noreply@github.com'
+          git add src/vivarium/action_arbitration_runtime.py tests/
+          git diff --cached --check
+          python -m compileall -q src tests
+          git commit -m 'refactor: remove synthetic arbitration injection path'
+          git push origin HEAD:chatgpt/wo94-debloat-physiology
