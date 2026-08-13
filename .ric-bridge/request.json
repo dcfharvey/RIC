@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"read_file","path":"src/vivarium/observation.py"},"request_id":"580cf621-7994-4982-b93a-297cd934e59a","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"replace_text","path":"src/vivarium/observation.py","old_text":"\"previous_stability_band\": state.hysteresis.previous_band,","new_text":"\"previous_stability_band\": state.previous_stability_band,"},"request_id":"e4a8dd6b-e091-478b-87b5-a3ac61c0b434","route":"/dev/write","schema_version":2}
