@@ -1,0 +1,66 @@
+name: WO94 physiology audit
+on:
+  push:
+    branches: [chatgpt/wo94-debloat-physiology]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Map sleep physiology API consumers
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          target = Path('src/vivarium/sleep_physiology.py')
+          source = target.read_text(encoding='utf-8')
+          tree = ast.parse(source)
+          methods=[]
+          functions=[]
+          classes=[]
+          for node in tree.body:
+              if isinstance(node, ast.ClassDef):
+                  classes.append((node.name,node.lineno,node.end_lineno))
+                  for child in node.body:
+                      if isinstance(child,(ast.FunctionDef,ast.AsyncFunctionDef)):
+                          methods.append((node.name,child.name,child.lineno,child.end_lineno))
+              elif isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)):
+                  functions.append((node.name,node.lineno,node.end_lineno))
+          files=[p for root in ('src','tests','tools') for p in Path(root).rglob('*.py') if p != target]
+          def refs(name, kind='method'):
+              hits=[]
+              needles=(f'.{name}(', f' {name}(', f'import {name}', f' {name},', f' {name}\n') if kind=='method' else (name,)
+              for p in files:
+                  text=p.read_text(encoding='utf-8')
+                  for i,line in enumerate(text.splitlines(),1):
+                      if (f'.{name}(' in line if kind=='method' else name in line):
+                          hits.append((str(p),i,line.strip()))
+              return hits
+          print('=== CLASSES ===')
+          for name,a,b in classes:
+              hits=refs(name,'name')
+              prod=sum(1 for p,_,_ in hits if p.startswith('src/'))
+              test=sum(1 for p,_,_ in hits if p.startswith('tests/'))
+              print(f'{name:40} L{a}-{b} prod={prod} test={test}')
+              for h in hits[:12]: print('  ',*h)
+          print('=== METHODS ===')
+          for cls,name,a,b in methods:
+              hits=refs(name)
+              prod=sum(1 for p,_,_ in hits if p.startswith('src/'))
+              test=sum(1 for p,_,_ in hits if p.startswith('tests/'))
+              tag='SYNTH' if 'synthetic' in name.lower() else ''
+              if prod==0 or tag:
+                  print(f'{cls}.{name:42} L{a}-{b} prod={prod} test={test} {tag}')
+                  for h in hits[:10]: print('  ',*h)
+          print('=== MODULE FUNCTIONS ===')
+          for name,a,b in functions:
+              hits=refs(name,'name')
+              prod=sum(1 for p,_,_ in hits if p.startswith('src/'))
+              test=sum(1 for p,_,_ in hits if p.startswith('tests/'))
+              print(f'{name:45} L{a}-{b} prod={prod} test={test}')
+          PY
