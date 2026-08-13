@@ -26,8 +26,8 @@ def test_active_current_state_exposes_persisted_owner_physiology_read_only(monke
         monkeypatch.setattr(SleepPhysiologyService, "project_synthetic", forbidden)
         monkeypatch.setattr(SleepPhysiologyService, "next_critical_boundary_synthetic", forbidden)
         query = ObservationQuery(mode="hugin", subject_keys=("sophie",), focus="current_state")
-        first = HuginMuninObservationService(conn).report(wid, query)
-        second = HuginMuninObservationService(conn).report(wid, query)
+        first = HuginMuninObservationService(conn, clock=clock).report(wid, query)
+        second = HuginMuninObservationService(conn, clock=clock).report(wid, query)
         physiology = _current_data(first, "sophie")["physiology"]
 
         assert physiology["status"] == "active"

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from .sleep_physiology import SleepPhysiologyService
-from .util import parse_iso
+from .util import Clock, parse_iso
 from .world import WorldEngine
 
 Mode = Literal["hugin", "munin", "both"]
@@ -79,8 +79,9 @@ def _fingerprint(value: Any) -> str:
 class HuginMuninObservationService:
     """Construit des rapports bornes depuis des SELECT valides uniquement."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, clock: Clock | None = None) -> None:
         self.conn = conn
+        self._clock = clock or Clock()
 
     def _world(self, world_id: int) -> sqlite3.Row:
         row = self.conn.execute("SELECT id, public_id, name, status FROM worlds WHERE id=?", (world_id,)).fetchone()
@@ -173,12 +174,12 @@ class HuginMuninObservationService:
             "FROM character ch JOIN location l ON l.id=ch.current_location_id WHERE " + " AND ".join(clauses) + " ORDER BY ch.key",
             tuple(params),
         ).fetchall()
-        now = WorldEngine(self.conn).read_canonical_time(world_id)
+        now = WorldEngine(self.conn, clock=self._clock).read_canonical_time(world_id)
         system_row = self.conn.execute(
             "SELECT status FROM world_physiology_system WHERE world_id=?", (world_id,)
         ).fetchone()
         physiology_status = "inactive" if system_row is None else system_row["status"]
-        physiology_service = SleepPhysiologyService(self.conn) if physiology_status == "active" else None
+        physiology_service = SleepPhysiologyService(self.conn, clock=self._clock) if physiology_status == "active" else None
         for row in rows:
             ref = f"current_character:{row['key']}"
             last_move = self.conn.execute(
