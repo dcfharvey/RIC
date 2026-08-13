@@ -1,0 +1,49 @@
+name: WO88BC disposable build
+
+on:
+  push:
+    branches:
+      - chatgpt/wo88bc-build
+    paths:
+      - tools/wo88bc_apply.py
+      - .github/workflows/wo88bc-build.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/wo88bc-build
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply deterministic patch
+        run: python tools/wo88bc_apply.py
+      - name: Install
+        run: python -m pip install -e . pytest
+      - name: Targeted tests
+        run: >-
+          python -m pytest -q
+          tests/test_active_activity_traversal.py
+          tests/test_active_physical_capacity.py
+          tests/test_activities.py
+          tests/test_character.py
+          tests/test_traversal.py
+          tests/test_needs.py
+          tests/test_sleep_physiology_persistence.py
+          tests/test_sleep_termination_foundation.py
+      - name: Commit generated candidate
+        shell: pwsh
+        run: |
+          git config user.name "RIC WO88 Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add src tests
+          git diff --cached --check
+          git commit -m "wo88bc: generated active activity traversal patch"
+          git push origin HEAD:chatgpt/wo88bc-build
