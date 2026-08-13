@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"search_text","path":"src,vivarium","query":"cost_milli","limit":100},"request_id":"4831cf24-ad4e-44bf-9308-56a5bfd05e67","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"search_text","path":"src","query":"cost_milli","limit":100},"request_id":"89be080b-eb8d-49d7-99a1-0c2906d77449","route":"/dev/fs","schema_version":2}
