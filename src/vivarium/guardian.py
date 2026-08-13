@@ -98,17 +98,12 @@ class LocalGuardian:
         if clock is None:
             return GuardianCheck("runtime_consistency", "critical", "horloge canonique absente")
 
-        open_sessions = self._conn.execute(
-            "SELECT id FROM runtime_session WHERE world_id=? AND stopped_at IS NULL ORDER BY id",
-            (self._world_id,),
-        ).fetchall()
-        if len(open_sessions) > 1:
-            return GuardianCheck(
-                "runtime_consistency", "critical",
-                f"{len(open_sessions)} sessions runtime ouvertes",
-            )
         if self._runtime_session_id is not None:
-            if len(open_sessions) != 1 or int(open_sessions[0]["id"]) != self._runtime_session_id:
+            open_session = self._conn.execute(
+                "SELECT id FROM runtime_session WHERE world_id=? AND stopped_at IS NULL",
+                (self._world_id,),
+            ).fetchone()
+            if open_session is None or int(open_session["id"]) != self._runtime_session_id:
                 return GuardianCheck(
                     "runtime_consistency", "critical", "session runtime propriétaire absente ou remplacée"
                 )
