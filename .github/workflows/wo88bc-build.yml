@@ -6,6 +6,7 @@ on:
       - chatgpt/wo88bc-build
     paths:
       - tools/wo88bc_apply.py
+      - tools/wo88bc_fix.py
       - .github/workflows/wo88bc-build.yml
 
 permissions:
@@ -24,7 +25,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Apply deterministic patch
-        run: python tools/wo88bc_apply.py
+        run: |
+          python tools/wo88bc_apply.py
+          python tools/wo88bc_fix.py
       - name: Install
         run: python -m pip install -e . pytest
       - name: Targeted tests
