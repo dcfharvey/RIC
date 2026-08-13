@@ -69,10 +69,8 @@ class ActiveSimulationEngine:
         return ActiveBoundary(at,character_key,tuple(sorted(r for v,r in candidates if parse_iso(v)==first)))
     def is_due(self,world_id:int,target_time:str)->bool:
         self._require_active(world_id);target=to_iso(parse_iso(target_time));characters=self._characters(world_id)
-        # Even without an activity/light/checkpoint boundary, H/phi/P are continuous
-        # owner state and must reach the captured runtime target before cognition reads them.
-        if any(parse_iso(self._physiology.read_state(world_id,key).anchor_at)<parse_iso(target) for key in characters):
-            return True
+        # Wall time is not a causal boundary. Owner-backed H/phi/P stay persisted
+        # at their last processed cause boundary until one is actually due.
         return any(self.next_boundary(world_id,key,until=target) is not None for key in characters)
     def _passive_to(self,world_id:int,key:str,at:str)->None:
         self._physiology.materialize_owner_backed(world_id,key,at)
@@ -118,12 +116,9 @@ class ActiveSimulationEngine:
             for boundary in due:
                 if transitions>=max_transitions:raise ActiveSimulationError("limite de transitions active atteinte",code="transition_limit")
                 self._process(world_id,boundary);transitions+=1
-        # Final materialization at the captured real-time target. No historical
-        # decision is invented while catching up.
-        for key in chars:
-            active=self._activities.activity_sheet(world_id,key)
-            if active is None:self._passive_to(world_id,key,captured)
-            else:self._activities.advance_to(world_id,key,captured,_reanchor_clock=False)
+        # The world clock may reanchor to the captured real-time target, but the
+        # physiology is never materialized merely because wall time passed.
+        # Persisted H/phi/P therefore remain at the last processed causal boundary.
         with transaction(self._conn) as c:WorldEngine(self._conn,clock=self._clock)._advance_clock(world_id,captured,c)
         active_now=[f"{r['character']}:{r['type']}" for r in self._conn.execute("SELECT c.key AS character,a.type FROM activity a JOIN character c ON c.id=a.character_id WHERE a.world_id=? AND a.status='active' ORDER BY c.key",(world_id,))]
         return SimulationReport(True,captured,captured,transitions,active_now)

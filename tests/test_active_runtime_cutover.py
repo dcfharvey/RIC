@@ -59,7 +59,8 @@ def test_catchup_crosses_activity_end_and_light_boundary_without_losing_real_tim
   clock.current=T0_DT+timedelta(seconds=90);target=to_iso(clock.current);before=legacy_snapshot(conn,wid)
   report=ActiveSimulationEngine(conn,clock=clock).run_to(wid,target)
   assert report.reached_target and report.last_time==target;assert WorldEngine(conn,clock=clock).read_canonical_time(wid)==target
-  assert all(SleepPhysiologyService(conn,clock=clock).read_state(wid,k).anchor_at==target for k in ("sophie","erika","luna","chuu"));assert legacy_snapshot(conn,wid)==before
+  last_boundary=to_iso(T0_DT+timedelta(seconds=60))
+  assert all(SleepPhysiologyService(conn,clock=clock).read_state(wid,k).anchor_at==last_boundary for k in ("sophie","erika","luna","chuu"));assert legacy_snapshot(conn,wid)==before
  finally:conn.close()
 
 def test_active_runtime_falsifies_legacy_simulation_use(monkeypatch):
@@ -78,4 +79,20 @@ def test_active_pause_freezes_owner_physiology_without_touching_legacy_rest_ener
   assert frozen==to_iso(clock.current);assert legacy_snapshot(conn,wid)==before
   for key in ("chuu","erika","luna","sophie"):
    assert SleepPhysiologyService(conn,clock=clock).read_state(wid,key).anchor_at==frozen
+ finally:conn.close()
+
+
+def test_wall_pulse_before_first_causal_boundary_writes_no_physiology_or_canon():
+ conn,wid,clock=active_world()
+ try:
+  engine=ActiveSimulationEngine(conn,clock=clock)
+  target=to_iso(T0_DT+timedelta(seconds=20))
+  before_states={key:SleepPhysiologyService(conn,clock=clock).read_state(wid,key) for key in ("chuu","erika","luna","sophie")}
+  before_events=conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id=?",(wid,)).fetchone()[0]
+  assert engine.is_due(wid,target) is False
+  report=engine.run_to(wid,target)
+  assert report.transitions==0 and report.last_time==target
+  assert conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id=?",(wid,)).fetchone()[0]==before_events
+  for key,before in before_states.items():
+   assert SleepPhysiologyService(conn,clock=clock).read_state(wid,key)==before
  finally:conn.close()
