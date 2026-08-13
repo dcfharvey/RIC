@@ -396,6 +396,9 @@ class WorldEngine:
         modification d'horloge ni événement.
         """
         from .needs import NeedsEngine  # évite un cycle d'import
+        from .sleep_physiology import SleepPhysiologyFoundationService, SleepPhysiologyService
+        from .injury import InjuryEngine
+        from .character import CharacterEngine
 
         with transaction(self._conn) as c:
             now = self._now_iso()
@@ -410,18 +413,35 @@ class WorldEngine:
                 )
             frozen = self.read_canonical_time(world_id)
             needs = NeedsEngine(self._conn, clock=self._clock)
+            physiology_active = SleepPhysiologyFoundationService(
+                self._conn, clock=self._clock
+            ).system_status(world_id) == "active"
             char_keys = [
                 r["key"]
                 for r in c.execute(
                     "SELECT key FROM character WHERE world_id = ?", (world_id,)
                 )
             ]
-            # Matérialiser les besoins à l'heure simulée figée, dans la même
-            # transaction que le gel de l'horloge et du statut (atomique).
+            # En mode actif, repos/energie sont des colonnes legacy de schéma,
+            # jamais des owners causaux. H/phi/P + satiété/hygiène sont figés.
             for key in char_keys:
-                needs.materialize_character_needs(
-                    world_id, key, frozen, "pause", _conn=c
-                )
+                if physiology_active:
+                    SleepPhysiologyService(self._conn, clock=self._clock).materialize_owner_backed(
+                        world_id, key, frozen
+                    )
+                    needs.materialize_selected_needs(
+                        world_id, key, frozen, "pause", frozenset({"satiete", "hygiene"}), _conn=c
+                    )
+                    injury_regime = CharacterEngine(
+                        self._conn, clock=self._clock
+                    )._active_recovery_regime(world_id, key)
+                    InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
+                        world_id, key, frozen, injury_regime, _conn=c
+                    )
+                else:
+                    needs.materialize_character_needs(
+                        world_id, key, frozen, "pause", _conn=c
+                    )
             c.execute(
                 "UPDATE canonical_clock SET simulated_now = ?, real_updated_at = ? "
                 "WHERE world_id = ?",

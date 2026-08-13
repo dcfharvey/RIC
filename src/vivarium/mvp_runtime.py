@@ -25,6 +25,8 @@ from .social_interpretation_provider import SocialInterpretationProvider
 from .social_appraisal_provider import SocialAppraisalProvider
 from .scc3a_affect_provider import SCC3AAffectProvider
 from .simulation import SimulationReport, SimulationEngine
+from .active_simulation import ActiveSimulationEngine
+from .sleep_physiology import SleepPhysiologyFoundationService
 from .social_cycle import SocialCycleOutcome, SocialSceneCycle
 from .world import WorldEngine
 from .non_sapient import NonSapientAgencyCycle, NonSapientOutcome
@@ -131,9 +133,14 @@ class MVPRuntime:
         # reprend seul la main.
         simulation = None
         if self._simulation_due(target):
-            simulation = SimulationEngine(self._conn, clock=self._clock).run_to(
-                self.world_id, target, max_transitions=self._max_transitions
-            )
+            if self._physiology_active():
+                simulation = ActiveSimulationEngine(self._conn, clock=self._clock).run_to(
+                    self.world_id, target, max_transitions=self._max_transitions
+                )
+            else:
+                simulation = SimulationEngine(self._conn, clock=self._clock).run_to(
+                    self.world_id, target, max_transitions=self._max_transitions
+                )
         cognition = None
         autonomy = None
         social = None
@@ -175,6 +182,11 @@ class MVPRuntime:
             non_sapient,
         )
 
+    def _physiology_active(self) -> bool:
+        return SleepPhysiologyFoundationService(
+            self._conn, clock=self._clock
+        ).system_status(self.world_id) == "active"
+
     def _simulation_due(self, target_time: str) -> bool:
         """Retourne si une transition déterministe est exigible à `target_time`.
 
@@ -183,6 +195,10 @@ class MVPRuntime:
         peut faire évoluer le monde; une lecture intermédiaire ne doit pas se
         transformer en écriture périodique.
         """
+        if self._physiology_active():
+            return ActiveSimulationEngine(
+                self._conn, clock=self._clock
+            ).is_due(self.world_id, target_time)
         row = self._conn.execute(
             "SELECT MIN(planned_end_at) AS next_end FROM activity "
             "WHERE world_id = ? AND status = 'active'",

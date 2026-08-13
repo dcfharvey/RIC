@@ -1553,6 +1553,78 @@ class SleepPhysiologyService:
             assignment_metadata,
         )
 
+    def next_light_boundary_owner_backed(
+        self, world_id: Any, character_key: Any, *, until: Any
+    ) -> str | None:
+        """Retourne la prochaine frontière lumineuse après l'ancre physiologique.
+
+        Couvre le changement de segment quotidien et toute nouvelle assignment
+        de calendrier/profil du lieu courant. La méthode est pure.
+        """
+        world = self._world_id(world_id)
+        character = _key(character_key, field="personnage")
+        state = self.read_state(world, character)
+        anchor = _at(state.anchor_at)
+        limit = _at(until)
+        if parse_iso(limit) <= parse_iso(anchor):
+            return None
+        self._assert_no_unmaterialized_character_boundary(
+            world, character, anchor, limit
+        )
+        regime, _load, _sustained, _activity_type = self._owner_backed_regime(
+            world, character
+        )
+        location_key_row = self._conn.execute(
+            "SELECT l.key FROM character c JOIN location l ON l.id=c.current_location_id "
+            "WHERE c.world_id=? AND c.key=?", (world, character)
+        ).fetchone()
+        if location_key_row is None:
+            raise SleepPhysiologyError(
+                "position canonique absente", code="canonical_position_missing"
+            )
+        _source, metadata = self._resolve_light_source_values(
+            world, location_key_row["key"], anchor, state=regime
+        )
+        schedule = metadata["schedule_assignment"]["schedule"]
+        segments = schedule.get("segments") if isinstance(schedule, Mapping) else None
+        if not isinstance(segments, list) or not segments:
+            raise SleepPhysiologyError("calendrier lumineux invalide", code="invalid_light_schedule")
+        moment = parse_iso(anchor).astimezone(timezone.utc)
+        second = moment.hour * 3600 + moment.minute * 60 + moment.second
+        candidates: list[str] = []
+        for segment in segments:
+            if not isinstance(segment, Mapping):
+                continue
+            start, end = segment.get("start_second"), segment.get("end_second")
+            if isinstance(start, int) and isinstance(end, int) and start <= second < end:
+                day_start = moment.replace(hour=0, minute=0, second=0, microsecond=0)
+                boundary = day_start + timedelta(seconds=end)
+                if boundary <= moment:
+                    boundary += timedelta(days=1)
+                candidates.append(to_iso(boundary))
+                break
+        location = self._conn.execute(
+            "SELECT l.id FROM character c JOIN location l ON l.id=c.current_location_id "
+            "WHERE c.world_id=? AND c.key=?", (world, character)
+        ).fetchone()
+        if location is None:
+            raise SleepPhysiologyError("position canonique absente", code="canonical_position_missing")
+        future_schedule = self._conn.execute(
+            "SELECT effective_at FROM world_light_schedule_assignment "
+            "WHERE world_id=? AND effective_at>? ORDER BY effective_at,id LIMIT 1",
+            (world, anchor),
+        ).fetchone()
+        future_location = self._conn.execute(
+            "SELECT effective_at FROM world_location_light_assignment "
+            "WHERE world_id=? AND location_id=? AND effective_at>? ORDER BY effective_at,id LIMIT 1",
+            (world, location["id"], anchor),
+        ).fetchone()
+        for row in (future_schedule, future_location):
+            if row is not None:
+                candidates.append(row["effective_at"])
+        eligible = [value for value in candidates if parse_iso(anchor) < parse_iso(value) <= parse_iso(limit)]
+        return None if not eligible else to_iso(min(parse_iso(value) for value in eligible))
+
     def project_synthetic(
         self, world_id: Any, character_key: Any, source: RegulationInput
     ) -> PhysiologyProjection:
