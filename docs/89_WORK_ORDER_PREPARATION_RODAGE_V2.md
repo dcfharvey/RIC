@@ -1,6 +1,6 @@
 # Work order 89 — préparation pré-rodage V2
 
-**Statut :** OUVERT — **89A FERMÉ**; **89B PRÊT, alignement local requis avant fermeture**.
+**Statut :** OUVERT — **89A, 89B et 89C FERMÉS**; **89D est la seule étape active**.
 
 **Base documentaire de départ :** `bbdac5c737c6fa0b28f23657b826b008b5b12fd2` (`docs: close WO88 formally`).
 
@@ -33,14 +33,14 @@ Le bump n'est pas appliqué pendant 89A. Les sources de version seront synchroni
 
 **SATISFAIT.** Version cible, HEAD, schéma, migration, baseline de tests et divergences documentaires sont consignés. Aucun SQLite de rodage n'a été touché.
 
-## 0B. État 89B — graphe Git et base candidate
+## 0B. Verdict 89B — graphe Git et base candidate — FERMÉ
 
 Le graphe distant a été vérifié avant toute intégration :
 
 - `main` = `a8a8f31c49f1bf643b8b3c17f2d2415b97c05e16` ;
 - `chatgpt/wo88-final-validation` = `bbdac5c737c6fa0b28f23657b826b008b5b12fd2` ;
 - `main` est l'ancêtre direct de la fermeture WO88 : comparaison GitHub `ahead_by=55`, `behind_by=0`, merge-base = `main` ;
-- la branche WO89 descend directement de WO88 ; avant cette consignation, son HEAD était `3d63b08e9ee99d23a52edf88d04f863caf02cb2e`, à trois commits documentaires de la fermeture WO88 ;
+- la branche WO89 descend directement de WO88 ;
 - aucune divergence ou merge conflict n'est à résoudre entre `main`, WO88 et WO89 ;
 - `main` n'a pas été avancé : aucune branche de référence partagée n'est modifiée silencieusement pendant 89B ;
 - une tentative de créer une branche de candidat séparée via le connecteur GitHub a été refusée par la couche de sécurité OpenAI. Aucun contournement n'a été tenté et aucune référence existante n'a été déplacée à cause de cet échec.
@@ -51,11 +51,46 @@ Le graphe distant a été vérifié avant toute intégration :
 
 Le Rodage V2 officiel ne démarrera pas sur une branche de réparation historique. À 89E, Codex déterminera à partir du graphe réel si la lignée finale doit être fast-forwardée vers `main` ou matérialisée sous une branche de release/rodage dédiée. Cette opération sera explicitée avant toute modification d'une référence partagée.
 
-Le dernier checkout local confirmé est encore `chatgpt/wo88-final-validation` au HEAD `bbdac5c737c6fa0b28f23657b826b008b5b12fd2`, fichiers suivis propres. **89B ne sera marqué FERMÉ qu'après alignement local propre vers `chatgpt/wo89-pre-rodage-v2`.**
+L'alignement local a été confirmé propre sur `chatgpt/wo89-pre-rodage-v2`, branche distante suivie, fichiers suivis propres et fichiers non suivis conservés. 89B a donc satisfait sa dernière précondition opérationnelle avant le démarrage de 89C.
 
 ### Critère de sortie 89B
 
-**PARTIELLEMENT SATISFAIT.** Graphe distant, lignée candidate et stratégie d'intégration sont non ambigus. Il reste une seule précondition opérationnelle : aligner le checkout local sur la branche WO89 sans supprimer les artefacts non suivis. Tant que cette vérification n'est pas faite, 89C ne démarre pas.
+**SATISFAIT.** Graphe distant, lignée candidate, checkout local et stratégie d'intégration sont non ambigus; aucun SQLite réel n'a été touché par 89B.
+
+## 0C. Verdict 89C — observabilité opérateur H/φ/P — FERMÉ
+
+89C a étendu le read-model Hugin `current_state` sans créer de nouveau propriétaire d'état ni de chemin d'écriture physiologique.
+
+Le chemin actif expose maintenant : statut du système physiologique; heure canonique de lecture; état veille/sommeil observable; modèle/version; ancre persistée; H (`homeostatic_load_milli`); φ (`circadian_phase_milli`); P (`physical_capacity_milli`); bande de stabilité persistée. La sortie distingue explicitement l'état `persisted` d'une éventuelle `projection`; le read-model actuel n'extrapole pas la physiologie et annonce `projection_policy = not_extrapolated_by_read_model`.
+
+Le service d'observation accepte désormais une `Clock` injectable et la transmet aux lectures temporelles concernées. Sans injection, le comportement de production reste l'horloge système normale; avec une horloge contrôlée, les tests et répétitions déterministes partagent le même référentiel canonique.
+
+Falsifications ciblées vérifiées :
+
+- monde actif : H/φ/P persistés et provenance temporelle exposés ;
+- monde inactif : aucune physiologie active inventée ou matérialisée ;
+- APIs `_synthetic` interdites par monkeypatch sans casser l'observation active ;
+- lectures répétées idempotentes sur état/horloge identiques ;
+- compte d'événements et état physiologique persisté inchangés par la lecture ;
+- aucune écriture de canon due à l'observation.
+
+Deux anomalies de raccord ont été trouvées et corrigées séquentiellement avant fermeture : accès initial à une structure d'hystérésis inexistante, puis horloge du read-model indépendante du `FakeClock` du monde de test. Les corrections sont restées limitées au read-model et à son test de contrat.
+
+Validation finale 89C :
+
+- tests ciblés : **10 réussis, 0 échec en 1,69 s** ;
+- `python -m compileall -q src tests` : **PASS** ;
+- première tentative de suite complète locale : invalide pour qualification fonctionnelle à cause d'un `PermissionError` pytest sur `%LOCALAPPDATA%\\Temp\\pytest-of-dcfha` ; aucune correction produit n'a été faite pour cet incident d'environnement ;
+- relance avec basetemp local au dépôt et cacheprovider désactivé : **1030 réussis, 1 ignoré, 0 échec en 235,71 s** ;
+- skip explicite : `tests/test_dev_bridge.py:59: symlink creation unavailable` ;
+- aucun warning au run final ;
+- commit/push fonctionnel final : `2681eba3d4b25989cc6a9e095cde6ecb662dd364` (`fix: share canonical clock with observation`) ;
+- état local après push : branche `chatgpt/wo89-pre-rodage-v2` synchronisée avec `origin`, fichiers suivis propres; fichiers non suivis conservés ;
+- aucun SQLite réel n'a été modifié et 89D n'a pas été commencé pendant la validation 89C.
+
+### Critère de sortie 89C
+
+**SATISFAIT.** H/φ/P actifs sont observables par un chemin opérateur read-only avec provenance temporelle et séparation persisté/projection; les falsifications ciblées, compilation et suite complète sont vertes.
 
 ## 1. Intention
 
@@ -83,27 +118,17 @@ Ce lot est principalement un lot d'ingénierie/release et d'observabilité. Il n
 
 Décision produit : `0.2.0a1`. Photographie HEAD/schéma/migration/tests et divergences documentaires consignées. Aucun bump appliqué pendant 89A.
 
-## 5. Lot 89B — base Git canonique du prochain rodage — ALIGNEMENT LOCAL REQUIS
+## 5. Lot 89B — base Git canonique du prochain rodage — FERMÉ
 
 Le Rodage V2 ne doit pas démarrer sur une branche de réparation ou un worktree ambigu.
 
-Exigences : un seul HEAD candidat vérifiable; aucun changement suivi non committé; aucune dépendance à un worktree temporaire; historique WO88 traçable; aucune référence partagée modifiée sans stratégie explicite; aucun SQLite réel touché.
+Exigences satisfaites : un seul HEAD candidat vérifiable; aucun changement suivi non committé à la fermeture; aucune dépendance à un worktree temporaire; historique WO88 traçable; aucune référence partagée modifiée sans stratégie explicite; aucun SQLite réel touché.
 
-Le graphe distant satisfait ces exigences. La fermeture 89B attend seulement la confirmation locale de `chatgpt/wo89-pre-rodage-v2` propre.
+## 6. Lot 89C — observabilité opérateur de H/φ/P — FERMÉ
 
-## 6. Lot 89C — observabilité opérateur de H/φ/P
+Le système physiologique actif n'est plus une boîte noire pour le prochain rodage. Le contrat détaillé et les preuves de validation sont consignés au verdict 0C ci-dessus.
 
-Le système physiologique actif ne doit pas être une boîte noire pendant le rodage.
-
-Pour chaque personnage explicitement demandé, le chemin opérateur read-only doit exposer au minimum : statut physiologique du monde; H; φ; P; ancre persistée; temps canonique de projection éventuelle; stabilité/sommeil si ce sous-état est déjà possédé par le système.
-
-Si une projection owner-backed est calculée sans matérialisation, la sortie doit distinguer explicitement **état persisté** et **projection read-only dérivée**.
-
-Invariants : aucune écriture ni événement dû à la lecture; aucune progression d'ancre; aucune API `_synthetic` dans le chemin opérateur actif; mondes `inactive/prepared` non matérialisés; `repos/energie` jamais étiquetés comme physiologie active; aucune donnée subjective promue en fait canonique.
-
-Falsifications minimales : compteurs/ancres avant-après identiques; lecture répétée idempotente; monde actif fournit H/φ/P avec provenance temporelle; monde non actif ne matérialise rien; monkeypatch des APIs `_synthetic` interdites sans casser l'observation active; projection dérivée distinguable du persisté.
-
-## 7. Lot 89D — répétition générale T0 sur base jetable
+## 7. Lot 89D — répétition générale T0 sur base jetable — ACTIF
 
 Sur une base neuve et jetable : appliquer les migrations réelles; construire résidence et habitantes par les chemins supportés; fixer un T0 explicite; installer les politiques; préparer/activer la physiologie depuis un manifeste T0 scellé; exécuter `mvp-preflight`; vérifier l'observation 89C; effectuer au besoin un smoke runtime court; classer ensuite la base comme artefact jetable.
 
@@ -122,8 +147,8 @@ WO89 est fermé seulement si : identité/version cohérentes; HEAD Git final uni
 ## 10. Ordre d'exécution obligatoire
 
 1. 89A — FERMÉ ;
-2. 89B — graphe distant prêt, alignement local requis ;
-3. 89C — après fermeture 89B seulement ;
-4. 89D — après fermeture 89C seulement ;
-5. 89E — validation complète et documentation ;
+2. 89B — FERMÉ ;
+3. 89C — FERMÉ ;
+4. 89D — ACTIF ;
+5. 89E — après fermeture 89D seulement ;
 6. seulement ensuite : Rodage V2 officiel.
