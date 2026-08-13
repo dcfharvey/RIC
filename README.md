@@ -65,8 +65,7 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
 .venv/Scripts/python -m vivarium upgrade-dev
 .venv/Scripts/python -m vivarium mvp-init --db data/vivarium-alpha.sqlite
 .venv/Scripts/python -m vivarium mvp-run --db data/vivarium-alpha.sqlite --enable-local-llm
-.venv/Scripts/python -m vivarium social-interpretation-bench --level T0
-.venv/Scripts/python -m vivarium sleep-calibration-bench
+.venv/Scripts/python -m vivarium llm-status
 ```
 
 - `init` initialise un monde de développement.
@@ -79,17 +78,13 @@ Affiche la version et la configuration. Aucun service n'est encore démarré.
   chargé dans LM Studio; sans ce drapeau, seules les routines canoniques tournent.
 - `mvp-preflight --db <base>` inspecte en lecture seule une base candidate au MVP
   (intégrité, journal, casting et journaux subjectifs), sans LLM ni réparation.
-- `social-interpretation-bench --level T0` exécute le banc SCC-1B2A déterministe;
-  `--level T1` lance un smoke LM Studio borné et `--report <fichier>` écrit un
-  rapport JSON technique. `--level T2 --trials 5` lance la campagne T2a réelle
-  bornée; T2b et l'admission cognitive restent désactivés.
-- `llm-inventory` exporte les model keys et métadonnées réellement exposées par
-  LM Studio; `social-interpretation-screen --model-id <key>` est l'opération
-  Screen-47 model-specific, limitée aux modèles déjà chargés et sans
-  chargement/déchargement automatique.
-- `sleep-calibration-bench` exécute le noyau circadien déterministe sur des
-  profils candidats versionnés. Il n'ouvre aucune résidence, aucun LLM et
-  n'active pas la physiologie ; voir `docs/81_BANC_CALIBRATION_CIRCADIEN_V1.md`.
+- `llm-status` vérifie en lecture seule LM Studio et le modèle actuellement chargé.
+- Les bancs jetables de qualification SCC-1B et circadiens ont été retirés du
+  paquet exécutable après fermeture de leurs qualifications. Leurs protocoles,
+  résultats et décisions restent traçables dans `docs/73_R_D_SCC1B_PROVIDER_ET_CALIBRATION.md`,
+  `docs/76_R_D_SCREENING_MULTI_MODELES_SCC1B.md`, `docs/81_BANC_CALIBRATION_CIRCADIEN_V1.md`,
+  `docs/82_SELECTION_ROBUSTESSE_CALIBRATION_CIRCADIEN_V1.md` et
+  `docs/84_AUDIT_COMPATIBILITE_SHADOW_CIRCADIEN_V1.md`.
 - `upgrade-dev` ajoute, de façon **non destructive et idempotente**, les 4 identités
   provisoires `character_1..4` au monde local (aucun personnage existant modifié ;
   n'insère que les manquants). `init --force` reste un dernier recours manuel.
