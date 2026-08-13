@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"read_file","path":".git/logs/HEAD"},"request_id":"149e01fa-aef0-4af2-a8bf-20ff526bd298","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"status"},"request_id":"8b31c1e8-66c8-4ec3-b7b7-7fc27c43f4af","route":"/dev/git","schema_version":2}
