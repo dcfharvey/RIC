@@ -207,7 +207,7 @@ class HuginMuninObservationService:
                     "homeostatic_load_milli": state.regulation.homeostatic_load_milli,
                     "circadian_phase_milli": state.regulation.circadian_phase_milli,
                     "physical_capacity_milli": state.regulation.physical_capacity_milli,
-                    "previous_stability_band": state.hysteresis.previous_band,
+                    "previous_stability_band": state.previous_stability_band,
                 }
             data = {"character_key": row["key"], "name": row["name"], "location_key": row["location_key"],
                     "location_name": row["location_name"], "activity_type": row["activity_type"],
