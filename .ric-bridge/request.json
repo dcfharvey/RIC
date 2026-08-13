@@ -1,1 +1,1 @@
-{"method":"GET","payload":{},"request_id":"9deec8f8-bbb8-4515-9c4a-18eb378baafc","route":"/v1/models","schema_version":2}
+{"method":"POST","payload":{"max_tokens":16,"messages":[{"content":"Reply with exactly PONG and nothing else.","role":"user"}],"model":"qwen3-14b","temperature":0},"request_id":"2a635ec5-786e-4dc6-9052-aa25a87f6157","route":"/v1/chat/completions","schema_version":2}
