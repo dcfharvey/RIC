@@ -5,22 +5,21 @@ from datetime import datetime, timezone
 import pytest
 
 from vivarium.action_arbitration import ActionArbitrationFoundationService
-from vivarium.action_contract import ACTION_START_ACTIVITY, ACTION_TRAVERSE
+from vivarium.action_contract import ACTION_START_ACTIVITY, ACTION_TRAVERSE, normalize_action_specification
 from vivarium.db import connect_database
 from vivarium.environment_blueprints import EnvironmentBlueprintService
 from vivarium.initial_residence import install_initial_residence_catalog
 from vivarium.migrations import ensure_schema
 from vivarium.repro import max_seq
 from vivarium.sleep_physiology import PhysicalCapacityPolicy
-from vivarium.synthetic_action_arbitration import (
+from vivarium.action_arbitration_runtime import (
     ActionArbitrationFrame,
+    ActionArbitrationRuntimeError,
     ActionArbitrationService,
     ArbitrationContribution,
+    ArbitrationRuntimePolicy,
     PhysicalCostRequest,
-    SyntheticActionArbitrationError,
-    SyntheticArbitrationPolicy,
     evaluate_physical_cost,
-    synthetic_specification,
 )
 from vivarium.util import to_iso
 
@@ -62,8 +61,8 @@ def _configuration():
     }
 
 
-def _policy() -> SyntheticArbitrationPolicy:
-    return SyntheticArbitrationPolicy.from_configuration(
+def _policy() -> ArbitrationRuntimePolicy:
+    return ArbitrationRuntimePolicy.from_configuration(
         "synthetic.arbitration.v1", 1, _configuration(), "synthetic_calibration_only"
     )
 
@@ -112,16 +111,16 @@ def test_physical_request_is_pure_and_p_can_limit_effort_while_supporting_rest()
     assert evaluate_physical_cost(
         policy, PhysicalCostRequest("traversal", edge_count=3), capacity_milli=74
     ).feasible is False
-    with pytest.raises(SyntheticActionArbitrationError):
+    with pytest.raises(ActionArbitrationRuntimeError):
         PhysicalCostRequest("activity", physical_load_class=None)
 
-    sleep = synthetic_specification(ACTION_START_ACTIVITY, {
+    sleep = normalize_action_specification(ACTION_START_ACTIVITY, {
         "activity_type": "sleep", "target_location_key": "bedroom",
     })
-    rest = synthetic_specification(ACTION_START_ACTIVITY, {
+    rest = normalize_action_specification(ACTION_START_ACTIVITY, {
         "activity_type": "rest", "target_location_key": "salon",
     })
-    sport = synthetic_specification(ACTION_START_ACTIVITY, {
+    sport = normalize_action_specification(ACTION_START_ACTIVITY, {
         "activity_type": "sport", "target_location_key": "salon",
     })
     # H/phi et donc `sleep_regulation` restent fixes. Seule la contribution
@@ -144,10 +143,10 @@ def test_physical_request_is_pure_and_p_can_limit_effort_while_supporting_rest()
 
 
 def test_arbitration_has_no_category_priority_and_correlated_support_is_not_double_counted():
-    sleep = synthetic_specification(ACTION_START_ACTIVITY, {
+    sleep = normalize_action_specification(ACTION_START_ACTIVITY, {
         "activity_type": "sleep", "target_location_key": "bedroom",
     })
-    traverse = synthetic_specification(ACTION_TRAVERSE, {
+    traverse = normalize_action_specification(ACTION_TRAVERSE, {
         "connector_key": "porte_entree", "target_location_key": "salon",
     })
     service = ActionArbitrationService()
@@ -171,7 +170,7 @@ def test_arbitration_has_no_category_priority_and_correlated_support_is_not_doub
 
 def test_same_frame_keeps_proposal_identity_and_orchestrator_applies_one_mutation(synthetic_world):
     conn, world_id, clock = synthetic_world
-    traverse = synthetic_specification(ACTION_TRAVERSE, {
+    traverse = normalize_action_specification(ACTION_TRAVERSE, {
         "connector_key": "porte_entree", "target_location_key": "salon",
     })
     frame = _frame(world_id, max_seq(conn, world_id), [
@@ -183,8 +182,8 @@ def test_same_frame_keeps_proposal_identity_and_orchestrator_applies_one_mutatio
     assert proposal is not None and proposal.origin == "action_arbitration"
     assert proposal.proposal_id == service.proposal_for(frame, first_decision).proposal_id
 
-    first_decision, first = service.execute_synthetic(conn, frame, clock=clock)
-    second_decision, second = service.execute_synthetic(conn, frame, clock=clock)
+    first_decision, first = service.execute(conn, frame, clock=clock)
+    second_decision, second = service.execute(conn, frame, clock=clock)
     assert first_decision == second_decision
     assert first.status == second.status == "accepted"
     assert first.facts == second.facts
@@ -208,10 +207,10 @@ def test_registered_lab_policy_and_private_audit_stay_noncanonical(synthetic_wor
         "synthetic.arbitration.v1", 1, _configuration(), "synthetic_calibration_only"
     )
     foundation.assign_policy(world_id, stored.policy_key, stored.version, "synthetic_world_setup")
-    policy = SyntheticArbitrationPolicy.from_configuration(
+    policy = ArbitrationRuntimePolicy.from_configuration(
         stored.policy_key, stored.version, stored.configuration, stored.provenance
     )
-    sleep = synthetic_specification(ACTION_START_ACTIVITY, {
+    sleep = normalize_action_specification(ACTION_START_ACTIVITY, {
         "activity_type": "sleep", "target_location_key": "bedroom",
     })
     frame = ActionArbitrationFrame(
@@ -232,21 +231,21 @@ def test_registered_lab_policy_and_private_audit_stay_noncanonical(synthetic_wor
 def test_synthetic_policy_requires_explicit_groups_and_owner_provenance():
     incomplete = _configuration()
     incomplete.pop("correlation_groups")
-    with pytest.raises(SyntheticActionArbitrationError):
-        SyntheticArbitrationPolicy.from_configuration("synthetic.policy.v1", 1, incomplete, "test")
+    with pytest.raises(ActionArbitrationRuntimeError):
+        ArbitrationRuntimePolicy.from_configuration("synthetic.policy.v1", 1, incomplete, "test")
 
-    sleep = synthetic_specification(ACTION_START_ACTIVITY, {
+    sleep = normalize_action_specification(ACTION_START_ACTIVITY, {
         "activity_type": "sleep", "target_location_key": "bedroom",
     })
-    with pytest.raises(SyntheticActionArbitrationError):
+    with pytest.raises(ActionArbitrationRuntimeError):
         ArbitrationContribution(sleep, "sleep_regulation", 1, "GoalService", "forged")
 
 
 def test_frame_digest_and_proposal_are_invariant_to_contribution_enumeration_order():
-    sleep = synthetic_specification(ACTION_START_ACTIVITY, {
+    sleep = normalize_action_specification(ACTION_START_ACTIVITY, {
         "activity_type": "sleep", "target_location_key": "bedroom",
     })
-    traverse = synthetic_specification(ACTION_TRAVERSE, {
+    traverse = normalize_action_specification(ACTION_TRAVERSE, {
         "connector_key": "porte_entree", "target_location_key": "salon",
     })
     contributions = (

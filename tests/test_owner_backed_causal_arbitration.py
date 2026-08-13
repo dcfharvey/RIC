@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from vivarium.action_arbitration import ActionArbitrationFoundationService
-from vivarium.action_contract import ACTION_START_ACTIVITY, ActionOrchestrator, IntentProposal
+from vivarium.action_contract import ACTION_START_ACTIVITY, ActionOrchestrator, IntentProposal, normalize_action_specification
 from vivarium.circadian_model import calibration_profiles
 from vivarium.db import connect_database, transaction
 from vivarium.goals import GoalService
@@ -19,11 +19,10 @@ from vivarium.sleep_physiology import (
     SleepPhysiologyError,
     SleepPhysiologyService,
 )
-from vivarium.synthetic_action_arbitration import (
+from vivarium.action_arbitration_runtime import (
+    ActionArbitrationRuntimeError,
     ActionArbitrationService,
-    SyntheticActionArbitrationError,
-    SyntheticCausalArbitrationBuilder,
-    synthetic_specification,
+    CausalArbitrationBuilder,
 )
 from vivarium.util import new_uuid, to_iso
 from vivarium.world import WorldEngine
@@ -221,10 +220,10 @@ def _set_sophie_capacity(conn, world_id, capacity):
 
 def _specifications():
     return (
-        synthetic_specification(ACTION_START_ACTIVITY, {
+        normalize_action_specification(ACTION_START_ACTIVITY, {
             "activity_type": "sleep", "target_location_key": "chambre_1",
         }),
-        synthetic_specification(ACTION_START_ACTIVITY, {
+        normalize_action_specification(ACTION_START_ACTIVITY, {
             "activity_type": "rest", "target_location_key": "salon",
         }),
     )
@@ -257,17 +256,12 @@ def test_owner_backed_frame_keeps_h_phi_p_and_subjective_sources_separate():
     conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
     try:
         sport_link = _install_subjective_sport_intention(conn, world_id, clock)
-        physiology = SleepPhysiologyService(conn, clock=clock)
-        wake_source = physiology.resolve_light_source_synthetic(
-            world_id, "salon", to_iso(T0), state="wake"
-        )
         sleep_spec, rest_spec = _specifications()
-        builder = SyntheticCausalArbitrationBuilder(conn, clock=clock)
+        builder = CausalArbitrationBuilder(conn, clock=clock)
 
-        low_p = builder.build(
+        low_p = builder.build_owner_backed(
             world_id, "sophie", canonical_at=to_iso(T0),
             sleep_specification=sleep_spec, rest_specification=rest_spec,
-            wake_source=wake_source,
         )
         low_sleep = next(item for item in low_p.contributions if item.source_kind == "sleep_regulation")
         low_recovery = next(item for item in low_p.contributions if item.source_kind == "physical_recovery")
@@ -290,10 +284,9 @@ def test_owner_backed_frame_keeps_h_phi_p_and_subjective_sources_separate():
         assert len(low_p.contributions) == 3
 
         _set_sophie_capacity(conn, world_id, 80_000)
-        high_p = builder.build(
+        high_p = builder.build_owner_backed(
             world_id, "sophie", canonical_at=to_iso(T0),
             sleep_specification=sleep_spec, rest_specification=rest_spec,
-            wake_source=wake_source,
         )
         high_sleep = next(item for item in high_p.contributions if item.source_kind == "sleep_regulation")
         high_recovery = next(item for item in high_p.contributions if item.source_kind == "physical_recovery")
@@ -319,15 +312,10 @@ def test_opaque_intention_plan_cannot_invent_an_executable_action():
     conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
     try:
         link = _install_subjective_sport_intention(conn, world_id, clock)
-        physiology = SleepPhysiologyService(conn, clock=clock)
-        wake_source = physiology.resolve_light_source_synthetic(
-            world_id, "salon", to_iso(T0), state="wake"
-        )
         sleep_spec, rest_spec = _specifications()
-        frame = SyntheticCausalArbitrationBuilder(conn, clock=clock).build(
+        frame = CausalArbitrationBuilder(conn, clock=clock).build_owner_backed(
             world_id, "sophie", canonical_at=to_iso(T0),
             sleep_specification=sleep_spec, rest_specification=rest_spec,
-            wake_source=wake_source,
         )
         subjective = [item for item in frame.contributions if item.source_kind == "subjective_intention"]
         assert len(subjective) == 1
@@ -337,20 +325,15 @@ def test_opaque_intention_plan_cannot_invent_an_executable_action():
         conn.close()
 
 
-def test_identity_mapping_is_accepted_by_legacy_lab_but_refused_by_causal_builder():
+def test_identity_mapping_is_refused_by_owner_backed_causal_builder():
     conn, world_id, clock = _make_world(_identity_arbitration_policy())
     try:
-        physiology = SleepPhysiologyService(conn, clock=clock)
-        wake_source = physiology.resolve_light_source_synthetic(
-            world_id, "salon", to_iso(T0), state="wake"
-        )
         sleep_spec, rest_spec = _specifications()
-        with pytest.raises(SyntheticActionArbitrationError) as raised:
-            SyntheticCausalArbitrationBuilder(conn, clock=clock).build(
+        with pytest.raises(ActionArbitrationRuntimeError) as raised:
+            CausalArbitrationBuilder(conn, clock=clock).build_owner_backed(
                 world_id, "sophie", canonical_at=to_iso(T0),
                 sleep_specification=sleep_spec, rest_specification=rest_spec,
-                wake_source=wake_source,
-            )
+                )
         assert raised.value.code == "uncalibrated_identity_mapping"
         assert max_seq(conn, world_id) >= 0
     finally:
@@ -361,16 +344,11 @@ def test_private_owner_provenance_audit_does_not_mutate_canon():
     conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
     try:
         _install_subjective_sport_intention(conn, world_id, clock)
-        physiology = SleepPhysiologyService(conn, clock=clock)
-        wake_source = physiology.resolve_light_source_synthetic(
-            world_id, "salon", to_iso(T0), state="wake"
-        )
         sleep_spec, rest_spec = _specifications()
-        builder = SyntheticCausalArbitrationBuilder(conn, clock=clock)
-        frame = builder.build(
+        builder = CausalArbitrationBuilder(conn, clock=clock)
+        frame = builder.build_owner_backed(
             world_id, "sophie", canonical_at=to_iso(T0),
             sleep_specification=sleep_spec, rest_specification=rest_spec,
-            wake_source=wake_source,
         )
         decision = ActionArbitrationService().decide(frame)
         before = max_seq(conn, world_id)
@@ -548,7 +526,7 @@ def test_owner_backed_builder_has_no_free_wake_source_argument():
     conn, world_id, clock = _make_world(_calibrated_arbitration_policy())
     try:
         sleep_spec, rest_spec = _specifications()
-        frame = SyntheticCausalArbitrationBuilder(conn, clock=clock).build_owner_backed(
+        frame = CausalArbitrationBuilder(conn, clock=clock).build_owner_backed(
             world_id, "sophie", canonical_at=to_iso(T0),
             sleep_specification=sleep_spec, rest_specification=rest_spec,
         )
