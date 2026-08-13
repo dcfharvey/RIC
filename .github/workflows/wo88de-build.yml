@@ -1,0 +1,51 @@
+name: WO88DE disposable build
+
+on:
+  push:
+    branches:
+      - chatgpt/wo88de-build
+    paths:
+      - tools/wo88de_apply.py
+      - .github/workflows/wo88de-build.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/wo88de-build
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply deterministic patch
+        run: python tools/wo88de_apply.py
+      - name: Install
+        run: python -m pip install -e . pytest
+      - name: Targeted tests
+        run: >-
+          python -m pytest -q
+          tests/test_active_runtime_cutover.py
+          tests/test_active_activity_traversal.py
+          tests/test_active_physical_capacity.py
+          tests/test_mvp_runtime.py
+          tests/test_decision.py
+          tests/test_motivation.py
+          tests/test_activities.py
+          tests/test_world.py
+          tests/test_sleep_physiology_persistence.py
+          tests/test_sleep_termination_foundation.py
+      - name: Commit generated candidate
+        shell: pwsh
+        run: |
+          git config user.name "RIC WO88 Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add src tests
+          git diff --cached --check
+          git commit -m "wo88de: generated active scheduler cutover patch"
+          git push origin HEAD:chatgpt/wo88de-build
