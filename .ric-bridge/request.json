@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"world_status","world_id":1},"request_id":"112c461c-6217-4c38-84e0-f609e10aac70","route":"/dev/ric","schema_version":2}
+{"method":"POST","payload":{"operation":"list_tree","path":".local-llm-gateway","limit":100},"request_id":"c35ba082-2d15-4677-b34e-ea6383eefb16","route":"/dev/fs","schema_version":2}
