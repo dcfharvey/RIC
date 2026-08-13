@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"branch":"chatgpt/bridge-e2e-smoke","operation":"create_branch"},"request_id":"f2c8c849-e941-4a8c-9f6a-778a5382a6f9","route":"/dev/repo","schema_version":2}
+{"method":"POST","payload":{"content":"RIC DEV BRIDGE END-TO-END SMOKE\nrequest-origin: ChatGPT Sol\nstatus: disposable branch only\n","operation":"create_file","path":"docs/_SOL_BRIDGE_E2E_SMOKE.txt"},"request_id":"65926e65-5be8-47cd-a7af-06f9d290e604","route":"/dev/write","schema_version":2}
