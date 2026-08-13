@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"job_status","job_id":"5f81e9613e9e4bfe87261131a9000556"},"request_id":"9e289aa0-7541-4f15-8299-5280549291c0","route":"/dev/jobs","schema_version":2}
+{"method":"POST","payload":{"operation":"job_output","job_id":"5f81e9613e9e4bfe87261131a9000556"},"request_id":"d56ca37e-e6b1-4453-8b8d-23f79cf71a7e","route":"/dev/jobs","schema_version":2}
