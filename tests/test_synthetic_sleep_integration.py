@@ -28,11 +28,14 @@ T0 = datetime(2026, 8, 11, 12, tzinfo=timezone.utc)
 
 
 class FakeClock:
+    def __init__(self):
+        self.current = T0
+
     def now(self):
-        return T0
+        return self.current
 
     def now_iso(self):
-        return to_iso(T0)
+        return to_iso(self.current)
 
 
 def _profile_payload():
@@ -55,6 +58,31 @@ def _termination_policy():
         "schema_version": 1, "checkpoint_interval_seconds": 600, "hard_cap_seconds": 1800,
         "wake_admissible_enter_milli": 65000, "wake_admissible_exit_milli": 55000,
     }
+
+
+def _physical_policy():
+    return {
+        "schema_version": 1,
+        "activity_cost_per_hour_milli": {
+            "none": 0, "light": 5000, "moderate": 15000, "vigorous": 30000,
+        },
+        "minimum_capacity_milli": {
+            "none": 0, "light": 10000, "moderate": 30000, "vigorous": 60000,
+        },
+        "traversal_cost_per_edge_milli": 5000,
+        "recovery_per_hour_milli": {"rest": 10000, "sleep": 20000},
+    }
+
+
+def _classify_activities(conn, world_id):
+    with transaction(conn) as tx:
+        tx.execute(
+            "UPDATE activity_definition SET physical_load_class = CASE "
+            "WHEN activity_type IN ('sleep','rest','idle') THEN 'none' "
+            "WHEN activity_type='sport' THEN 'vigorous' ELSE 'light' END "
+            "WHERE world_id=?",
+            (world_id,),
+        )
 
 
 def _activate_synthetic(conn, world_id, anchor):
@@ -135,6 +163,13 @@ def synthetic_world():
         foundation.assign_biology_profile(
             world_id, row["key"], "synthetic.human.v1", 1, "synthetic_setup"
         )
+    physical = foundation.register_physical_capacity_policy(
+        "synthetic.capacity.v1", 1, _physical_policy(), "synthetic_calibration_only"
+    )
+    foundation.assign_physical_capacity_policy(
+        world_id, physical.policy_key, physical.version, "synthetic_setup"
+    )
+    _classify_activities(conn, world_id)
     foundation.prepare_world(world_id, ADDITIVE_MODEL_KEY, 1, "synthetic_operator")
     _activate_synthetic(conn, world_id, anchor)
     termination = SleepTerminationFoundationService(conn, clock=clock)
@@ -191,6 +226,7 @@ def test_checkpoint_completes_sleep_once_and_exposes_rearbitration_boundary(synt
     scheduled = coordinator.next_boundary(world_id, "sophie", wake_source=wake_source, until=first)
     assert scheduled is not None and scheduled.at == first and scheduled.reasons == ("sleep_checkpoint",)
 
+    clock.current = T0 + timedelta(seconds=600)
     result = coordinator.process_sleep_checkpoint(
         world_id, "sophie", at_time=first, sleep_source=sleep_source, wake_source=wake_source
     )
@@ -222,6 +258,7 @@ def test_direct_sleep_completion_without_authorization_rolls_back_canonical_muta
     )
     engine = ActivityEngine(conn, clock=clock)
     before_seq = max_seq(conn, world_id)
+    clock.current = T0 + timedelta(seconds=600)
 
     with pytest.raises(sqlite3.IntegrityError):
         engine.complete_sleep_from_checkpoint(world_id, "sophie", at_time=due)
@@ -306,6 +343,7 @@ def test_critical_stability_interrupts_once_then_requires_a_new_arbitration_fram
     assert scheduled is not None and "wake_stability_critical" in scheduled.reasons
 
     before = max_seq(conn, world_id)
+    clock.current = T0 + timedelta(seconds=1)
     first = coordinator.interrupt_critical_wake_stability(
         world_id, "sophie", at_time=boundary, wake_source=wake_source
     )

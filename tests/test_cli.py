@@ -169,6 +169,7 @@ def test_cli_screen_custom_reports_use_distinct_atomic_namespaces(monkeypatch, t
 
 
 def test_cli_llm_smoke_reports_a_healthy_ephemeral_run(monkeypatch, capsys):
+    monkeypatch.setenv("VIVARIUM_LLM_MODEL", "gemma-local")
     class Report:
         model_id = "gemma-local"; character_key = "sophie"; decision = "traverse"
         connector_key = "porte_entree"; target_location_key = "salon"
@@ -182,6 +183,7 @@ def test_cli_llm_smoke_reports_a_healthy_ephemeral_run(monkeypatch, capsys):
 
 
 def test_cli_llm_calibrate_reports_a_healthy_ephemeral_series(monkeypatch, capsys):
+    monkeypatch.setenv("VIVARIUM_LLM_MODEL", "gemma-local")
     class Trial:
         number = 1; outcome = "routed"; elapsed_ms = 12; decision = "no_action"
         validation_status = None; validation_reason = None; provider_error_code = None
@@ -200,6 +202,7 @@ def test_cli_llm_calibrate_reports_a_healthy_ephemeral_series(monkeypatch, capsy
 
 
 def test_cli_scene_smoke_reports_a_healthy_ephemeral_turn(monkeypatch, capsys):
+    monkeypatch.setenv("VIVARIUM_LLM_MODEL", "gemma-local")
     class Report:
         model_id = "gemma-local"; decision = "speak"; act_kind = "greet"; content = "Salut."
         provider_error_code = None; validation_error_code = None; deferred_reason_code = None; healthy = True
@@ -211,6 +214,7 @@ def test_cli_scene_smoke_reports_a_healthy_ephemeral_turn(monkeypatch, capsys):
 
 
 def test_cli_scene_bench_reports_a_healthy_ephemeral_conversation(monkeypatch, capsys):
+    monkeypatch.setenv("VIVARIUM_LLM_MODEL", "gemma-local")
     class Opportunity:
         turn_number = 1; speaker_key = "sophie"
     class Result:
