@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"start_job","argv":["pytest","-q","-s","-p","no:cacheprovider","--basetemp=.pytest-tmp-wo89d-f4e29370","tests/test_wo89d_disposable_rehearsal.py"],"timeout_seconds":120,"output_limit":65536},"request_id":"7d7be3dd-a63e-4268-a6e1-6d99d1ef544f","route":"/dev/jobs","schema_version":2}
+{"method":"POST","payload":{"operation":"job_status","job_id":"5f81e9613e9e4bfe87261131a9000556"},"request_id":"9e289aa0-7541-4f15-8299-5280549291c0","route":"/dev/jobs","schema_version":2}
