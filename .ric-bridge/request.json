@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"search_text","path":"src/vivarium","query":"rate_remainder","limit":100},"request_id":"df0a57fe-3af6-439f-8585-77aed4380468","route":"/dev/fs","schema_version":2}
+{"method":"GET","payload":{},"request_id":"4e1bf3c6-3c2f-49f7-9294-76d55564f40b","route":"/capabilities","schema_version":2}
