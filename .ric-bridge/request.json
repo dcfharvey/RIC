@@ -1,1 +1,1 @@
-{"method":"GET","request_id":"e7592c2c-1577-43b6-b270-bf41d6103e75","route":"/capabilities","schema_version":2}
+{"method":"POST","payload":{"operation":"list_tree","path":"data","max_depth":2},"request_id":"f4be0383-afe4-482d-bd07-1797e1a7fe0c","route":"/dev/fs","schema_version":2}
