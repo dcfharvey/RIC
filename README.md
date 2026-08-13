@@ -1,14 +1,15 @@
 # RIC — Reality · Interaction · Cognition
 
-Photographie active WO91 — 13 août 2026.
+Photographie active — durcissement provider WO91, 13 août 2026.
 
 - Distribution technique : `vivarium-social` (inchangée).
 - Import Python : `vivarium` (inchangé).
-- Version logicielle courante : `0.2.0a3`.
+- Version logicielle courante : `0.2.0a4`.
 - Schéma SQLite du code : **57** ; dernière migration : `0057_location_plan_resolution.sql`.
-- FUNCTIONAL_HEAD : `20291d43be6ab8264c556b1029c7ca1bfb75809e`.
-- Validation complète : **1036 passed, 1 skipped, 0 failed** en `243.21s` ; skip attendu `tests/test_dev_bridge.py:59`.
-- WO91 est fermé. Le scheduler temporel, le bootstrap officiel one-shot et le T0 jetable sont qualifiés ; Rodage V2 officiel autorisé mais non démarré.
+- FUNCTIONAL_HEAD : `b272006bb5c72085487816b2fab2cf12800f0fa5`.
+- Validation complète : **1044 passed, 1 skipped, 0 failed** en `242.01s` ; skip attendu `tests/test_dev_bridge.py:59`.
+- Le launcher officiel exige désormais la preuve structurée LM Studio `quantization.name=Q4_K_M` et une unique `loaded_instance` pour Qwen3-14B, avant toute création SQLite.
+- WO91 reste fermé et le Rodage V2 officiel n'est pas démarré : la porte locale est actuellement refusée tant que LM Studio n'expose pas l'instance attendue.
 
 ## Reprise d'un travail existant
 

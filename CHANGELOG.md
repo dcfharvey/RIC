@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0a4 — 13 août 2026
+
+- Durcit le point d'entrée officiel : Qwen3-14B doit être identifié par la clé configurée, exposer `quantization.name=Q4_K_M` et posséder exactement une `loaded_instance` dans l'API native LM Studio.
+- Le contrôle provider intervient avant toute création de la base officielle; une indisponibilité, une autre quantification, un autre modèle ou une instance non chargée refuse le lancement sans SQLite partiel.
+- Validation complète : 1044 tests réussis, 1 skip connu (`tests/test_dev_bridge.py:59`), 0 échec en 242,01 s; aucune histoire officielle Rodage V2 démarrée.
+
 ## 0.2.0a3 — 13 août 2026
 
 - Scheduler temporel minimal générique raccordé aux frontières canoniques des activités et plans futurs, avec résolution append-only idempotente.

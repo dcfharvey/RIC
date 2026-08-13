@@ -5,7 +5,7 @@
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
 
-> **Mise au point prioritaire — WO91 fermé (13 août 2026) :** porte de démarrage réel **FERMÉE**. Version `0.2.0a3`, schéma 57, migration `0057_location_plan_resolution.sql`, FUNCTIONAL_HEAD `20291d43be6ab8264c556b1029c7ca1bfb75809e`. Validation complète : **1036 passed, 1 skipped, 0 failed en 243,21 s**; skip attendu `tests/test_dev_bridge.py:59`. Le scheduler temporel générique, `work`, la provenance T0 par politiques et le point d'entrée one-shot sont qualifiés. Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé. **Prochain jalon immédiat : exécution explicite du point d'entrée sur une base neuve après décision du propriétaire.** Les photographies techniques antérieures ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
+> **Mise au point prioritaire — durcissement provider WO91 (13 août 2026) :** WO91 reste **FERMÉ**. Version `0.2.0a4`, schéma 57, migration `0057_location_plan_resolution.sql`, FUNCTIONAL_HEAD `b272006bb5c72085487816b2fab2cf12800f0fa5`. Validation complète : **1044 passed, 1 skipped, 0 failed en 242,01 s**; skip attendu `tests/test_dev_bridge.py:59`. Le launcher exige maintenant la preuve native LM Studio `quantization.name=Q4_K_M` et une unique `loaded_instance` avant toute création SQLite. Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé. **Prochain jalon immédiat : rendre LM Studio Qwen3-14B Q4_K_M disponible puis exécuter explicitement le point d'entrée sur une base neuve.** Les photographies techniques antérieures ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
 
 ## Principe de conduite
 
@@ -27,12 +27,12 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.2.0a3` — schéma de code 57, migration
+**Version logicielle actuelle :** `0.2.0a4` — schéma de code 57, migration
 `0057_location_plan_resolution.sql`, FUNCTIONAL_HEAD
-`20291d43be6ab8264c556b1029c7ca1bfb75809e`, validation complète **1036 passed, 1 skipped, 0 failed
-en 243,21 s**. WO89, WO90 et WO91 sont fermés; le bootstrap T0 jetable et le
-point d'entrée one-shot sont qualifiés. Aucun ancien SQLite n'a été migré et
-aucune histoire officielle Rodage V2 n'a commencé.
+`b272006bb5c72085487816b2fab2cf12800f0fa5`, validation complète **1044 passed, 1 skipped, 0 failed
+en 242,01 s**. WO89, WO90 et WO91 sont fermés; le bootstrap T0 jetable, le
+point d'entrée one-shot et le garde provider Qwen3-14B Q4_K_M sont qualifiés.
+Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
@@ -104,6 +104,7 @@ aucune histoire officielle Rodage V2 n'a commencé.
 | `0.2.0a1` | Atteint | Base alpha du Rodage V2 : physiologie active owner-backed H/φ/P, observabilité opérateur et bootstrap T0 neuf qualifiés; histoire officielle non encore démarrée. |
 | `0.2.0a2` | Atteint | Bootstrap WO90 : topologie externe générique, sommeil dans tout lieu canonique accessible, plans de retour et T0 jetable complet qualifiés; histoire officielle non encore démarrée. |
 | `0.2.0a3` | Atteint | WO91 : scheduler temporel générique, retour causal à 16 h, manifeste T0 provenancé et point d'entrée one-shot qualifiés; histoire officielle non encore démarrée. |
+| `0.2.0a4` | Atteint | Durcissement du provider officiel : preuve structurée Qwen3-14B Q4_K_M et instance LM Studio chargée vérifiées avant création SQLite; histoire officielle non encore démarrée. |
 | `0.0.0.dev0` | État actuel | Pré-alpha : fondations rigoureuses, mais pas encore de boucle sociale complète. |
 | `0.0.1.dev0` | Jalon atteint après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
 | `0.0.2.dev0` | État actuel, après le monde d'intégration | Les cinq vraies configurations peuvent être assemblées et réinitialisées sans histoire officielle. |

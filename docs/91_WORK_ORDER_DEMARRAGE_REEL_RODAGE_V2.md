@@ -2,6 +2,22 @@
 
 **Statut : FERMÉ — WO91 satisfait; le démarrage officiel est préparé mais non exécuté.**
 
+### Addendum provider — 0.2.0a4
+
+Le correctif final du launcher est qualifié dans FUNCTIONAL_HEAD
+`b272006bb5c72085487816b2fab2cf12800f0fa5`. Avant toute création de la base
+officielle, le contrôle lit l'API native LM Studio et exige simultanément :
+
+- la clé configurée correspondant à Qwen3-14B;
+- `quantization.name == Q4_K_M` dans la métadonnée structurée du modèle;
+- exactement une `loaded_instance` avec identifiant d'instance.
+
+Une autre quantification, un autre modèle, une instance absente/ambiguë ou une
+API inaccessible refuse le lancement sans créer de SQLite partiel. La suite
+complète de ce build est **1044 passed, 1 skipped, 0 failed en 242,01 s**;
+le skip attendu reste `tests/test_dev_bridge.py:59`. La base officielle V2 n'a
+pas été créée et l'ancien rodage n'a pas été modifié.
+
 **Base :** `ce3bec5d7d9825784f397c8db9c77239f3886b13` (`0.2.0a2`, schéma 56, WO90 fermé).
 
 **HEAD fonctionnel WO91 :** `20291d43be6ab8264c556b1029c7ca1bfb75809e` (`0.2.0a3`, schéma 57).
@@ -133,7 +149,7 @@ Le bridge actuel déclare `RUNTIME_CONTROL=DENY` et `REAL_WORLD_WRITE=DENY`. WO9
 
 ## 7. LLM attendu pour le rodage
 
-Le modèle retenu demeure `Qwen3-14B` quantifié `Q4_K_M`, en FR/FR, contrat `interpretation-only`. Le point d'entrée ne doit pas substituer silencieusement un autre modèle si celui attendu n'est pas disponible.
+Le modèle retenu demeure `Qwen3-14B` quantifié `Q4_K_M`, en FR/FR, contrat `interpretation-only`. Le point d'entrée ne doit pas substituer silencieusement un autre modèle si celui attendu n'est pas disponible; il vérifie la métadonnée native `quantization.name` et une instance réellement chargée avant toute écriture officielle.
 
 ## 8. Validation minimale
 
@@ -167,8 +183,8 @@ phi dérivée de la lumière et résidus nuls. Le point d'entrée local exact es
 .venv\Scripts\python.exe -m vivarium.rodage_v2_official --db data/vivarium-rodage-v2.sqlite
 ```
 
-Il refuse une cible existante ou un T0 devenu obsolète, vérifie Qwen3-14B, le
-préflight et Hugin, puis ouvre la session seulement après ces contrôles. La
+Il refuse une cible existante ou un T0 devenu obsolète, vérifie Qwen3-14B Q4_K_M
+réellement chargé, le préflight et Hugin, puis ouvre la session seulement après ces contrôles. La
 répétition jetable, la compilation et la suite complète sont vertes; aucun
 SQLite officiel n'a été créé.
 
