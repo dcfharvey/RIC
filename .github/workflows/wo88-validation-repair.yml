@@ -1,4 +1,4 @@
-name: WO88 prior-failures verification
+name: WO88 bridge timeout proof repair
 
 on:
   push:
@@ -8,28 +8,108 @@ on:
       - .github/workflows/wo88-validation-repair.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  verify-seven:
+  repair-and-verify:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           ref: chatgpt/wo88-final-validation
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Harden descendant cancel/timeout proof
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/test_dev_bridge.py")
+          text = path.read_text(encoding="utf-8")
+          start = text.index("def test_process_tree_cancel_and_timeout_kill_descendants(tmp_path):")
+          end = text.index("\n\ndef test_service_auth_capabilities_and_read_only_inspector", start)
+          replacement = r'''def test_process_tree_cancel_and_timeout_kill_descendants(tmp_path):
+              sentinel_cancel = tmp_path / "cancel-sentinel.txt"
+              ready_cancel = tmp_path / "cancel-ready.txt"
+              release_cancel = tmp_path / "cancel-release.txt"
+              cancel_child = _script(tmp_path, "cancel_child.py", f"""import pathlib, time
+          release = pathlib.Path(r'{release_cancel}')
+          while not release.exists():
+              time.sleep(0.05)
+          pathlib.Path(r'{sentinel_cancel}').write_text('survived')
+          """)
+              parent = _script(tmp_path, "test_parent.py", f"""def test_parent():
+           import pathlib, subprocess, sys, time
+           subprocess.Popen([sys.executable, r'{tmp_path / cancel_child}'])
+           pathlib.Path(r'{ready_cancel}').write_text('ready')
+           time.sleep(30)
+          """)
+              runner = CommandRunner(RootLock(tmp_path))
+              jobs = JobManager(runner)
+              job = jobs.start({"argv": ["python", "-m", "pytest", parent, "-q"], "cwd": ".", "timeout_seconds": 30})
+              deadline = time.monotonic() + 5
+              while time.monotonic() < deadline and not ready_cancel.exists() and jobs.status(job)["status"] != "finished":
+                  time.sleep(0.05)
+              assert ready_cancel.exists(), jobs.output(job)
+              jobs.cancel(job)
+              deadline = time.monotonic() + 5
+              while time.monotonic() < deadline and jobs.status(job)["status"] != "finished":
+                  time.sleep(0.05)
+              assert jobs.output(job)["status"] == "finished"
+              release_cancel.write_text("release", encoding="utf-8")
+              time.sleep(0.5)
+              assert not sentinel_cancel.exists()
+
+              sentinel_timeout = tmp_path / "timeout-sentinel.txt"
+              ready_timeout = tmp_path / "timeout-ready.txt"
+              release_timeout = tmp_path / "timeout-release.txt"
+              timeout_child = _script(tmp_path, "timeout_child.py", f"""import pathlib, time
+          release = pathlib.Path(r'{release_timeout}')
+          while not release.exists():
+              time.sleep(0.05)
+          pathlib.Path(r'{sentinel_timeout}').write_text('survived')
+          """)
+              parent_timeout = _script(tmp_path, "test_parent_timeout.py", f"""def test_parent_timeout():
+           import pathlib, subprocess, sys, time
+           subprocess.Popen([sys.executable, r'{tmp_path / timeout_child}'])
+           pathlib.Path(r'{ready_timeout}').write_text('ready')
+           time.sleep(30)
+          """)
+              timeout_job = jobs.start({"argv": ["python", "-m", "pytest", parent_timeout, "-q"], "cwd": ".", "timeout_seconds": 6})
+              deadline = time.monotonic() + 5
+              while time.monotonic() < deadline and not ready_timeout.exists() and jobs.status(timeout_job)["status"] != "finished":
+                  time.sleep(0.05)
+              assert ready_timeout.exists(), jobs.output(timeout_job)
+              deadline = time.monotonic() + 8
+              while time.monotonic() < deadline and jobs.status(timeout_job)["status"] != "finished":
+                  time.sleep(0.05)
+              result = jobs.output(timeout_job)
+              assert result["status"] == "finished"
+              assert result["timed_out"] is True, result
+              release_timeout.write_text("release", encoding="utf-8")
+              time.sleep(0.5)
+              assert not sentinel_timeout.exists()
+          '''
+          # Keep the function at module indentation while preserving the generated
+          # inner-script indentation carried by the literal above.
+          replacement = "\n".join(line[12:] if line.startswith("            ") else line for line in replacement.splitlines())
+          path.write_text(text[:start] + replacement + text[end:], encoding="utf-8", newline="\n")
+          PY
       - name: Install
         run: python -m pip install -e . pytest
-      - name: Verify the seven prior failures only
-        run: >-
-          python -m pytest -q
-          tests/test_cli.py::test_cli_llm_smoke_reports_a_healthy_ephemeral_run
-          tests/test_cli.py::test_cli_llm_calibrate_reports_a_healthy_ephemeral_series
-          tests/test_cli.py::test_cli_scene_smoke_reports_a_healthy_ephemeral_turn
-          tests/test_cli.py::test_cli_scene_bench_reports_a_healthy_ephemeral_conversation
-          tests/test_synthetic_sleep_integration.py::test_checkpoint_completes_sleep_once_and_exposes_rearbitration_boundary
-          tests/test_synthetic_sleep_integration.py::test_direct_sleep_completion_without_authorization_rolls_back_canonical_mutation
-          tests/test_synthetic_sleep_integration.py::test_critical_stability_interrupts_once_then_requires_a_new_arbitration_frame
+      - name: Verify repaired test only
+        run: python -m pytest -q tests/test_dev_bridge.py::test_process_tree_cancel_and_timeout_kill_descendants
+      - name: Commit repaired proof
+        shell: pwsh
+        run: |
+          git config user.name "RIC WO88 Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add tests/test_dev_bridge.py
+          git diff --cached --check
+          if (git diff --cached --quiet) { exit 0 }
+          git commit -m "test: harden dev bridge descendant timeout proof"
+          git push origin HEAD:chatgpt/wo88-final-validation
