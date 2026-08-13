@@ -17,7 +17,11 @@ import sqlite3
 from typing import Any
 
 from .integration_world import INITIAL_RESIDENTS, INITIAL_SHARED_FACTS
-from .circadian_shadow import LEGACY_CONSUMERS
+from .active_simulation import ActiveSimulationEngine
+from .activities import ActivityEngine
+from .character import CharacterEngine
+from .decision import DecisionFrameService
+from .needs import NeedsEngine
 from .migrations import load_migrations
 from .sleep_physiology import SleepPhysiologyService, V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY
 from .sleep_termination import SleepTerminationFoundationService
@@ -239,17 +243,33 @@ def _active_assignment_check(conn: sqlite3.Connection, world_id: int, status: st
 
 
 def _active_legacy_guard_check(conn: sqlite3.Connection, world_id: int, status: str) -> PreflightCheck:
-    """Le gate active refuse tant que les consumers comportementaux legacy existent."""
+    """Vérifie que le binaire déployé possède le chemin actif owner-backed.
+
+    Les modules legacy restent présents pour les mondes ``inactive/prepared`` et
+    la rétrocompatibilité. Leur présence sur disque n'est donc plus un échec :
+    ce qui compte au gate ``active`` est que les points de routage exclusifs du
+    cutover soient disponibles. Les tests WO88D/E falsifient séparément tout
+    appel à ``SimulationEngine`` depuis le chemin actif.
+    """
     if status != "active":
         return _check("legacy_runtime_guard", True, "legacy autorise hors active")
-    forbidden = tuple(
-        entry.key for entry in LEGACY_CONSUMERS
-        if entry.role in {"behavior", "physical_cost", "projection"}
-    )
+    contracts = {
+        "active_scheduler_run": callable(getattr(ActiveSimulationEngine, "run_to", None)),
+        "active_scheduler_due": callable(getattr(ActiveSimulationEngine, "is_due", None)),
+        "owner_materialization": callable(getattr(SleepPhysiologyService, "materialize_owner_backed", None)),
+        "owner_activity_p": callable(getattr(SleepPhysiologyService, "evaluate_activity_capacity_owner_backed", None)),
+        "owner_traversal_p": callable(getattr(SleepPhysiologyService, "apply_traversal_cost_owner_backed", None)),
+        "selected_legacy_needs": callable(getattr(NeedsEngine, "materialize_selected_needs", None)),
+        "activity_gate": callable(getattr(ActivityEngine, "_physiology_active", None)),
+        "movement_gate": callable(getattr(CharacterEngine, "_physiology_active", None)),
+        "decision_gate": callable(getattr(DecisionFrameService, "build_current", None)),
+    }
+    missing = tuple(sorted(key for key, available in contracts.items() if not available))
     return _check(
         "legacy_runtime_guard",
-        False,
-        "consommateurs legacy actifs non commutes: " + ",".join(forbidden),
+        not missing,
+        "cutover actif disponible ; legacy isolé hors gate active"
+        if not missing else "contrats de cutover absents: " + ",".join(missing),
     )
 
 

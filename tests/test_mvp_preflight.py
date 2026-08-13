@@ -70,7 +70,7 @@ def test_preflight_rejects_invalid_or_unknown_world_ids(conn):
         inspect_mvp_preflight(conn, world_id=999)
 
 
-def test_active_physiology_fails_closed_on_missing_classes_and_legacy_consumers(conn):
+def test_active_physiology_fails_closed_on_missing_classes_but_accepts_cutover_contracts(conn):
     world = IntegrationWorldService(conn).create_initial_world()
     conn.execute(
         "INSERT INTO world_physiology_system (public_id,world_id,status,prepared_model_key,prepared_model_version,"
@@ -89,5 +89,8 @@ def test_active_physiology_fails_closed_on_missing_classes_and_legacy_consumers(
     report = inspect_mvp_preflight(conn, world_id=world["id"])
     failures = {check.key for check in report.failures}
     assert "physical_load_classes" in failures
-    assert "legacy_runtime_guard" in failures
+    assert "legacy_runtime_guard" not in failures
     assert "owner_backed_contracts" not in failures
+    legacy_guard = next(check for check in report.checks if check.key == "legacy_runtime_guard")
+    assert legacy_guard.passed
+    assert "legacy isolé" in legacy_guard.detail
