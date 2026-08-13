@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"max_tokens":32,"messages":[{"content":"/no_think\nReply with exactly PONG and nothing else.","role":"user"}],"model":"qwen3-14b","temperature":0},"request_id":"f0350b09-ce7f-4c41-a328-1413939b19a0","route":"/v1/chat/completions","schema_version":2}
+{"method":"POST","payload":{"operation":"search_text","path":"src","query":"create_world","limit":100},"request_id":"8ce85757-7f5a-4a58-8c76-1bb195f1ac3a","route":"/dev/fs","schema_version":2}
