@@ -1,8 +1,7 @@
-"""Arbitrage causal neutre partage par le runtime actif et les bancs.
+"""Arbitrage causal neutre du runtime actif.
 
 Le module ne possede aucun etat canonique. Il lit les owners etablis, produit
 une frame deterministe, puis toute transition passe par ``ActionOrchestrator``.
-Les API runtime publiques ne recoivent jamais de ``RegulationInput`` libre.
 """
 
 from __future__ import annotations
@@ -27,7 +26,6 @@ from .action_contract import (
     ValidationResult,
     normalize_action_specification,
 )
-from .circadian_model import RegulationInput
 from .goals import GoalService
 from .physical_capacity import (
     PhysicalCapacityError,
@@ -494,7 +492,7 @@ class CausalArbitrationBuilder:
             )
         return specification
 
-    def _build_from_source(
+    def _build_from_projection(
         self,
         world_id: int,
         actor_key: str,
@@ -502,11 +500,10 @@ class CausalArbitrationBuilder:
         canonical_at: str,
         sleep_specification: ActionSpecification,
         rest_specification: ActionSpecification,
-        wake_source: RegulationInput | None = None,
-        physiology_projection: Any | None = None,
+        physiology_projection: Any,
         current_action_key: str | None = None,
     ) -> ActionArbitrationFrame:
-        """Noyau partage; la source explicite reste privee aux adaptateurs de banc."""
+        """Construit la frame depuis une projection déjà validée par son owner."""
         at = to_iso(parse_iso(canonical_at))
         actor = _text(actor_key, field="acteur")
         sleep_spec = self._require_named_activity(
@@ -518,19 +515,7 @@ class CausalArbitrationBuilder:
         policy = self._policy(world_id)
         p_policy = self._physiology_foundation.validate_physical_capacity_configuration(world_id)
         state = self._physiology.read_state(world_id, actor)
-        if physiology_projection is not None:
-            if wake_source is not None:
-                raise ActionArbitrationRuntimeError(
-                    "projection et source causale mutuellement exclusives",
-                    code="invalid_causal_source",
-                )
-            projection = physiology_projection
-        else:
-            if wake_source is None:
-                raise ActionArbitrationRuntimeError(
-                    "source causale absente", code="invalid_causal_source"
-                )
-            projection = self._physiology.project_synthetic(world_id, actor, wake_source)
+        projection = physiology_projection
         capacity = state.regulation.physical_capacity_milli
 
         specs: dict[str, ActionSpecification] = {
@@ -651,7 +636,7 @@ class CausalArbitrationBuilder:
         projection = self._physiology.project_owner_backed(
             world_id, actor_key, at_time=at
         )
-        return self._build_from_source(
+        return self._build_from_projection(
             world_id,
             actor_key,
             canonical_at=projection.state.anchor_at,
@@ -720,8 +705,3 @@ class CausalArbitrationBuilder:
             frame.world_id, frame_digest=frame.digest, options=options, sources=sources,
             result=result, canonical_at=frame.canonical_at, reason_code=reason_code,
         )
-
-
-def action_specification(action_kind: Any, params: Any) -> ActionSpecification:
-    """Raccourci de banc vers le vocabulaire executable unique."""
-    return normalize_action_specification(action_kind, params)

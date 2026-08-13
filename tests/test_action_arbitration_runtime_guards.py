@@ -6,11 +6,11 @@ import pytest
 
 from vivarium.action_contract import ACTION_START_ACTIVITY
 from vivarium.sleep_physiology import PhysicalCapacityPolicy
-from vivarium.synthetic_action_arbitration import (
-    SyntheticActionArbitrationError,
-    SyntheticCausalArbitrationBuilder,
-    synthetic_specification,
+from vivarium.action_arbitration_runtime import (
+    ActionArbitrationRuntimeError,
+    CausalArbitrationBuilder,
 )
+from vivarium.action_contract import normalize_action_specification
 
 
 def _policy() -> PhysicalCapacityPolicy:
@@ -37,13 +37,13 @@ def test_physical_evaluation_refuses_missing_activity_class_without_default():
         "INSERT INTO activity_definition (world_id,activity_type,physical_load_class) "
         "VALUES (1,'sport',NULL)"
     )
-    specification = synthetic_specification(
+    specification = normalize_action_specification(
         ACTION_START_ACTIVITY,
         {"activity_type": "sport", "target_location_key": "cour"},
     )
     try:
-        with pytest.raises(SyntheticActionArbitrationError) as raised:
-            SyntheticCausalArbitrationBuilder(conn)._physical_evaluation(
+        with pytest.raises(ActionArbitrationRuntimeError) as raised:
+            CausalArbitrationBuilder(conn)._physical_evaluation(
                 1, specification, _policy(), 100_000
             )
         assert raised.value.code == "activity_physical_class_missing"
