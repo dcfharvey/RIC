@@ -1,12 +1,33 @@
 # Work order 88 — runtime circadien actif V1
 
-**Statut :** OUVERT — implémentation autorisée uniquement sur mondes synthétiques, temporaires ou de test.
+**Statut :** FERMÉ — validation fonctionnelle terminée; aucun cutover de résidence persistante n'est autorisé par cette clôture.
 
 **Base de développement :** `b0568de5db9af68e13d51b112535b23894a7c73b`.
+
+**HEAD fonctionnel validé :** `fe1d24a0cd5f32463c594d2de6bf2e3ba7ad0667`.
+
+**Preuve de validation finale :** GitHub Actions, Windows Server 2025, Python 3.12.10, `python -m compileall -q src tests`, puis **1029 tests réussis en 392,09 s, 0 échec**. Le correctif final owner-backed avait également passé **15 tests ciblés** avant la suite complète.
 
 **Dépendances fermées :** `docs/85_WORK_ORDER_CUTOVER_CIRCADIEN_V1.md` et `docs/86_WORK_ORDER_CONTRATS_CUTOVER_CIRCADIEN_V1.md`.
 
 **Hors périmètre absolu de ce lot :** `data/vivarium-rodage.sqlite`, reprise de la session réelle, activation ou migration d'une résidence persistante existante, conversion `repos -> H`, conversion `energie -> P`, reconstruction d'un passé physiologique, suppression des données legacy.
+
+## 0. Verdict de clôture
+
+WO88 est fermé avec les constats suivants :
+
+- le runtime `physiology=active` utilise H/phi/P et des causes owner-backed ;
+- `repos` et `energie` ne sont plus des causes concurrentes sur le chemin actif ;
+- l'arbitrage owner-backed ne traverse plus `project_synthetic()` ; les APIs `_synthetic` restent des entrées de banc ;
+- les mondes `inactive` et `prepared` conservent le comportement legacy ;
+- l'activation T0 atomique depuis un manifeste scellé appartient au service de fondation physiologique; après activation, `SleepPhysiologyService` est l'écrivain runtime de H/phi/P/résidus/hystérésis ;
+- `ActivityEngine` reste propriétaire des activités; `ActiveSimulationEngine` ordonnance les frontières des mondes actifs, tandis que `SimulationEngine` reste le scheduler legacy des mondes non actifs ;
+- les frontières imbriquées restent transactionnelles via la transaction externe et les savepoints internes ;
+- aucune couche cognitive ni LLM n'a obtenu de droit d'écriture canonique supplémentaire ;
+- le diff depuis la base est linéaire et n'ajoute/modifie aucune migration dans WO88 ;
+- aucun fichier SQLite réel ni résidence persistante n'a été modifié ;
+- après le HEAD fonctionnel validé, seuls les workflows/scripts WO88 jetables ont été retirés et la documentation de clôture a été mise à jour; aucun `src/` ni `tests/` n'a changé ;
+- la prochaine étape autorisée est Rodage V2 sur base neuve avec manifeste T0 explicite et politiques complètes, sans migration de l'ancien rodage par défaut.
 
 ## 1. But
 
@@ -17,8 +38,8 @@ Fermer le chemin d'exécution des mondes dont `world_physiology_system.status = 
 - les mondes `inactive` et `prepared` conservent exactement le comportement legacy ;
 - un monde de test `active` utilise H/phi/P et les contrats d'arbitrage/checkpoint déjà fondés ;
 - le chemin actif ne lit ni `repos` ni `energie` pour choisir, valider, terminer ou coûter une action ;
-- `SleepPhysiologyService` reste l'unique écrivain persistant de H/phi/P/résidus/hystérésis ;
-- `ActivityEngine` reste propriétaire des activités et `SimulationEngine` de l'ordonnancement des frontières ;
+- l'activation T0 atomique appartient au service de fondation physiologique, puis `SleepPhysiologyService` reste l'écrivain runtime persistant de H/phi/P/résidus/hystérésis ;
+- `ActivityEngine` reste propriétaire des activités; `ActiveSimulationEngine` ordonnance les frontières actives et `SimulationEngine` conserve l'ordonnancement legacy des mondes non actifs ;
 - aucune couche cognitive ni LLM n'obtient un droit d'écriture canonique supplémentaire.
 
 Ce work order ne constitue pas une autorisation de cutover réel.
@@ -27,7 +48,7 @@ Ce work order ne constitue pas une autorisation de cutover réel.
 
 Le runtime actif est construit par raccordement des owners existants, pas par un second moteur parallèle.
 
-La logique mathématique pure peut être extraite dans un noyau sans persistance lorsque cela évite une duplication, sur le même modèle que la séparation `circadian_model.py` / `sleep_physiology.py`. L'ownership persistant ne change pas : les calculs purs proposent un résultat, `SleepPhysiologyService` valide et écrit P.
+La logique mathématique pure peut être extraite dans un noyau sans persistance lorsque cela évite une duplication, sur le même modèle que la séparation `circadian_model.py` / `sleep_physiology.py`. L'ownership persistant ne change pas : les calculs purs proposent un résultat, `SleepPhysiologyService` valide et écrit P en runtime après activation T0.
 
 Le module `synthetic_action_arbitration.py` est un banc. Les contrats physiques génériques qu'il contient aujourd'hui ne doivent pas rester owned par un module nommé `synthetic` s'ils deviennent nécessaires au runtime. Ils seront déplacés/réutilisés sans conserver deux implémentations divergentes.
 
@@ -180,6 +201,8 @@ WO88 est fermé seulement si :
 5. aucun fichier runtime/SQLite réel n'a été modifié ;
 6. la passation et la roadmap sont mises à jour avec les preuves exactes du HEAD testé.
 
+**Verdict : critères 1–6 satisfaits. WO88 fermé.**
+
 ## 11. Roadmap d'exécution séquentielle
 
 Cette section impose l'ordre de travail pour éviter les validations concurrentes et les HEAD ambigus.
@@ -192,44 +215,30 @@ Cette section impose l'ordre de travail pour éviter les validations concurrente
 - après chaque commit généré, relire le HEAD avant toute action suivante ;
 - un échec de test est traité comme un seul problème jusqu'à résolution ou diagnostic explicite.
 
-### Étape 1 — figer et vérifier le HEAD courant
+### Étape 1 — figer et vérifier le HEAD courant — FERMÉE
 
-Référence de reprise au moment de cette roadmap : branche `chatgpt/wo88-final-validation`, HEAD observé `0b1883364368e28752e1511d9c08fbf598d89f12`.
+Référence de reprise initiale : branche `chatgpt/wo88-final-validation`, HEAD observé `0b1883364368e28752e1511d9c08fbf598d89f12`.
 
-Action unique : vérifier que le HEAD n'a pas changé et qu'aucun workflow de réparation n'est encore en train d'écrire sur cette branche.
+Critère de sortie satisfait : un HEAD unique et stable a été identifié avant validation.
 
-Critère de sortie : un HEAD unique et stable est identifié.
+### Étape 2 — suite complète sur ce HEAD exact — FERMÉE
 
-### Étape 2 — suite complète sur ce HEAD exact
+Après correction du dernier chemin `_synthetic`, validation fonctionnelle finale au HEAD `fe1d24a0cd5f32463c594d2de6bf2e3ba7ad0667` : **1029 passed**, 0 échec.
 
-Action unique : exécuter la suite complète sans modifier le code pendant son exécution.
+### Étape 3 — audit WO88E des consommateurs legacy — FERMÉE
 
-Si elle échoue, traiter une seule famille d'échec à la fois : reproduire, comprendre, corriger, tests ciblés, puis relancer la suite complète.
+Le manifeste `circadian_shadow.LEGACY_CONSUMERS` et les chemins actifs ont été audités. Aucun consommateur `repos`/`energie` causal concurrent n'est resté sur les mondes physiologiques `active`.
 
-Critère de sortie : suite complète verte sur le HEAD qui sera audité ensuite.
+### Étape 4 — audit des invariants et du diff — FERMÉE
 
-### Étape 3 — audit WO88E des consommateurs legacy
+Ownership persistant, frontières transactionnelles, absence d'écriture cognitive directe, absence de cutover réel, compatibilité `inactive`/`prepared` et caractère forward-only ont été vérifiés. Le seul défaut trouvé — arbitrage owner-backed passant encore par `project_synthetic()` — a été corrigé et falsifié avant la suite complète.
 
-Action unique : relancer le manifeste `circadian_shadow.LEGACY_CONSUMERS` et la recherche structurée de `repos`/`energie` dans les chemins actifs.
+### Étape 5 — fermeture documentaire WO88 — FERMÉE
 
-Aucune correction non liée ne doit être entreprise pendant cet audit.
+La passation et la roadmap portent désormais le HEAD exact testé et le compteur de tests. Les workflows/scripts WO88 jetables ont été retirés seulement après la validation complète. Une comparaison post-validation confirme qu'aucun `src/` ni `tests/` n'a changé après `fe1d24a0…`.
 
-Critère de sortie : aucun consommateur legacy causal restant sur un monde physiologique `active`, ou une liste explicite de blocages à traiter un par un.
+### Étape 6 — Rodage V2 — PROCHAINE ÉTAPE
 
-### Étape 4 — audit des invariants et du diff
-
-Action unique : vérifier les invariants de WO88 sur le diff final : ownership persistant, frontières transactionnelles, absence d'écriture cognitive directe, absence de cutover réel, compatibilité `inactive`/`prepared`, migrations forward-only.
-
-Critère de sortie : aucun invariant bloquant non résolu.
-
-### Étape 5 — fermeture documentaire WO88
-
-Action unique : mettre à jour la passation et la roadmap avec le HEAD exact, les compteurs de tests et les preuves de fermeture. Supprimer ou archiver les workflows/scripts jetables seulement après validation qu'ils ne sont plus nécessaires.
-
-Critère de sortie : WO88 peut être marqué fermé sans dépendre d'une information implicite de cette conversation.
-
-### Étape 6 — Rodage V2
-
-Cette étape ne commence qu'après fermeture formelle de WO88.
+Cette étape commence seulement après la présente fermeture formelle de WO88.
 
 Action unique initiale : préparer le bootstrap d'une base neuve avec manifeste T0 explicite et politiques complètes, sans reprendre ni migrer l'ancien rodage par défaut.
