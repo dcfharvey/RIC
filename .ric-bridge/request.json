@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"branch":"chatgpt/bridge-e2e-smoke","operation":"push"},"request_id":"4cc27f36-61e4-44b0-bc4c-46bdcf9b70ea","route":"/dev/repo","schema_version":2}
+{"method":"GET","payload":{},"request_id":"9deec8f8-bbb8-4515-9c4a-18eb378baafc","route":"/v1/models","schema_version":2}
