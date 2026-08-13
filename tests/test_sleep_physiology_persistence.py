@@ -1,15 +1,10 @@
-"""Raccord persistant inactif : lectures, gate et ownership."""
+"""Raccord persistant owner-backed : lectures, gate et ownership."""
 
 from dataclasses import asdict
 
 import pytest
 
-from vivarium.circadian_model import (
-    RegulationInput,
-    advance_regulation,
-    calibration_profiles,
-    effective_light_drive,
-)
+from vivarium.circadian_model import calibration_profiles
 from vivarium.db import connect_database, transaction
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema, load_migrations, split_sql_statements
@@ -108,60 +103,6 @@ def _activate_synthetic(conn, world_id):
                 "VALUES (?, ?, ?, 0.0, 0.0, ?, ?)",
                 (f"precision-{row['id']}", world_id, row["id"], ANCHOR, ANCHOR),
             )
-
-
-def _physiology_snapshot(conn):
-    return {
-        table: tuple(
-            tuple(row)
-            for row in conn.execute(f"SELECT * FROM {table} ORDER BY id")
-        )
-        for table in (
-            "sleep_regulation_state",
-            "physical_capacity_state",
-            "sleep_regulation_precision_state",
-            "sleep_wake_hysteresis_state",
-            "canonical_event",
-        )
-    }
-
-
-def _set_synthetic_state(
-    conn,
-    world_id,
-    character_key,
-    *,
-    homeostatic_load_milli,
-    circadian_phase_milli,
-    physical_capacity_milli=70000,
-    previous_band="stable",
-):
-    """Prépare une trajectoire synthétique sans créer de fait canonique."""
-    character_id = conn.execute(
-        "SELECT id FROM character WHERE world_id = ? AND key = ?", (world_id, character_key)
-    ).fetchone()[0]
-    with transaction(conn) as tx:
-        tx.execute(
-            "UPDATE sleep_regulation_state SET homeostatic_load_milli = ?, "
-            "circadian_phase_milli = ?, anchor_at = ? WHERE world_id = ? AND character_id = ?",
-            (homeostatic_load_milli, circadian_phase_milli, ANCHOR, world_id, character_id),
-        )
-        tx.execute(
-            "UPDATE physical_capacity_state SET capacity_milli = ?, rate_remainder = 0, "
-            "anchor_at = ? WHERE world_id = ? AND character_id = ?",
-            (physical_capacity_milli, ANCHOR, world_id, character_id),
-        )
-        tx.execute(
-            "UPDATE sleep_wake_hysteresis_state SET previous_band = ?, anchor_at = ? "
-            "WHERE world_id = ? AND character_id = ?",
-            (previous_band, ANCHOR, world_id, character_id),
-        )
-        tx.execute(
-            "UPDATE sleep_regulation_precision_state SET homeostatic_load_residue = 0.0, "
-            "circadian_phase_residue = 0.0, anchor_at = ? "
-            "WHERE world_id = ? AND character_id = ?",
-            (ANCHOR, world_id, character_id),
-        )
 
 
 def test_preflight_reports_prepared_system_without_materializing_states(wired_world):
