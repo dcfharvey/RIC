@@ -13,4 +13,4 @@ permissions:
 
 jobs:
   proof:
-    uses: dcfharvey/RIC/.github/workflows/oidc-trusted-poc.yml@bdf0b4c3d4ed62c244ec02a69ffb4b11bcfdfdbb
+    uses: dcfharvey/RIC/.github/workflows/oidc-trusted-poc.yml@fe983592e2b9a93f9bdd694d9950947feb4df20b
