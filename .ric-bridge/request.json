@@ -1,1 +1,1 @@
-{"method":"GET","payload":{},"request_id":"4a652f6b-f63e-4887-a8c8-51454f240cc6","route":"/capabilities","schema_version":2}
+{"method":"POST","payload":{"operation":"commit","message":"","paths":[]},"request_id":"f98b79db-721f-4d80-814f-ef5ad0b611bc","route":"/dev/repo","schema_version":2}
