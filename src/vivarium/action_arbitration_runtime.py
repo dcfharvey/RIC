@@ -502,7 +502,8 @@ class CausalArbitrationBuilder:
         canonical_at: str,
         sleep_specification: ActionSpecification,
         rest_specification: ActionSpecification,
-        wake_source: RegulationInput,
+        wake_source: RegulationInput | None = None,
+        physiology_projection: Any | None = None,
         current_action_key: str | None = None,
     ) -> ActionArbitrationFrame:
         """Noyau partage; la source explicite reste privee aux adaptateurs de banc."""
@@ -517,7 +518,19 @@ class CausalArbitrationBuilder:
         policy = self._policy(world_id)
         p_policy = self._physiology_foundation.validate_physical_capacity_configuration(world_id)
         state = self._physiology.read_state(world_id, actor)
-        projection = self._physiology.project_synthetic(world_id, actor, wake_source)
+        if physiology_projection is not None:
+            if wake_source is not None:
+                raise ActionArbitrationRuntimeError(
+                    "projection et source causale mutuellement exclusives",
+                    code="invalid_causal_source",
+                )
+            projection = physiology_projection
+        else:
+            if wake_source is None:
+                raise ActionArbitrationRuntimeError(
+                    "source causale absente", code="invalid_causal_source"
+                )
+            projection = self._physiology.project_synthetic(world_id, actor, wake_source)
         capacity = state.regulation.physical_capacity_milli
 
         specs: dict[str, ActionSpecification] = {
@@ -635,16 +648,16 @@ class CausalArbitrationBuilder:
         rest_specification = rest_specification or self._nearest_activity_specification(
             world_id, actor_key, "rest"
         )
-        source = self._physiology.resolve_light_source_owner_backed(
+        projection = self._physiology.project_owner_backed(
             world_id, actor_key, at_time=at
         )
         return self._build_from_source(
             world_id,
             actor_key,
-            canonical_at=source.canonical_at,
+            canonical_at=projection.state.anchor_at,
             sleep_specification=sleep_specification,
             rest_specification=rest_specification,
-            wake_source=source.source,
+            physiology_projection=projection,
             current_action_key=current_action_key,
         )
 

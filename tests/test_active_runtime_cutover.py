@@ -108,6 +108,7 @@ def test_active_runtime_paths_do_not_call_public_synthetic_physiology_apis(monke
   monkeypatch.setattr(SleepPhysiologyService,"project_synthetic",forbidden)
   monkeypatch.setattr(SleepPhysiologyService,"next_critical_boundary_synthetic",forbidden)
   DecisionFrameService(conn).build_current(wid,"sophie")
+  ActiveSimulationEngine(conn,clock=clock)._arbitrate(wid,"sophie",T0)
   ActivityEngine(conn,clock=clock).start_activity(wid,"sophie","gaming","salon",sim_now=T0)
   ActiveSimulationEngine(conn,clock=clock).next_boundary(
    wid,"sophie",until=to_iso(T0_DT+timedelta(seconds=20))
