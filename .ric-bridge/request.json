@@ -1,1 +1,1 @@
-{"method":"GET","payload":{},"request_id":"4fdb9b2e-7f64-48bb-b850-2f35118f33e8","route":"/health","schema_version":2}
+{"method":"POST","payload":{"operation":"rev-parse","ref":"HEAD"},"request_id":"cb0c804a-a40f-423f-8f31-d22712fa676f","route":"/dev/git","schema_version":2}
