@@ -1,0 +1,1 @@
+{"http_status":200,"request_id":"8b31c1e8-66c8-4ec3-b7b7-7fc27c43f4af","response":{"duration_ms":5,"ok":true,"operation":"status","result":{"exit_code":3221225794,"stderr":"","stdout":"","timed_out":false,"truncated":false}},"schema_version":2,"status":"ok"}
