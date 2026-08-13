@@ -1,0 +1,35 @@
+name: WO93 scaffold audit
+on: push
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Reference inventory
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          names = [
+              'bench','cognition_call_bench','cognition_smoke','home_field_audit','living_bench',
+              'local_llm_calibration','scene_bench','scene_turn_smoke','sleep_calibration',
+              'social_attribution_mini_bench','social_interpretation_bench','circadian_shadow',
+              'synthetic_action_arbitration','synthetic_sleep_integration'
+          ]
+          paths = [p for root in ('src','tests','tools') for p in Path(root).rglob('*.py')]
+          for name in names:
+              print(f'=== {name} ===')
+              needles=(f'.{name}', f'vivarium.{name}', f'import {name}', f'from {name}')
+              found=[]
+              for p in paths:
+                  text=p.read_text(encoding='utf-8')
+                  for i,line in enumerate(text.splitlines(),1):
+                      if any(n in line for n in needles):
+                          found.append((str(p),i,line.strip()))
+              for item in found: print(f'{item[0]}:{item[1]}: {item[2]}')
+              print(f'COUNT={len(found)}')
+          PY
