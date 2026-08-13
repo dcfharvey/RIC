@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"search_text","path":"tests","query":"repo_git","limit":100},"request_id":"679b1914-39f7-4bfc-897a-0a1a12947f26","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"search_text","path":"src,vivarium","query":"cost_milli","limit":100},"request_id":"4831cf24-ad4e-44bf-9308-56a5bfd05e67","route":"/dev/fs","schema_version":2}
