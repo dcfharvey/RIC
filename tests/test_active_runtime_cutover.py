@@ -112,22 +112,6 @@ def test_active_scheduler_aligns_subsecond_wall_horizon_to_causal_grid():
  finally:conn.close()
 
 
-def test_active_runtime_paths_do_not_call_public_synthetic_physiology_apis(monkeypatch):
- conn,wid,clock=active_world()
- try:
-  def forbidden(*args,**kwargs):
-   raise AssertionError("public synthetic physiology API reached")
-  monkeypatch.setattr(SleepPhysiologyService,"project_synthetic",forbidden)
-  monkeypatch.setattr(SleepPhysiologyService,"next_critical_boundary_synthetic",forbidden)
-  DecisionFrameService(conn).build_current(wid,"sophie")
-  ActiveSimulationEngine(conn,clock=clock)._arbitrate(wid,"sophie",T0)
-  ActivityEngine(conn,clock=clock).start_activity(wid,"sophie","gaming","salon",sim_now=T0)
-  ActiveSimulationEngine(conn,clock=clock).next_boundary(
-   wid,"sophie",until=to_iso(T0_DT+timedelta(seconds=20))
-  )
- finally:conn.close()
-
-
 def test_arbitration_reassessment_is_a_causal_private_boundary():
  conn,wid,clock=active_world()
  try:
@@ -155,3 +139,10 @@ def test_active_scheduler_imports_no_synthetic_arbitration_module():
  import inspect
  import vivarium.active_simulation as module
  assert "synthetic_action_arbitration" not in inspect.getsource(module)
+
+
+def test_active_runtime_exposes_no_public_synthetic_physiology_apis():
+    assert not hasattr(SleepPhysiologyService, "project_synthetic")
+    assert not hasattr(SleepPhysiologyService, "next_critical_boundary_synthetic")
+    assert not hasattr(SleepPhysiologyService, "materialize_synthetic")
+    assert not hasattr(SleepPhysiologyService, "resolve_light_source_synthetic")
