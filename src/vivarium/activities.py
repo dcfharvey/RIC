@@ -507,7 +507,10 @@ class ActivityEngine:
 
     # --- Progression / clôture -----------------------------------------------
 
-    def advance_to(self, world_id: int, character_key: str, at_time: str) -> dict[str, Any] | None:
+    def advance_to(
+        self, world_id: int, character_key: str, at_time: str, *,
+        _reanchor_clock: bool = True,
+    ) -> dict[str, Any] | None:
         """Fait progresser la simulation jusqu'à `at_time` (temps simulé).
 
         Si l'activité active a déjà atteint sa fin (`planned_end_at <= at_time`),
@@ -516,7 +519,9 @@ class ActivityEngine:
         d'activité (ou None si aucune activité active).
         """
         if self._physiology_active(world_id):
-            return self._advance_to_active(world_id, character_key, at_time)
+            return self._advance_to_active(
+                world_id, character_key, at_time, _reanchor_clock=_reanchor_clock
+            )
         with transaction(self._conn) as c:
             active = self._active_row(c, world_id, character_key)
             if active is None:
@@ -562,11 +567,13 @@ class ActivityEngine:
                     recovery_regime(active["type"]), _conn=c,
                 )
             # avancement de l'horloge canonique à l'instant atteint
-            self._world()._advance_clock(world_id, at_time, c)
+            if _reanchor_clock:
+                self._world()._advance_clock(world_id, at_time, c)
         return self.activity_sheet(world_id, character_key)
 
     def _advance_to_active(
-        self, world_id: int, character_key: str, at_time: str
+        self, world_id: int, character_key: str, at_time: str, *,
+        _reanchor_clock: bool = True,
     ) -> dict[str, Any] | None:
         from .sleep_physiology import SleepPhysiologyService
 
@@ -590,7 +597,8 @@ class ActivityEngine:
                 ie._materialize_injury_sim(
                     world_id, character_key, target_iso, "sleep", _conn=c
                 )
-                self._world()._advance_clock(world_id, target_iso, c)
+                if _reanchor_clock:
+                    self._world()._advance_clock(world_id, target_iso, c)
                 return self.activity_sheet(world_id, character_key)
             if parse_iso(active["planned_end_at"]) <= parse_iso(at_time):
                 boundary = active["planned_end_at"]
@@ -608,7 +616,8 @@ class ActivityEngine:
                     {"character": character_key, "activity": active["type"], "ended_at": boundary},
                     occurred_at=boundary, recorded_at=now,
                 )
-                self._world()._advance_clock(world_id, boundary, c)
+                if _reanchor_clock:
+                    self._world()._advance_clock(world_id, boundary, c)
                 if parse_iso(at_time) > parse_iso(boundary):
                     physiology.materialize_owner_backed(world_id, character_key, at_time)
                     self._materialize_active_needs(
@@ -617,7 +626,8 @@ class ActivityEngine:
                     ie._materialize_injury_sim(
                         world_id, character_key, at_time, "passive", _conn=c
                     )
-                    self._world()._advance_clock(world_id, at_time, c)
+                    if _reanchor_clock:
+                        self._world()._advance_clock(world_id, at_time, c)
             else:
                 physiology.materialize_owner_backed(world_id, character_key, at_time)
                 self._materialize_active_needs(
@@ -627,19 +637,22 @@ class ActivityEngine:
                 ie._materialize_injury_sim(
                     world_id, character_key, at_time, recovery_regime(active["type"]), _conn=c
                 )
-                self._world()._advance_clock(world_id, at_time, c)
+                if _reanchor_clock:
+                    self._world()._advance_clock(world_id, at_time, c)
         return self.activity_sheet(world_id, character_key)
 
     def abort_activity(
         self, world_id: int, character_key: str, *, sim_now: str | None = None,
         reason_code: str | None = None,
+        _reanchor_clock: bool = True,
     ) -> dict[str, Any] | None:
         """Abandon explicite de l'activité active (matérialisation + aborted)."""
         if reason_code is not None and (not isinstance(reason_code, str) or not _KEY_RE.fullmatch(reason_code)):
             raise ActivityError("raison d'abandon invalide")
         if self._physiology_active(world_id):
             return self._abort_activity_active(
-                world_id, character_key, sim_now=sim_now, reason_code=reason_code
+                world_id, character_key, sim_now=sim_now, reason_code=reason_code,
+                _reanchor_clock=_reanchor_clock,
             )
         with transaction(self._conn) as c:
             active = self._active_row(c, world_id, character_key)
@@ -669,12 +682,14 @@ class ActivityEngine:
                 occurred_at=canonical, recorded_at=now,
             )
             # avancement de l'horloge canonique à l'instant d'abandon
-            self._world()._advance_clock(world_id, canonical, c)
+            if _reanchor_clock:
+                self._world()._advance_clock(world_id, canonical, c)
         return self.activity_sheet(world_id, character_key)
 
     def _abort_activity_active(
         self, world_id: int, character_key: str, *, sim_now: str | None = None,
         reason_code: str | None = None,
+        _reanchor_clock: bool = True,
     ) -> dict[str, Any] | None:
         from .sleep_physiology import SleepPhysiologyService
 
@@ -702,7 +717,8 @@ class ActivityEngine:
                 c, world_id, SOURCE_ENGINE, "activity_aborted", payload,
                 occurred_at=canonical, recorded_at=now,
             )
-            self._world()._advance_clock(world_id, canonical, c)
+            if _reanchor_clock:
+                self._world()._advance_clock(world_id, canonical, c)
         return self.activity_sheet(world_id, character_key)
 
     # --- Frontieres de sommeil synthetiques -----------------------------------
@@ -818,7 +834,8 @@ class ActivityEngine:
         return True
 
     def complete_sleep_from_checkpoint(
-        self, world_id: int, character_key: str, *, at_time: str
+        self, world_id: int, character_key: str, *, at_time: str,
+        _reanchor_clock: bool = True,
     ) -> dict[str, Any] | None:
         """Termine un sommeil a une frontiere deja validee par son checkpoint."""
         try:
@@ -859,7 +876,8 @@ class ActivityEngine:
                  "reason_code": "sleep_checkpoint"},
                 occurred_at=at, recorded_at=now,
             )
-            self._world()._advance_clock(world_id, at, c)
+            if _reanchor_clock:
+                self._world()._advance_clock(world_id, at, c)
         return self.activity_sheet(world_id, character_key)
 
     def _active_row(self, c: sqlite3.Connection, world_id: int, character_key: str):
