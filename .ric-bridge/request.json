@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"read_file","path":".runtime-18h.stderr.log"},"request_id":"4af94d2b-12e3-4e0e-917c-3caa5fb26631","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"world_status","world_id":1},"request_id":"112c461c-6217-4c38-84e0-f609e10aac70","route":"/dev/ric","schema_version":2}
