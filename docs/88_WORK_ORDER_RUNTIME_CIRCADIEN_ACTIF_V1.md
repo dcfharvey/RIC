@@ -179,3 +179,57 @@ WO88 est fermé seulement si :
 4. le diff et les migrations sont auditables et forward-only ;
 5. aucun fichier runtime/SQLite réel n'a été modifié ;
 6. la passation et la roadmap sont mises à jour avec les preuves exactes du HEAD testé.
+
+## 11. Roadmap d'exécution séquentielle
+
+Cette section impose l'ordre de travail pour éviter les validations concurrentes et les HEAD ambigus.
+
+### Règle de cadence
+
+- une seule étape active à la fois ;
+- aucun nouveau correctif tant que les tests de l'étape courante ne sont pas terminés ;
+- aucun nouveau workflow de réparation pendant une suite complète ;
+- après chaque commit généré, relire le HEAD avant toute action suivante ;
+- un échec de test est traité comme un seul problème jusqu'à résolution ou diagnostic explicite.
+
+### Étape 1 — figer et vérifier le HEAD courant
+
+Référence de reprise au moment de cette roadmap : branche `chatgpt/wo88-final-validation`, HEAD observé `0b1883364368e28752e1511d9c08fbf598d89f12`.
+
+Action unique : vérifier que le HEAD n'a pas changé et qu'aucun workflow de réparation n'est encore en train d'écrire sur cette branche.
+
+Critère de sortie : un HEAD unique et stable est identifié.
+
+### Étape 2 — suite complète sur ce HEAD exact
+
+Action unique : exécuter la suite complète sans modifier le code pendant son exécution.
+
+Si elle échoue, traiter une seule famille d'échec à la fois : reproduire, comprendre, corriger, tests ciblés, puis relancer la suite complète.
+
+Critère de sortie : suite complète verte sur le HEAD qui sera audité ensuite.
+
+### Étape 3 — audit WO88E des consommateurs legacy
+
+Action unique : relancer le manifeste `circadian_shadow.LEGACY_CONSUMERS` et la recherche structurée de `repos`/`energie` dans les chemins actifs.
+
+Aucune correction non liée ne doit être entreprise pendant cet audit.
+
+Critère de sortie : aucun consommateur legacy causal restant sur un monde physiologique `active`, ou une liste explicite de blocages à traiter un par un.
+
+### Étape 4 — audit des invariants et du diff
+
+Action unique : vérifier les invariants de WO88 sur le diff final : ownership persistant, frontières transactionnelles, absence d'écriture cognitive directe, absence de cutover réel, compatibilité `inactive`/`prepared`, migrations forward-only.
+
+Critère de sortie : aucun invariant bloquant non résolu.
+
+### Étape 5 — fermeture documentaire WO88
+
+Action unique : mettre à jour la passation et la roadmap avec le HEAD exact, les compteurs de tests et les preuves de fermeture. Supprimer ou archiver les workflows/scripts jetables seulement après validation qu'ils ne sont plus nécessaires.
+
+Critère de sortie : WO88 peut être marqué fermé sans dépendre d'une information implicite de cette conversation.
+
+### Étape 6 — Rodage V2
+
+Cette étape ne commence qu'après fermeture formelle de WO88.
+
+Action unique initiale : préparer le bootstrap d'une base neuve avec manifeste T0 explicite et politiques complètes, sans reprendre ni migrer l'ancien rodage par défaut.
