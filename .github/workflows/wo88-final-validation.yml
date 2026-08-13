@@ -28,4 +28,4 @@ jobs:
       - name: Full suite
         run: python -m pytest -q
 
-# Sequential roadmap gate: rerun after hardening the hosted-runner descendant timeout proof.
+# Sequential roadmap gate: rerun after the owner-backed arbitration repair.
