@@ -18,6 +18,16 @@ class FakeClock(Clock):
         return self.current
 
 
+class MovingClock(Clock):
+    def __init__(self, value: datetime):
+        self.current = value
+
+    def now(self):
+        value = self.current
+        self.current += timedelta(milliseconds=10)
+        return value
+
+
 def _at(hour: int, minute: int = 0) -> datetime:
     return datetime(2026, 8, 13, hour, minute, tzinfo=timezone.utc)
 
@@ -95,3 +105,20 @@ def test_wo91_official_entry_refuses_existing_target_and_late_t0(tmp_path: Path)
         bootstrap_official(late, clock=FakeClock(_at(20)), launch_runtime=False, provider_checker=lambda: "qwen3-14b")
     assert exc.value.code == "t0_after_return_deadline"
     assert not late.exists()
+
+
+def test_wo91_bootstrap_anchors_manifest_to_the_frozen_stop_boundary(tmp_path: Path):
+    db = tmp_path / "moving-clock.sqlite"
+    report = bootstrap_official(
+        db,
+        clock=MovingClock(_at(15)),
+        launch_runtime=False,
+        provider_checker=lambda: "qwen3-14b",
+    )
+    import sqlite3
+    conn = sqlite3.connect(str(db)); conn.row_factory = sqlite3.Row
+    try:
+        assert conn.execute("SELECT simulated_now FROM canonical_clock").fetchone()[0] == report.t0
+        assert conn.execute("SELECT anchor_at FROM initial_physiology_manifest").fetchone()[0] == report.t0
+    finally:
+        conn.close()

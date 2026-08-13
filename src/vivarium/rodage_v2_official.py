@@ -163,7 +163,9 @@ def bootstrap_official(
         # ouverture/fermeture technique ne lance pas l'autonomie : elle fixe
         # uniquement le T0 capturé, avant toute activation physiologique.
         technical = RuntimeSessionService(conn, clock=clock).start(world_id)
-        RuntimeSessionService(conn, clock=clock).stop(technical.session_id)
+        # Le T0 de la physiologie est la frontière effectivement gelée par
+        # l'arrêt technique, pas l'instant mural capturé avant cette opération.
+        t0 = RuntimeSessionService(conn, clock=clock).stop(technical.session_id)
         bootstrap = RodageV2BootstrapService(conn, clock=clock)
         bootstrap.add_external_places(world_id, (
             ExternalPlaceSpec("espace_exterieur", "Espace extérieur", "entree_exterieure"),
