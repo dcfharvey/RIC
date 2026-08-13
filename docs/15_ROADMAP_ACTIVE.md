@@ -1,7 +1,7 @@
 # Roadmap active — du moteur au Vivarium MVP
 
-**Version :** 1.4
-**Mise à jour :** 11 août 2026
+**Version :** 1.5
+**Mise à jour :** 13 août 2026
 **Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
 anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
 
@@ -25,12 +25,14 @@ tests et documentation après un lot à conséquences étendues.
 
 ## État actuel
 
-**Version logicielle actuelle :** `0.1.0a15` — schéma de code 48 (résidence réelle
-intentionnellement maintenue au schéma 44), 929 tests rapportés pour le lot 4
-(à revalider avant nouveau code). Les fondations circadiennes V1 et le shadow
-du lot 4 et le work order de cutover atomique sont acceptés sans cutover
-comportemental ; le prochain jalon est la revue des contrats techniques
-d'arbitrage, de sommeil, de P et du manifeste T0.
+**Version logicielle actuelle :** `0.1.0a15`. WO88 est fermé : le runtime
+physiologique `active` utilise H/phi/P owner-backed, les mondes
+`inactive`/`prepared` gardent la compatibilité legacy et aucun cutover de la
+résidence réelle n'a été effectué. Validation de fermeture :
+`fe1d24a0cd5f32463c594d2de6bf2e3ba7ad0667`, **1029 tests passés en
+392,09 s** sous Windows Server 2025 / Python 3.12.10 / pytest 9.1.1.
+Le prochain jalon est **Rodage V2 sur une base neuve**, avec manifeste T0
+explicite et politiques complètes; l'ancien rodage n'est pas migré par défaut.
 
 - moteur déterministe, journal canonique, transactions et audits : livrés ;
 - contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;

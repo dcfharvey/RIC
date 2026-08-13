@@ -1,6 +1,6 @@
 # Work order 88 — runtime circadien actif V1
 
-**Statut :** OUVERT — implémentation autorisée uniquement sur mondes synthétiques, temporaires ou de test.
+**Statut :** FERMÉ — runtime actif V1 validé sur mondes de test; aucun cutover de résidence réelle autorisé.
 
 **Base de développement :** `b0568de5db9af68e13d51b112535b23894a7c73b`.
 
@@ -233,3 +233,20 @@ Critère de sortie : WO88 peut être marqué fermé sans dépendre d'une informa
 Cette étape ne commence qu'après fermeture formelle de WO88.
 
 Action unique initiale : préparer le bootstrap d'une base neuve avec manifeste T0 explicite et politiques complètes, sans reprendre ni migrer l'ancien rodage par défaut.
+
+## 12. Preuves de fermeture — 13 août 2026
+
+WO88 est fermé sur la base des preuves suivantes :
+
+- correctif final fonctionnel : `a06d64da459d78c5a2270285bb64ce43adab7737` (`fix: keep active arbitration owner-backed`) ;
+- HEAD de validation complète : `fe1d24a0cd5f32463c594d2de6bf2e3ba7ad0667` ;
+- tests ciblés arbitre/runtime/banc synthétique : **15 passés en 1,86 s** ;
+- suite complète Windows : **1029 passés en 392,09 s (0:06:32)**, Windows Server 2025, Python 3.12.10, pytest 9.1.1 ;
+- audit 88E : aucun consommateur causal `repos`/`energie` restant sur un monde physiologique `active` ;
+- audit d'invariants : ownership runtime H/phi/P unique, frontières transactionnelles, aucune écriture cognitive canonique directe, aucun cutover réel implicite, compatibilité `inactive`/`prepared` préservée ;
+- diff depuis `b0568de5db9af68e13d51b112535b23894a7c73b` : 33 commits en avant, 0 en arrière, aucun fichier migration/SQLite réel modifié et aucun historique legacy supprimé ;
+- le chemin `CausalArbitrationBuilder.build_owner_backed()` utilise désormais `project_owner_backed()` ; les APIs `*_synthetic` restent réservées aux adaptateurs de banc.
+
+Précision d'ownership : `SleepPhysiologyService` est l'unique écrivain **runtime** de H/phi/P/résidus/hystérésis. `SleepPhysiologyFoundationService` peut créer atomiquement l'état initial T0 lors d'une activation explicitement autorisée ; cette initialisation n'est pas un propriétaire runtime concurrent.
+
+WO88 n'autorise toujours ni migration ni activation de `data/vivarium-rodage.sqlite`. Le prochain jalon autorisé est **Rodage V2 sur base neuve**.

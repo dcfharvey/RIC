@@ -1,10 +1,12 @@
 # Passation courante — RIC
 
-**Mise à jour :** 12 août 2026
+**Mise à jour :** 13 août 2026
 **But :** point d'entrée opérationnel obligatoire pour toute nouvelle instance de Codex.  
 **Projet :** RIC — Reality · Interaction · Cognition (anciennement Vivarium social).
 
-> **Mise au point prioritaire — 12 août 2026 :** les photographies techniques plus anciennes conservées ci-dessous sont historiques. Au moment de la validation WO86, `main` est resté sur `a171a2111fdb2a5f5b85796cdc2e8647c24c72b8` (schéma 54). Une implantation candidate isolée porte le schéma 55 et a obtenu **974/974 tests réussis** sous Python 3.12.13. Elle reste strictement synthétique : aucun cutover, runtime actif ou accès à la résidence réelle n'est autorisé. Lire l'addendum WO86 en fin de fichier et `docs/86_WORK_ORDER_CONTRATS_CUTOVER_CIRCADIEN_V1.md` avant toute suite.
+> **Mise au point prioritaire — 13 août 2026 :** WO88 est **FERMÉ**. Le runtime physiologique `active` utilise H/phi/P owner-backed sans concurrence causale `repos`/`energie`; le dernier correctif `a06d64da459d78c5a2270285bb64ce43adab7737` retire l'appel indirect à `project_synthetic()` du chemin d'arbitrage actif. Validation complète : HEAD `fe1d24a0cd5f32463c594d2de6bf2e3ba7ad0667`, **1029 tests passés en 392,09 s**, Windows Server 2025, Python 3.12.10, pytest 9.1.1. Aucun cutover de `data/vivarium-rodage.sqlite` n'a été effectué. Prochain jalon : **Rodage V2 sur base neuve**.
+
+> **Photographie historique — 12 août 2026 :** les photographies techniques plus anciennes conservées ci-dessous sont historiques. Au moment de la validation WO86, `main` est resté sur `a171a2111fdb2a5f5b85796cdc2e8647c24c72b8` (schéma 54). Une implantation candidate isolée porte le schéma 55 et a obtenu **974/974 tests réussis** sous Python 3.12.13. Elle reste strictement synthétique : aucun cutover, runtime actif ou accès à la résidence réelle n'est autorisé. Lire l'addendum WO86 en fin de fichier et `docs/86_WORK_ORDER_CONTRATS_CUTOVER_CIRCADIEN_V1.md` avant toute suite.
 
 > Commencer ici. Ne pas reconstruire l'histoire du projet à partir des anciens lots.
 > Vérifier le dépôt réel avant toute écriture.
