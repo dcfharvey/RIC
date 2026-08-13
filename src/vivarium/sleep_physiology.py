@@ -36,6 +36,10 @@ from .circadian_model import (
     wake_stability,
 )
 from .db import transaction
+from .physical_capacity import (
+    PhysicalCapacityError,
+    advance_physical_capacity,
+)
 from .world import WorldEngine
 from .util import Clock, new_uuid, parse_iso, to_iso
 
@@ -141,6 +145,16 @@ class OwnerBackedWakeViability:
     def __post_init__(self) -> None:
         if not 0 <= self.value_milli <= 100_000:
             raise SleepPhysiologyError("viabilite de reveil invalide", code="invalid_wake_viability")
+
+
+@dataclass(frozen=True)
+class OwnerBackedMaterialization:
+    """Matérialisation runtime depuis des causes canoniques relues."""
+
+    projection: PhysiologyProjection
+    changed: bool
+    input_fingerprint: str
+    physical_load_class: Literal["none", "light", "moderate", "vigorous"]
 
 
 @dataclass(frozen=True)
@@ -1666,6 +1680,180 @@ class SleepPhysiologyService:
         phase = regulation.circadian_phase % 1.0
         phase_residue = phase - phase_milli / (PHASE_TURNS - 1)
         return homeostatic_milli, phase_milli, homeostatic_residue, phase_residue
+
+    def _owner_backed_regime(
+        self, world_id: int, character_key: str
+    ) -> tuple[Literal["wake", "rest", "sleep"], str, bool, str | None]:
+        """Relit l'activité objective qui gouverne le segment courant."""
+        character = self._character(world_id, character_key)
+        row = self._conn.execute(
+            "SELECT a.type, d.physical_load_class, d.requires_sustained_wakefulness "
+            "FROM activity a LEFT JOIN activity_definition d "
+            "ON d.world_id=a.world_id AND d.activity_type=a.type "
+            "WHERE a.world_id=? AND a.character_id=? AND a.status='active' "
+            "ORDER BY a.id DESC LIMIT 1",
+            (world_id, character["id"]),
+        ).fetchone()
+        if row is None:
+            return "wake", "none", False, None
+        activity_type = row["type"]
+        load = row["physical_load_class"]
+        wakefulness = row["requires_sustained_wakefulness"]
+        if load not in _PHYSICAL_LOAD_CLASSES:
+            raise SleepPhysiologyError(
+                "classe physique d'activité absente", code="activity_physical_class_missing"
+            )
+        if wakefulness not in (0, 1):
+            raise SleepPhysiologyError(
+                "métadonnée de veille soutenue absente", code="activity_wakefulness_missing"
+            )
+        state: Literal["wake", "rest", "sleep"] = (
+            "sleep" if activity_type == "sleep" else "rest" if activity_type == "rest" else "wake"
+        )
+        return state, str(load), bool(wakefulness), str(activity_type)
+
+    def _assert_no_unmaterialized_character_boundary(
+        self, world_id: int, character_key: str, anchor_at: str, target_at: str
+    ) -> None:
+        """Falsifie un changement de cause déjà canonisé après l'ancre P/H/phi."""
+        row = self._conn.execute(
+            "SELECT seq,event_type,occurred_at FROM canonical_event "
+            "WHERE world_id=? AND occurred_at>? AND occurred_at<=? "
+            "AND event_type IN ('character_moved','activity_started','activity_completed','activity_aborted') "
+            "AND json_extract(payload,'$.character')=? ORDER BY seq LIMIT 1",
+            (world_id, anchor_at, target_at, character_key),
+        ).fetchone()
+        if row is not None:
+            raise SleepPhysiologyError(
+                "frontière causale non matérialisée avant mutation",
+                code="unmaterialized_causal_boundary",
+            )
+
+    def materialize_owner_backed(
+        self,
+        world_id: Any,
+        character_key: Any,
+        at_time: Any | None = None,
+    ) -> OwnerBackedMaterialization:
+        """Matérialise H/phi/P jusqu'à une frontière canonique déjà atteinte.
+
+        L'appelant ne fournit aucune cause physiologique. Le lieu, l'activité,
+        la lumière et la classe physique sont relus depuis leurs owners. Le
+        service reste l'unique écrivain persistant de H/phi/P/résidus/hystérésis.
+        """
+        world = self._world_id(world_id)
+        character = _key(character_key, field="personnage")
+        target = _at(at_time or WorldEngine(self._conn, clock=self._clock).read_canonical_time(world))
+        live = _at(WorldEngine(self._conn, clock=self._clock).read_canonical_time(world))
+        if parse_iso(target) > parse_iso(live):
+            raise SleepPhysiologyError(
+                "frontière physiologique future", code="stale_canonical_anchor"
+            )
+        with transaction(self._conn) as conn:
+            state = self.read_state(world, character)
+            duration = self._seconds_between(state.anchor_at, target)
+            self._assert_no_unmaterialized_character_boundary(
+                world, character, state.anchor_at, target
+            )
+            regime, load, _sustained, activity_type = self._owner_backed_regime(world, character)
+            location = self._conn.execute(
+                "SELECT l.key FROM character ch JOIN location l ON l.id=ch.current_location_id "
+                "WHERE ch.world_id=? AND ch.key=?", (world, character)
+            ).fetchone()
+            if location is None:
+                raise SleepPhysiologyError(
+                    "position canonique absente", code="canonical_position_missing"
+                )
+            source, metadata = self._resolve_light_source_values(
+                world, location["key"], state.anchor_at, state=regime
+            )
+            fingerprint_payload = {
+                "world_id": world, "character_key": character,
+                "anchor_at": state.anchor_at, "target_at": target,
+                "location_key": location["key"], "activity_type": activity_type,
+                "physical_load_class": load, "light": metadata,
+            }
+            fingerprint = hashlib.sha256(json.dumps(
+                fingerprint_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            ).encode("utf-8")).hexdigest()
+            if duration == 0:
+                projection = self.project_synthetic(world, character, source)
+                return OwnerBackedMaterialization(projection, False, fingerprint, load)
+
+            parameters = self.parameters_for_character(world, character)
+            policy = SleepPhysiologyFoundationService(
+                self._conn, clock=self._clock
+            ).validate_physical_capacity_configuration(world)
+            regulation = state.regulation
+            band = state.previous_stability_band
+            stability = wake_stability(regulation, source, parameters, previous_band=band)
+            remaining = duration
+            while remaining:
+                quantum = min(SYNTHETIC_INTEGRATION_QUANTUM_SECONDS, remaining)
+                advanced = advance_regulation(regulation, source, quantum, parameters)
+                regulation = RegulationState(
+                    advanced.homeostatic_load, advanced.circadian_phase,
+                    regulation.physical_capacity,
+                )
+                stability = wake_stability(
+                    regulation, source, parameters, previous_band=band
+                )
+                band = stability.band
+                remaining -= quantum
+            try:
+                capacity_milli, remainder = advance_physical_capacity(
+                    policy, capacity_milli=state.regulation.physical_capacity_milli,
+                    rate_remainder=state.physical_capacity_remainder, state=regime,
+                    physical_load_class=load, duration_seconds=duration,
+                )
+            except PhysicalCapacityError as exc:
+                raise SleepPhysiologyError(str(exc), code=exc.code) from exc
+            regulation = RegulationState(
+                regulation.homeostatic_load, regulation.circadian_phase,
+                capacity_milli / 100000.0,
+            )
+            homeostatic_milli, phase_milli, homeostatic_residue, phase_residue = (
+                self._precision_projection(regulation)
+            )
+            character_row = self._character(world, character)
+            now = self._now()
+            conn.execute(
+                "UPDATE sleep_regulation_state SET homeostatic_load_milli=?,circadian_phase_milli=?,"
+                "anchor_at=?,updated_at=? WHERE world_id=? AND character_id=?",
+                (homeostatic_milli, phase_milli, target, now, world, character_row["id"]),
+            )
+            conn.execute(
+                "UPDATE physical_capacity_state SET capacity_milli=?,rate_remainder=?,anchor_at=?,updated_at=? "
+                "WHERE world_id=? AND character_id=?",
+                (capacity_milli, remainder, target, now, world, character_row["id"]),
+            )
+            hysteresis = conn.execute(
+                "UPDATE sleep_wake_hysteresis_state SET previous_band=?,anchor_at=?,updated_at=? "
+                "WHERE world_id=? AND character_id=?",
+                (band, target, now, world, character_row["id"]),
+            )
+            precision = conn.execute(
+                "UPDATE sleep_regulation_precision_state SET homeostatic_load_residue=?,"
+                "circadian_phase_residue=?,anchor_at=?,updated_at=? WHERE world_id=? AND character_id=?",
+                (homeostatic_residue, phase_residue, target, now, world, character_row["id"]),
+            )
+            if hysteresis.rowcount != 1:
+                raise SleepPhysiologyError(
+                    "mémoire d'hystérésis absente", code="hysteresis_state_missing"
+                )
+            if precision.rowcount != 1:
+                raise SleepPhysiologyError(
+                    "résidu d'intégration absent", code="precision_state_missing"
+                )
+        projection = PhysiologyProjection(
+            PersistedPhysiologyState(
+                state.model_key, state.model_version, regulation, target, remainder,
+                homeostatic_residue, phase_residue, band,
+            ),
+            sleep_propensity(regulation, parameters, family="additive"),
+            stability,
+        )
+        return OwnerBackedMaterialization(projection, True, fingerprint, load)
 
     def materialize_synthetic(
         self,
