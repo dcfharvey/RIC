@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"status"},"request_id":"ce6fd47e-ef49-406f-9df9-f41eea2c739f","route":"/dev/git","schema_version":2}
+{"method":"POST","payload":{"operation":"replace_text","path":"src/vivarium/guardian.py","expected_sha256":"961a300a0898d7bd50f2c9a2bb2708228eb0b3155cc5c60b7a2e2b1b2f3c6ec5","old":"from .mvp_preflight import _active_assignment_issues, inspect_mvp_preflight\nfrom .telemetry import inspect_rodage","new":"from .telemetry import inspect_rodage"},"request_id":"bd46ea1d-09d7-4a3f-ba34-c265bf0b7dfa","route":"/dev/write","schema_version":2}
