@@ -6,6 +6,7 @@ on:
       - chatgpt/wo88-build
     paths:
       - tools/wo88_apply.py
+      - .github/workflows/wo88-build.yml
 
 permissions:
   contents: write
