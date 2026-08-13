@@ -1,0 +1,53 @@
+name: WO93 validation
+on: push
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pytest
+      - name: No residual Python references
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          names = (
+            'cognition_call_bench','cognition_smoke','home_field_audit','living_bench',
+            'local_llm_calibration','scene_bench','scene_turn_smoke','sleep_calibration',
+            'social_attribution_mini_bench','social_interpretation_bench','circadian_shadow'
+          )
+          bad=[]
+          for root in ('src','tests','tools'):
+            for p in Path(root).rglob('*.py'):
+              text=p.read_text(encoding='utf-8')
+              for name in names:
+                if f'.{name}' in text or f'vivarium.{name}' in text:
+                  bad.append(f'{p}: {name}')
+          if bad:
+            raise SystemExit('Residual refs:\n'+'\n'.join(bad))
+          print('No residual Python references.')
+          PY
+      - name: Documentation mentions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          needles=('llm-smoke','living-bench','llm-calibrate','sleep-calibration-bench','social-interpretation-bench','llm-inventory','social-interpretation-screen','scene-smoke','scene-bench','circadian_shadow.py')
+          for p in [Path('README.md'), Path('CHANGELOG.md'), *Path('docs').glob('*.md')]:
+            text=p.read_text(encoding='utf-8')
+            hits=[n for n in needles if n in text]
+            if hits: print(f'{p}: {hits}')
+          PY
+      - name: Targeted tests
+        run: python -m pytest -q tests/test_cli.py tests/test_scene_scheduler.py tests/test_wo91.py tests/test_wo91_provider.py
+      - name: Broad suite
+        run: >-
+          python -m pytest -q
+          --deselect=tests/test_dev_bridge.py::test_exec_allowlist_shell_injection_timeout_output_cap_and_scoped_env
+          --deselect=tests/test_dev_bridge.py::test_jobs_start_poll_cancel_and_concurrency_limit
+          --deselect=tests/test_dev_bridge.py::test_process_tree_cancel_and_timeout_kill_descendants
+          --deselect=tests/test_dev_bridge.py::test_git_surface_is_read_only_and_sees_untracked_workspace
