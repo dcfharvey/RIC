@@ -97,9 +97,14 @@ SEED_ACTIVITY_ALLOWED: list[tuple[str, str | None, str | None]] = [
     ("rest", "salon", None),
     ("rest", None, "bedroom"),
     ("sleep", None, "bedroom"),
+    # Le sommeil est légal dans tout lieu canonique accessible ; la règle
+    # moteur ci-dessous conserve cette autorisation générique sans inventer
+    # de qualité de couchage ou de support.
+    ("sleep", None, "any_canonical_location"),
     ("gaming", "salon", None),
     ("photography", "cour_arriere", None),
     ("photography", "entree_exterieure", None),
+    ("photography", None, "external"),
     ("sport", "cour_arriere", None),
     ("girly_care", "salle_de_bain", None),
     ("girly_care", None, "bedroom"),

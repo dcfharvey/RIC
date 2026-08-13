@@ -146,6 +146,12 @@ class ActivityEngine:
     def is_allowed(self, world_id: int, activity_type: str, location_key: str) -> bool:
         if activity_type == "idle":
             return True  # uniquement vérifié pour le lieu courant
+        if activity_type == "sleep":
+            # Le sommeil ne dépend d'aucun mobilier ni type de pièce. La
+            # validation de l'accessibilité canonique reste assurée par le
+            # trajet atomique de ``start_activity``.
+            self._location_id(world_id, location_key)
+            return True
         kind = self._location_kind(world_id, location_key)
         rows = self._conn.execute(
             "SELECT location_key, location_kind FROM activity_allowed_location "

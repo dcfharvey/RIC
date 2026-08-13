@@ -84,7 +84,10 @@ class WorldRuleService:
                 f"lieux requis absents pour les règles standard : {missing}",
                 code="required_location_missing",
             )
-        required_kinds = {kind for _activity, key, kind in SEED_ACTIVITY_ALLOWED if kind is not None}
+        required_kinds = {
+            kind for _activity, key, kind in SEED_ACTIVITY_ALLOWED
+            if kind is not None and kind not in {"any_canonical_location", "external"}
+        }
         present_kinds = {
             row["kind"] for row in conn.execute(
                 "SELECT DISTINCT kind FROM location WHERE world_id = ?", (world_id,)
