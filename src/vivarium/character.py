@@ -139,6 +139,11 @@ class CharacterEngine:
         connector_key: str | None = None,
         action_provenance: dict[str, str] | None = None,
     ) -> dict[str, Any]:
+        if self._physiology_active(world_id):
+            return self._move_active(
+                c, world_id, key, target_key, sim_now=sim_now,
+                connector_key=connector_key, action_provenance=action_provenance,
+            )
         """Préparation interne du déplacement, à exécuter dans une transaction
         déjà ouverte (c) — utilisée aussi par le démarrage atomique d'activité.
 
@@ -301,6 +306,136 @@ class CharacterEngine:
             SOURCE_ENGINE,
             "character_moved",
             payload,
+            occurred_at=sim_now, recorded_at=now,
+        )
+        return self.character_sheet(world_id, key)
+
+    def _physiology_active(self, world_id: int) -> bool:
+        from .sleep_physiology import SleepPhysiologyFoundationService
+
+        return SleepPhysiologyFoundationService(
+            self._conn, clock=self._clock
+        ).system_status(world_id) == "active"
+
+    def _move_active(
+        self, c: sqlite3.Connection, world_id: int, key: str, target_key: str, *,
+        sim_now: str | None = None, connector_key: str | None = None,
+        action_provenance: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Traversée canonique WO88C : P remplace toute causalité ``energie``."""
+        status = c.execute("SELECT status FROM worlds WHERE id=?", (world_id,)).fetchone()
+        if status is None:
+            raise CharacterError(f"monde introuvable : {world_id}", code="world_not_found")
+        if status["status"] == "paused":
+            raise CharacterError("le monde est en pause : aucun déplacement possible", code="world_paused")
+        if self._active_activity_type(world_id, key) is not None:
+            raise CharacterError(
+                f"déplacement refusé pour {key!r} : une activité est active", code="activity_active"
+            )
+        current = c.execute(
+            "SELECT ch.current_location_id,l.key AS cur_key FROM character ch "
+            "JOIN location l ON l.id=ch.current_location_id WHERE ch.world_id=? AND ch.key=?",
+            (world_id, key),
+        ).fetchone()
+        if current is None:
+            raise CharacterError(f"personnage introuvable : {key!r}", code="character_not_found")
+        cur_key = current["cur_key"]
+        if cur_key == target_key:
+            raise CharacterError(f"{key!r} est déjà dans {cur_key!r}", code="invalid_destination")
+        graph = GraphEngine(self._conn)
+        if not graph.can_traverse(world_id, cur_key, target_key):
+            raise CharacterError(
+                f"pas d'arête dirigée {cur_key!r} → {target_key!r} (déplacement refusé)",
+                code="invalid_destination",
+            )
+        target_id = self._location_id(world_id, target_key)
+        connector = None
+        if WorldEngine._has_table(c, "world_connector"):
+            connector = c.execute(
+                "SELECT wc.key,wc.state FROM location_link ll JOIN world_connector wc ON wc.id=ll.connector_id "
+                "WHERE ll.world_id=? AND ll.from_location_id=? AND ll.to_location_id=?",
+                (world_id, current["current_location_id"], target_id),
+            ).fetchone()
+        if connector_key is not None and (connector is None or connector["key"] != connector_key):
+            raise CharacterError("connecteur incompatible avec le déplacement", code="connector_mismatch")
+        if connector is not None:
+            if connector["state"] == "closed":
+                raise CharacterError("connecteur fermé", code="connector_closed")
+            if connector["state"] == "blocked":
+                raise CharacterError("connecteur bloqué", code="connector_blocked")
+            if connector["state"] != "available":
+                raise CharacterError("connecteur indisponible", code="connector_unavailable")
+            connector_key = connector["key"]
+
+        sim_now = sim_now or self._canonical_time(world_id)
+        from .sleep_physiology import SleepPhysiologyError, SleepPhysiologyService
+        physiology = SleepPhysiologyService(self._conn, clock=self._clock)
+        try:
+            physiology.materialize_owner_backed(world_id, key, sim_now)
+            feasible = physiology.evaluate_traversal_capacity_owner_backed(
+                world_id, key, edge_count=1
+            )
+        except SleepPhysiologyError as exc:
+            raise CharacterError(str(exc), code=exc.code) from exc
+        if not feasible.feasible:
+            raise CharacterError(
+                "capacité physique insuffisante pour la traversée",
+                code="insufficient_physical_capacity",
+            )
+
+        ie = InjuryEngine(self._conn, clock=self._clock)
+        active_injury = ie.active_injury_row(world_id, key)
+        effect_level = "none"
+        if active_injury is not None:
+            regime = self._active_recovery_regime(world_id, key)
+            ie._materialize_injury_sim(world_id, key, sim_now, regime, _conn=c)
+            injury_row = ie.active_injury_row(world_id, key)
+            effect_level = level(injury_row["severity_milli"])
+            if effect_level == "severe":
+                raise CharacterError(
+                    f"blessure sévère : déplacement refusé pour {key!r}", code="injury_severe"
+                )
+            # Une ancienne surcharge ``energie`` n'est volontairement pas
+            # transposée en P sans politique P dédiée à la blessure.
+
+        try:
+            p_cost = physiology.apply_traversal_cost_owner_backed(
+                world_id, key, edge_count=1, at_time=sim_now
+            )
+        except SleepPhysiologyError as exc:
+            raise CharacterError(str(exc), code=exc.code) from exc
+
+        if WorldEngine._has_table(c, "character_carried_object"):
+            carried = c.execute(
+                "SELECT object_id FROM character_carried_object WHERE world_id=? AND character_id="
+                "(SELECT id FROM character WHERE world_id=? AND key=?)",
+                (world_id, world_id, key),
+            ).fetchall()
+            for carried_row in carried:
+                relocate_subtree(c, world_id, carried_row["object_id"], target_id)
+        now = self._now_iso()
+        c.execute(
+            "UPDATE character SET current_location_id=?,updated_at=? WHERE world_id=? AND key=?",
+            (target_id, now, world_id, key),
+        )
+        payload = {
+            "character": key, "from": cur_key, "to": target_key,
+            "base_energy_cost": 0, "injury_energy_surcharge": 0,
+            "edge_count": 1, "total_energy_cost": 0,
+            "injury_effect_level": effect_level,
+            "physical_capacity_cost_milli": p_cost["cost_milli"],
+            "physical_capacity_before_milli": p_cost["before_milli"],
+            "physical_capacity_after_milli": p_cost["after_milli"],
+            "physical_capacity_policy": {
+                "key": p_cost["policy_key"], "version": p_cost["policy_version"]
+            },
+        }
+        if connector_key is not None:
+            payload["connector"] = connector_key
+        if action_provenance is not None:
+            payload["action_provenance"] = dict(action_provenance)
+        _append_event(
+            c, world_id, SOURCE_ENGINE, "character_moved", payload,
             occurred_at=sim_now, recorded_at=now,
         )
         return self.character_sheet(world_id, key)

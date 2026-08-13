@@ -135,6 +135,7 @@ class NeedsEngine:
         self, c: sqlite3.Connection, world_id: int, character_key: str,
         target_at: str, reason: str, rates: dict[str, tuple[int, int]] | None = None,
         rate_source: str = "need_definition", activity_type: str | None = None,
+        need_keys: frozenset[str] | None = None,
     ) -> dict[str, Any] | None:
         """Matérialise les besoins d'un personnage.
 
@@ -147,6 +148,10 @@ class NeedsEngine:
         l'audit de re-vérifier chaque transition de façon non circulaire.
         """
         rows = self._join_rows(c, world_id, character_key)
+        if need_keys is not None:
+            if not need_keys or any(not isinstance(key, str) or not key for key in need_keys):
+                raise NeedsError("sélection de besoins invalide")
+            rows = [row for row in rows if row["need_key"] in need_keys]
         if not rows:
             return None  # rien à matérialiser
 
@@ -251,6 +256,37 @@ class NeedsEngine:
         return self._materialize(
             _conn, world_id, character_key, target_at, reason, rates,
             rate_source="activity", activity_type=activity_type,
+        )
+
+
+    def materialize_selected_needs(
+        self,
+        world_id: int,
+        character_key: str,
+        target_at: str,
+        reason: str,
+        need_keys: frozenset[str],
+        *,
+        rates: dict[str, tuple[int, int]] | None = None,
+        _conn: sqlite3.Connection | None = None,
+        activity_type: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Matérialise seulement les owners legacy explicitement conservés.
+
+        WO88 utilise cette API pour satiété/hygiène. ``repos`` et ``energie``
+        peuvent rester présents pour compatibilité de schéma, mais le runtime
+        physiologique actif ne les fait plus progresser ni ne les consulte.
+        """
+        source = "activity" if rates is not None else "need_definition"
+        if _conn is None:
+            with transaction(self._conn) as c:
+                return self._materialize(
+                    c, world_id, character_key, target_at, reason, rates,
+                    rate_source=source, activity_type=activity_type, need_keys=need_keys,
+                )
+        return self._materialize(
+            _conn, world_id, character_key, target_at, reason, rates,
+            rate_source=source, activity_type=activity_type, need_keys=need_keys,
         )
 
 
