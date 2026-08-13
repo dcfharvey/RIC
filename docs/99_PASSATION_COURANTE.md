@@ -1,8 +1,10 @@
 # Passation courante — RIC
 
-**Mise à jour :** 12 août 2026
+**Mise à jour :** 13 août 2026
 **But :** point d'entrée opérationnel obligatoire pour toute nouvelle instance de Codex.  
 **Projet :** RIC — Reality · Interaction · Cognition (anciennement Vivarium social).
+
+> **Mise au point prioritaire — fermeture WO88 (13 août 2026) :** `docs/88_WORK_ORDER_RUNTIME_CIRCADIEN_ACTIF_V1.md` est fermé. Le HEAD fonctionnel exact `fe1d24a0cd5f32463c594d2de6bf2e3ba7ad0667` a passé `python -m compileall -q src tests` puis la suite complète GitHub Actions sur Windows Server 2025 / Python 3.12.10 : **1029 tests réussis en 392,09 s, 0 échec**. Le runtime `physiology=active` utilise H/φ/P depuis les owners canoniques; `repos`/`energie` ne sont plus des causes actives et l'arbitrage owner-backed n'appelle plus `project_synthetic()`. Les mondes `inactive` et `prepared` conservent le chemin legacy. L'activation T0 atomique appartient au service de fondation physiologique; après activation, `SleepPhysiologyService` est l'écrivain runtime de H/φ/P/résidus/hystérésis. Aucun cutover de la résidence persistante, aucune migration de l'ancien rodage et aucune modification de `data/vivarium-rodage.sqlite` n'ont été effectués. Les workflows/scripts WO88 jetables ont été retirés après validation. **Prochaine étape autorisée : Rodage V2 sur base neuve, manifeste T0 explicite, politiques complètes, sans migration de l'ancien rodage par défaut.** Les photographies plus anciennes ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
 
 > **Mise au point prioritaire — 12 août 2026 :** les photographies techniques plus anciennes conservées ci-dessous sont historiques. Au moment de la validation WO86, `main` est resté sur `a171a2111fdb2a5f5b85796cdc2e8647c24c72b8` (schéma 54). Une implantation candidate isolée porte le schéma 55 et a obtenu **974/974 tests réussis** sous Python 3.12.13. Elle reste strictement synthétique : aucun cutover, runtime actif ou accès à la résidence réelle n'est autorisé. Lire l'addendum WO86 en fin de fichier et `docs/86_WORK_ORDER_CONTRATS_CUTOVER_CIRCADIEN_V1.md` avant toute suite.
 
