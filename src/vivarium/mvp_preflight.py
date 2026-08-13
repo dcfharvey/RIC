@@ -221,12 +221,32 @@ def _active_physical_load_check(
 def _active_assignment_check(conn: sqlite3.Connection, world_id: int, status: str) -> PreflightCheck:
     if status != "active":
         return _check("physiology_assignments", True, "legacy-compatible ; verification active differee")
-    required = (
-        ("world_physical_capacity_policy_assignment", "physical capacity policy"),
-        ("world_action_arbitration_policy_assignment", "action arbitration policy"),
-        ("world_sleep_termination_policy_assignment", "sleep termination policy"),
+    issues = _active_assignment_issues(conn, world_id, status)
+    display = []
+    for issue in issues:
+        display.append({
+            "physical_capacity_policy_missing": "physical capacity policy",
+            "arbitration_policy_missing": "action arbitration policy",
+            "sleep_termination_policy_missing": "sleep termination policy",
+            "open_runtime_session": "open runtime sessions=1",
+            "multiple_open_runtime_sessions": "open runtime sessions>1",
+        }[issue])
+    return _check(
+        "physiology_assignments", not issues,
+        "policies assignees et aucune session ouverte" if not issues else repr(display),
     )
-    missing = [label for table, label in required if conn.execute(
+
+
+def _active_assignment_issues(conn: sqlite3.Connection, world_id: int, status: str) -> tuple[str, ...]:
+    """Retourne les causes structurées de l'échec du gate d'assignments."""
+    if status != "active":
+        return ()
+    required = (
+        ("world_physical_capacity_policy_assignment", "physical_capacity_policy_missing"),
+        ("world_action_arbitration_policy_assignment", "arbitration_policy_missing"),
+        ("world_sleep_termination_policy_assignment", "sleep_termination_policy_missing"),
+    )
+    issues = [label for table, label in required if conn.execute(
         f"SELECT 1 FROM {table} WHERE world_id=? LIMIT 1", (world_id,)
     ).fetchone() is None]
     open_sessions = conn.execute(
@@ -234,12 +254,8 @@ def _active_assignment_check(conn: sqlite3.Connection, world_id: int, status: st
         (world_id,),
     ).fetchone()[0]
     if open_sessions:
-        missing.append(f"open runtime sessions={open_sessions}")
-    return _check(
-        "physiology_assignments",
-        not missing,
-        "policies assignees et aucune session ouverte" if not missing else repr(missing),
-    )
+        issues.append("open_runtime_session" if open_sessions == 1 else "multiple_open_runtime_sessions")
+    return tuple(issues)
 
 
 def _active_legacy_guard_check(conn: sqlite3.Connection, world_id: int, status: str) -> PreflightCheck:

@@ -100,6 +100,18 @@ def test_wall_pulse_before_first_causal_boundary_writes_no_physiology_or_canon()
  finally:conn.close()
 
 
+def test_active_scheduler_aligns_subsecond_wall_horizon_to_causal_grid():
+ conn,wid,clock=active_world()
+ try:
+  clock.current=T0_DT+timedelta(seconds=20, milliseconds=250)
+  target=to_iso(clock.current)
+  engine=ActiveSimulationEngine(conn,clock=clock)
+  assert engine.is_due(wid,target) is False
+  report=engine.run_to(wid,target)
+  assert report.transitions==0 and report.last_time==target
+ finally:conn.close()
+
+
 def test_active_runtime_paths_do_not_call_public_synthetic_physiology_apis(monkeypatch):
  conn,wid,clock=active_world()
  try:

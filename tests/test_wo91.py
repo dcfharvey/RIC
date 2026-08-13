@@ -107,6 +107,72 @@ def test_wo91_official_entry_refuses_existing_target_and_late_t0(tmp_path: Path)
     assert not late.exists()
 
 
+def test_wo91_official_entry_supports_explicit_return_hour(tmp_path: Path):
+    db = tmp_path / "return-18.sqlite"
+    report = bootstrap_official(
+        db,
+        clock=FakeClock(_at(16, 30)),
+        launch_runtime=False,
+        provider_checker=lambda: "qwen3-14b",
+        sophie_return_hour=18,
+    )
+    import sqlite3
+    conn = sqlite3.connect(str(db)); conn.row_factory = sqlite3.Row
+    try:
+        plan = conn.execute(
+            "SELECT planned_at FROM character_location_plan "
+            "WHERE world_id=? AND character_id=(SELECT id FROM character WHERE world_id=? AND key='sophie')",
+            (report.world_id, report.world_id),
+        ).fetchone()
+        assert plan[0].endswith("T22:00:00.000+00:00")
+    finally:
+        conn.close()
+
+
+def test_wo91_exact_round_hour_plan_accepts_millisecond_t0(tmp_path: Path):
+    db = tmp_path / "millisecond-t0.sqlite"
+    clock = FakeClock(datetime(2026, 8, 13, 19, 0, 0, 50_000, tzinfo=timezone.utc))
+    report = bootstrap_official(
+        db, clock=clock, launch_runtime=False, provider_checker=lambda: "qwen3-14b",
+        sophie_return_hour=18,
+    )
+    import sqlite3
+    conn = sqlite3.connect(str(db)); conn.row_factory = sqlite3.Row
+    try:
+        RuntimeSessionService(conn, clock=clock).start(report.world_id)
+        before = conn.execute(
+            "SELECT l.key FROM character c JOIN location l ON l.id=c.current_location_id "
+            "WHERE c.world_id=? AND c.key='sophie'", (report.world_id,)
+        ).fetchone()[0]
+        assert before == "lieu_travail"
+        clock.current = datetime(2026, 8, 13, 21, 59, 59, 900_000, tzinfo=timezone.utc)
+        ActiveSimulationEngine(conn, clock=clock).run_to(
+            report.world_id, "2026-08-13T21:59:59.900+00:00", max_transitions=2_000
+        )
+        assert conn.execute(
+            "SELECT l.key FROM character c JOIN location l ON l.id=c.current_location_id "
+            "WHERE c.world_id=? AND c.key='sophie'", (report.world_id,)
+        ).fetchone()[0] == "lieu_travail"
+        clock.current = datetime(2026, 8, 13, 22, 0, tzinfo=timezone.utc)
+        result = ActiveSimulationEngine(conn, clock=clock).run_to(
+            report.world_id, "2026-08-13T22:00:00.000+00:00", max_transitions=2_000
+        )
+        assert result.reached_target
+        assert conn.execute(
+            "SELECT l.key FROM character c JOIN location l ON l.id=c.current_location_id "
+            "WHERE c.world_id=? AND c.key='sophie'", (report.world_id,)
+        ).fetchone()[0] == "entree_exterieure"
+        assert conn.execute(
+            "SELECT COUNT(*) FROM character_location_plan_resolution WHERE world_id=?",
+            (report.world_id,),
+        ).fetchone()[0] == 1
+        assert len({row[0] for row in conn.execute(
+            "SELECT anchor_at FROM sleep_regulation_state WHERE world_id=?", (report.world_id,)
+        )}) == 1
+    finally:
+        conn.close()
+
+
 def test_wo91_bootstrap_anchors_manifest_to_the_frozen_stop_boundary(tmp_path: Path):
     db = tmp_path / "moving-clock.sqlite"
     report = bootstrap_official(

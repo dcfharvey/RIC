@@ -12,7 +12,7 @@ from pathlib import Path
 import sqlite3
 from typing import Any, Callable, Protocol
 
-from .mvp_preflight import inspect_mvp_preflight
+from .mvp_preflight import _active_assignment_issues, inspect_mvp_preflight
 from .telemetry import inspect_rodage
 from .util import Clock, parse_iso, to_iso
 from .world import WorldEngine
@@ -62,6 +62,7 @@ class LocalGuardian:
         service_probe: Callable[[], bool] | None = None,
         interval_seconds: int = GUARDIAN_INTERVAL_SECONDS,
         clock: Clock | None = None,
+        runtime_session_id: int | None = None,
     ) -> None:
         if not isinstance(interval_seconds, int) or isinstance(interval_seconds, bool) \
                 or not 60 <= interval_seconds <= 86400:
@@ -73,6 +74,7 @@ class LocalGuardian:
         self._service_probe = service_probe
         self._interval_seconds = interval_seconds
         self._clock = clock or Clock()
+        self._runtime_session_id = runtime_session_id
         self._next_check_at = None
         self._last_event_seq: int | None = None
 
@@ -94,7 +96,16 @@ class LocalGuardian:
         checked_at = self._clock.now_iso()
         checks: list[GuardianCheck] = []
         preflight = inspect_mvp_preflight(self._conn, world_id=self._world_id)
-        if preflight.healthy:
+        own_open_session = False
+        if self._runtime_session_id is not None:
+            issues = _active_assignment_issues(self._conn, self._world_id, "active")
+            rows = self._conn.execute(
+                "SELECT id FROM runtime_session WHERE world_id=? AND stopped_at IS NULL",
+                (self._world_id,),
+            ).fetchall()
+            own_open_session = issues == ("open_runtime_session",) \
+                and len(rows) == 1 and int(rows[0]["id"]) == self._runtime_session_id
+        if preflight.healthy or own_open_session:
             checks.append(GuardianCheck("canonical_integrity", "ok", "prévol structurel sain"))
         else:
             detail = "; ".join(f"{item.key}: {item.detail}" for item in preflight.failures)

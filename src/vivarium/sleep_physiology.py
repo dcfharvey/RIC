@@ -1901,15 +1901,11 @@ class SleepPhysiologyService:
         )
 
     @staticmethod
-    def _seconds_between(anchor_at: str, target_at: str) -> int:
+    def _seconds_between(anchor_at: str, target_at: str) -> int | float:
         seconds = (parse_iso(target_at) - parse_iso(anchor_at)).total_seconds()
         if seconds < 0:
             raise SleepPhysiologyError("retour temporel physiologique interdit", code="time_reversal")
-        if not seconds.is_integer():
-            raise SleepPhysiologyError(
-                "frontière physiologique non entière", code="non_integral_canonical_interval"
-            )
-        return int(seconds)
+        return int(seconds) if seconds.is_integer() else seconds
 
     @staticmethod
     def _capacity_rate_milli_per_hour(source: RegulationInput, parameters: CircadianParameters) -> int:
@@ -2159,7 +2155,7 @@ class SleepPhysiologyService:
             band = state.previous_stability_band
             stability = wake_stability(regulation, source, parameters, previous_band=band)
             remaining = duration
-            while remaining:
+            while remaining > 0:
                 quantum = min(SYNTHETIC_INTEGRATION_QUANTUM_SECONDS, remaining)
                 advanced = advance_regulation(regulation, source, quantum, parameters)
                 regulation = RegulationState(
@@ -2254,7 +2250,7 @@ class SleepPhysiologyService:
             band = state.previous_stability_band
             stability = wake_stability(regulation, source, parameters, previous_band=band)
             remaining = duration
-            while remaining:
+            while remaining > 0:
                 quantum = min(SYNTHETIC_INTEGRATION_QUANTUM_SECONDS, remaining)
                 advanced = advance_regulation(regulation, source, quantum, parameters)
                 capacity_milli, remainder = self._advance_capacity(
@@ -2362,7 +2358,7 @@ class SleepPhysiologyService:
         cursor = parse_iso(state.anchor_at)
         if band == "critical":
             return state.anchor_at
-        while remaining:
+        while remaining > 0:
             duration = min(SYNTHETIC_INTEGRATION_QUANTUM_SECONDS, remaining)
             advanced = advance_regulation(regulation, source, duration, parameters)
             regulation = RegulationState(

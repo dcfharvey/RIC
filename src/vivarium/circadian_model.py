@@ -234,7 +234,7 @@ def _light_saturation(drive: float, parameters: CircadianParameters) -> float:
 def advance_regulation(
     state: RegulationState,
     source: RegulationInput,
-    duration_seconds: int,
+    duration_seconds: int | float,
     parameters: CircadianParameters,
 ) -> RegulationState:
     """Intègre un segment objectif sans effet de bord.
@@ -243,7 +243,7 @@ def advance_regulation(
     des quanta fixes d'ingénierie, afin que sa progression ne suive jamais la
     cadence du runtime.
     """
-    if isinstance(duration_seconds, bool) or not isinstance(duration_seconds, int) or duration_seconds < 0:
+    if isinstance(duration_seconds, bool) or not isinstance(duration_seconds, (int, float)) or duration_seconds < 0:
         raise CircadianModelError("duration_seconds invalide")
     if duration_seconds == 0:
         return state
@@ -262,7 +262,7 @@ def advance_regulation(
     saturated = _light_saturation(drive, parameters)
     phase = state.circadian_phase % 1.0
     remaining = duration_seconds
-    while remaining:
+    while remaining > 0:
         quantum = min(remaining, MAX_CIRCADIAN_QUANTUM_SECONDS)
         hours = quantum / SECONDS_PER_HOUR
         midpoint = (phase + quantum / parameters.intrinsic_period_seconds / 2.0) % 1.0

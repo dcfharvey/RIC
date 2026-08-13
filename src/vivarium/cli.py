@@ -553,6 +553,7 @@ def _run_mvp_runtime(
             model_lister=cognition_provider,
             service_probe=lambda: thread is not None and thread.is_alive(),
             interval_seconds=guardian_interval,
+            runtime_session_id=session_id,
         )
         outcome_log = RuntimeOutcomeLog(
             db_path.parent.parent / "logs" / "runtime_outcomes.jsonl"

@@ -122,6 +122,16 @@ class WorldRuleService:
     def _install_activities(self, conn: sqlite3.Connection, world_id: int) -> int:
         now = self._clock.now_iso()
         added = 0
+        physiology_table = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='world_physiology_system'"
+        ).fetchone()
+        physiology_row = None if physiology_table is None else conn.execute(
+            "SELECT status FROM world_physiology_system WHERE world_id = ?", (world_id,)
+        ).fetchone()
+        active_loads = None
+        if physiology_row is not None and physiology_row["status"] == "active":
+            from .sleep_physiology import V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY
+            active_loads = V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY
         has_metadata = any(
             row["name"] == "requires_sustained_wakefulness"
             for row in conn.execute("PRAGMA table_info(activity_definition)")
@@ -138,7 +148,8 @@ class WorldRuleService:
                 ).fetchone()
                 expected = (
                     minimum, maximum, satiete, repos, energie, hygiene,
-                    int(sustained_wakefulness), None,
+                    int(sustained_wakefulness),
+                    None if active_loads is None else active_loads.get(activity_type),
                 )
             else:
                 row = conn.execute(

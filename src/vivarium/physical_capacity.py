@@ -187,7 +187,7 @@ def advance_physical_capacity(
     if isinstance(rate_remainder, bool) or not isinstance(rate_remainder, int) \
             or not 0 <= rate_remainder < _DENOMINATOR_SECONDS_PER_HOUR:
         raise PhysicalCapacityError("reste de capacité invalide", code="invalid_capacity_remainder")
-    if isinstance(duration_seconds, bool) or not isinstance(duration_seconds, int) \
+    if isinstance(duration_seconds, bool) or not isinstance(duration_seconds, (int, float)) \
             or duration_seconds < 0:
         raise PhysicalCapacityError("durée physique invalide", code="invalid_physical_duration")
     if duration_seconds == 0:
@@ -196,6 +196,17 @@ def advance_physical_capacity(
     rate = capacity_rate_milli_per_hour(
         policy, state=state, physical_load_class=physical_load_class
     )
+    if not isinstance(duration_seconds, int):
+        # Canonical time is millisecond precise while P is stored in milli
+        # units. Quantize only the persisted P value; never the event/clock
+        # boundary, and keep the legacy integer-second remainder contract.
+        delta = round(rate * float(duration_seconds) / _DENOMINATOR_SECONDS_PER_HOUR)
+        next_capacity = capacity + delta
+        if next_capacity <= 0:
+            return 0, 0
+        if next_capacity >= 100_000:
+            return 100_000, 0
+        return next_capacity, 0
     numerator = rate * duration_seconds + rate_remainder
     delta, remainder = divmod(numerator, _DENOMINATOR_SECONDS_PER_HOUR)
     next_capacity = capacity + delta

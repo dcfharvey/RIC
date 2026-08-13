@@ -8,6 +8,7 @@ from vivarium.seed import SEED_ACTIVITIES, SEED_ACTIVITY_ALLOWED, SEED_NEEDS
 from vivarium.util import new_uuid, to_iso
 from vivarium.world import WorldEngine
 from vivarium.world_rules import WorldRuleError, WorldRuleService
+from vivarium.rodage_v2_official import bootstrap_official
 
 
 T0 = datetime(2026, 8, 6, 18, 0, tzinfo=timezone.utc)
@@ -112,5 +113,33 @@ def test_standard_rules_install_explicit_wakefulness_and_defer_physical_classifi
         }
         expected = {activity[0]: (int(activity[-1]), None) for activity in SEED_ACTIVITIES}
         assert actual == expected
+    finally:
+        conn.close()
+
+
+def test_active_rules_validate_owner_backed_physical_classes_without_mutation(tmp_path):
+    db = tmp_path / "active-rules.sqlite"
+    report = bootstrap_official(
+        db, clock=FakeClock(), launch_runtime=False, provider_checker=lambda: "qwen3-14b"
+    )
+    conn = connect_database(db)
+    try:
+        before = conn.execute(
+            "SELECT activity_type, physical_load_class FROM activity_definition "
+            "WHERE world_id=? ORDER BY activity_type", (report.world_id,)
+        ).fetchall()
+        result = WorldRuleService(conn, clock=FakeClock()).install_standard_residence_rules(report.world_id)
+        after = conn.execute(
+            "SELECT activity_type, physical_load_class FROM activity_definition "
+            "WHERE world_id=? ORDER BY activity_type", (report.world_id,)
+        ).fetchall()
+        assert result["changed"] is False and before == after
+        conn.execute(
+            "UPDATE activity_definition SET repos_rate = repos_rate + 1 "
+            "WHERE world_id=? AND activity_type='idle'", (report.world_id,)
+        )
+        with pytest.raises(WorldRuleError) as raised:
+            WorldRuleService(conn, clock=FakeClock()).install_standard_residence_rules(report.world_id)
+        assert raised.value.code == "activity_definition_conflict"
     finally:
         conn.close()

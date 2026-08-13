@@ -132,7 +132,7 @@ def _configure_physiology(conn: sqlite3.Connection, world_id: int, anchor: str) 
 
 def bootstrap_official(
     db_path: Path, *, clock: Clock | None = None, launch_runtime: bool = True,
-    provider_checker: Callable[[], str] | None = None,
+    provider_checker: Callable[[], str] | None = None, sophie_return_hour: int = 16,
 ) -> OfficialBootstrapReport:
     """Prépare et, par défaut, ouvre le premier monde officiel.
 
@@ -143,11 +143,18 @@ def bootstrap_official(
     db_path = Path(db_path)
     if db_path.exists() or any(Path(str(db_path) + suffix).exists() for suffix in ("-wal", "-shm")):
         raise OfficialBootstrapError("la cible officielle existe déjà", code="target_exists")
+    if isinstance(sophie_return_hour, bool) or not isinstance(sophie_return_hour, int) \
+            or not 0 <= sophie_return_hour <= 23:
+        raise OfficialBootstrapError("heure de retour de Sophie invalide", code="invalid_return_hour")
     clock = clock or Clock()
     now = clock.now()
     local = now.astimezone(_eastern_timezone())
-    if local.hour >= 16:
-        raise OfficialBootstrapError("T0 >= 16:00 EDT : scénario Sophie obsolète", code="t0_after_return_deadline")
+    return_local = datetime.combine(local.date(), time(sophie_return_hour, 0), tzinfo=local.tzinfo)
+    if local >= return_local:
+        raise OfficialBootstrapError(
+            f"T0 >= {sophie_return_hour:02d}:00 EDT : scénario Sophie obsolète",
+            code="t0_after_return_deadline",
+        )
     t0 = to_iso(now)
     # La validation provider est une précondition de création : une instance
     # officielle ne doit jamais être créée si le modèle réellement chargé ne
@@ -190,7 +197,6 @@ def bootstrap_official(
             ActivityStartSpec("chuu", "clean", "salle_de_bain"),
         ))
         bootstrap.give_carried_objects(world_id, (CarriedObjectSpec("luna", "sac_luna", "Sac d'effets personnels"),))
-        return_local = datetime.combine(local.date(), time(16, 0), tzinfo=local.tzinfo)
         return_at = to_iso(return_local.astimezone(now.tzinfo))
         LocationPlanService(conn, clock=clock).plan(world_id, "sophie", "entree_exterieure", return_at, provenance="wo91.return_schedule.v1")
         report = inspect_mvp_preflight(conn, world_id=world_id)
@@ -264,10 +270,13 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
     parser = argparse.ArgumentParser(prog="rodage-v2-start")
     parser.add_argument("--db", type=Path, default=Path("data/vivarium-rodage-v2.sqlite"))
+    parser.add_argument("--sophie-return-hour", type=int, default=16)
     parser.add_argument("--dry-run", action="store_true", help="effectue les contrôles sans ouvrir la session runtime")
     args = parser.parse_args(argv)
     try:
-        report = bootstrap_official(args.db, launch_runtime=not args.dry_run)
+        report = bootstrap_official(
+            args.db, launch_runtime=not args.dry_run, sophie_return_hour=args.sophie_return_hour
+        )
     except (OfficialBootstrapError, sqlite3.Error, ValueError) as exc:
         print(f"Rodage V2 refusé : {exc}")
         return 1
