@@ -1,0 +1,27 @@
+name: WO88F full verification
+
+on:
+  push:
+    branches:
+      - chatgpt/wo88f-build
+    paths:
+      - .github/workflows/wo88f-verify.yml
+
+permissions:
+  contents: read
+
+jobs:
+  full-suite:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/wo88f-build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: python -m pip install -e . pytest
+      - name: Full test suite
+        run: python -m pytest -q
