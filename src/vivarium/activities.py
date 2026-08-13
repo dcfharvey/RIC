@@ -209,6 +209,144 @@ class ActivityEngine:
             )
         return path
 
+    _ACTIVE_NEED_KEYS = frozenset({"satiete", "hygiene"})
+
+    def _physiology_active(self, world_id: int) -> bool:
+        from .sleep_physiology import SleepPhysiologyFoundationService
+
+        return SleepPhysiologyFoundationService(
+            self._conn, clock=self._clock
+        ).system_status(world_id) == "active"
+
+    def _materialize_active_needs(
+        self, c: sqlite3.Connection, world_id: int, character_key: str, target_at: str,
+        reason: str, *, activity_type: str | None = None,
+    ) -> None:
+        rates = None if activity_type is None else self._rates(world_id, activity_type)
+        NeedsEngine(self._conn, clock=self._clock).materialize_selected_needs(
+            world_id, character_key, target_at, reason, self._ACTIVE_NEED_KEYS,
+            rates=rates, _conn=c, activity_type=activity_type,
+        )
+
+    def _active_sleep_plan(self, world_id: int, start_at: str) -> tuple[int, str, str]:
+        from .sleep_termination import SleepTerminationFoundationService
+
+        service = SleepTerminationFoundationService(self._conn, clock=self._clock)
+        policy = service.world_policy(world_id)
+        assignment = self._conn.execute(
+            "SELECT policy_id FROM world_sleep_termination_policy_assignment WHERE world_id=?",
+            (world_id,),
+        ).fetchone()
+        if assignment is None:
+            raise ActivityError("politique de terminaison du sommeil absente")
+        next_at = _add_seconds(start_at, policy.checkpoint_interval_seconds)
+        hard_cap = _add_seconds(start_at, policy.hard_cap_seconds)
+        return int(assignment["policy_id"]), next_at, hard_cap
+
+    def _start_activity_active(
+        self, world_id: int, character_key: str, activity_type: str,
+        target_location_key: str, *, sim_now: str | None = None,
+        duration_seconds: int | None = None,
+        action_provenance: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """WO88B : démarrage atomique sans lecture/écriture repos-énergie."""
+        if self._world().get_world(world_id)["status"] == "paused":
+            raise ActivityError("monde en pause : aucune activité ne peut démarrer")
+        ce = CharacterEngine(self._conn, clock=self._clock)
+        current_row = self._conn.execute(
+            "SELECT l.key AS cur FROM character ch JOIN location l ON l.id=ch.current_location_id "
+            "WHERE ch.world_id=? AND ch.key=?", (world_id, character_key),
+        ).fetchone()
+        if current_row is None:
+            raise ActivityError(f"personnage introuvable : {character_key!r}")
+        cur_key = current_row["cur"]
+        if activity_type == "idle":
+            if target_location_key != cur_key:
+                raise ActivityError("idle exige le lieu courant")
+            if duration_seconds is None or not 1 <= duration_seconds <= MAX_IDLE:
+                raise ActivityError(f"durée idle invalide (doit être 1..{MAX_IDLE})")
+        else:
+            self._def(world_id, activity_type)
+            if duration_seconds is not None:
+                raise ActivityError(
+                    f"durée libre refusée pour {activity_type!r} (définie ou conditionnelle)"
+                )
+            self._location_id(world_id, target_location_key)
+            if not self.is_allowed(world_id, activity_type, target_location_key):
+                raise ActivityError(
+                    f"lieu {target_location_key!r} non autorisé pour {activity_type!r}"
+                )
+        path = self._path(world_id, cur_key, target_location_key)
+        with transaction(self._conn) as c:
+            start_at = sim_now if sim_now is not None else self._world().read_canonical_time(world_id)
+            from .sleep_physiology import SleepPhysiologyError, SleepPhysiologyService
+            physiology = SleepPhysiologyService(self._conn, clock=self._clock)
+            try:
+                physiology.materialize_owner_backed(world_id, character_key, start_at)
+                state = physiology.read_state(world_id, character_key)
+                edge_count = len(path) - 1
+                traversal = physiology.evaluate_traversal_capacity_owner_backed(
+                    world_id, character_key, edge_count=max(1, edge_count)
+                ) if edge_count else None
+                if traversal is not None and not traversal.feasible:
+                    raise ActivityError("capacité physique insuffisante pour le trajet complet")
+                after_path = state.regulation.physical_capacity_milli - (
+                    0 if traversal is None or traversal.traversal_cost_milli is None
+                    else traversal.traversal_cost_milli
+                )
+                activity_eval = physiology.evaluate_activity_capacity_owner_backed(
+                    world_id, character_key, activity_type, capacity_milli=after_path
+                )
+                if not activity_eval.feasible:
+                    raise ActivityError("capacité physique insuffisante pour l'activité")
+            except SleepPhysiologyError as exc:
+                raise ActivityError(str(exc)) from exc
+            InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
+                world_id, character_key, start_at, "passive", _conn=c
+            )
+            for step in path[1:]:
+                ce._move(c, world_id, character_key, step, sim_now=start_at)
+            self._materialize_active_needs(
+                c, world_id, character_key, start_at, "activity_start"
+            )
+            sleep_plan = None
+            if activity_type == "sleep":
+                sleep_plan = self._active_sleep_plan(world_id, start_at)
+                planned_end = sleep_plan[2]
+            elif activity_type == "idle":
+                planned_end = _add_seconds(start_at, duration_seconds)
+            else:
+                planned_end = _add_seconds(start_at, self._def(world_id, activity_type)["min_duration_seconds"])
+            loc_id = self._location_id(world_id, target_location_key)
+            now = self._clock.now_iso()
+            c.execute(
+                "INSERT INTO activity (public_id,world_id,character_id,type,location_id,started_at,"
+                "planned_end_at,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,'active',?,?)",
+                (new_uuid(), world_id, self._character_id(world_id, character_key), activity_type,
+                 loc_id, start_at, planned_end, now, now),
+            )
+            payload = {
+                "character": character_key, "activity": activity_type,
+                "location": target_location_key, "planned_end_at": planned_end,
+            }
+            if action_provenance is not None:
+                if set(action_provenance) != {"proposal_id", "origin"} or not all(
+                    isinstance(value, str) for value in action_provenance.values()
+                ):
+                    raise ActivityError("provenance d'action invalide")
+                payload["action_provenance"] = dict(action_provenance)
+            _append_event(
+                c, world_id, SOURCE_ENGINE, "activity_started", payload,
+                occurred_at=start_at, recorded_at=now,
+            )
+            if sleep_plan is not None:
+                self.attach_sleep_checkpoint(
+                    world_id, character_key, policy_id=sleep_plan[0],
+                    next_reassessment_at=sleep_plan[1], hard_cap_at=sleep_plan[2],
+                )
+            self._world()._advance_clock(world_id, start_at, c)
+        return self.activity_sheet(world_id, character_key) or {}
+
     def start_activity(
         self,
         world_id: int,
@@ -229,6 +367,12 @@ class ActivityEngine:
         événement `activity_started`. Si une étape échoue, rollback total (le
         personnage revient à sa position initiale, aucun événement partiel).
         """
+        if self._physiology_active(world_id):
+            return self._start_activity_active(
+                world_id, character_key, activity_type, target_location_key,
+                sim_now=sim_now, duration_seconds=duration_seconds,
+                action_provenance=action_provenance,
+            )
         if self._world().get_world(world_id)["status"] == "paused":
             raise ActivityError("monde en pause : aucune activité ne peut démarrer")
 
@@ -371,6 +515,8 @@ class ActivityEngine:
         puis l'intervalle suivant est dérivé en régime passif. Retourne la fiche
         d'activité (ou None si aucune activité active).
         """
+        if self._physiology_active(world_id):
+            return self._advance_to_active(world_id, character_key, at_time)
         with transaction(self._conn) as c:
             active = self._active_row(c, world_id, character_key)
             if active is None:
@@ -419,6 +565,71 @@ class ActivityEngine:
             self._world()._advance_clock(world_id, at_time, c)
         return self.activity_sheet(world_id, character_key)
 
+    def _advance_to_active(
+        self, world_id: int, character_key: str, at_time: str
+    ) -> dict[str, Any] | None:
+        from .sleep_physiology import SleepPhysiologyService
+
+        with transaction(self._conn) as c:
+            active = self._active_row(c, world_id, character_key)
+            if active is None:
+                return None
+            physiology = SleepPhysiologyService(self._conn, clock=self._clock)
+            ie = InjuryEngine(self._conn, clock=self._clock)
+            now = self._clock.now_iso()
+            if active["type"] == "sleep":
+                # ``planned_end_at`` est un hard cap protecteur, jamais une
+                # autorisation implicite de réveil. Le scheduler WO88D gère les checkpoints.
+                target = min(parse_iso(at_time), parse_iso(active["planned_end_at"]))
+                target_iso = to_iso(target)
+                physiology.materialize_owner_backed(world_id, character_key, target_iso)
+                self._materialize_active_needs(
+                    c, world_id, character_key, target_iso, "activity_ongoing",
+                    activity_type="sleep",
+                )
+                ie._materialize_injury_sim(
+                    world_id, character_key, target_iso, "sleep", _conn=c
+                )
+                self._world()._advance_clock(world_id, target_iso, c)
+                return self.activity_sheet(world_id, character_key)
+            if parse_iso(active["planned_end_at"]) <= parse_iso(at_time):
+                boundary = active["planned_end_at"]
+                physiology.materialize_owner_backed(world_id, character_key, boundary)
+                self._materialize_active_needs(
+                    c, world_id, character_key, boundary, "activity_end",
+                    activity_type=active["type"],
+                )
+                ie._materialize_injury_sim(
+                    world_id, character_key, boundary, recovery_regime(active["type"]), _conn=c
+                )
+                c.execute("UPDATE activity SET status='completed',updated_at=? WHERE id=?", (now, active["id"]))
+                _append_event(
+                    c, world_id, SOURCE_ENGINE, "activity_completed",
+                    {"character": character_key, "activity": active["type"], "ended_at": boundary},
+                    occurred_at=boundary, recorded_at=now,
+                )
+                self._world()._advance_clock(world_id, boundary, c)
+                if parse_iso(at_time) > parse_iso(boundary):
+                    physiology.materialize_owner_backed(world_id, character_key, at_time)
+                    self._materialize_active_needs(
+                        c, world_id, character_key, at_time, "passive"
+                    )
+                    ie._materialize_injury_sim(
+                        world_id, character_key, at_time, "passive", _conn=c
+                    )
+                    self._world()._advance_clock(world_id, at_time, c)
+            else:
+                physiology.materialize_owner_backed(world_id, character_key, at_time)
+                self._materialize_active_needs(
+                    c, world_id, character_key, at_time, "activity_ongoing",
+                    activity_type=active["type"],
+                )
+                ie._materialize_injury_sim(
+                    world_id, character_key, at_time, recovery_regime(active["type"]), _conn=c
+                )
+                self._world()._advance_clock(world_id, at_time, c)
+        return self.activity_sheet(world_id, character_key)
+
     def abort_activity(
         self, world_id: int, character_key: str, *, sim_now: str | None = None,
         reason_code: str | None = None,
@@ -426,6 +637,10 @@ class ActivityEngine:
         """Abandon explicite de l'activité active (matérialisation + aborted)."""
         if reason_code is not None and (not isinstance(reason_code, str) or not _KEY_RE.fullmatch(reason_code)):
             raise ActivityError("raison d'abandon invalide")
+        if self._physiology_active(world_id):
+            return self._abort_activity_active(
+                world_id, character_key, sim_now=sim_now, reason_code=reason_code
+            )
         with transaction(self._conn) as c:
             active = self._active_row(c, world_id, character_key)
             if active is None:
@@ -454,6 +669,39 @@ class ActivityEngine:
                 occurred_at=canonical, recorded_at=now,
             )
             # avancement de l'horloge canonique à l'instant d'abandon
+            self._world()._advance_clock(world_id, canonical, c)
+        return self.activity_sheet(world_id, character_key)
+
+    def _abort_activity_active(
+        self, world_id: int, character_key: str, *, sim_now: str | None = None,
+        reason_code: str | None = None,
+    ) -> dict[str, Any] | None:
+        from .sleep_physiology import SleepPhysiologyService
+
+        with transaction(self._conn) as c:
+            active = self._active_row(c, world_id, character_key)
+            if active is None:
+                raise ActivityError("aucune activité active à abandonner")
+            canonical = sim_now or self._world().read_canonical_time(world_id)
+            SleepPhysiologyService(self._conn, clock=self._clock).materialize_owner_backed(
+                world_id, character_key, canonical
+            )
+            self._materialize_active_needs(
+                c, world_id, character_key, canonical, "activity_abort",
+                activity_type=active["type"],
+            )
+            InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
+                world_id, character_key, canonical, recovery_regime(active["type"]), _conn=c
+            )
+            now = self._clock.now_iso()
+            c.execute("UPDATE activity SET status='aborted',updated_at=? WHERE id=?", (now, active["id"]))
+            payload = {"character": character_key, "activity": active["type"]}
+            if reason_code is not None:
+                payload["reason_code"] = reason_code
+            _append_event(
+                c, world_id, SOURCE_ENGINE, "activity_aborted", payload,
+                occurred_at=canonical, recorded_at=now,
+            )
             self._world()._advance_clock(world_id, canonical, c)
         return self.activity_sheet(world_id, character_key)
 
@@ -587,10 +835,20 @@ class ActivityEngine:
                 raise ActivityError("terminaison avant sommeil")
             now = self._clock.now_iso()
             rates = self._rates(world_id, "sleep")
-            NeedsEngine(self._conn, clock=self._clock).materialize_with_rates(
-                world_id, character_key, at, "sleep_checkpoint_complete", rates,
-                _conn=c, activity_type="sleep",
-            )
+            if self._physiology_active(world_id):
+                from .sleep_physiology import SleepPhysiologyService
+                SleepPhysiologyService(self._conn, clock=self._clock).materialize_owner_backed(
+                    world_id, character_key, at
+                )
+                self._materialize_active_needs(
+                    c, world_id, character_key, at, "sleep_checkpoint_complete",
+                    activity_type="sleep",
+                )
+            else:
+                NeedsEngine(self._conn, clock=self._clock).materialize_with_rates(
+                    world_id, character_key, at, "sleep_checkpoint_complete", rates,
+                    _conn=c, activity_type="sleep",
+                )
             InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
                 world_id, character_key, at, "sleep", _conn=c,
             )

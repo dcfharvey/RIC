@@ -38,7 +38,11 @@ from .circadian_model import (
 from .db import transaction
 from .physical_capacity import (
     PhysicalCapacityError,
+    PhysicalEvaluation,
+    PhysicalRequest,
     advance_physical_capacity,
+    apply_traversal_cost,
+    evaluate_physical_request,
 )
 from .world import WorldEngine
 from .util import Clock, new_uuid, parse_iso, to_iso
@@ -1728,6 +1732,105 @@ class SleepPhysiologyService:
                 "frontière causale non matérialisée avant mutation",
                 code="unmaterialized_causal_boundary",
             )
+
+    def evaluate_activity_capacity_owner_backed(
+        self, world_id: Any, character_key: Any, activity_type: Any,
+        *, capacity_milli: int | None = None,
+    ) -> PhysicalEvaluation:
+        """Évalue une activité depuis la classe physique persistée, sans mutation."""
+        world = self._world_id(world_id)
+        character = _key(character_key, field="personnage")
+        activity = _key(activity_type, field="activité")
+        row = self._conn.execute(
+            "SELECT physical_load_class FROM activity_definition WHERE world_id=? AND activity_type=?",
+            (world, activity),
+        ).fetchone()
+        if row is None or row["physical_load_class"] not in _PHYSICAL_LOAD_CLASSES:
+            raise SleepPhysiologyError(
+                "classe physique d'activité absente", code="activity_physical_class_missing"
+            )
+        policy = SleepPhysiologyFoundationService(
+            self._conn, clock=self._clock
+        ).validate_physical_capacity_configuration(world)
+        capacity = (
+            self.read_state(world, character).regulation.physical_capacity_milli
+            if capacity_milli is None else capacity_milli
+        )
+        try:
+            return evaluate_physical_request(
+                policy, PhysicalRequest("activity", physical_load_class=row["physical_load_class"]),
+                capacity_milli=capacity,
+            )
+        except PhysicalCapacityError as exc:
+            raise SleepPhysiologyError(str(exc), code=exc.code) from exc
+
+    def evaluate_traversal_capacity_owner_backed(
+        self, world_id: Any, character_key: Any, *, edge_count: int = 1,
+        capacity_milli: int | None = None,
+    ) -> PhysicalEvaluation:
+        """Évalue un coût de traversée discret depuis P, sans mutation."""
+        world = self._world_id(world_id)
+        character = _key(character_key, field="personnage")
+        policy = SleepPhysiologyFoundationService(
+            self._conn, clock=self._clock
+        ).validate_physical_capacity_configuration(world)
+        capacity = (
+            self.read_state(world, character).regulation.physical_capacity_milli
+            if capacity_milli is None else capacity_milli
+        )
+        try:
+            return evaluate_physical_request(
+                policy, PhysicalRequest("traversal", edge_count=edge_count),
+                capacity_milli=capacity,
+            )
+        except PhysicalCapacityError as exc:
+            raise SleepPhysiologyError(str(exc), code=exc.code) from exc
+
+    def apply_traversal_cost_owner_backed(
+        self, world_id: Any, character_key: Any, *, edge_count: int = 1,
+        at_time: Any | None = None,
+    ) -> dict[str, Any]:
+        """Débite P après validation d'une traversée réussissable.
+
+        Cette écriture ne produit pas un second événement canonique : elle fait
+        partie de la même transaction que ``character_moved``. Le reste du
+        débit temporel est conservé, sauf saturation à P=0.
+        """
+        world = self._world_id(world_id)
+        character = _key(character_key, field="personnage")
+        target = _at(at_time or WorldEngine(self._conn, clock=self._clock).read_canonical_time(world))
+        with transaction(self._conn) as conn:
+            state = self.read_state(world, character)
+            if state.anchor_at != target:
+                raise SleepPhysiologyError(
+                    "P doit être matérialisé à la frontière avant traversée",
+                    code="physical_capacity_not_materialized",
+                )
+            policy = SleepPhysiologyFoundationService(
+                self._conn, clock=self._clock
+            ).validate_physical_capacity_configuration(world)
+            before = state.regulation.physical_capacity_milli
+            try:
+                after = apply_traversal_cost(
+                    policy, capacity_milli=before, edge_count=edge_count
+                )
+            except PhysicalCapacityError as exc:
+                raise SleepPhysiologyError(str(exc), code=exc.code) from exc
+            remainder = 0 if after == 0 else state.physical_capacity_remainder
+            row = self._character(world, character)
+            changed = conn.execute(
+                "UPDATE physical_capacity_state SET capacity_milli=?,rate_remainder=?,anchor_at=?,updated_at=? "
+                "WHERE world_id=? AND character_id=?",
+                (after, remainder, target, self._now(), world, row["id"]),
+            )
+            if changed.rowcount != 1:
+                raise SleepPhysiologyError(
+                    "état P absent", code="physical_capacity_state_missing"
+                )
+        return {
+            "before_milli": before, "after_milli": after, "cost_milli": before - after,
+            "policy_key": policy.policy_key, "policy_version": policy.version,
+        }
 
     def materialize_owner_backed(
         self,
