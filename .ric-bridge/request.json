@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"search_text","path":".","query":"vivarium-social","limit":100},"request_id":"4be7d032-4cd1-4999-ac1c-2473c998955c","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"status"},"request_id":"d9079431-d304-4fc1-9792-e7acf8c70d5d","route":"/dev/git","schema_version":2}
