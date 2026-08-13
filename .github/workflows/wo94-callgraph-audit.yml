@@ -1,0 +1,42 @@
+name: WO94 physiology callgraph
+on:
+  push:
+    branches: [chatgpt/wo94-debloat-physiology]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build class method call graph
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          path=Path('src/vivarium/sleep_physiology.py'); text=path.read_text(encoding='utf-8'); tree=ast.parse(text)
+          files=[p for root in ('src','tests','tools') for p in Path(root).rglob('*.py') if p!=path]
+          for cls in [n for n in tree.body if isinstance(n,ast.ClassDef) and n.name in {'SleepPhysiologyFoundationService','SleepPhysiologyService'}]:
+              methods={n.name:n for n in cls.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))}
+              internal={name:set() for name in methods}
+              for caller,node in methods.items():
+                  for sub in ast.walk(node):
+                      if isinstance(sub,ast.Call) and isinstance(sub.func,ast.Attribute) and isinstance(sub.func.value,ast.Name) and sub.func.value.id in {'self','service'}:
+                          if sub.func.attr in methods: internal[sub.func.attr].add(caller)
+              print(f'=== {cls.name} ===')
+              for name,node in methods.items():
+                  prod=[]; tests=[]
+                  needle=f'.{name}('
+                  for p in files:
+                      for i,line in enumerate(p.read_text(encoding='utf-8').splitlines(),1):
+                          if needle in line:
+                              (tests if str(p).startswith('tests/') else prod).append(f'{p}:{i}')
+                  public=not name.startswith('_')
+                  if public or not prod:
+                      print(f'{name:46} L{node.lineno}-{node.end_lineno} ext_prod={len(prod):2} ext_test={len(tests):2} internal={sorted(internal[name])}')
+                      if prod: print('  PROD', *prod[:12])
+                      if tests and (not prod or 'synthetic' in name): print('  TEST', *tests[:12])
+          PY
