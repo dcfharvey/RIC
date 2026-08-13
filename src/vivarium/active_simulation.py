@@ -61,8 +61,9 @@ class ActiveSimulationEngine:
         if light is not None:candidates.append((light,"light_change"))
         if active is not None and active["type"] not in {"sleep","rest"} and self._sustained(world_id,active["type"]):
             horizon=min([parse_iso(limit)]+[parse_iso(v) for v,_ in candidates if parse_iso(v)>parse_iso(state.anchor_at)])
-            source=self._physiology.resolve_light_source_owner_backed(world_id,character_key,at_time=state.anchor_at)
-            critical=self._physiology.next_critical_boundary_synthetic(world_id,character_key,source.source,to_iso(horizon))
+            critical=self._physiology.next_critical_boundary_owner_backed(
+                world_id,character_key,until=to_iso(horizon)
+            )
             if critical is not None and parse_iso(critical)>parse_iso(state.anchor_at):candidates.append((critical,"wake_stability_critical"))
         if not candidates:return None
         first=min(parse_iso(v) for v,_ in candidates);at=to_iso(first)

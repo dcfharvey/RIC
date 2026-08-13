@@ -1757,10 +1757,10 @@ class SleepPhysiologyService:
         eligible = [value for value in candidates if parse_iso(anchor) < parse_iso(value) <= parse_iso(limit)]
         return None if not eligible else to_iso(min(parse_iso(value) for value in eligible))
 
-    def project_synthetic(
+    def _project(
         self, world_id: Any, character_key: Any, source: RegulationInput
     ) -> PhysiologyProjection:
-        """Projette propension additive et stabilité sans modifier l'ancre."""
+        """Noyau pur commun; l'API appelante reste responsable de la provenance."""
         state = self.read_state(world_id, character_key)
         parameters = self.parameters_for_character(world_id, character_key)
         return PhysiologyProjection(
@@ -1773,6 +1773,27 @@ class SleepPhysiologyService:
                 previous_band=state.previous_stability_band,
             ),
         )
+
+    def project_synthetic(
+        self, world_id: Any, character_key: Any, source: RegulationInput
+    ) -> PhysiologyProjection:
+        """API de banc: projection depuis une cause explicitement injectée."""
+        return self._project(world_id, character_key, source)
+
+    def project_owner_backed(
+        self, world_id: Any, character_key: Any, *, at_time: Any | None = None,
+        expected_event_seq: Any | None = None,
+    ) -> PhysiologyProjection:
+        """Projette depuis les causes Reality persistées, sans écriture."""
+        source = self.resolve_light_source_owner_backed(
+            world_id, character_key, at_time=at_time, expected_event_seq=expected_event_seq
+        )
+        state = self.read_state(world_id, character_key)
+        if state.anchor_at != source.canonical_at:
+            raise SleepPhysiologyError(
+                "etat physiologique hors ancre courante", code="stale_physiology_anchor"
+            )
+        return self._project(world_id, character_key, source.source)
 
     def project_wake_viability_owner_backed(
         self,
@@ -1793,7 +1814,7 @@ class SleepPhysiologyService:
                 "etat physiologique hors ancre courante",
                 code="stale_physiology_anchor",
             )
-        projection = self.project_synthetic(world_id, character_key, source.source)
+        projection = self._project(world_id, character_key, source.source)
         parameters = self.parameters_for_character(world_id, character_key)
         value = round((1.0 - projection.stability.instability) * 100_000)
         viability_payload = {
@@ -2084,7 +2105,7 @@ class SleepPhysiologyService:
                 fingerprint_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
             ).encode("utf-8")).hexdigest()
             if duration == 0:
-                projection = self.project_synthetic(world, character, source)
+                projection = self._project(world, character, source)
                 return OwnerBackedMaterialization(projection, False, fingerprint, load)
 
             parameters = self.parameters_for_character(world, character)
@@ -2285,19 +2306,10 @@ class SleepPhysiologyService:
             )
         return tuple(results)
 
-    def next_critical_boundary_synthetic(
-        self,
-        world_id: Any,
-        character_key: Any,
-        source: RegulationInput,
-        until: Any,
+    def _next_critical_boundary(
+        self, world_id: Any, character_key: Any, source: RegulationInput, until: Any
     ) -> str | None:
-        """Cherche, sans écrire, une entrée ``critical`` sous causes constantes.
-
-        Le quantum est identique à celui de matérialisation : le résultat ne
-        dépend donc pas du partitionnement de l'appelant. Il reste un choix
-        numérique de banc, non une cadence runtime ni une règle physiologique.
-        """
+        """Noyau pur de recherche d'entrée ``critical`` sous causes constantes."""
         state = self.read_state(world_id, character_key)
         target = _at(until)
         remaining = self._seconds_between(state.anchor_at, target)
@@ -2322,3 +2334,19 @@ class SleepPhysiologyService:
             band = stability.band
             remaining -= duration
         return None
+
+    def next_critical_boundary_synthetic(
+        self, world_id: Any, character_key: Any, source: RegulationInput, until: Any
+    ) -> str | None:
+        """API de banc pour une source injectée explicitement."""
+        return self._next_critical_boundary(world_id, character_key, source, until)
+
+    def next_critical_boundary_owner_backed(
+        self, world_id: Any, character_key: Any, *, until: Any
+    ) -> str | None:
+        """Cherche la frontière critique depuis les causes Reality courantes."""
+        state = self.read_state(world_id, character_key)
+        source = self.resolve_light_source_owner_backed(
+            world_id, character_key, at_time=state.anchor_at
+        )
+        return self._next_critical_boundary(world_id, character_key, source.source, until)

@@ -43,8 +43,7 @@ class DecisionFrameService:
   if SleepPhysiologyFoundationService(self._conn).system_status(world_id)=="active":
    goals=GoalService(self._conn).goals(world_id,character_key);active=GoalService(self._conn).active_intention(world_id,character_key)
    physiology=SleepPhysiologyService(self._conn);state=physiology.read_state(world_id,character_key)
-   source=physiology.resolve_light_source_owner_backed(world_id,character_key,at_time=state.anchor_at)
-   projection=physiology.project_synthetic(world_id,character_key,source.source)
+   projection=physiology.project_owner_backed(world_id,character_key,at_time=state.anchor_at)
    sleep_pressure=max(0,min(1000,round(projection.propensity.sleep_propensity*1000)))
    recovery=max(0,min(1000,round((1.0-state.regulation.physical_capacity)*1000)))
    motives=[]
