@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"list_tree","path":".local-llm-gateway","limit":100},"request_id":"c35ba082-2d15-4677-b34e-ea6383eefb16","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"status"},"request_id":"ce6fd47e-ef49-406f-9df9-f41eea2c739f","route":"/dev/git","schema_version":2}
