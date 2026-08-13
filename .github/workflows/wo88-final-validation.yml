@@ -28,4 +28,4 @@ jobs:
       - name: Full suite
         run: python -m pytest -q
 
-# Re-run after WO88 compatibility fixture repair.
+# Sequential roadmap gate: fresh full-suite verdict after the seven prior failures were reverified.
