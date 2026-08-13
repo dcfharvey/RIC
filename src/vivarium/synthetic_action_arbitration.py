@@ -30,6 +30,11 @@ from .action_contract import (
 )
 from .circadian_model import RegulationInput
 from .goals import GoalService
+from .physical_capacity import (
+    PhysicalCapacityError,
+    PhysicalRequest,
+    evaluate_physical_request,
+)
 from .repro import max_seq
 from .sleep_physiology import (
     PhysicalCapacityPolicy,
@@ -84,27 +89,20 @@ def _digest(value: Mapping[str, Any]) -> str:
 
 
 @dataclass(frozen=True)
-class PhysicalCostRequest:
-    """Demande explicite au futur owner P, sans ecriture de P dans ce lot."""
-
-    operation: Literal["activity", "traversal"]
-    physical_load_class: Literal["none", "light", "moderate", "vigorous"] | None = None
-    edge_count: int | None = None
+class PhysicalCostRequest(PhysicalRequest):
+    """Adaptateur historique du banc vers le contrat P commun."""
 
     def __post_init__(self) -> None:
-        if self.operation == "activity":
-            if self.physical_load_class not in _LOAD_CLASSES or self.edge_count is not None:
-                raise SyntheticActionArbitrationError("demande d'activite physique invalide", code="invalid_physical_request")
-        elif self.operation == "traversal":
-            if self.physical_load_class is not None or isinstance(self.edge_count, bool) \
-                    or not isinstance(self.edge_count, int) or self.edge_count < 1:
-                raise SyntheticActionArbitrationError("demande de traversee physique invalide", code="invalid_physical_request")
-        else:
-            raise SyntheticActionArbitrationError("operation physique invalide", code="invalid_physical_request")
+        try:
+            super().__post_init__()
+        except PhysicalCapacityError as exc:
+            raise SyntheticActionArbitrationError(str(exc), code=exc.code) from exc
 
 
 @dataclass(frozen=True)
 class PhysicalCostEvaluation:
+    """Compatibilite du banc; ``cost_milli`` n'est pas utilise par le runtime."""
+
     feasible: bool
     required_capacity_milli: int
     cost_milli: int
@@ -114,21 +112,19 @@ class PhysicalCostEvaluation:
 def evaluate_physical_cost(
     policy: PhysicalCapacityPolicy, request: PhysicalCostRequest, *, capacity_milli: Any
 ) -> PhysicalCostEvaluation:
-    """Evalue une requete P sans muter d'etat ni consulter le legacy."""
-    capacity = _milli(capacity_milli, field="capacite physique")
-    if request.operation == "activity":
-        assert request.physical_load_class is not None
-        load = request.physical_load_class
-        required = int(policy.minimum_capacity_milli[load])
-        cost = int(policy.activity_cost_per_hour_milli[load])
-    else:
-        assert request.edge_count is not None
-        required = int(policy.traversal_cost_per_edge_milli) * request.edge_count
-        cost = required
-    feasible = capacity >= required
+    """Adapte l'ancien resultat de banc sans dupliquer les maths P."""
+    try:
+        result = evaluate_physical_request(policy, request, capacity_milli=capacity_milli)
+    except PhysicalCapacityError as exc:
+        raise SyntheticActionArbitrationError(str(exc), code=exc.code) from exc
+    cost = (
+        result.activity_rate_milli_per_hour
+        if request.operation == "activity"
+        else result.traversal_cost_milli
+    )
+    assert cost is not None
     return PhysicalCostEvaluation(
-        feasible, required, cost,
-        "physical_capacity_ok" if feasible else "physical_capacity_insufficient",
+        result.feasible, result.required_capacity_milli, cost, result.reason_code
     )
 
 
