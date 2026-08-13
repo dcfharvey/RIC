@@ -1,0 +1,1 @@
+{"http_status":200,"request_id":"81b6adf3-7e6e-4675-99ed-22c92258c933","response":{"duration_ms":3,"ok":true,"operation":"create_file","result":{"after_sha256":"71d33346a062d84fa7fc99645c1a4d01501679a6c0ace7d3033a783665a715fb","before_sha256":null,"bytes":2190,"path":"tests/test_wo89d_disposable_rehearsal.py"}},"schema_version":2,"status":"ok"}
