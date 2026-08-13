@@ -22,7 +22,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: chatgpt/rodage-v2-bootstrap-build
-        with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
