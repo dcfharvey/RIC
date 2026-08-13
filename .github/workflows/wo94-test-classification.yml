@@ -1,0 +1,31 @@
+name: WO94 synthetic test classification
+on:
+  push:
+    branches: [chatgpt/wo94-debloat-physiology]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Classify synthetic-era tests
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          paths=[Path('tests/test_sleep_physiology_persistence.py'),Path('tests/test_synthetic_action_arbitration.py'),Path('tests/test_synthetic_causal_arbitration.py'),Path('tests/test_synthetic_causal_arbitration_guards.py'),Path('tests/test_synthetic_sleep_integration.py')]
+          synthetic=('materialize_synthetic','materialize_segments_synthetic','resolve_light_source_synthetic','project_synthetic','next_critical_boundary_synthetic','SyntheticSleepActivityCoordinator','SyntheticCausalArbitrationBuilder','synthetic_specification')
+          owner=('materialize_owner_backed','project_owner_backed','resolve_light_source_owner_backed','next_critical_boundary_owner_backed','project_wake_viability_owner_backed','CausalArbitrationBuilder','ActiveSimulationEngine')
+          for p in paths:
+            if not p.exists(): continue
+            text=p.read_text(encoding='utf-8'); tree=ast.parse(text)
+            print(f'=== {p} ===')
+            for n in tree.body:
+              if isinstance(n,ast.FunctionDef) and n.name.startswith('test_'):
+                seg=''.join(text.splitlines(True)[n.lineno-1:n.end_lineno])
+                s=[x for x in synthetic if x in seg]; o=[x for x in owner if x in seg]
+                print(f'{n.name}: synthetic={s} owner={o}')
+          PY
