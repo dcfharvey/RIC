@@ -1,1 +1,1 @@
-{"method":"GET","payload":{},"request_id":"4c3b39f5-2f7e-49c0-8e41-5a5d8f4b7321","route":"/dev/status","schema_version":2}
+{"method":"GET","payload":{},"request_id":"f8c82f13-8d25-4e1a-a347-64d4a07c8420","route":"/health","schema_version":2}
