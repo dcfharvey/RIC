@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"status"},"request_id":"8b31c1e8-66c8-4ec3-b7b7-7fc27c43f4af","route":"/dev/git","schema_version":2}
+{"method":"POST","payload":{"operation":"exec","argv":["python","-m","pytest","tests/test_dev_bridge.py::test_process_tree_cancel_and_timeout_kill_descendants","-q"],"cwd":".","timeout_seconds":30,"output_limit":65536},"request_id":"13c50181-0605-46c5-9b0b-c2ae6d976dba","route":"/dev/exec","schema_version":2}
