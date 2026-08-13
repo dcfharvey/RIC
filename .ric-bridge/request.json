@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"status"},"request_id":"d9079431-d304-4fc1-9792-e7acf8c70d5d","route":"/dev/git","schema_version":2}
+{"method":"GET","request_id":"e7592c2c-1577-43b6-b270-bf41d6103e75","route":"/capabilities","schema_version":2}
