@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"stat","path":"src/vivarium/action_arbitration_runtime.py"},"request_id":"b6967be0-bf76-421d-8163-eb3069569aec","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"read_file","path":"src/vivarium/action_arbitration_runtime.py"},"request_id":"e4c6eaa6-acec-40e9-869a-638844c3dc52","route":"/dev/fs","schema_version":2}
