@@ -883,6 +883,138 @@ class SleepPhysiologyFoundationService:
             )
         return self.initial_physiology_manifest(world_id, manifest_key, version)
 
+    def activate_world_from_initial_manifest(
+        self, world_id: Any, manifest_key: Any, version: Any, activated_by: Any
+    ) -> dict[str, Any]:
+        """Active H/phi/P atomiquement depuis un manifeste T0 scellé.
+
+        Cette opération de cutover ne reconstruit aucune histoire, n'émet aucun
+        événement canonique et ne touche jamais ``need_state``. Elle exige un
+        runtime proprement arrêté au T0, un système ``prepared`` sur le modèle
+        sélectionné, une couverture dense du manifeste, une politique P valide
+        et une politique de terminaison du sommeil assignée.
+        """
+        world = self._world_id(world_id)
+        self._require_world(world)
+        key = _key(manifest_key, field="manifeste")
+        ver = _version(version)
+        actor = _key(activated_by, field="acteur d'activation")
+        now = self._now()
+
+        with transaction(self._conn) as conn:
+            system = conn.execute(
+                "SELECT status,prepared_model_key,prepared_model_version FROM world_physiology_system "
+                "WHERE world_id=?", (world,),
+            ).fetchone()
+            if system is None or system["status"] != "prepared":
+                raise SleepPhysiologyError(
+                    "système physiologique non préparé", code="physiology_not_prepared"
+                )
+            if system["prepared_model_key"] != ADDITIVE_MODEL_KEY                     or int(system["prepared_model_version"] or 0) != 1:
+                raise SleepPhysiologyError("modèle préparé incompatible", code="invalid_model")
+            if conn.execute(
+                "SELECT 1 FROM runtime_session WHERE world_id=? AND stopped_at IS NULL",
+                (world,),
+            ).fetchone() is not None:
+                raise SleepPhysiologyError("session runtime ouverte", code="runtime_session_open")
+
+            manifest = self.initial_physiology_manifest(world, key, ver)
+            if manifest["sealed_at"] is None:
+                raise SleepPhysiologyError(
+                    "manifeste initial non scellé", code="manifest_not_sealed"
+                )
+            if manifest["model_key"] != ADDITIVE_MODEL_KEY or int(manifest["model_version"]) != 1:
+                raise SleepPhysiologyError("modèle du manifeste incompatible", code="invalid_model")
+            frozen = self._frozen_manifest_t0(world)
+            if _at(manifest["anchor_at"]) != frozen:
+                raise SleepPhysiologyError(
+                    "manifeste hors T0 canonique gelé", code="canonical_t0_mismatch"
+                )
+
+            # Revalider sous la même transaction ferme le TOCTOU entre preuve et cutover.
+            characters = self.validate_initial_physiology_manifest(world, key, ver)
+            self.validate_physical_capacity_configuration(world)
+            if conn.execute(
+                "SELECT 1 FROM world_sleep_termination_policy_assignment WHERE world_id=?",
+                (world,),
+            ).fetchone() is None:
+                raise SleepPhysiologyError(
+                    "politique de terminaison du sommeil absente",
+                    code="sleep_termination_policy_missing",
+                )
+
+            for table in (
+                "sleep_regulation_state", "physical_capacity_state",
+                "sleep_wake_hysteresis_state", "sleep_regulation_precision_state",
+            ):
+                if conn.execute(
+                    f"SELECT 1 FROM {table} WHERE world_id=? LIMIT 1", (world,)
+                ).fetchone() is not None:
+                    raise SleepPhysiologyError(
+                        "état physiologique préexistant", code="activation_state_exists"
+                    )
+
+            entries = conn.execute(
+                "SELECT e.character_id,e.homeostatic_load_milli,e.circadian_phase_milli,"
+                "e.physical_capacity_milli,e.previous_band,e.homeostatic_load_residue,"
+                "e.circadian_phase_residue,e.physical_capacity_remainder "
+                "FROM initial_physiology_manifest_entry e WHERE e.manifest_id=? "
+                "ORDER BY e.character_id", (manifest["manifest_id"],),
+            ).fetchall()
+            if len(entries) != len(characters):
+                raise SleepPhysiologyError(
+                    "couverture de manifeste incomplète", code="incomplete_initial_manifest"
+                )
+
+            for entry in entries:
+                character_id = int(entry["character_id"])
+                conn.execute(
+                    "INSERT INTO sleep_regulation_state "
+                    "(public_id,world_id,character_id,model_key,model_version,"
+                    "homeostatic_load_milli,circadian_phase_milli,anchor_at,updated_at) "
+                    "VALUES (?,?,?,?,1,?,?,?,?)",
+                    (new_uuid(), world, character_id, ADDITIVE_MODEL_KEY,
+                     int(entry["homeostatic_load_milli"]), int(entry["circadian_phase_milli"]),
+                     frozen, now),
+                )
+                conn.execute(
+                    "INSERT INTO physical_capacity_state "
+                    "(public_id,world_id,character_id,capacity_milli,rate_remainder,anchor_at,updated_at) "
+                    "VALUES (?,?,?,?,?,?,?)",
+                    (new_uuid(), world, character_id, int(entry["physical_capacity_milli"]),
+                     int(entry["physical_capacity_remainder"]), frozen, now),
+                )
+                conn.execute(
+                    "INSERT INTO sleep_wake_hysteresis_state "
+                    "(public_id,world_id,character_id,previous_band,anchor_at,updated_at) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (new_uuid(), world, character_id, entry["previous_band"], frozen, now),
+                )
+                conn.execute(
+                    "INSERT INTO sleep_regulation_precision_state "
+                    "(public_id,world_id,character_id,homeostatic_load_residue,"
+                    "circadian_phase_residue,anchor_at,updated_at) VALUES (?,?,?,?,?,?,?)",
+                    (new_uuid(), world, character_id, float(entry["homeostatic_load_residue"]),
+                     float(entry["circadian_phase_residue"]), frozen, now),
+                )
+
+            changed = conn.execute(
+                "UPDATE world_physiology_system SET status='active',activated_at=?,"
+                "activated_by=?,updated_at=? WHERE world_id=? AND status='prepared'",
+                (now, actor, now, world),
+            )
+            if changed.rowcount != 1:
+                raise SleepPhysiologyError(
+                    "gate physiologique modifié pendant activation", code="activation_race"
+                )
+
+        return {
+            "world_id": world, "status": "active", "model_key": ADDITIVE_MODEL_KEY,
+            "model_version": 1, "anchor_at": frozen, "manifest_key": key,
+            "manifest_version": ver, "character_count": len(characters),
+            "activated_at": now, "activated_by": actor,
+        }
+
     def register_physical_capacity_policy(
         self, policy_key: Any, version: Any, policy: Any, provenance: Any
     ) -> PhysicalCapacityPolicy:
