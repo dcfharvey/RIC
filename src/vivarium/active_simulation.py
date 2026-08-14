@@ -16,6 +16,7 @@ from typing import Any, Literal
 from .activities import ActivityEngine
 from .action_arbitration_runtime import ActionArbitrationService, CausalArbitrationBuilder
 from .character import CharacterEngine, CharacterError
+from .character_capabilities import is_sapient
 from .db import transaction
 from .injury import InjuryEngine
 from .needs import NeedsEngine
@@ -27,6 +28,9 @@ from .sleep_termination import (
 from .util import Clock, parse_iso, to_iso
 from .world import WorldEngine
 from .location_plans import LocationPlanService
+from .autonomy_cycle import RETRY_IDLE_SECONDS
+
+_POST_BOUNDARY_IDLE_ORIGIN = "wo95_post_boundary_idle"
 
 _ACTIVE_NEEDS=frozenset({"satiete","hygiene"})
 
@@ -109,12 +113,76 @@ class ActiveSimulationEngine:
         )
         decision,validation=self._arbiter.execute(self._conn,frame,clock=self._clock)
         self._arbitration.audit_decision(frame,decision,validation=validation)
+
+    def _ensure_post_boundary_idle(self, world_id: int, key: str, at: str) -> None:
+        """Installe l'attente bornée lorsque la frontière n'a aucun successeur."""
+        if not is_sapient(self._conn, world_id, key):
+            return
+        proposal_id = f"wo95_idle_{world_id}_{key}_{at}"
+        with transaction(self._conn):
+            if self._activities.activity_sheet(world_id, key) is not None:
+                return
+            existing = self._conn.execute(
+                "SELECT 1 FROM canonical_event "
+                "WHERE world_id=? AND event_type='activity_started' "
+                "AND json_extract(payload,'$.character')=? "
+                "AND json_extract(payload,'$.activity')='idle' "
+                "AND json_extract(payload,'$.action_provenance.proposal_id')=? "
+                "AND json_extract(payload,'$.action_provenance.origin')=? LIMIT 1",
+                (world_id, key, proposal_id, _POST_BOUNDARY_IDLE_ORIGIN),
+            ).fetchone()
+            if existing is not None:
+                return
+            location = self._conn.execute(
+                "SELECT l.key FROM character c JOIN location l ON l.id=c.current_location_id "
+                "WHERE c.world_id=? AND c.key=?",
+                (world_id, key),
+            ).fetchone()
+            if location is None:
+                raise ActiveSimulationError(
+                    "position canonique absente pour l'idle post-frontière",
+                    code="canonical_position_missing",
+                )
+            self._activities.start_activity(
+                world_id,
+                key,
+                "idle",
+                location["key"],
+                sim_now=at,
+                duration_seconds=RETRY_IDLE_SECONDS,
+                _reanchor_clock=False,
+                action_provenance={
+                    "proposal_id": proposal_id,
+                    "origin": _POST_BOUNDARY_IDLE_ORIGIN,
+                },
+            )
     def _resolve_location_plans(self, world_id: int, key: str, at: str) -> None:
         plans = [p for p in LocationPlanService(self._conn, clock=self._clock).due(world_id, at)
                  if p["character_key"] == key]
         for plan in plans:
             service = LocationPlanService(self._conn, clock=self._clock)
             active = self._activities.activity_sheet(world_id, key)
+            if active is not None and active["type"] == "idle":
+                idle_origin = self._conn.execute(
+                    "SELECT 1 FROM canonical_event "
+                    "WHERE world_id=? AND event_type='activity_started' "
+                    "AND occurred_at=? "
+                    "AND json_extract(payload,'$.character')=? "
+                    "AND json_extract(payload,'$.activity')='idle' "
+                    "AND json_extract(payload,'$.planned_end_at')=? "
+                    "AND json_extract(payload,'$.action_provenance.origin')=? LIMIT 1",
+                    (world_id, active["started_at"], key, active["planned_end_at"],
+                     _POST_BOUNDARY_IDLE_ORIGIN),
+                ).fetchone()
+                if idle_origin is not None:
+                    self._activities.abort_activity(
+                        world_id,
+                        key,
+                        sim_now=at,
+                        reason_code="location_plan_due",
+                        _reanchor_clock=False,
+                    )
+                    active = self._activities.activity_sheet(world_id, key)
             current = self._conn.execute(
                 "SELECT l.key FROM character c JOIN location l ON l.id=c.current_location_id "
                 "WHERE c.world_id=? AND c.key=?", (world_id, key)
@@ -161,6 +229,7 @@ class ActiveSimulationEngine:
         if "location_plan" in reasons:
             self._resolve_location_plans(world_id, key, at)
         if should_arbitrate:self._arbitrate(world_id,key,at)
+        self._ensure_post_boundary_idle(world_id, key, at)
     def run_to(self,world_id:int,target_time:str,max_transitions:int=1000)->SimulationReport:
         self._require_active(world_id)
         if not isinstance(max_transitions,int) or isinstance(max_transitions,bool) or max_transitions<1:raise ActiveSimulationError("borne invalide",code="invalid_transition_limit")

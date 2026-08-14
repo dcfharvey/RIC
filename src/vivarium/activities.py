@@ -254,6 +254,7 @@ class ActivityEngine:
         target_location_key: str, *, sim_now: str | None = None,
         duration_seconds: int | None = None,
         action_provenance: dict[str, str] | None = None,
+        _reanchor_clock: bool = True,
     ) -> dict[str, Any]:
         """WO88B : démarrage atomique sans lecture/écriture repos-énergie."""
         if self._world().get_world(world_id)["status"] == "paused":
@@ -350,7 +351,8 @@ class ActivityEngine:
                     world_id, character_key, policy_id=sleep_plan[0],
                     next_reassessment_at=sleep_plan[1], hard_cap_at=sleep_plan[2],
                 )
-            self._world()._advance_clock(world_id, start_at, c)
+            if _reanchor_clock:
+                self._world()._advance_clock(world_id, start_at, c)
         return self.activity_sheet(world_id, character_key) or {}
 
     def start_activity(
@@ -363,6 +365,7 @@ class ActivityEngine:
         sim_now: str | None = None,
         duration_seconds: int | None = None,
         action_provenance: dict[str, str] | None = None,
+        _reanchor_clock: bool = True,
     ) -> dict[str, Any]:
         """Démarre une activité de façon **atomique** (une seule transaction).
 
@@ -377,7 +380,7 @@ class ActivityEngine:
             return self._start_activity_active(
                 world_id, character_key, activity_type, target_location_key,
                 sim_now=sim_now, duration_seconds=duration_seconds,
-                action_provenance=action_provenance,
+                action_provenance=action_provenance, _reanchor_clock=_reanchor_clock,
             )
         if self._world().get_world(world_id)["status"] == "paused":
             raise ActivityError("monde en pause : aucune activité ne peut démarrer")
@@ -488,7 +491,8 @@ class ActivityEngine:
                 occurred_at=start_at, recorded_at=now,
             )
             # 7) avancement de l'horloge canonique à l'instant de début
-            self._world()._advance_clock(world_id, start_at, c)
+            if _reanchor_clock:
+                self._world()._advance_clock(world_id, start_at, c)
         return self.activity_sheet(world_id, character_key)
 
     def _character_id(self, world_id: int, character_key: str) -> int:
