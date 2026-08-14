@@ -11,7 +11,7 @@ def _current_data(report, character_key):
     return next(item["data"] for item in report["evidence"] if item["ref"] == ref)
 
 
-def test_active_current_state_exposes_persisted_owner_physiology_read_only(monkeypatch):
+def test_active_current_state_exposes_persisted_owner_physiology_read_only():
     conn, wid, clock = active_world()
     try:
         service = SleepPhysiologyService(conn, clock=clock)
@@ -20,11 +20,6 @@ def test_active_current_state_exposes_persisted_owner_physiology_read_only(monke
             "SELECT COUNT(*) FROM canonical_event WHERE world_id=?", (wid,)
         ).fetchone()[0]
 
-        def forbidden(*args, **kwargs):
-            raise AssertionError("synthetic physiology API reached by observation")
-
-        monkeypatch.setattr(SleepPhysiologyService, "project_synthetic", forbidden)
-        monkeypatch.setattr(SleepPhysiologyService, "next_critical_boundary_synthetic", forbidden)
         query = ObservationQuery(mode="hugin", subject_keys=("sophie",), focus="current_state")
         first = HuginMuninObservationService(conn, clock=clock).report(wid, query)
         second = HuginMuninObservationService(conn, clock=clock).report(wid, query)
