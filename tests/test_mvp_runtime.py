@@ -156,6 +156,39 @@ def test_runtime_preserves_idle_social_opportunity_before_autonomy_consumes_it(s
     assert ActivityEngine(conn).activity_sheet(world_id, "chuu")["type"] == "photography"
 
 
+def test_runtime_reserves_autonomy_budget_after_social_admission(setup):
+    """Le social reste premier, sans pouvoir fermer l'unique occasion autonome."""
+    conn, world_id, clock = setup
+    CharacterEngine(conn, clock=clock).move_character(world_id, "patoune", "salon")
+    scenes = SocialSceneService(conn, clock=clock)
+    scenes.open(world_id, "prior_scene", ("chuu", "erika"))
+    scenes.close(world_id, "prior_scene", reason="test_closed")
+    ActivityEngine(conn, clock=clock).start_activity(
+        world_id, "chuu", "idle", "entree_exterieure", duration_seconds=600,
+        action_provenance={
+            "proposal_id": "wo95_idle_runtime", "origin": "wo95_post_boundary_idle",
+        },
+    )
+
+    report = MVPRuntime(
+        conn, world_id, cognition_provider=CognitionProvider(),
+        scene_provider=SceneProvider(), limits=CognitionCallLimits(0, 3600, 2),
+        clock=clock,
+    ).run_once()
+
+    assert report.social is not None and report.social.opened_scene_keys
+    assert report.social.turn is not None and report.social.turn.attempted
+    assert report.autonomy is not None and report.autonomy.routed is not None
+    assert report.autonomy.routed.attempted
+    admissions = conn.execute(
+        "SELECT trigger FROM cognition_call_admission a "
+        "JOIN character c ON c.id=a.character_id "
+        "WHERE a.world_id=? AND c.key='chuu' ORDER BY a.id",
+        (world_id,),
+    ).fetchall()
+    assert [row[0] for row in admissions] == ["scene_turn", "planned_reflection"]
+
+
 def test_runtime_yields_to_determinism_when_social_latency_crosses_a_boundary(setup, monkeypatch):
     """Aucune cognition n'est lancee apres qu'une scene a franchi une echeance."""
     conn, world_id, clock = setup

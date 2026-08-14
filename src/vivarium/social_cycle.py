@@ -236,7 +236,7 @@ class SocialSceneCycle:
         return tuple(found)
 
     def _idle_encounter_candidates(self, world_id: int) -> tuple[tuple[int, str, str], ...]:
-        """Occasions sociales uniques ancrées au début d'une attente commune.
+        """Occasions sociales uniques ancrées au début d'un idle source.
 
         Ce n'est pas une minuterie sociale. Une activité `idle` active est un
         fait canonique avec un début, un lieu et une échéance; une co-présence

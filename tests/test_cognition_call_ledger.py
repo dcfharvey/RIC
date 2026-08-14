@@ -4,6 +4,7 @@ import pytest
 
 from vivarium.cognition_call_ledger import CognitionCallLedgerError, CognitionCallLedgerService
 from vivarium.cognition_policy import CognitionCallLimits
+from vivarium.activities import ActivityEngine
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
@@ -60,6 +61,33 @@ def test_budget_is_per_resident_and_deferred_requests_do_not_write(setup):
     assert refused.verdict.reason_code == "budget_exhausted" and refused.admission_id is None
     assert luna.verdict.eligible
     assert len(ledger.history(wid, "sophie")) == 1 and len(ledger.history(wid, "luna")) == 1
+
+
+def test_technical_idle_reserves_existing_budget_slot_for_planned_reflection(setup):
+    conn, wid, clock = setup
+    ActivityEngine(conn, clock=clock).start_activity(
+        wid, "sophie", "idle", "entree_exterieure", duration_seconds=600,
+        action_provenance={
+            "proposal_id": "wo95_idle_test", "origin": "wo95_post_boundary_idle",
+        },
+    )
+    idle_seq = conn.execute(
+        "SELECT seq FROM canonical_event WHERE world_id=? AND event_type='activity_started' "
+        "AND json_extract(payload, '$.character')='sophie' ORDER BY seq DESC LIMIT 1",
+        (wid,),
+    ).fetchone()[0]
+    ledger = CognitionCallLedgerService(conn, clock=clock)
+    limits = CognitionCallLimits(0, 3_600, 2)
+
+    social = ledger.admit(wid, "sophie", "scene_turn", "scene_turn_1", limits)
+    planned = ledger.admit(
+        wid, "sophie", "planned_reflection", f"idle_{idle_seq}", limits
+    )
+
+    assert social.verdict.eligible
+    assert planned.verdict.eligible
+    assert len(ledger.history(wid, "sophie")) == 2
+    assert ledger.admit(wid, "sophie", "social_interpretation", "trace_2", limits).verdict.reason_code == "budget_exhausted"
 
 
 def test_unknown_trigger_and_unknown_character_are_refused_without_trace(setup):

@@ -151,11 +151,19 @@ class CognitionCallPolicy:
     """
 
     @staticmethod
-    def evaluate(request: Any, history: Iterable[Any], limits: Any) -> CognitionCallVerdict:
+    def evaluate(
+        request: Any,
+        history: Iterable[Any],
+        limits: Any,
+        *,
+        reserved_calls: int = 0,
+    ) -> CognitionCallVerdict:
         if not isinstance(request, CognitionCallRequest):
             raise CognitionCallPolicyError("demande d'appel invalide", code="invalid_cognition_call_request")
         if not isinstance(limits, CognitionCallLimits):
             raise CognitionCallPolicyError("limites d'appel invalides", code="invalid_cognition_call_limits")
+        if not isinstance(reserved_calls, int) or isinstance(reserved_calls, bool) or reserved_calls < 0:
+            raise CognitionCallPolicyError("reservation de budget invalide", code="invalid_cognition_call_limits")
         request, limits = request.validated(), limits.validated()
         try:
             records = tuple(history)
@@ -184,6 +192,13 @@ class CognitionCallPolicy:
             1 for _, admitted_at in dated_records
             if (now - admitted_at).total_seconds() < limits.budget_window_seconds
         )
-        if calls_in_window >= limits.max_calls_per_window:
+        # Une occasion d'autonomie déjà matérialisée par un idle technique ne
+        # doit pas être rendue définitivement impossible par les signaux
+        # sociaux arrivés avant elle. La réservation consomme une place du
+        # plafond existant; elle n'augmente jamais max_calls_per_window.
+        effective_limit = limits.max_calls_per_window
+        if request.trigger != CALL_TRIGGER_PLANNED_REFLECTION:
+            effective_limit = max(0, effective_limit - reserved_calls)
+        if calls_in_window >= effective_limit:
             return CognitionCallVerdict("deferred", "budget_exhausted", key)
         return CognitionCallVerdict("eligible", "eligible", key)

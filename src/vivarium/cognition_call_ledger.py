@@ -13,6 +13,7 @@ from datetime import timedelta
 from typing import Any
 
 from .cognition_policy import (
+    CALL_TRIGGER_PLANNED_REFLECTION,
     CognitionCallLimits,
     CognitionCallPolicy,
     CognitionCallPolicyError,
@@ -90,6 +91,44 @@ class CognitionCallLedgerService:
         character_id = self._character_id(self._conn, world_id, character_key)
         return self._history(self._conn, world_id, character_id)
 
+    @staticmethod
+    def _autonomy_reservation(
+        conn: sqlite3.Connection, world_id: int, character_id: int,
+    ) -> int:
+        """Réserve une place pour l'idle technique encore sans réflexion.
+
+        La source reste le journal canonique ``activity_started`` et l'état
+        actif courant; aucune mémoire de scheduler n'est introduite. Les
+        retries d'autonomie restent protégés par la même règle car ils sont
+        eux aussi des attentes techniques, non des choix comportementaux.
+        """
+        row = conn.execute(
+            "SELECT e.seq FROM activity a "
+            "JOIN character c ON c.id = a.character_id "
+            "JOIN location l ON l.id = a.location_id "
+            "JOIN canonical_event e ON e.world_id = a.world_id "
+            "WHERE a.world_id = ? AND a.character_id = ? AND a.status = 'active' "
+            "AND a.type = 'idle' AND e.event_type = 'activity_started' "
+            "AND e.occurred_at = a.started_at "
+            "AND json_extract(e.payload, '$.character') = c.key "
+            "AND json_extract(e.payload, '$.activity') = 'idle' "
+            "AND json_extract(e.payload, '$.location') = l.key "
+            "AND json_extract(e.payload, '$.planned_end_at') = a.planned_end_at "
+            "AND json_extract(e.payload, '$.action_provenance.origin') "
+            "IN ('wo95_post_boundary_idle', 'cognition_retry') "
+            "ORDER BY e.seq DESC LIMIT 1",
+            (world_id, character_id),
+        ).fetchone()
+        if row is None:
+            return 0
+        source_key = f"idle_{int(row['seq'])}"
+        already_admitted = conn.execute(
+            "SELECT 1 FROM cognition_call_admission "
+            "WHERE world_id = ? AND character_id = ? AND trigger = ? AND source_key = ? LIMIT 1",
+            (world_id, character_id, CALL_TRIGGER_PLANNED_REFLECTION, source_key),
+        ).fetchone()
+        return 0 if already_admitted is not None else 1
+
     def verdict(
         self,
         world_id: Any,
@@ -115,6 +154,7 @@ class CognitionCallLedgerService:
             request = CognitionCallRequest(character_key, trigger, source_key, now).validated()
             return CognitionCallPolicy.evaluate(
                 request, self._history(self._conn, world_id, character_id), limits,
+                reserved_calls=self._autonomy_reservation(self._conn, world_id, character_id),
             )
         except CognitionCallPolicyError as exc:
             raise CognitionCallLedgerError(str(exc), code=exc.code) from exc
@@ -218,7 +258,10 @@ class CognitionCallLedgerService:
             try:
                 now = WorldEngine(conn, clock=self._clock).read_canonical_time(world_id)
                 request = CognitionCallRequest(character_key, trigger, source_key, now).validated()
-                verdict = CognitionCallPolicy.evaluate(request, self._history(conn, world_id, character_id), limits)
+                verdict = CognitionCallPolicy.evaluate(
+                    request, self._history(conn, world_id, character_id), limits,
+                    reserved_calls=self._autonomy_reservation(conn, world_id, character_id),
+                )
             except CognitionCallPolicyError as exc:
                 raise CognitionCallLedgerError(str(exc), code=exc.code) from exc
             if not verdict.eligible:

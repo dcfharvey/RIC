@@ -71,6 +71,39 @@ def test_rodage_snapshot_does_not_treat_cat0_waits_as_activity_monoculture():
     conn.close()
 
 
+def test_rodage_snapshot_separates_technical_idle_from_behavioral_activity():
+    conn, world_id = _world()
+    activities = ActivityEngine(conn, clock=Clock())
+    for number in range(8):
+        activities.start_activity(
+            world_id, "luna", "idle", "entree_exterieure", duration_seconds=1,
+            sim_now=f"2026-08-07T12:00:{number:02d}.000+00:00",
+            action_provenance={
+                "proposal_id": f"wo95_idle_{number}",
+                "origin": "wo95_post_boundary_idle",
+            },
+        )
+        activities.abort_activity(
+            world_id, "luna", sim_now=f"2026-08-07T12:00:{number:02d}.500+00:00",
+        )
+    activities.start_activity(
+        world_id, "luna", "gaming", "salon",
+        sim_now="2026-08-07T12:01:00.000+00:00",
+        action_provenance={"proposal_id": "cognitive_gaming", "origin": "cognition"},
+    )
+
+    snapshot = inspect_rodage(conn, world_id)
+    warning_keys = {warning.key for warning in snapshot.warnings}
+
+    assert snapshot.technical_idle_starts == 8
+    assert snapshot.activity_mix["luna"] == {"gaming": 1}
+    assert snapshot.activity_origin_mix["luna"]["wo95_post_boundary_idle"] == 8
+    assert snapshot.activity_origin_mix["luna"]["cognition"] == 1
+    assert "activity_monoculture" not in warning_keys
+    assert "technical_idle_frequency" in warning_keys
+    conn.close()
+
+
 def test_runtime_outcome_log_is_append_only_jsonl(tmp_path):
     path = tmp_path / "runtime_outcomes.jsonl"
     log = RuntimeOutcomeLog(path)

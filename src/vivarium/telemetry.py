@@ -36,6 +36,8 @@ class RodageSnapshot:
     distinct_utterances: int
     activity_starts: int
     activity_mix: dict[str, dict[str, int]]
+    activity_origin_mix: dict[str, dict[str, int]]
+    technical_idle_starts: int
     warnings: tuple[TelemetryWarning, ...]
 
     def as_dict(self) -> dict[str, Any]:
@@ -87,6 +89,11 @@ def inspect_rodage(conn: sqlite3.Connection, world_id: int) -> RodageSnapshot:
     distinct_utterances = len(set(utterances))
 
     mix: dict[str, Counter[str]] = defaultdict(Counter)
+    origin_mix: dict[str, Counter[str]] = defaultdict(Counter)
+    technical_idle_by_character: Counter[str] = Counter()
+    technical_idle_origins = frozenset({
+        "wo95_post_boundary_idle", "cognition_retry",
+    })
     rows = conn.execute(
         "SELECT payload FROM canonical_event WHERE world_id = ? "
         "AND event_type = 'activity_started' ORDER BY seq DESC LIMIT 500",
@@ -99,9 +106,22 @@ def inspect_rodage(conn: sqlite3.Connection, world_id: int) -> RodageSnapshot:
         except (KeyError, TypeError, ValueError):
             continue
         if isinstance(character, str) and isinstance(activity, str):
-            mix[character][activity] += 1
+            provenance = payload.get("action_provenance")
+            origin = provenance.get("origin") if isinstance(provenance, dict) else None
+            if not isinstance(origin, str) or not origin:
+                origin = "unattributed"
+            origin_mix[character][origin] += 1
+            if activity == "idle" and origin in technical_idle_origins:
+                technical_idle_by_character[character] += 1
+            else:
+                mix[character][activity] += 1
     activity_mix = {
-        character: dict(sorted(counts.items())) for character, counts in sorted(mix.items())
+        character: dict(sorted(counts.items()))
+        for character, counts in sorted(mix.items()) if counts
+    }
+    activity_origin_mix = {
+        character: dict(sorted(counts.items()))
+        for character, counts in sorted(origin_mix.items()) if counts
     }
     non_sapient: set[str] = set()
     for row in conn.execute(
@@ -131,6 +151,14 @@ def inspect_rodage(conn: sqlite3.Connection, world_id: int) -> RodageSnapshot:
             "empty_scenes",
             f"{scenes_empty}/{scenes_total} scènes sans parole",
         ))
+    for character, amount in sorted(technical_idle_by_character.items()):
+        if character in non_sapient:
+            continue
+        if amount >= 8:
+            warnings.append(TelemetryWarning(
+                "technical_idle_frequency",
+                f"{character}: {amount} idle technique hors monoculture comportementale",
+            ))
     for character, counts in activity_mix.items():
         # CAT-0 emploie `idle` comme attente bornée entre deux décisions. Sa
         # variété comportementale se mesure dans son journal de décisions et
@@ -148,7 +176,8 @@ def inspect_rodage(conn: sqlite3.Connection, world_id: int) -> RodageSnapshot:
     return RodageSnapshot(
         world_id, event_seq, admissions, scenes_total, scenes_empty,
         scenes_interrupted, speech_acts, distinct_utterances, len(rows),
-        activity_mix, tuple(warnings),
+        activity_mix, activity_origin_mix, sum(technical_idle_by_character.values()),
+        tuple(warnings),
     )
 
 

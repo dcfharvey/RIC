@@ -151,6 +151,24 @@ def test_idle_colocation_opens_one_bounded_scene_after_initial_context(setup):
     assert later.opened_scene_keys == ()
 
 
+def test_idle_encounter_requires_only_the_source_to_be_idle(setup):
+    """Le compagnon est une co-présence sapiente, pas une seconde source idle."""
+    conn, world_id, clock = setup
+    provider = Provider(SceneTurnDecision("no_action"))
+    cycle = SocialSceneCycle(conn, provider, clock=clock)
+    limits = CognitionCallLimits(0, 3600, 8)
+    initial = cycle.tick(world_id, limits)
+    SocialSceneService(conn).close(world_id, initial.opened_scene_keys[0], reason="test_closed")
+    ActivityEngine(conn, clock=clock).start_activity(
+        world_id, "chuu", "idle", "entree_exterieure", duration_seconds=60
+    )
+
+    opened = cycle.tick(world_id, limits)
+
+    assert opened.opened_scene_keys
+    assert opened.opened_scene_keys[0].startswith("idle_encounter_")
+
+
 def test_cycle_closes_after_its_fixed_turn_budget_without_extra_call(setup):
     conn, world_id, clock = setup
     _move_erika_to_salon(conn, world_id, clock)

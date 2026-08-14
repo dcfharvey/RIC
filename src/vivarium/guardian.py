@@ -177,7 +177,9 @@ class LocalGuardian:
             checks.append(GuardianCheck(
                 "rodage_patterns",
                 "ok",
-                f"fenêtre: {telemetry.speech_acts} paroles, {telemetry.activity_starts} activités",
+                f"fenêtre: {telemetry.speech_acts} paroles, "
+                f"{sum(sum(counts.values()) for counts in telemetry.activity_mix.values())} activités "
+                f"comportementales, {telemetry.technical_idle_starts} idle techniques",
             ))
 
         levels = {check.level for check in checks}
