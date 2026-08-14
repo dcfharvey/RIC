@@ -7,6 +7,7 @@ import pytest
 from vivarium.activities import ActivityEngine
 from vivarium.action_arbitration import ActionArbitrationFoundationService
 from vivarium.active_simulation import ActiveSimulationEngine
+from vivarium.character_capabilities import sapient_character_keys
 from vivarium.circadian_model import calibration_profiles
 from vivarium.db import connect_database,transaction
 from vivarium.decision import DecisionFrameService
@@ -94,7 +95,7 @@ def test_wall_pulse_before_first_causal_boundary_writes_no_physiology_or_canon()
   assert engine.is_due(wid,target) is False
   report=engine.run_to(wid,target)
   assert report.transitions==0 and report.last_time==target
-  assert conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id=?",(wid,)).fetchone()[0]==before_events
+  assert conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id=?",(wid,)).fetchone()[0] == before_events
   for key,before in before_states.items():
    assert SleepPhysiologyService(conn,clock=clock).read_state(wid,key)==before
  finally:conn.close()
@@ -131,7 +132,15 @@ def test_arbitration_reassessment_is_a_causal_private_boundary():
   ))
   expected=tuple(r["key"] for r in conn.execute("SELECT key FROM character WHERE world_id=? ORDER BY key",(wid,)))
   assert audit_actors==expected
-  assert conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id=?",(wid,)).fetchone()[0]==before_events
+  idle_events = conn.execute(
+   "SELECT json_extract(payload,'$.character') AS character "
+   "FROM canonical_event WHERE world_id=? AND event_type='activity_started' "
+   "AND json_extract(payload,'$.activity')='idle' "
+   "AND json_extract(payload,'$.action_provenance.origin')='wo95_post_boundary_idle' "
+   "ORDER BY character", (wid,),
+  ).fetchall()
+  assert tuple(row[0] for row in idle_events) == sapient_character_keys(conn, wid)
+  assert conn.execute("SELECT COUNT(*) FROM canonical_event WHERE world_id=?",(wid,)).fetchone()[0] >= before_events
  finally:conn.close()
 
 
