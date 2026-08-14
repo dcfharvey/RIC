@@ -22,6 +22,8 @@ from .integration_world import IntegrationWorldService
 from .location_plans import LocationPlanService
 from .migrations import ensure_schema
 from .mvp_preflight import inspect_mvp_preflight
+from .official_runtime import OfficialRuntimeError, validate_official_world
+from .runtime_provenance import RuntimeProvenanceError, verify_runtime_provenance
 from .observation import HuginMuninObservationService, ObservationQuery
 from .rodage_v2_bootstrap import (
     ActivityStartSpec, CarriedObjectSpec, ExternalPlaceSpec, RodageV2BootstrapService,
@@ -50,6 +52,13 @@ class OfficialBootstrapReport:
     hugin_ok: bool
     provider_model: str
     session_id: int | None
+    product_head: str | None = None
+    runtime_head: str | None = None
+    python_package_root: str | None = None
+    physiology_status: str | None = None
+    initial_manifest: str | None = None
+    biological_assignments: int | None = None
+    simulation_engine: str | None = None
 
 
 def _profile_payload(profile_key: str) -> dict[str, object]:
@@ -133,6 +142,9 @@ def _configure_physiology(conn: sqlite3.Connection, world_id: int, anchor: str) 
 def bootstrap_official(
     db_path: Path, *, clock: Clock | None = None, launch_runtime: bool = True,
     provider_checker: Callable[[], str] | None = None, sophie_return_hour: int = 16,
+    expected_checkout_root: Path | None = None,
+    expected_runtime_head: str | None = None,
+    expected_product_head: str | None = None,
 ) -> OfficialBootstrapReport:
     """Prépare et, par défaut, ouvre le premier monde officiel.
 
@@ -140,6 +152,26 @@ def bootstrap_official(
     base jetable et ``launch_runtime=False``. Toute erreur après création de la
     cible supprime uniquement cette cible neuve et ses sidecars.
     """
+    if launch_runtime and (expected_checkout_root is None or expected_runtime_head is None):
+        raise OfficialBootstrapError(
+            "un rodage officiel exige la preuve du checkout et du RUNTIME_HEAD",
+            code="runtime_provenance_required",
+        )
+    provenance = None
+    if expected_checkout_root is not None or expected_runtime_head is not None or expected_product_head is not None:
+        if expected_checkout_root is None or expected_runtime_head is None:
+            raise OfficialBootstrapError(
+                "preuve de provenance incomplète",
+                code="runtime_provenance_required",
+            )
+        try:
+            provenance = verify_runtime_provenance(
+                expected_checkout_root=Path(expected_checkout_root),
+                expected_runtime_head=expected_runtime_head,
+                expected_product_head=expected_product_head,
+            )
+        except RuntimeProvenanceError as exc:
+            raise OfficialBootstrapError(str(exc), code=exc.code) from exc
     db_path = Path(db_path)
     if db_path.exists() or any(Path(str(db_path) + suffix).exists() for suffix in ("-wal", "-shm")):
         raise OfficialBootstrapError("la cible officielle existe déjà", code="target_exists")
@@ -208,10 +240,25 @@ def bootstrap_official(
         hugin_ok = len(hugin.get("evidence", ())) >= 5
         if not hugin_ok:
             raise OfficialBootstrapError("observation Hugin incomplète", code="hugin_failed")
+        try:
+            validation = validate_official_world(
+                conn, world_id, database_path=db_path, provenance=provenance,
+            )
+        except OfficialRuntimeError as exc:
+            raise OfficialBootstrapError(str(exc), code=exc.code) from exc
         session_id = None
         if launch_runtime:
             session_id = RuntimeSessionService(conn, clock=clock).start(world_id).session_id
-        return OfficialBootstrapReport(str(db_path), world_id, t0, True, hugin_ok, expected_model, session_id)
+        return OfficialBootstrapReport(
+            str(db_path), world_id, t0, True, hugin_ok, expected_model, session_id,
+            product_head=None if provenance is None else provenance.product_head,
+            runtime_head=None if provenance is None else provenance.runtime_head,
+            python_package_root=None if provenance is None else provenance.python_package_root,
+            physiology_status=validation.physiology_status,
+            initial_manifest=validation.initial_manifest,
+            biological_assignments=validation.biological_assignments,
+            simulation_engine=validation.simulation_engine,
+        )
     except Exception:
         if conn is not None:
             conn.close(); conn = None
@@ -271,15 +318,31 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="rodage-v2-start")
     parser.add_argument("--db", type=Path, default=Path("data/vivarium-rodage-v2.sqlite"))
     parser.add_argument("--sophie-return-hour", type=int, default=16)
+    parser.add_argument("--checkout-root", type=Path, required=True)
+    parser.add_argument("--runtime-head", required=True)
+    parser.add_argument("--product-head", default=None)
     parser.add_argument("--dry-run", action="store_true", help="effectue les contrôles sans ouvrir la session runtime")
     args = parser.parse_args(argv)
     try:
         report = bootstrap_official(
-            args.db, launch_runtime=not args.dry_run, sophie_return_hour=args.sophie_return_hour
+            args.db, launch_runtime=not args.dry_run, sophie_return_hour=args.sophie_return_hour,
+            expected_checkout_root=args.checkout_root,
+            expected_runtime_head=args.runtime_head,
+            expected_product_head=args.product_head,
         )
     except (OfficialBootstrapError, sqlite3.Error, ValueError) as exc:
         print(f"Rodage V2 refusé : {exc}")
         return 1
+    print(f"PRODUCT_HEAD={report.product_head or 'non vérifié'}")
+    print(f"RUNTIME_HEAD={report.runtime_head or 'non vérifié'}")
+    print(f"PYTHON_PACKAGE_ROOT={report.python_package_root or 'non vérifié'}")
+    print(f"WORLD_ID={report.world_id}")
+    print(f"PHYSIOLOGY_STATUS={report.physiology_status}")
+    print(f"INITIAL_MANIFEST={report.initial_manifest}")
+    print(f"BIOLOGICAL_ASSIGNMENTS={report.biological_assignments}")
+    print(f"SIMULATION_ENGINE={report.simulation_engine}")
+    print(f"RUNTIME_SESSION_ID={report.session_id}")
+    print(f"DATABASE_PATH={report.database}")
     print(f"Rodage V2 prêt : base={report.database} world_id={report.world_id} T0={report.t0} modèle={report.provider_model}")
     if report.session_id is not None:
         print(f"Session runtime ouverte : {report.session_id}")

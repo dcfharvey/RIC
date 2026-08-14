@@ -224,11 +224,16 @@ def _run_mvp_runtime(
     tick_seconds: float,
     max_ticks: int,
     guardian_interval: int,
+    official_checkout_root: Path | None = None,
+    official_runtime_head: str | None = None,
+    official_product_head: str | None = None,
 ) -> int:
     """Lance le runtime alpha et le tableau local jusqu'à Ctrl+C ou la borne."""
     from .cognition import LMStudioProvider, LocalLLMSettings
     from .mvp_preflight import inspect_mvp_preflight
     from .mvp_runtime import MVPRuntime
+    from .official_runtime import OfficialRuntimeError, validate_official_world
+    from .runtime_provenance import RuntimeProvenanceError, verify_runtime_provenance
     from .runtime_session import RuntimeSessionService
     from .guardian import LocalGuardian
     from .scene_turn import LMStudioSceneTurnProvider
@@ -237,6 +242,27 @@ def _run_mvp_runtime(
     from .util import Clock
     from .world_rules import WorldRuleService
     from .web import WebServerError, create_server, serve, shutdown
+
+    official = any(value is not None for value in (
+        official_checkout_root, official_runtime_head, official_product_head,
+    ))
+    provenance = None
+    if official:
+        if official_checkout_root is None or official_runtime_head is None:
+            print(
+                "Rodage officiel : preuve de checkout/RUNTIME_HEAD incomplète.",
+                file=__import__("sys").stderr,
+            )
+            return 2
+        try:
+            provenance = verify_runtime_provenance(
+                expected_checkout_root=official_checkout_root,
+                expected_runtime_head=official_runtime_head,
+                expected_product_head=official_product_head,
+            )
+        except RuntimeProvenanceError as exc:
+            print(f"Rodage officiel : lancement refusé ({exc.code}) : {exc}", file=__import__("sys").stderr)
+            return 2
 
     if not db_path.is_file():
         print(f"Runtime MVP : base introuvable : {db_path}", file=__import__("sys").stderr)
@@ -260,6 +286,7 @@ def _run_mvp_runtime(
     runtime = None
     session_service = None
     session_id = None
+    validation = None
     protective_stop = False
     from .diagnostics import DiagnosticRecorder
     diagnostics = DiagnosticRecorder.from_environment()
@@ -271,6 +298,14 @@ def _run_mvp_runtime(
             for check in report.failures:
                 print(f"  {check.key} : {check.detail}", file=__import__("sys").stderr)
             return 1
+        if official:
+            try:
+                validation = validate_official_world(
+                    conn, report.world_id, database_path=db_path, provenance=provenance,
+                )
+            except OfficialRuntimeError as exc:
+                print(f"Rodage officiel : lancement refusé ({exc.code}) : {exc}", file=__import__("sys").stderr)
+                return 1
         # Le port est réservé avant de muter la session : deux runtimes locaux
         # ne peuvent pas se déclarer propriétaires du même monde par accident.
         server = create_server(db_path, host="127.0.0.1", port=port)
@@ -306,6 +341,7 @@ def _run_mvp_runtime(
             appraisal_provider=appraisal_provider,
             affect_provider=affect_provider,
             diagnostics=diagnostics,
+            simulation_contract="active" if official else "legacy",
         )
         guardian = LocalGuardian(
             conn,
@@ -323,6 +359,12 @@ def _run_mvp_runtime(
         thread.start()
         actual_port = server.server_address[1]
         print(f"Runtime MVP actif — tableau de contrôle : http://127.0.0.1:{actual_port}/")
+        if official and validation is not None:
+            for key, value in {
+                **validation.as_dict(),
+                "RUNTIME_SESSION_ID": session_id,
+            }.items():
+                print(f"{key}={value}")
         print("Ctrl+C arrête proprement le runtime et interrompt les scènes ouvertes.")
         print(f"LLM local : {'activé' if enable_local_llm else 'désactivé (routines déterministes seulement)'}")
         ticks = 0
@@ -475,6 +517,20 @@ def main(argv: list[str] | None = None) -> int:
         "--guardian-interval", type=int, default=3600,
         help="Intervalle du gardien local en secondes (défaut : 3600).",
     )
+    p_rodage_run = sub.add_parser(
+        "rodage-run",
+        help="Lance un rodage officiel avec preuve du checkout et du moteur actif.",
+    )
+    p_rodage_run.add_argument("--db", required=True, help="Base officielle existante et préparée.")
+    p_rodage_run.add_argument("--world-id", type=int, default=None)
+    p_rodage_run.add_argument("--checkout-root", type=Path, required=True)
+    p_rodage_run.add_argument("--runtime-head", required=True)
+    p_rodage_run.add_argument("--product-head", default=None)
+    p_rodage_run.add_argument("--enable-local-llm", action="store_true")
+    p_rodage_run.add_argument("--port", type=int, default=8765)
+    p_rodage_run.add_argument("--tick-seconds", type=float, default=2.0)
+    p_rodage_run.add_argument("--max-ticks", type=int, default=0)
+    p_rodage_run.add_argument("--guardian-interval", type=int, default=3600)
 
     args = parser.parse_args(argv)
 
@@ -500,6 +556,18 @@ def main(argv: list[str] | None = None) -> int:
             tick_seconds=args.tick_seconds,
             max_ticks=args.max_ticks,
             guardian_interval=args.guardian_interval,
+        )
+    if args.command == "rodage-run":
+        return _run_mvp_runtime(
+            Path(args.db), args.world_id,
+            enable_local_llm=args.enable_local_llm,
+            port=args.port,
+            tick_seconds=args.tick_seconds,
+            max_ticks=args.max_ticks,
+            guardian_interval=args.guardian_interval,
+            official_checkout_root=args.checkout_root,
+            official_runtime_head=args.runtime_head,
+            official_product_head=args.product_head,
         )
 
     db_path = _resolve_db_path(getattr(args, "db", None))

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from .cognition import CognitionProvider
 from .diagnostics import DiagnosticRecorder
@@ -71,6 +71,7 @@ class MVPRuntime:
         max_transitions: int = 120,
         clock: Clock | None = None,
         diagnostics: DiagnosticRecorder | None = None,
+        simulation_contract: Literal["legacy", "active"] = "legacy",
     ) -> None:
         if not isinstance(world_id, int) or isinstance(world_id, bool) or world_id < 1:
             raise MVPRuntimeError("monde invalide", code="invalid_mvp_runtime")
@@ -90,6 +91,8 @@ class MVPRuntime:
             raise MVPRuntimeError("le provider affect exige le provider d appraisal", code="invalid_mvp_runtime")
         if not isinstance(max_transitions, int) or isinstance(max_transitions, bool) or not 1 <= max_transitions <= 1000:
             raise MVPRuntimeError("borne de transitions invalide", code="invalid_mvp_runtime")
+        if simulation_contract not in ("legacy", "active"):
+            raise MVPRuntimeError("contrat de simulation invalide", code="invalid_mvp_runtime")
         self._conn = conn
         self.world_id = world_id
         self._cognition_provider = cognition_provider
@@ -99,6 +102,7 @@ class MVPRuntime:
         self._limits = limits or CognitionCallLimits(0, 3600, 8)
         self._limits.validated()
         self._max_transitions = max_transitions
+        self._simulation_contract = simulation_contract
         self._clock = clock or Clock()
         self._social_cycle = None if scene_provider is None else SocialSceneCycle(
             conn, scene_provider, clock=self._clock,
@@ -111,6 +115,11 @@ class MVPRuntime:
 
     def run_once(self) -> MVPRunReport:
         """Fait progresser un monde actif, sans jamais traiter une pause."""
+        if self._simulation_contract == "active" and not self._physiology_active():
+            raise MVPRuntimeError(
+                "le contrat de rodage officiel exige une physiologie active",
+                code="official_physiology_inactive",
+            )
         world = WorldEngine(self._conn, clock=self._clock).get_world(self.world_id)
         if world["status"] == "paused":
             return MVPRunReport(self.world_id, "paused", None, None, None, None, None)
@@ -133,7 +142,7 @@ class MVPRuntime:
         # reprend seul la main.
         simulation = None
         if self._simulation_due(target):
-            if self._physiology_active():
+            if self.simulation_engine_name() == "ActiveSimulationEngine":
                 simulation = ActiveSimulationEngine(self._conn, clock=self._clock).run_to(
                     self.world_id, target, max_transitions=self._max_transitions
                 )
@@ -187,6 +196,17 @@ class MVPRuntime:
             self._conn, clock=self._clock
         ).system_status(self.world_id) == "active"
 
+    def simulation_engine_name(self) -> str:
+        """Expose le moteur qui serait sélectionné à cet instant."""
+        if self._physiology_active():
+            return "ActiveSimulationEngine"
+        if self._simulation_contract == "active":
+            raise MVPRuntimeError(
+                "le contrat de rodage officiel interdit le fallback legacy",
+                code="official_physiology_inactive",
+            )
+        return "SimulationEngine"
+
     def _simulation_due(self, target_time: str) -> bool:
         """Retourne si une transition déterministe est exigible à `target_time`.
 
@@ -195,7 +215,7 @@ class MVPRuntime:
         peut faire évoluer le monde; une lecture intermédiaire ne doit pas se
         transformer en écriture périodique.
         """
-        if self._physiology_active():
+        if self.simulation_engine_name() == "ActiveSimulationEngine":
             return ActiveSimulationEngine(
                 self._conn, clock=self._clock
             ).is_due(self.world_id, target_time)
