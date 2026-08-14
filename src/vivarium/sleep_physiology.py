@@ -2145,7 +2145,26 @@ class SleepPhysiologyService:
     ) -> str | None:
         """Cherche la frontière critique depuis les causes Reality courantes."""
         state = self.read_state(world_id, character_key)
-        source = self.resolve_light_source_owner_backed(
-            world_id, character_key, at_time=state.anchor_at
+        # The persisted physiology anchor is per-character. A newer canonical
+        # event for another character must not invalidate this pure look-ahead;
+        # the strict global-frontier contract remains on
+        # resolve_light_source_owner_backed for external projections.
+        self._assert_no_unmaterialized_character_boundary(
+            world_id, character_key, state.anchor_at, until
         )
-        return self._next_critical_boundary(world_id, character_key, source.source, until)
+        regime, _load, _sustained, _activity_type = self._owner_backed_regime(
+            world_id, character_key
+        )
+        location = self._conn.execute(
+            "SELECT l.key FROM character c JOIN location l ON l.id=c.current_location_id "
+            "WHERE c.world_id=? AND c.key=?",
+            (world_id, character_key),
+        ).fetchone()
+        if location is None:
+            raise SleepPhysiologyError(
+                "position canonique absente", code="canonical_position_missing"
+            )
+        source, _metadata = self._resolve_light_source_values(
+            world_id, location["key"], state.anchor_at, state=regime
+        )
+        return self._next_critical_boundary(world_id, character_key, source, until)

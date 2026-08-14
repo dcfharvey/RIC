@@ -17,7 +17,7 @@ from vivarium.simulation import SimulationEngine
 from vivarium.sleep_physiology import ADDITIVE_MODEL_KEY,SleepPhysiologyFoundationService,SleepPhysiologyService,V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY
 from vivarium.sleep_termination import SleepTerminationFoundationService
 from vivarium.util import Clock,to_iso
-from vivarium.world import WorldEngine
+from vivarium.world import SOURCE_ENGINE, WorldEngine, _append_event
 
 T0_DT=datetime(2026,8,12,21,0,tzinfo=timezone.utc);T0=to_iso(T0_DT)
 class FakeClock(Clock):
@@ -110,6 +110,30 @@ def test_active_scheduler_aligns_subsecond_wall_horizon_to_causal_grid():
   assert engine.is_due(wid,target) is False
   report=engine.run_to(wid,target)
   assert report.transitions==0 and report.last_time==target
+ finally:conn.close()
+
+
+def test_active_scheduler_allows_unrelated_newer_canonical_event_for_anchor():
+ conn,wid,clock=active_world()
+ try:
+  ActivityEngine(conn,clock=clock).start_activity(
+   wid,"chuu","gaming","salon",sim_now=T0
+  )
+  unrelated_at=to_iso(T0_DT+timedelta(seconds=30))
+  with transaction(conn) as tx:
+   _append_event(
+    tx,wid,SOURCE_ENGINE,"cognition_no_action",
+    {"character":"luna","decision":"no_action"},
+    occurred_at=unrelated_at,recorded_at=unrelated_at,
+   )
+
+  boundary=ActiveSimulationEngine(conn,clock=clock).next_boundary(
+   wid,"chuu",until=to_iso(T0_DT+timedelta(seconds=61))
+  )
+
+  assert boundary is not None
+  assert boundary.at==to_iso(T0_DT+timedelta(seconds=60))
+  assert "arbitration_reassessment" in boundary.reasons
  finally:conn.close()
 
 
