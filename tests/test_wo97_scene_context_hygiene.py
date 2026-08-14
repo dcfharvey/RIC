@@ -50,6 +50,8 @@ def test_current_speech_is_exactly_once_in_provider_prompt_and_memory_is_preserv
         assert context.recent_acts[-1]["source_social_speech_act_id"] == source_id
         assert all(item.get("source_social_speech_act_id") != source_id for item in context.subjective_context.memories)
         assert context.deduplicated_memory_source_ids == (source_id,)
+        provider_wire = context.wire()
+        assert "source_social_speech_act_id" not in json.dumps(provider_wire, ensure_ascii=False)
 
         captured = {}
         raw = '{"schema_version":2,"action":"no_action"}'
@@ -71,6 +73,7 @@ def test_current_speech_is_exactly_once_in_provider_prompt_and_memory_is_preserv
 
         assert decision.action == "no_action"
         assert captured["input_text"].count(text) == 1
+        assert "source_social_speech_act_id" not in captured["input_text"]
         assert context.subjective_context.memories == () or all(
             item.get("source_social_speech_act_id") != source_id
             for item in context.subjective_context.memories
@@ -116,6 +119,7 @@ def test_new_scene_has_no_recent_acts_but_keeps_historical_memory():
             for item in context.subjective_context.memories
         )
         assert context.deduplicated_memory_source_ids == ()
+        assert "source_social_speech_act_id" not in json.dumps(context.wire(), ensure_ascii=False)
     finally:
         conn.close()
 
@@ -205,9 +209,11 @@ def test_provider_diagnostic_proves_exact_prompt_output_and_repeat_source(tmp_pa
         record = json.loads((tmp_path / "provider.jsonl").read_text(encoding="utf-8").splitlines()[0])
         payload = record["payload"]
         assert payload["prompt_text"].count(text) == 1
+        assert "source_social_speech_act_id" not in payload["prompt_text"]
         assert payload["raw_output"] == raw
         assert payload["validated_output"]["content"] == text
         assert payload["deduplicated_memory_source_ids"] == [source_id]
+        assert payload["recent_act_source_social_speech_act_ids"] == [source_id]
         assert payload["exact_repeat_source_social_speech_act_ids"] == [source_id]
     finally:
         conn.close()

@@ -72,6 +72,21 @@ def _plain(value: Any) -> Any:
     return value
 
 
+def _internal_source_ids(context: "SceneTurnContext") -> dict[str, list[int]]:
+    return {
+        "recent_act_source_social_speech_act_ids": [
+            item["source_social_speech_act_id"]
+            for item in context.recent_acts
+            if isinstance(item.get("source_social_speech_act_id"), int)
+        ],
+        "subjective_memory_source_social_speech_act_ids": [
+            item["source_social_speech_act_id"]
+            for item in context.subjective_context.memories
+            if isinstance(item.get("source_social_speech_act_id"), int)
+        ],
+    }
+
+
 @dataclass(frozen=True)
 class SceneTurnContext:
     """Contexte privé du personnage, enrichi du seul cadre de sa scène."""
@@ -86,17 +101,31 @@ class SceneTurnContext:
     deduplicated_memory_source_ids: tuple[int, ...] = ()
 
     def wire(self) -> dict[str, Any]:
+        subjective = self.subjective_context.wire()
+        subjective["memories"] = [
+            {
+                key: value for key, value in memory.items()
+                if key != "source_social_speech_act_id"
+            }
+            for memory in subjective["memories"]
+        ]
         return {
             "schema_version": self.schema_version,
             "scene": {
                 "key": self.scene_key,
                 "speaker_key": self.speaker_key,
                 "participants": _plain(self.participants),
-                "recent_acts": _plain(self.recent_acts),
+                "recent_acts": [
+                    {
+                        key: _plain(value) for key, value in act.items()
+                        if key != "source_social_speech_act_id"
+                    }
+                    for act in self.recent_acts
+                ],
             },
             "allowed_act_kinds": sorted(_ACT_KINDS),
             "max_content_chars": MAX_SCENE_TURN_CONTENT,
-            "subjective_context": self.subjective_context.wire(),
+            "subjective_context": subjective,
         }
 
 
@@ -245,6 +274,7 @@ class LMStudioSceneTurnProvider:
                    "context_wire": context.wire(), "prompt_text": prompt_text,
                    "deduplicated_memory_source_ids": list(context.deduplicated_memory_source_ids),
                    "scene_key": context.scene_key, "speaker_key": context.speaker_key}
+        payload.update(_internal_source_ids(context))
         try:
             raw = request_local_model(
                 self._settings,
@@ -390,7 +420,7 @@ class SceneTurnService:
                        provider_call_id: str | None, validation_code: str | None,
                        persisted_speech: Mapping[str, Any] | None = None) -> None:
         if self._diagnostics is not None:
-            self._diagnostics.record("scene_turn_result", {
+            payload = {
                 "scene_key": scene_key, "speaker_key": speaker_key, "turn_key": turn_key,
                 "provider_call_id": provider_call_id, "context_wire": context.wire(),
                 "deduplicated_memory_source_ids": list(context.deduplicated_memory_source_ids),
@@ -398,4 +428,6 @@ class SceneTurnService:
                 "persisted_speech": None if persisted_speech is None else dict(persisted_speech),
                 "validation": "accepted" if validation_code is None else "rejected",
                 "validation_code": validation_code,
-            })
+            }
+            payload.update(_internal_source_ids(context))
+            self._diagnostics.record("scene_turn_result", payload)
