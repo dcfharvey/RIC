@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol
 
@@ -83,6 +83,7 @@ class SceneTurnContext:
     recent_acts: tuple[Mapping[str, Any], ...]
     subjective_context: CognitionContext
     schema_version: int = SCENE_TURN_SCHEMA_VERSION
+    deduplicated_memory_source_ids: tuple[int, ...] = ()
 
     def wire(self) -> dict[str, Any]:
         return {
@@ -115,14 +116,33 @@ class SceneTurnContextService:
             )
         except SceneError as exc:
             raise SceneTurnError(str(exc), code=exc.code) from exc
+        recent_acts = tuple(_freeze(item) for item in scene["recent_acts"])
+        source_ids = frozenset(
+            item.get("source_social_speech_act_id")
+            for item in recent_acts
+            if isinstance(item.get("source_social_speech_act_id"), int)
+        )
         subjective = CognitionContextService(self._conn, clock=self._clock).build(world_id, speaker_key)
+        duplicate_ids = tuple(sorted(
+            source_id for source_id in source_ids
+            if any(memory.get("source_social_speech_act_id") == source_id for memory in subjective.memories)
+        ))
+        if duplicate_ids:
+            subjective = replace(
+                subjective,
+                memories=tuple(
+                    memory for memory in subjective.memories
+                    if memory.get("source_social_speech_act_id") not in source_ids
+                ),
+            )
         return SceneTurnContext(
             world_id,
             scene_key,
             speaker_key,
             tuple(_freeze(item) for item in scene["participants"]),
-            tuple(_freeze(item) for item in scene["recent_acts"]),
+            recent_acts,
             subjective,
+            deduplicated_memory_source_ids=duplicate_ids,
         )
 
 
@@ -220,17 +240,32 @@ class LMStudioSceneTurnProvider:
 
     def decide(self, context: SceneTurnContext) -> SceneTurnDecision:
         raw: str | None = None
+        prompt_text = self._prompt(context)
         payload = {"model_id": self._settings.model_id, "provider_version": "scene-turn-v2",
-                   "context_wire": context.wire(), "scene_key": context.scene_key,
-                   "speaker_key": context.speaker_key}
+                   "context_wire": context.wire(), "prompt_text": prompt_text,
+                   "deduplicated_memory_source_ids": list(context.deduplicated_memory_source_ids),
+                   "scene_key": context.scene_key, "speaker_key": context.speaker_key}
         try:
             raw = request_local_model(
                 self._settings,
                 system_prompt="Tu produis au plus un acte de parole structuré, jamais un fait du monde.",
-                input_text=self._prompt(context),
+                input_text=prompt_text,
             )
             decision = self._parse_model_response(raw)
-            payload.update({"raw_output": raw, "validation": "accepted", "validated_output": decision.__dict__})
+            repeated_ids = []
+            if decision.content is not None:
+                repeated_ids = sorted({
+                    act["source_social_speech_act_id"]
+                    for act in context.recent_acts
+                    if act.get("content") == decision.content
+                    and isinstance(act.get("source_social_speech_act_id"), int)
+                })
+            payload.update({
+                "raw_output": raw,
+                "validation": "accepted",
+                "validated_output": decision.__dict__,
+                "exact_repeat_source_social_speech_act_ids": repeated_ids,
+            })
             self.last_diagnostic_id = None if self._diagnostics is None else self._diagnostics.record("scene_turn_provider", payload)
             return decision
         except CognitionError as exc:
@@ -343,17 +378,24 @@ class SceneTurnService:
         except SceneError as exc:
             self._record_result(scene_key, speaker_key, turn_key, context, decision, getattr(self._provider, "last_diagnostic_id", None), exc.code)
             return SceneTurnResult(context, admission, decision, None, None, exc.code)
-        self._record_result(scene_key, speaker_key, turn_key, context, decision, getattr(self._provider, "last_diagnostic_id", None), None)
+        self._record_result(
+            scene_key, speaker_key, turn_key, context, decision,
+            getattr(self._provider, "last_diagnostic_id", None), None,
+            persisted_speech=speech,
+        )
         return SceneTurnResult(context, admission, decision, _freeze(speech), None, None)
 
     def _record_result(self, scene_key: str, speaker_key: str, turn_key: str,
                        context: SceneTurnContext, decision: SceneTurnDecision | None,
-                       provider_call_id: str | None, validation_code: str | None) -> None:
+                       provider_call_id: str | None, validation_code: str | None,
+                       persisted_speech: Mapping[str, Any] | None = None) -> None:
         if self._diagnostics is not None:
             self._diagnostics.record("scene_turn_result", {
                 "scene_key": scene_key, "speaker_key": speaker_key, "turn_key": turn_key,
                 "provider_call_id": provider_call_id, "context_wire": context.wire(),
+                "deduplicated_memory_source_ids": list(context.deduplicated_memory_source_ids),
                 "validated_output": None if decision is None else decision.__dict__,
+                "persisted_speech": None if persisted_speech is None else dict(persisted_speech),
                 "validation": "accepted" if validation_code is None else "rejected",
                 "validation_code": validation_code,
             })
