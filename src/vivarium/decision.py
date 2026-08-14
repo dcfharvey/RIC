@@ -10,6 +10,7 @@ from .goals import GoalService
 from .motivation import MotivationService, MotiveCandidate
 from .policy import PolicyContext
 from .simulation import SimulationEngine
+from .circadian_model import sleep_propensity
 from .sleep_physiology import SleepPhysiologyFoundationService, SleepPhysiologyService
 
 class DecisionError(ValueError):
@@ -43,8 +44,12 @@ class DecisionFrameService:
   if SleepPhysiologyFoundationService(self._conn).system_status(world_id)=="active":
    goals=GoalService(self._conn).goals(world_id,character_key);active=GoalService(self._conn).active_intention(world_id,character_key)
    physiology=SleepPhysiologyService(self._conn);state=physiology.read_state(world_id,character_key)
-   projection=physiology.project_owner_backed(world_id,character_key,at_time=state.anchor_at)
-   sleep_pressure=max(0,min(1000,round(projection.propensity.sleep_propensity*1000)))
+   # A decision frame reads the last persisted physiological frontier.  It
+   # must not ask the owner-backed light projection to reconstruct that past
+   # frontier from today's location/activity after unrelated canonical events.
+   parameters=physiology.parameters_for_character(world_id,character_key)
+   propensity=sleep_propensity(state.regulation,parameters,family="additive")
+   sleep_pressure=max(0,min(1000,round(propensity.sleep_propensity*1000)))
    recovery=max(0,min(1000,round((1.0-state.regulation.physical_capacity)*1000)))
    motives=[]
    if sleep_pressure:
