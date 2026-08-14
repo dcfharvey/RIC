@@ -724,9 +724,13 @@ class SleepPhysiologyFoundationService:
         state: Literal["wake", "rest", "sleep"] = (
             "sleep" if activity_type == "sleep" else "rest" if activity_type == "rest" else "wake"
         )
-        return SleepPhysiologyService(self._conn).resolve_light_source_synthetic(
-            world_id, row["location_key"], anchor_at, state=state, occluded=(state == "sleep")
+        source, _metadata = SleepPhysiologyService(
+            self._conn, clock=self._clock
+        )._resolve_light_source_values(
+            world_id, row["location_key"], anchor_at,
+            state=state, occluded=(state == "sleep"),
         )
+        return source
 
     def _validate_initial_manifest_entry(
         self,
@@ -1563,8 +1567,8 @@ class SleepPhysiologyService:
     ) -> OwnerBackedRegulationProjection:
         """Resolve V1 depuis les seuls owners canoniques deja presents.
 
-        Contrairement a ``resolve_light_source_synthetic``, l'appelant ne peut
-        fournir ni lieu, ni etat, ni occlusion, ni stimulation. ``at_time``
+        L'appelant ne peut fournir ni lieu, ni etat, ni occlusion, ni
+        stimulation. ``at_time``
         represente une frontiere explicite; ``canonical_event_seq`` en est le
         jeton de contexte pour une reutilisation apres raisonnement externe.
         Cette API est un contrat futur/preflight et n'est appelee par aucun
