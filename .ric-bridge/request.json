@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"read_file","path":"src/vivarium/guardian.py"},"request_id":"6aa410da-6128-4f26-ae3a-fe217502af13","route":"/dev/fs","schema_version":2}
+{"method":"POST","payload":{"operation":"list_tree","path":"data","limit":200},"request_id":"bfa63c80-056f-4607-af96-4c672ac6639f","route":"/dev/fs","schema_version":2}
