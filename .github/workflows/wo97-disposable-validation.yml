@@ -51,4 +51,4 @@ jobs:
           --deselect=tests/test_dev_bridge.py::test_git_surface_is_read_only_and_sees_untracked_workspace
 
       - name: Diff check
-        run: git diff --check HEAD^ HEAD
+        run: git diff --check
