@@ -1,0 +1,48 @@
+name: WO97 disposable validation
+
+on:
+  push:
+    branches:
+      - chatgpt/wo97-ci-validation
+
+permissions:
+  contents: read
+
+jobs:
+  wo97-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact WO97 head
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project test dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+
+      - name: Compile source and tests
+        run: python -m compileall -q src tests
+
+      - name: Targeted WO97 and social/cognition tests
+        run: >
+          python -m pytest -q -p no:cacheprovider
+          --basetemp=.pytest-tmp-wo97-ci-target
+          tests/test_scene_turn.py
+          tests/test_scenes.py
+          tests/test_scene_scheduler.py
+          tests/test_social_cycle.py
+          tests/test_subjective_memory.py
+          tests/test_social_cognition_runtime.py
+          tests/test_diagnostics.py
+          tests/test_cognition_call_ledger.py
+          tests/test_wo97_scene_context_hygiene.py
+
+      - name: Broad suite
+        run: python -m pytest -q -p no:cacheprovider --basetemp=.pytest-tmp-wo97-ci-full
+
+      - name: Diff check
+        run: git diff --check HEAD^ HEAD
