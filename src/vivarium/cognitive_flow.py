@@ -11,7 +11,7 @@ import json
 import sqlite3
 from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from .util import Clock, new_uuid
 
@@ -230,3 +230,132 @@ class CognitiveFlowTelemetry:
                 json.dumps(details or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
             ),
         )
+
+    def record_provider_call(
+        self,
+        request: CognitiveFlowRequest,
+        state: str,
+        *,
+        context: Any = None,
+        provider_trace: Any = None,
+        provider_call_attempted: bool = False,
+        decision: Any = None,
+        proposal_id: str | None = None,
+        validation: Any = None,
+        error_code: str | None = None,
+        reason_code: str | None = None,
+        canonical_at: str | None = None,
+        provider_started_at: str | None = None,
+        provider_finished_at: str | None = None,
+    ) -> None:
+        """Persist the complete terminal observation for one provider call.
+
+        This is an extension of the existing flow journal, not a second
+        ownership system.  The sections deliberately keep canonical input,
+        LLM input/output, interpretation, and engine validation distinct.
+        """
+        context_wire = None
+        if context is not None:
+            wire = getattr(context, "wire", None)
+            context_wire = wire() if callable(wire) else context
+
+        trace_wire = None
+        if provider_trace is not None:
+            wire = getattr(provider_trace, "wire", None)
+            trace_wire = wire() if callable(wire) else provider_trace
+        else:
+            trace_wire = {
+                "available": False,
+                "reason": "provider_did_not_expose_trace",
+            }
+
+        decision_wire = None
+        interpretation_status = "not_reached"
+        if decision is not None:
+            decision_wire = {
+                "schema_version": getattr(decision, "schema_version", None),
+                "action": getattr(decision, "action", None),
+                "connector_key": getattr(decision, "connector_key", None),
+                "target_location_key": getattr(decision, "target_location_key", None),
+                "activity_type": getattr(decision, "activity_type", None),
+                "proposal_id": proposal_id,
+            }
+            interpretation_status = (
+                "no_action" if decision_wire["action"] == "no_action" else "proposal"
+            )
+        elif error_code is not None:
+            interpretation_status = "provider_or_parse_error"
+
+        validation_wire = None
+        consequence_wire: list[dict[str, Any]] = []
+        if validation is not None:
+            validation_wire = {
+                "proposal_id": getattr(validation, "proposal_id", None),
+                "status": getattr(validation, "status", None),
+                "reason_code": getattr(validation, "reason_code", None),
+            }
+            for fact in getattr(validation, "facts", ()):
+                consequence_wire.append({
+                    "world_id": getattr(fact, "world_id", None),
+                    "event_seq": getattr(fact, "event_seq", None),
+                    "event_type": getattr(fact, "event_type", None),
+                    "occurred_at": getattr(fact, "occurred_at", None),
+                    "payload": _plain_observation(getattr(fact, "payload", None)),
+                })
+
+        details = {
+            "observation_version": 1,
+            "provider_call_attempted": provider_call_attempted,
+            "canonical_input": {
+                "world_id": request.world_id,
+                "character_key": request.character_key,
+                "trigger": request.trigger,
+                "source_key": request.source_key,
+                "opportunity_id": request.opportunity_id,
+                "idempotency_key": request.idempotency_key,
+                "source_event_seq": request.source_event_seq,
+                "parent_event_seq": request.parent_event_seq,
+                "requested_at": request.requested_at,
+                "causal_depth": request.causal_depth,
+            },
+            "llm_context": {
+                "wire": _plain_observation(context_wire),
+            },
+            "options_presented": {
+                "traversals": _plain_observation(
+                    None if not isinstance(context_wire, Mapping)
+                    else context_wire.get("allowed_traversals")
+                ),
+                "activities": _plain_observation(
+                    None if not isinstance(context_wire, Mapping)
+                    else context_wire.get("allowed_activities")
+                ),
+                "elimination_reasons": "not_available_from_current_contract",
+            },
+            "provider": _plain_observation(trace_wire),
+            "interpretation": {
+                "status": interpretation_status,
+                "error_code": error_code,
+                "decision": decision_wire,
+            },
+            "engine_validation": validation_wire,
+            "canonical_consequence": consequence_wire,
+        }
+        self.record(
+            request,
+            state,
+            reason_code=reason_code or error_code,
+            canonical_at=canonical_at,
+            provider_started_at=provider_started_at,
+            provider_finished_at=provider_finished_at,
+            details=details,
+        )
+
+
+def _plain_observation(value: Any) -> Any:
+    """Convert frozen/mapping-proxy values without changing their meaning."""
+    if isinstance(value, Mapping):
+        return {str(key): _plain_observation(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_plain_observation(item) for item in value]
+    return value

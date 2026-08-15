@@ -144,12 +144,19 @@ def test_lm_studio_request_uses_native_reasoning_off_endpoint(monkeypatch, setup
         return Response()
 
     monkeypatch.setattr("vivarium.cognition.urlopen", fake_urlopen)
-    decision = LMStudioProvider(LocalLLMSettings(DEFAULT_LM_STUDIO_BASE_URL, "gemma-local", None, 12)).decide(context)
+    provider = LMStudioProvider(LocalLLMSettings(DEFAULT_LM_STUDIO_BASE_URL, "gemma-local", None, 12))
+    decision = provider.decide(context)
     sent = json.loads(captured["body"])
     assert decision.action == "no_action"
     assert captured["url"].endswith("/api/v1/chat") and captured["timeout"] == 12
     assert sent["reasoning"] == "off" and sent["store"] is False
     assert "max_output_tokens" not in sent
+    assert provider.last_call is not None
+    assert provider.last_call.request_body == sent
+    assert provider.last_call.raw_message == '{"schema_version":8,"action":"no_action"}'
+    assert provider.last_call.parsed_response == {"schema_version": 8, "action": "no_action"}
+    assert provider.last_call.status == "completed"
+    assert provider.last_call.duration_ms is not None
 
 
 def test_lm_studio_request_omits_reasoning_when_capability_is_absent(monkeypatch):

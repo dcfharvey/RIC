@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -150,6 +151,56 @@ class LocalLLMSettings:
         """Origine locale; accepte aussi l'ancienne valeur ``.../v1``."""
         parsed = urlparse(self.base_url)
         return f"{parsed.scheme}://{parsed.netloc}"
+
+
+@dataclass
+class CognitionProviderTrace:
+    """Trace technique d'un appel provider, sans effet sur la décision.
+
+    Le contenu est volontairement séparé de ``CognitionDecision`` : le texte
+    brut reçu du provider ne devient jamais une croyance ni un fait canonique.
+    ``request_body`` est limité au corps effectivement envoyé; les secrets
+    d'authentification restent hors de la trace.
+    """
+
+    model_id: str | None = None
+    request_body: dict[str, Any] | None = None
+    raw_response_body: str | None = None
+    raw_message: str | None = None
+    parsed_response: Any = None
+    status: str = "started"
+    error_code: str | None = None
+    duration_ms: int | None = None
+    _started_monotonic: float | None = None
+
+    def start(self) -> None:
+        self._started_monotonic = time.perf_counter()
+
+    def finish(self, *, status: str, error_code: str | None = None) -> None:
+        self.status = status
+        self.error_code = error_code
+        if self._started_monotonic is not None:
+            self.duration_ms = max(0, round((time.perf_counter() - self._started_monotonic) * 1000))
+
+    def wire(self) -> dict[str, Any]:
+        parameters = {}
+        if isinstance(self.request_body, Mapping):
+            parameters = {
+                key: value for key, value in self.request_body.items()
+                if key not in {"model", "system_prompt", "input"}
+            }
+        return {
+            "available": True,
+            "model_id": self.model_id,
+            "generation_parameters": parameters,
+            "request_body": self.request_body,
+            "raw_response_body": self.raw_response_body,
+            "raw_message": self.raw_message,
+            "parsed_response": self.parsed_response,
+            "status": self.status,
+            "error_code": self.error_code,
+            "duration_ms": self.duration_ms,
+        }
 
 
 @dataclass(frozen=True)
@@ -349,7 +400,8 @@ class CognitionProvider(Protocol):
 
 
 def request_local_model(
-    settings: LocalLLMSettings, *, system_prompt: str, input_text: str
+    settings: LocalLLMSettings, *, system_prompt: str, input_text: str,
+    trace: CognitionProviderTrace | None = None,
 ) -> str:
     """Exécute une requête native locale et retourne son unique message.
 
@@ -371,6 +423,8 @@ def request_local_model(
     reasoning = _reasoning_parameter(settings)
     if reasoning is not None:
         body["reasoning"] = reasoning
+    if trace is not None:
+        trace.request_body = dict(body)
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if settings.api_token:
         headers["Authorization"] = f"Bearer {settings.api_token}"
@@ -383,6 +437,8 @@ def request_local_model(
     try:
         with urlopen(request, timeout=settings.timeout_seconds) as response:  # endpoint validated loopback
             raw = response.read().decode("utf-8")
+            if trace is not None:
+                trace.raw_response_body = raw
     except HTTPError as exc:
         raise CognitionError(f"LM Studio a refusé la requête HTTP {exc.code}", code="llm_http_error") from exc
     except (URLError, TimeoutError, OSError) as exc:
@@ -438,6 +494,12 @@ class LMStudioProvider:
 
     def __init__(self, settings: LocalLLMSettings) -> None:
         self._settings = settings.validated(require_model=False)
+        self._last_call: CognitionProviderTrace | None = None
+
+    @property
+    def last_call(self) -> CognitionProviderTrace | None:
+        """Dernière trace provider, lue immédiatement par le routeur."""
+        return self._last_call
 
     @staticmethod
     def _prompt(context: CognitionContext) -> str:
@@ -473,14 +535,25 @@ class LMStudioProvider:
         )
 
     def decide(self, context: CognitionContext) -> CognitionDecision:
+        trace = CognitionProviderTrace(model_id=self._settings.model_id)
+        trace.start()
+        self._last_call = trace
         try:
-            payload = json.loads(request_local_model(
+            raw_message = request_local_model(
                 self._settings,
                 system_prompt="Tu proposes une seule action structurée, jamais un fait du monde.",
                 input_text=self._prompt(context),
-            ))
+                trace=trace,
+            )
+            trace.raw_message = raw_message
+            payload = json.loads(raw_message)
+            trace.parsed_response = payload
         except json.JSONDecodeError as exc:
+            trace.finish(status="error", error_code="invalid_llm_response")
             raise CognitionError("réponse LM Studio illisible", code="invalid_llm_response") from exc
+        except CognitionError as exc:
+            trace.finish(status="error", error_code=exc.code)
+            raise
         # Adaptation syntaxique étroite, identique dans son principe à celle
         # des actes de scène : Gemma emploie parfois directement le type
         # d'activité comme verbe d'action. La paire doit déjà être une option
@@ -500,7 +573,13 @@ class LMStudioProvider:
                 "activity_type": payload["action"],
                 "target_location_key": payload["target_location_key"],
             }
-        return CognitionDecision.parse(payload)
+        try:
+            decision = CognitionDecision.parse(payload)
+        except CognitionError as exc:
+            trace.finish(status="error", error_code=exc.code)
+            raise
+        trace.finish(status="completed")
+        return decision
 
     def list_models(self) -> tuple[str, ...]:
         """Diagnostic en lecture seule des identifiants chargés par LM Studio."""
@@ -536,6 +615,9 @@ class CognitionTurnService:
 
     def __init__(self, conn: sqlite3.Connection, provider: CognitionProvider, clock: Clock | None = None) -> None:
         self._conn, self._provider, self._clock = conn, provider, clock or Clock()
+        self.last_context: CognitionContext | None = None
+        self.last_provider_trace: Any = None
+        self.provider_call_attempted = False
 
     def run(
         self,
@@ -550,7 +632,12 @@ class CognitionTurnService:
         context = CognitionContextService(self._conn, clock=self._clock).build(
             world_id, character_key, after_event_seq=after_event_seq, decision_cue=decision_cue
         )
-        decision = self._provider.decide(context)
+        self.last_context = context
+        self.provider_call_attempted = True
+        try:
+            decision = self._provider.decide(context)
+        finally:
+            self.last_provider_trace = getattr(self._provider, "last_call", None)
         if not isinstance(decision, CognitionDecision):
             raise CognitionError("fournisseur cognitif hors contrat", code="invalid_llm_response")
         decision = decision.validated()

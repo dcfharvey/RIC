@@ -206,18 +206,23 @@ class CognitionCallRouter:
                 flow_request, "executing", canonical_at=admission.admitted_at,
                 provider_started_at=provider_started,
             )
+        turn_service = CognitionTurnService(self._conn, self._provider, clock=self._clock)
         try:
-            turn = CognitionTurnService(self._conn, self._provider, clock=self._clock).run(
+            turn = turn_service.run(
                 world_id, character_key, proposal_id, after_event_seq=after_event_seq,
                 decision_cue=self._decision_cue(world_id, trigger, source_key),
             )
         except CognitionError as exc:
             if self._flow_scheduler is not None:
-                self._flow_telemetry.record(
+                self._flow_telemetry.record_provider_call(
                     flow_request, flow_failure_state(exc.code), reason_code=exc.code,
                     canonical_at=admission.admitted_at,
                     provider_started_at=provider_started,
                     provider_finished_at=self._clock.now_iso(),
+                    context=turn_service.last_context,
+                    provider_trace=turn_service.last_provider_trace,
+                    provider_call_attempted=turn_service.provider_call_attempted,
+                    error_code=exc.code,
                 )
             return RoutedCognitionCall(admission, None, exc.code)
         if self._flow_scheduler is not None:
@@ -225,11 +230,17 @@ class CognitionCallRouter:
             state = "stale" if validation_code in {
                 "stale_decision_context", "deterministic_boundary_pending",
             } else "completed"
-            self._flow_telemetry.record(
+            self._flow_telemetry.record_provider_call(
                 flow_request, state, reason_code=validation_code,
                 canonical_at=admission.admitted_at,
                 provider_started_at=provider_started,
                 provider_finished_at=self._clock.now_iso(),
+                context=turn.context,
+                provider_trace=turn_service.last_provider_trace,
+                provider_call_attempted=turn_service.provider_call_attempted,
+                decision=turn.decision,
+                proposal_id=proposal_id,
+                validation=turn.validation,
             )
         return RoutedCognitionCall(admission, turn, None)
 
