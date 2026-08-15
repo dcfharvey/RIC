@@ -86,6 +86,18 @@ def _fact_wire(source_kind: str, priority_milli: int | None, fact: Any) -> Mappi
     })
 
 
+def _autobiographical_retrieval_context(attention: Any, feed: Any) -> Mapping[str, Any]:
+    """Construit des cues depuis les seules perceptions déjà accessibles."""
+    cues: list[str] = []
+    for item in attention.selected:
+        if isinstance(item.fact.event_type, str):
+            cues.append(item.fact.event_type)
+    for item in feed.candidates[:MAX_DIRECT_EVENTS]:
+        if isinstance(item.fact.event_type, str):
+            cues.append(item.fact.event_type)
+    return {"cues": tuple(dict.fromkeys(cues))}
+
+
 def _dotenv_values() -> dict[str, str]:
     """Lit le petit fichier ``config/.env`` sans dépendance externe.
 
@@ -215,6 +227,7 @@ class CognitionContext:
     attention: tuple[Mapping[str, Any], ...]
     direct_events: tuple[Mapping[str, Any], ...]
     memories: tuple[Mapping[str, Any], ...]
+    autobiographical_memories: tuple[Mapping[str, Any], ...]
     beliefs: tuple[Mapping[str, Any], ...]
     mood: Mapping[str, Any] | None
     emotions: tuple[Mapping[str, Any], ...]
@@ -233,7 +246,9 @@ class CognitionContext:
             "character": {"key": self.character_key, "name": self.character_name},
             "observed_at": self.observed_at, "latest_event_seq": self.latest_event_seq,
             "attention": _plain(self.attention), "direct_events": _plain(self.direct_events),
-            "memories": _plain(self.memories), "beliefs": _plain(self.beliefs),
+            "memories": _plain(self.memories),
+            "autobiographical_memories": _plain(self.autobiographical_memories),
+            "beliefs": _plain(self.beliefs),
             "mood": _plain(self.mood), "emotions": _plain(self.emotions),
             "relationships": _plain(self.relationships), "boundaries": _plain(self.boundaries),
             "decision_frame": _plain(self.decision_frame),
@@ -300,7 +315,14 @@ class CognitionContextService:
         character = CharacterEngine(self._conn, clock=self._clock).character_sheet(world_id, character_key)
         attention = AttentionService(self._conn, clock=self._clock).snapshot(world_id, character_key, limit=MAX_ATTENTION)
         feed = PerceptionService(self._conn, clock=self._clock).events_since(world_id, character_key, after_event_seq)
-        memories = SubjectiveMemoryService(self._conn, clock=self._clock).recall_recent(world_id, character_key, limit=MAX_MEMORIES)
+        memory_service = SubjectiveMemoryService(self._conn, clock=self._clock)
+        memories = memory_service.recall_recent(world_id, character_key, limit=MAX_MEMORIES)
+        autobiographical_memories = memory_service.recall_autobiographical(
+            world_id,
+            character_key,
+            context=_autobiographical_retrieval_context(attention, feed),
+            limit=MAX_MEMORIES,
+        )
         beliefs = BeliefService(self._conn, clock=self._clock).list(world_id, character_key, limit=MAX_BELIEFS)
         affect = AffectService(self._conn, clock=self._clock)
         mood = affect.mood(world_id, character_key)
@@ -338,6 +360,7 @@ class CognitionContextService:
             tuple(_fact_wire(item.source_kind, item.priority_milli, item.fact) for item in attention.selected),
             tuple(_fact_wire(item.access_kind, None, item.fact) for item in feed.candidates[:MAX_DIRECT_EVENTS]),
             tuple(_freeze(_plain(memory)) for memory in memories),
+            tuple(_freeze(_plain(memory)) for memory in autobiographical_memories),
             tuple(_freeze(_plain(belief)) for belief in beliefs),
             None if mood is None else _freeze(_plain(mood)),
             tuple(_freeze(_plain(emotion)) for emotion in emotions),

@@ -54,7 +54,7 @@ def test_forward_migration_classifies_known_activity_wakefulness_without_canonic
             "SELECT COUNT(*), MAX(seq) FROM canonical_event WHERE world_id = ?", (world_id,)
         ).fetchone()
 
-        assert ensure_schema(conn) == 58
+        assert ensure_schema(conn) == 59
 
         rows = {
             row["activity_type"]: (

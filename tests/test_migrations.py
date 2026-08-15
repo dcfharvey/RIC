@@ -60,12 +60,12 @@ def test_ensure_schema_applique_et_est_idempotent(conn):
 
 
 def test_scc1b_interpretation_only_renomme_lancienne_colonne_et_reste_idempotente(conn):
-    assert ensure_schema(conn) == 58
+    assert ensure_schema(conn) == 59
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(social_interpretation)")}
     assert "meaning_hypotheses_json" in columns
     assert "legacy_motive_hypotheses_json" in columns
     assert "motive_hypotheses_json" not in columns
-    assert ensure_schema(conn) == 58
+    assert ensure_schema(conn) == 59
 
 
 def test_migrations_enregistre_ledger(conn):
@@ -77,6 +77,38 @@ def test_migrations_enregistre_ledger(conn):
     # le registre documente exactement les migrations connues et leur empreinte.
     for version, checksum in loaded.items():
         assert applied[version] == checksum
+
+
+def test_autobiographical_memory_migration_creates_owner_scoped_tables(conn):
+    assert ensure_schema(conn) == 59
+    tables = {
+        row["name"]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        )
+    }
+    assert {
+        "autobiographical_episode",
+        "autobiographical_episode_support",
+        "autobiographical_episode_event",
+    } <= tables
+    assert ensure_schema(conn) == 59
+
+
+def test_autobiographical_memory_migration_survives_existing_database_reopen(tmp_path):
+    path = tmp_path / "existing.sqlite"
+    first = connect_database(str(path))
+    assert ensure_schema(first) == 59
+    first.close()
+
+    reopened = connect_database(str(path))
+    try:
+        assert ensure_schema(reopened) == 59
+        assert reopened.execute(
+            "SELECT checksum FROM migrations WHERE version = 59"
+        ).fetchone()[0]
+    finally:
+        reopened.close()
 
 
 def test_divergence_migration_modifiee_leve_erreur(conn):

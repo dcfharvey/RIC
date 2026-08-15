@@ -277,7 +277,7 @@ def test_forward_migration_from_52_creates_no_policy_checkpoint_audit_or_canonic
     try:
         _apply_through(conn,52); world=IntegrationWorldService(conn,clock=FakeClock()).create_initial_world()
         before=conn.execute("SELECT COUNT(*),MAX(seq) FROM canonical_event WHERE world_id=?",(world["id"],)).fetchone()
-        assert ensure_schema(conn) == 58
+        assert ensure_schema(conn) == 59
         for table in ("sleep_termination_policy","world_sleep_termination_policy_assignment","activity_sleep_checkpoint","sleep_termination_audit"):
             assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
         after=conn.execute("SELECT COUNT(*),MAX(seq) FROM canonical_event WHERE world_id=?",(world["id"],)).fetchone()
