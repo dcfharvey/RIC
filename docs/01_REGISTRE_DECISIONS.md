@@ -1,8 +1,8 @@
 # Registre des décisions autoritatives
 
-**Version :** 0.5
-**Date :** 6 août 2026
-**Statut :** actif — registre consolidé après fermeture technique de la Phase 3
+**Version :** 0.6
+**Date :** 15 août 2026
+**Statut :** actif — registre consolidé et politique de désendettement continu ajoutée
 **Source :** dossier maître v0.1, clarifications CLA-001..004, demande de changement post-audit v0.2, index maître des décisions v0.3
 
 > Une décision remplacée conserve son identifiant et reçoit un statut `supersédée`, avec la référence `supersédée par`. Aucune décision historique n’est supprimée.
@@ -107,3 +107,9 @@ Statuts : `implémenté` (présent dans le code et testé), `normatif futur` (di
 | DEC-064 | Les environnements sont composables : lieux, connecteurs, installations, contenance et topologie sont distincts. Ils emploient la même grammaire versionnée que les personnages sans être fusionnés avec leur subjectivité. | **actif** |
 | DEC-065 | Un nouvel `idle` d'une résidente sapiente constitue une occasion événementielle unique de choisir une activité. Le moteur produit les options réellement atteignables; le LLM en choisit une ou attend; le contrat v2 remplace atomiquement l'idle et refuse toute paire inventée. Les effets physiologiques précis des loisirs restent provisoirement passifs jusqu'à calibration. | **actif** |
 | DEC-066 | Une décision LLM est effective à l'instant où son contexte canonique a été observé; sa latence de calcul n'est pas du temps vécu. Le dernier numéro d'événement observé sert de garde optimiste : si le canon change pendant l'inférence, la proposition est périmée et refusée sans écriture. | **actif** |
+
+## F. Décision du 15 août 2026
+
+| ID | Décision | Statut |
+| --- | --- | --- |
+| DEC-067 | Désendettement continu : la dette technique est traitée de façon incrémentale. Avant une nouvelle feature, les dettes susceptibles d’être multipliées par son ajout sont payées juste assez pour préserver des frontières, owners et interfaces propres. Lorsqu’un WO touche une zone endettée, il inclut le désendettement minimal nécessaire pour ne pas propager cette dette. Les refontes globales, préventives ou purement esthétiques sans problème concret démontré sont évitées; tout désendettement doit préserver les invariants et être vérifié par les tests appropriés. | **actif** |
