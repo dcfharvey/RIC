@@ -66,24 +66,23 @@ def test_episode_is_distinct_from_trace_and_keeps_support_audit(setup):
         "sophie",
         "episode-entry",
         [trace_id],
-        gist={"text": "Je me rappelle avoir remarqué l'entrée."},
-        details={"fidelity": "complete"},
-        context={"location_key": "porte_entree"},
-        participants=["sophie"],
-        source_attribution={"kind": "seen", "confidence": "bounded"},
-        recovery_cues=["entry"],
         importance_milli=700,
         accessibility_milli=800,
     )
 
     assert episode["episode_key"] == "episode-entry"
     assert episode["support_trace_ids"] == (trace_id,)
-    assert episode["source_attribution"]["kind"] == "seen"
+    assert episode["gist"]["kind"] == "supported_trace_projection"
+    assert episode["gist"]["support_count"] == 1
+    assert episode["source_attribution"]["kind"] == "derived_from_subjective_access"
+    assert episode["participants"] == ("chuu",)
+    assert "erika" not in episode["participants"]
+    assert episode["recovery_cues"]
     assert episode["importance_milli"] == 700
     assert episode["accessibility_milli"] == 800
     assert memory.recall_recent(world_id, "sophie")[0]["request_key"] == "notice_entry"
     assert memory.recall_autobiographical(
-        world_id, "sophie", context={"cues": ["entry"]}
+        world_id, "sophie", context={"cues": ["adjacent_connector"]}
     )[0]["episode_key"] == "episode-entry"
     assert conn.execute("SELECT COUNT(*) FROM autobiographical_episode").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM autobiographical_episode_support").fetchone()[0] == 1
@@ -92,6 +91,29 @@ def test_episode_is_distinct_from_trace_and_keeps_support_audit(setup):
 
     with pytest.raises(Exception, match="immutable"):
         conn.execute("UPDATE autobiographical_episode SET importance_milli = 1")
+
+    with pytest.raises(TypeError):
+        memory.form_episode(
+            world_id, "sophie", "unsupported-content", [trace_id],
+            context={"unsupported_fact": "erika acted"},
+        )
+    with pytest.raises(TypeError):
+        memory.form_episode(
+            world_id, "sophie", "unsupported-participant", [trace_id],
+            participants=["erika"],
+        )
+
+    second_trace = memory.encode_attention(
+        world_id, "sophie", "notice_entry_2", item
+    )
+    second_trace_id = _trace_id(conn, "notice_entry_2")
+    multi = memory.form_episode(
+        world_id, "sophie", "episode-with-two-supports",
+        [trace_id, second_trace_id],
+    )
+    assert multi["gist"]["support_count"] == 2
+    assert len(multi["details"]["supports"]) == 2
+    assert multi["support_trace_ids"] == (trace_id, second_trace_id)
 
 
 def test_episode_requires_owned_subjective_support_and_not_a_canonical_shortcut(setup):
@@ -104,14 +126,12 @@ def test_episode_requires_owned_subjective_support_and_not_a_canonical_shortcut(
     with pytest.raises(SubjectiveMemoryError) as raised:
         memory.form_episode(
             world_id, "luna", "cross-owner", [trace_id],
-            gist={"text": "interdit"},
         )
     assert raised.value.code == "source_not_accessible"
 
     with pytest.raises(SubjectiveMemoryError) as raised:
         memory.form_episode(
             world_id, "sophie", "without-trace", [],
-            gist={"text": "aucune source"},
         )
     assert raised.value.code == "invalid_source"
 
@@ -126,27 +146,25 @@ def test_retrieval_is_contextual_bounded_deterministic_and_read_only(setup):
         conn, world_id, clock, "old_move", "porte_entree", "salon"
     )
     clock.advance(3600)
-    recent_trace = _direct_trace(
-        conn, world_id, clock, "recent_move", "porte_entree", "entree_exterieure"
+    recent_item = AttentionService(conn, clock=clock).snapshot(
+        world_id, "sophie"
+    ).selected[0]
+    recent_trace = memory.encode_attention(
+        world_id, "sophie", "recent_state", recent_item
     )
-    old_id, recent_id = _trace_id(conn, "old_move"), _trace_id(conn, "recent_move")
+    old_id, recent_id = _trace_id(conn, "old_move"), _trace_id(conn, "recent_state")
 
     memory.form_episode(
         world_id, "sophie", "old-relevant", [old_id],
-        gist={"text": "ancienne entrée"},
-        context={"location_key": "porte_entree"},
-        recovery_cues=["entry-context"], importance_milli=100,
+        importance_milli=100,
     )
     memory.form_episode(
         world_id, "sophie", "recent-irrelevant", [recent_id],
-        gist={"text": "événement récent"},
-        context={"location_key": "salon"},
-        recovery_cues=["other-context"], importance_milli=100,
+        importance_milli=100,
     )
     for index in range(6):
         memory.form_episode(
             world_id, "sophie", f"bounded-{index}", [old_id],
-            gist={"text": f"borné {index}"}, recovery_cues=[f"bound-{index}"],
         )
 
     before = (
@@ -156,10 +174,10 @@ def test_retrieval_is_contextual_bounded_deterministic_and_read_only(setup):
         conn.execute("SELECT COUNT(*) FROM subjective_belief").fetchone()[0],
     )
     first = memory.recall_autobiographical(
-        world_id, "sophie", context={"cues": ["entry-context"]}, limit=3
+        world_id, "sophie", context={"cues": ["character_moved"]}, limit=3
     )
     second = memory.recall_autobiographical(
-        world_id, "sophie", context={"cues": ["entry-context"]}, limit=3
+        world_id, "sophie", context={"cues": ["character_moved"]}, limit=3
     )
 
     assert len(first) == 3
@@ -183,8 +201,6 @@ def test_cognition_receives_separate_autobiographical_working_set(setup):
     trace_id = _trace_id(conn, "cognition_source")
     memory.form_episode(
         world_id, "sophie", "cognition-episode", [trace_id],
-        gist={"text": "souvenir pour la cognition"},
-        recovery_cues=[item.fact.event_type],
     )
 
     context = CognitionContextService(conn, clock=clock).build(world_id, "sophie")

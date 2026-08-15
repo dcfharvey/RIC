@@ -18,7 +18,6 @@ _FIDELITIES = frozenset({"complete", "partial", "ambiguous", "signal_only"})
 MAX_RECALL_LIMIT = 50
 MAX_AUTOBIOGRAPHICAL_WORKING_SET = 10
 MAX_EPISODE_CUES = 32
-MAX_EPISODE_PARTICIPANTS = 16
 
 
 class SubjectiveMemoryError(ValueError):
@@ -61,23 +60,6 @@ def _milli(value: Any, label: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 1000:
         raise SubjectiveMemoryError(f"{label} invalide", code="invalid_episode")
     return value
-
-
-def _string_list(value: Any, label: str, *, limit: int) -> tuple[str, ...]:
-    if not isinstance(value, (list, tuple)):
-        raise SubjectiveMemoryError(f"{label} invalide", code="invalid_episode")
-    if len(value) > limit:
-        raise SubjectiveMemoryError(f"{label} trop long", code="invalid_episode")
-    result: list[str] = []
-    seen: set[str] = set()
-    for item in value:
-        if not isinstance(item, str) or not item.strip() or len(item) > 160:
-            raise SubjectiveMemoryError(f"{label} invalide", code="invalid_episode")
-        item = item.strip()
-        if item not in seen:
-            seen.add(item)
-            result.append(item)
-    return tuple(result)
 
 
 def _tokens(value: Any) -> frozenset[str]:
@@ -305,17 +287,6 @@ class SubjectiveMemoryService:
             (world_id, character_id, episode_key),
         ).fetchone()
 
-    def _episode_participants(self, world_id: int, participants: tuple[str, ...]) -> None:
-        for participant in participants:
-            row = self._conn.execute(
-                "SELECT 1 FROM character WHERE world_id = ? AND key = ?",
-                (world_id, participant),
-            ).fetchone()
-            if row is None:
-                raise SubjectiveMemoryError(
-                    "participant introuvable dans le monde", code="invalid_episode"
-                )
-
     def _source_rows(
         self, world_id: int, character_id: int, source_trace_ids: Any
     ) -> tuple[sqlite3.Row, ...]:
@@ -339,7 +310,92 @@ class SubjectiveMemoryService:
             raise SubjectiveMemoryError(
                 "support subjectif inaccessible", code="source_not_accessible"
             )
-        return tuple(by_id[trace_id] for trace_id in source_trace_ids)
+        return tuple(
+            sorted(
+                by_id.values(),
+                key=lambda row: (row["fact_occurred_at"], row["id"]),
+            )
+        )
+
+    def _grounded_episode_projection(
+        self, world_id: int, traces: tuple[sqlite3.Row, ...]
+    ) -> tuple[str, str, str, str, str, tuple[str, ...]]:
+        """Construit uniquement des champs copiés/dérivés des supports validés."""
+        participants: set[str] = set()
+        participant_fields = {
+            "character",
+            "character_key",
+            "speaker_key",
+            "recipient_key",
+            "participant_key",
+        }
+        for trace in traces:
+            payload = json.loads(trace["payload_json"])
+            for field in participant_fields:
+                value = payload.get(field) if isinstance(payload, Mapping) else None
+                if isinstance(value, str) and _KEY_RE.fullmatch(value):
+                    exists = self._conn.execute(
+                        "SELECT 1 FROM character WHERE world_id = ? AND key = ?",
+                        (world_id, value),
+                    ).fetchone()
+                    if exists is not None:
+                        participants.add(value)
+            values = payload.get("participants") if isinstance(payload, Mapping) else None
+            if isinstance(values, (list, tuple)):
+                for value in values:
+                    if not isinstance(value, str) or _KEY_RE.fullmatch(value) is None:
+                        continue
+                    exists = self._conn.execute(
+                        "SELECT 1 FROM character WHERE world_id = ? AND key = ?",
+                        (world_id, value),
+                    ).fetchone()
+                    if exists is not None:
+                        participants.add(value)
+
+        fact_types = sorted({trace["fact_type"] for trace in traces})
+        source_kinds = sorted({trace["source_kind"] for trace in traces})
+        access_kinds = sorted({trace["access_kind"] for trace in traces})
+        fidelities = sorted({trace["fidelity"] for trace in traces})
+        participant_list = sorted(participants)
+        support_details = [
+            {
+                "fact_type": trace["fact_type"],
+                "occurred_at": trace["fact_occurred_at"],
+                "access_kind": trace["access_kind"],
+                "fidelity": trace["fidelity"],
+                "payload": json.loads(trace["payload_json"]),
+            }
+            for trace in traces
+        ]
+        gist = {
+            "kind": "supported_trace_projection",
+            "fact_types": fact_types,
+            "support_count": len(traces),
+        }
+        details = {"supports": support_details}
+        context = {
+            "fact_types": fact_types,
+            "source_kinds": source_kinds,
+            "access_kinds": access_kinds,
+            "participants": participant_list,
+        }
+        source_attribution = {
+            "kind": "derived_from_subjective_access",
+            "source_kinds": source_kinds,
+            "access_kinds": access_kinds,
+            "fidelities": fidelities,
+        }
+        recovery_cues = tuple(
+            dict.fromkeys(fact_types + access_kinds + source_kinds + participant_list)
+        )
+        return (
+            _json_object(gist, "gist"),
+            _json_object(details, "détails"),
+            _json_object(context, "contexte"),
+            _json_array(participant_list, "participants"),
+            _json_object(source_attribution, "attribution subjective"),
+            recovery_cues,
+        )
 
     def form_episode(
         self,
@@ -348,38 +404,33 @@ class SubjectiveMemoryService:
         episode_key: Any,
         source_trace_ids: Any,
         *,
-        gist: Any,
-        details: Any = None,
-        context: Any = None,
-        participants: Any = (),
-        source_attribution: Any = None,
-        recovery_cues: Any = (),
         importance_milli: Any = 0,
         accessibility_milli: Any = 1000,
     ) -> dict[str, Any]:
         """Forme explicitement un épisode depuis des traces du propriétaire.
 
-        Les bornes temporelles sont dérivées des traces validées; aucun
-        événement canonique ni aucune provenance fournie par un LLM n'est
-        accepté comme source directe.
+        Le contenu est une projection structurée et déterministe des traces
+        validées; la synthèse narrative reconstructive est reportée. Les
+        bornes temporelles sont dérivées des traces; aucun événement
+        canonique ni aucune provenance fournie par un LLM n'est accepté comme
+        source directe.
         """
         world_id = self._world_id(world_id)
         character_key = self._key(character_key, "personnage")
         episode_key = self._key(episode_key, "épisode")
-        details = {} if details is None else details
-        context = {} if context is None else context
-        source_attribution = {} if source_attribution is None else source_attribution
-        gist_json = _json_object(gist, "gist")
-        details_json = _json_object(details, "détails")
-        context_json = _json_object(context, "contexte")
-        source_attribution_json = _json_object(source_attribution, "attribution subjective")
-        participants = _string_list(participants, "participants", limit=MAX_EPISODE_PARTICIPANTS)
-        recovery_cues = _string_list(recovery_cues, "cues", limit=MAX_EPISODE_CUES)
         importance_milli = _milli(importance_milli, "importance")
         accessibility_milli = _milli(accessibility_milli, "accessibilité")
         character_id = self._character_id(world_id, character_key)
-        self._episode_participants(world_id, participants)
         traces = self._source_rows(world_id, character_id, source_trace_ids)
+        (
+            gist_json,
+            details_json,
+            context_json,
+            participants_json,
+            source_attribution_json,
+            recovery_cues,
+        ) = self._grounded_episode_projection(world_id, traces)
+        recovery_cues_json = _json_array(recovery_cues, "cues")
         experience_started_at = min(row["fact_occurred_at"] for row in traces)
         experience_ended_at = max(row["fact_occurred_at"] for row in traces)
         formed_at = self._clock.now_iso()
@@ -388,9 +439,9 @@ class SubjectiveMemoryService:
             existing = self._episode_row(world_id, character_id, episode_key)
             if existing is not None:
                 expected = (
-                    gist_json, details_json, context_json, _json_array(participants, "participants"),
+                    gist_json, details_json, context_json, participants_json,
                     experience_started_at, experience_ended_at, source_attribution_json,
-                    _json_array(recovery_cues, "cues"), importance_milli, accessibility_milli,
+                    recovery_cues_json, importance_milli, accessibility_milli,
                 )
                 actual = tuple(existing[key] for key in (
                     "gist_json", "details_json", "context_json", "participants_json",
@@ -401,7 +452,7 @@ class SubjectiveMemoryService:
                     "SELECT trace_id FROM autobiographical_episode_support "
                     "WHERE episode_id = ? ORDER BY id", (existing["id"],)
                 ).fetchall())
-                if actual != expected or support_ids != tuple(source_trace_ids):
+                if actual != expected or support_ids != tuple(trace["id"] for trace in traces):
                     raise SubjectiveMemoryError(
                         "clé d'épisode déjà utilisée pour un autre souvenir",
                         code="episode_key_conflict",
@@ -415,8 +466,8 @@ class SubjectiveMemoryService:
                 "accessibility_milli, formed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     new_uuid(), world_id, character_id, episode_key, gist_json, details_json,
-                    context_json, _json_array(participants, "participants"), experience_started_at,
-                    experience_ended_at, source_attribution_json, _json_array(recovery_cues, "cues"),
+                    context_json, participants_json, experience_started_at,
+                    experience_ended_at, source_attribution_json, recovery_cues_json,
                     importance_milli, accessibility_milli, formed_at,
                 ),
             )
