@@ -17,6 +17,7 @@ from typing import Any
 from .activities import ActivityEngine
 from .cognition import CognitionProvider
 from .cognition_call_ledger import CognitionCallLedgerService
+from .cognitive_flow import CognitiveFlowScheduler
 from .cognition_policy import CALL_TRIGGER_INITIAL_ARRIVAL, CognitionCallLimits
 from .cognition_router import CognitionCallRouter, CognitionCallRouterError, RoutedCognitionCall
 from .util import Clock
@@ -42,10 +43,15 @@ class InitialArrivalOutcome:
 class InitialArrivalCycle:
     """Distribue une occasion d'arrivée à chaque résidente sapiente, une fois."""
 
-    def __init__(self, conn: sqlite3.Connection, provider: CognitionProvider, clock: Clock | None = None) -> None:
+    def __init__(
+        self, conn: sqlite3.Connection, provider: CognitionProvider,
+        clock: Clock | None = None,
+        flow_scheduler: CognitiveFlowScheduler | None = None,
+    ) -> None:
         self._conn = conn
         self._provider = provider
         self._clock = clock or Clock()
+        self._flow_scheduler = flow_scheduler
 
     @staticmethod
     def _world_id(value: Any) -> int:
@@ -156,7 +162,10 @@ class InitialArrivalCycle:
             # technique qui aurait précisément empêché l'occasion d'arrivée.
             ActivityEngine(self._conn, clock=self._clock).abort_activity(world_id, character_key)
         try:
-            routed = CognitionCallRouter(self._conn, self._provider, clock=self._clock).run(
+            routed = CognitionCallRouter(
+                self._conn, self._provider, clock=self._clock,
+                flow_scheduler=self._flow_scheduler,
+            ).run(
                 world_id,
                 character_key,
                 CALL_TRIGGER_INITIAL_ARRIVAL,

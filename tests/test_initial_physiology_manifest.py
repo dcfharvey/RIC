@@ -231,7 +231,7 @@ def test_forward_migration_from_schema_53_preserves_history_and_creates_no_manif
         world_id = IntegrationWorldService(conn).create_initial_world()["id"]
         before = conn.execute("SELECT COUNT(*),MAX(seq) FROM canonical_event WHERE world_id=?", (world_id,)).fetchone()
 
-        assert ensure_schema(conn) == 57
+        assert ensure_schema(conn) == 58
         assert tuple(conn.execute("SELECT COUNT(*),MAX(seq) FROM canonical_event WHERE world_id=?", (world_id,)).fetchone()) == tuple(before)
         for table in ("initial_physiology_manifest", "initial_physiology_manifest_entry", "sleep_regulation_state", "physical_capacity_state"):
             assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0

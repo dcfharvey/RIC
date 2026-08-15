@@ -21,6 +21,7 @@ from .cognition_policy import (
     CognitionCallRequest,
     CognitionCallVerdict,
 )
+from .cognitive_flow import CognitiveFlowRequest, CognitiveFlowScheduler, CognitiveFlowTelemetry
 from .db import transaction
 from .registry import _KEY_RE
 from .util import Clock, new_uuid, parse_iso, to_iso
@@ -63,9 +64,14 @@ class CognitionCallLedgerService:
     peut ni fournir sa propre cadence ni modifier le journal directement.
     """
 
-    def __init__(self, conn: sqlite3.Connection, clock: Clock | None = None) -> None:
+    def __init__(
+        self, conn: sqlite3.Connection, clock: Clock | None = None,
+        flow_scheduler: CognitiveFlowScheduler | None = None,
+    ) -> None:
         self._conn = conn
         self._clock = clock or Clock()
+        self._flow_scheduler = flow_scheduler
+        self._flow_telemetry = CognitiveFlowTelemetry(conn, clock=self._clock)
 
     @staticmethod
     def _character_id(conn: sqlite3.Connection, world_id: int, character_key: str) -> int:
@@ -194,6 +200,8 @@ class CognitionCallLedgerService:
         if reason_code not in {"budget_exhausted", "debounced"}:
             return to_iso(attempt + timedelta(seconds=retry_delay_seconds))
         character_id = self._character_id(self._conn, world_id, character_key)
+        if limits.max_calls_per_window is None and reason_code == "budget_exhausted":
+            return to_iso(parse_iso(WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)))
         now = parse_iso(WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id))
         history = self._history(self._conn, world_id, character_id)
         instants = tuple(parse_iso(record.admitted_at) for record in history)
@@ -243,6 +251,9 @@ class CognitionCallLedgerService:
         trigger: Any,
         source_key: Any,
         limits: Any,
+        *,
+        source_event_seq: int | None = None,
+        parent_event_seq: int | None = None,
     ) -> CognitionCallAdmission:
         world_id, character_key = _world_id(world_id), _key(character_key, "personnage")
         trigger, source_key = _key(trigger, "motif"), _key(source_key, "source")
@@ -252,6 +263,25 @@ class CognitionCallLedgerService:
             limits.validated()
         except CognitionCallPolicyError as exc:
             raise CognitionCallLedgerError(str(exc), code=exc.code) from exc
+
+        flow_request: CognitiveFlowRequest | None = None
+        if self._flow_scheduler is not None:
+            requested_at = WorldEngine(self._conn, clock=self._clock).read_canonical_time(world_id)
+            flow_request = CognitiveFlowRequest(
+                world_id, character_key, trigger, source_key, requested_at,
+                source_event_seq=source_event_seq, parent_event_seq=parent_event_seq,
+            )
+            self._flow_telemetry.record(flow_request, "opportunity")
+            offer = self._flow_scheduler.offer(flow_request)
+            if offer.state != "ready":
+                self._flow_telemetry.record(
+                    flow_request, offer.state, reason_code=offer.reason_code,
+                    wait_started_at=requested_at,
+                )
+                return CognitionCallAdmission(
+                    CognitionCallVerdict("deferred", offer.reason_code, flow_request.idempotency_key),
+                    None, None,
+                )
 
         with transaction(self._conn) as conn:
             character_id = self._character_id(conn, world_id, character_key)
@@ -263,8 +293,17 @@ class CognitionCallLedgerService:
                     reserved_calls=self._autonomy_reservation(conn, world_id, character_id),
                 )
             except CognitionCallPolicyError as exc:
+                if flow_request is not None:
+                    self._flow_scheduler.cancel(flow_request.idempotency_key)
                 raise CognitionCallLedgerError(str(exc), code=exc.code) from exc
             if not verdict.eligible:
+                if flow_request is not None:
+                    self._flow_scheduler.cancel(flow_request.idempotency_key)
+                state = "duplicate" if verdict.reason_code == "duplicate_call" else "refused"
+                if flow_request is not None:
+                    self._flow_telemetry.record(
+                        flow_request, state, reason_code=verdict.reason_code, canonical_at=now,
+                    )
                 return CognitionCallAdmission(verdict, None, None)
             admission_id = new_uuid()
             conn.execute(
@@ -274,4 +313,7 @@ class CognitionCallLedgerService:
                 (admission_id, world_id, character_id, request.trigger, request.source_key,
                  verdict.idempotency_key, now),
             )
+            if flow_request is not None:
+                self._flow_telemetry.record(flow_request, "admitted", canonical_at=now)
+                self._flow_scheduler.complete(flow_request.idempotency_key)
             return CognitionCallAdmission(verdict, admission_id, now)

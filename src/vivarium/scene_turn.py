@@ -21,6 +21,7 @@ from .cognition import (
     request_local_model,
 )
 from .cognition_call_ledger import CognitionCallAdmission, CognitionCallLedgerService
+from .cognitive_flow import CognitiveFlowRequest, CognitiveFlowScheduler, CognitiveFlowTelemetry, flow_failure_state
 from .cognition_policy import CALL_TRIGGER_SCENE_TURN, CognitionCallLimits
 from .diagnostics import DiagnosticRecorder
 from .registry import _KEY_RE
@@ -329,11 +330,18 @@ class SceneTurnResult:
 class SceneTurnService:
     """Garde un tour de scène : contexte, admission, LLM puis acte validé."""
 
-    def __init__(self, conn: sqlite3.Connection, provider: SceneTurnProvider, clock: Clock | None = None,
-                 diagnostics: DiagnosticRecorder | None = None) -> None:
+    def __init__(
+        self, conn: sqlite3.Connection, provider: SceneTurnProvider,
+        clock: Clock | None = None, diagnostics: DiagnosticRecorder | None = None,
+        flow_scheduler: CognitiveFlowScheduler | None = None,
+    ) -> None:
         self._conn, self._provider, self._clock = conn, provider, clock or Clock()
         self._diagnostics = diagnostics
-        self._ledger = CognitionCallLedgerService(conn, clock=self._clock)
+        self._flow_scheduler = flow_scheduler
+        self._flow_telemetry = CognitiveFlowTelemetry(conn, clock=self._clock)
+        self._ledger = CognitionCallLedgerService(
+            conn, clock=self._clock, flow_scheduler=flow_scheduler,
+        )
         self._scenes = SocialSceneService(conn, clock=self._clock)
 
     def run(
@@ -374,17 +382,41 @@ class SceneTurnService:
                 context, admission, None, None, None, None, admission.verdict.reason_code
             )
 
+        flow_request = CognitiveFlowRequest(
+            world_id, speaker_key, CALL_TRIGGER_SCENE_TURN, turn_key,
+            admission.admitted_at or self._clock.now_iso(),
+        )
+        provider_started = self._clock.now_iso()
+        if self._flow_scheduler is not None:
+            self._flow_telemetry.record(
+                flow_request, "executing", canonical_at=admission.admitted_at,
+                provider_started_at=provider_started,
+            )
         try:
             decision = self._provider.decide(context)
             if not isinstance(decision, SceneTurnDecision):
                 raise SceneTurnError("fournisseur de scène hors contrat", code="invalid_scene_turn_response")
             decision = decision.validated()
         except (CognitionError, SceneTurnError) as exc:
+            if self._flow_scheduler is not None:
+                self._flow_telemetry.record(
+                    flow_request, flow_failure_state(getattr(exc, "code", "invalid_scene_turn_response")), reason_code=getattr(exc, "code", "invalid_scene_turn_response"),
+                    canonical_at=admission.admitted_at,
+                    provider_started_at=provider_started,
+                    provider_finished_at=self._clock.now_iso(),
+                )
             self._record_result(scene_key, speaker_key, turn_key, context, None, getattr(self._provider, "last_diagnostic_id", None), getattr(exc, "code", "invalid_scene_turn_response"))
             return SceneTurnResult(
                 context, admission, None, None, getattr(exc, "code", "invalid_scene_turn_response"), None
             )
         if decision.action == "no_action":
+            if self._flow_scheduler is not None:
+                self._flow_telemetry.record(
+                    flow_request, "completed", reason_code="no_action",
+                    canonical_at=admission.admitted_at,
+                    provider_started_at=provider_started,
+                    provider_finished_at=self._clock.now_iso(),
+                )
             self._record_result(scene_key, speaker_key, turn_key, context, decision, getattr(self._provider, "last_diagnostic_id", None), None)
             return SceneTurnResult(context, admission, decision, None, None, None)
 
@@ -393,6 +425,13 @@ class SceneTurnService:
         if decision.recipient_key == speaker_key or (
             decision.recipient_key is not None and decision.recipient_key not in participant_keys
         ):
+            if self._flow_scheduler is not None:
+                self._flow_telemetry.record(
+                    flow_request, "completed", reason_code="scene_recipient_not_in_scene",
+                    canonical_at=admission.admitted_at,
+                    provider_started_at=provider_started,
+                    provider_finished_at=self._clock.now_iso(),
+                )
             self._record_result(scene_key, speaker_key, turn_key, context, decision, getattr(self._provider, "last_diagnostic_id", None), "scene_recipient_not_in_scene")
             return SceneTurnResult(context, admission, decision, None, None, "scene_recipient_not_in_scene")
         try:
@@ -406,6 +445,13 @@ class SceneTurnService:
                 recipient_key=decision.recipient_key,
             )
         except SceneError as exc:
+            if self._flow_scheduler is not None:
+                self._flow_telemetry.record(
+                    flow_request, "completed", reason_code=exc.code,
+                    canonical_at=admission.admitted_at,
+                    provider_started_at=provider_started,
+                    provider_finished_at=self._clock.now_iso(),
+                )
             self._record_result(scene_key, speaker_key, turn_key, context, decision, getattr(self._provider, "last_diagnostic_id", None), exc.code)
             return SceneTurnResult(context, admission, decision, None, None, exc.code)
         self._record_result(
@@ -413,6 +459,13 @@ class SceneTurnService:
             getattr(self._provider, "last_diagnostic_id", None), None,
             persisted_speech=speech,
         )
+        if self._flow_scheduler is not None:
+            self._flow_telemetry.record(
+                flow_request, "completed",
+                canonical_at=admission.admitted_at,
+                provider_started_at=provider_started,
+                provider_finished_at=self._clock.now_iso(),
+            )
         return SceneTurnResult(context, admission, decision, _freeze(speech), None, None)
 
     def _record_result(self, scene_key: str, speaker_key: str, turn_key: str,

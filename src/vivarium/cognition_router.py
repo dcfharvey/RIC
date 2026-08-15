@@ -14,6 +14,7 @@ from typing import Any
 
 from .cognition import CognitionError, CognitionProvider, CognitionTurnResult, CognitionTurnService
 from .cognition_call_ledger import CognitionCallAdmission, CognitionCallLedgerService
+from .cognitive_flow import CognitiveFlowRequest, CognitiveFlowScheduler, CognitiveFlowTelemetry, flow_failure_state
 from .cognition_policy import (
     CALL_TRIGGER_DIRECT_EVENT,
     CALL_TRIGGER_INITIAL_ARRIVAL,
@@ -60,11 +61,19 @@ class RoutedCognitionCall:
 class CognitionCallRouter:
     """Point d'entrée contrôlé pour un unique appel cognitif explicite."""
 
-    def __init__(self, conn: sqlite3.Connection, provider: CognitionProvider, clock: Clock | None = None) -> None:
+    def __init__(
+        self, conn: sqlite3.Connection, provider: CognitionProvider,
+        clock: Clock | None = None,
+        flow_scheduler: CognitiveFlowScheduler | None = None,
+    ) -> None:
         self._conn = conn
         self._provider = provider
         self._clock = clock or Clock()
-        self._ledger = CognitionCallLedgerService(conn, clock=self._clock)
+        self._flow_scheduler = flow_scheduler
+        self._flow_telemetry = CognitiveFlowTelemetry(conn, clock=self._clock)
+        self._ledger = CognitionCallLedgerService(
+            conn, clock=self._clock, flow_scheduler=flow_scheduler,
+        )
 
     def _validate_direct_event_source(self, world_id: int, character_key: str, source_key: str) -> int:
         match = _DIRECT_EVENT_SOURCE_RE.fullmatch(source_key)
@@ -162,24 +171,66 @@ class CognitionCallRouter:
         ):
             admission = self._ledger.admit(world_id, character_key, trigger, source_key, limits)
             return RoutedCognitionCall(admission, None, None)
-        if trigger == CALL_TRIGGER_DIRECT_EVENT:
-            after_event_seq = self._validate_direct_event_source(world_id, character_key, source_key) - 1
-        elif trigger == CALL_TRIGGER_INITIAL_ARRIVAL:
-            after_event_seq = self._validate_initial_arrival_source(world_id, character_key, source_key) - 1
-        elif trigger == CALL_TRIGGER_PLANNED_REFLECTION:
-            after_event_seq = self._validate_idle_source(world_id, character_key, source_key) - 1
-        else:
-            raise CognitionCallRouterError("motif d'appel non raccordé", code="unroutable_cognition_call_trigger")
-        admission = self._ledger.admit(world_id, character_key, trigger, source_key, limits)
+        try:
+            if trigger == CALL_TRIGGER_DIRECT_EVENT:
+                after_event_seq = self._validate_direct_event_source(world_id, character_key, source_key) - 1
+            elif trigger == CALL_TRIGGER_INITIAL_ARRIVAL:
+                after_event_seq = self._validate_initial_arrival_source(world_id, character_key, source_key) - 1
+            elif trigger == CALL_TRIGGER_PLANNED_REFLECTION:
+                after_event_seq = self._validate_idle_source(world_id, character_key, source_key) - 1
+            else:
+                raise CognitionCallRouterError("motif d'appel non raccordé", code="unroutable_cognition_call_trigger")
+        except CognitionCallRouterError as exc:
+            if self._flow_scheduler is not None:
+                flow_request = CognitiveFlowRequest(
+                    world_id, character_key, trigger, source_key, self._clock.now_iso(),
+                )
+                self._flow_scheduler.cancel(flow_request.idempotency_key)
+                self._flow_telemetry.record(flow_request, "invalidated", reason_code=exc.code)
+            raise
+        source_event_seq = after_event_seq + 1
+        admission = self._ledger.admit(
+            world_id, character_key, trigger, source_key, limits,
+            source_event_seq=source_event_seq,
+        )
         if not admission.verdict.eligible:
             return RoutedCognitionCall(admission, None, None)
+        flow_request = CognitiveFlowRequest(
+            world_id, character_key, trigger, source_key,
+            admission.admitted_at or self._clock.now_iso(),
+            source_event_seq=source_event_seq,
+        )
+        provider_started = self._clock.now_iso()
+        if self._flow_scheduler is not None:
+            self._flow_telemetry.record(
+                flow_request, "executing", canonical_at=admission.admitted_at,
+                provider_started_at=provider_started,
+            )
         try:
             turn = CognitionTurnService(self._conn, self._provider, clock=self._clock).run(
                 world_id, character_key, proposal_id, after_event_seq=after_event_seq,
                 decision_cue=self._decision_cue(world_id, trigger, source_key),
             )
         except CognitionError as exc:
+            if self._flow_scheduler is not None:
+                self._flow_telemetry.record(
+                    flow_request, flow_failure_state(exc.code), reason_code=exc.code,
+                    canonical_at=admission.admitted_at,
+                    provider_started_at=provider_started,
+                    provider_finished_at=self._clock.now_iso(),
+                )
             return RoutedCognitionCall(admission, None, exc.code)
+        if self._flow_scheduler is not None:
+            validation_code = None if turn.validation is None else turn.validation.reason_code
+            state = "stale" if validation_code in {
+                "stale_decision_context", "deterministic_boundary_pending",
+            } else "completed"
+            self._flow_telemetry.record(
+                flow_request, state, reason_code=validation_code,
+                canonical_at=admission.admitted_at,
+                provider_started_at=provider_started,
+                provider_finished_at=self._clock.now_iso(),
+            )
         return RoutedCognitionCall(admission, turn, None)
 
     def _decision_cue(self, world_id: int, trigger: str, source_key: str) -> dict[str, object]:

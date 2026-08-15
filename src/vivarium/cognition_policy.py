@@ -112,11 +112,11 @@ class CognitionCallRecord:
 
 @dataclass(frozen=True)
 class CognitionCallLimits:
-    """Limites explicites, fournies par la configuration versionnée du banc."""
+    """Technical controls; the normal runtime may disable the hourly quota."""
 
     debounce_seconds: int
     budget_window_seconds: int
-    max_calls_per_window: int
+    max_calls_per_window: int | None
 
     def validated(self) -> "CognitionCallLimits":
         for value, label, lower, upper in (
@@ -124,6 +124,8 @@ class CognitionCallLimits:
             (self.budget_window_seconds, "fenêtre de budget", 1, 7 * 86_400),
             (self.max_calls_per_window, "budget d'appel", 1, 10_000),
         ):
+            if label == "budget d'appel" and value is None:
+                continue
             if not isinstance(value, int) or isinstance(value, bool) or not lower <= value <= upper:
                 raise CognitionCallPolicyError(f"{label} invalide", code="invalid_cognition_call_limits")
         return self
@@ -197,8 +199,9 @@ class CognitionCallPolicy:
         # sociaux arrivés avant elle. La réservation consomme une place du
         # plafond existant; elle n'augmente jamais max_calls_per_window.
         effective_limit = limits.max_calls_per_window
-        if request.trigger != CALL_TRIGGER_PLANNED_REFLECTION:
-            effective_limit = max(0, effective_limit - reserved_calls)
-        if calls_in_window >= effective_limit:
-            return CognitionCallVerdict("deferred", "budget_exhausted", key)
+        if effective_limit is not None:
+            if request.trigger != CALL_TRIGGER_PLANNED_REFLECTION:
+                effective_limit = max(0, effective_limit - reserved_calls)
+            if calls_in_window >= effective_limit:
+                return CognitionCallVerdict("deferred", "budget_exhausted", key)
         return CognitionCallVerdict("eligible", "eligible", key)

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 from .cognition import CognitionProvider
 from .cognition_policy import CognitionCallLimits, CALL_TRIGGER_DIRECT_EVENT
+from .cognitive_flow import CognitiveFlowScheduler
 from .cognition_router import CognitionCallRouter, CognitionCallRouterError
 from .character_capabilities import sapient_character_keys
 from .db import transaction
@@ -24,7 +25,7 @@ class OrchestratorTick:
  world_id:int;through_event_seq:int;outcomes:tuple[OrchestratorOutcome,...]
 
 class VivariumOrchestrator:
- def __init__(self,conn:sqlite3.Connection,provider:CognitionProvider,clock:Clock|None=None)->None:self._conn,self._provider,self._clock=conn,provider,clock or Clock()
+ def __init__(self,conn:sqlite3.Connection,provider:CognitionProvider,clock:Clock|None=None,flow_scheduler:CognitiveFlowScheduler|None=None)->None:self._conn,self._provider,self._clock=conn,provider,clock or Clock();self._flow_scheduler=flow_scheduler
  def _characters(self,wid:int):
   keys=sapient_character_keys(self._conn,wid)
   if not keys:return ()
@@ -44,7 +45,7 @@ class VivariumOrchestrator:
   if not isinstance(limits,CognitionCallLimits):raise OrchestratorError('limites invalides',code='invalid_orchestrator')
   limits.validated()
   if not isinstance(max_events_per_character,int) or isinstance(max_events_per_character,bool) or not 1<=max_events_per_character<=20:raise OrchestratorError('borne d’événements invalide',code='invalid_orchestrator')
-  maximum=self._conn.execute('SELECT COALESCE(MAX(seq),0) FROM canonical_event WHERE world_id=?',(wid,)).fetchone()[0];out=[];router=CognitionCallRouter(self._conn,self._provider,clock=self._clock)
+  maximum=self._conn.execute('SELECT COALESCE(MAX(seq),0) FROM canonical_event WHERE world_id=?',(wid,)).fetchone()[0];out=[];router=CognitionCallRouter(self._conn,self._provider,clock=self._clock,flow_scheduler=self._flow_scheduler)
   for character in self._characters(wid):
    cursor=self._cursor(wid,character['id']);rows=self._conn.execute('SELECT seq FROM canonical_event WHERE world_id=? AND seq>? AND seq<=? ORDER BY seq LIMIT ?',(wid,cursor,maximum,max_events_per_character)).fetchall()
    for row in rows:
@@ -55,5 +56,8 @@ class VivariumOrchestrator:
      elif routed.admission.verdict.eligible:outcome,detail='routed',None
      else:outcome,detail='deferred',routed.admission.verdict.reason_code
     except CognitionCallRouterError as exc:detail=exc.code
-    self._record(wid,character['id'],seq,outcome,detail);self._save(wid,character['id'],seq);out.append(OrchestratorOutcome(character['key'],seq,outcome,detail))
+    self._record(wid,character['id'],seq,outcome,detail);out.append(OrchestratorOutcome(character['key'],seq,outcome,detail))
+    if detail in {'provider_busy','already_queued','cognitive_queue_full'}:
+     break
+    self._save(wid,character['id'],seq)
   return OrchestratorTick(wid,maximum,tuple(out))

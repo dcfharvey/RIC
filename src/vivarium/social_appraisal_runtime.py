@@ -4,6 +4,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 from .cognition_call_ledger import CognitionCallLedgerService
+from .cognitive_flow import CognitiveFlowRequest, CognitiveFlowScheduler, CognitiveFlowTelemetry, flow_failure_state
 from .diagnostics import DiagnosticRecorder
 from .cognition_policy import CALL_TRIGGER_SOCIAL_APPRAISAL, CognitionCallLimits
 from .social_appraisal import SocialAppraisalError, SocialAppraisalService
@@ -18,7 +19,7 @@ class LiveSocialAppraisalOutcome:
     character_key:str; interpretation_key:str; technical_status:str; appraisal_status:str|None=None; candidate_count:int=0; detail_code:str|None=None
 
 class LiveSocialAppraisalService:
-    def __init__(self,conn:sqlite3.Connection,provider:Any,clock:Clock|None=None,diagnostics:DiagnosticRecorder|None=None): self.conn,self.provider,self.clock,self.diagnostics=conn,provider,clock or Clock(),diagnostics; self.ledger=CognitionCallLedgerService(conn,clock=self.clock)
+    def __init__(self,conn:sqlite3.Connection,provider:Any,clock:Clock|None=None,diagnostics:DiagnosticRecorder|None=None,flow_scheduler:CognitiveFlowScheduler|None=None): self.conn,self.provider,self.clock,self.diagnostics=conn,provider,clock or Clock(),diagnostics; self.flow_scheduler=flow_scheduler; self.flow_telemetry=CognitiveFlowTelemetry(conn,clock=self.clock); self.ledger=CognitionCallLedgerService(conn,clock=self.clock,flow_scheduler=flow_scheduler)
     def _row(self,wid,owner,ikey):
         return self.conn.execute('SELECT i.id,i.interpretation_key FROM social_interpretation i JOIN character c ON c.id=i.character_id WHERE i.world_id=? AND c.key=? AND i.interpretation_key=?',(wid,owner,ikey)).fetchone()
     def process(self,wid:int,owner:str,ikey:str,limits:CognitionCallLimits,*,retry=False)->LiveSocialAppraisalOutcome:
@@ -33,10 +34,15 @@ class LiveSocialAppraisalService:
         attempt_key=f'live_scc2a_attempt_{src["id"]}_{attempt_no}'
         if not technical.verdict.eligible:
             self._record(wid,owner,src['id'],attempt_key,'deferred',technical.verdict.reason_code); return LiveSocialAppraisalOutcome(owner,ikey,'deferred',detail_code=technical.verdict.reason_code)
+        flow_request=CognitiveFlowRequest(wid,owner,CALL_TRIGGER_SOCIAL_APPRAISAL,source_key,technical.admitted_at or self.clock.now_iso())
+        provider_started=self.clock.now_iso()
+        if self.flow_scheduler is not None: self.flow_telemetry.record(flow_request,'executing',canonical_at=technical.admitted_at,provider_started_at=provider_started)
         try:
             sheet=SocialAppraisalLLMService(self.conn,self.provider,clock=self.clock,diagnostics=self.diagnostics).run(wid,owner,f'live_scc2a_{src["id"]}',ikey,provider_turn_id=f'scc2a_{src["id"]}_{attempt_no}')
         except Exception as exc:
+            if self.flow_scheduler is not None: self.flow_telemetry.record(flow_request,flow_failure_state(getattr(exc,'code','provider_failed')),reason_code=getattr(exc,'code','provider_failed'),canonical_at=technical.admitted_at,provider_started_at=provider_started,provider_finished_at=self.clock.now_iso())
             self._record(wid,owner,src['id'],attempt_key,'provider_unavailable',getattr(exc,'code','provider_failed')); return LiveSocialAppraisalOutcome(owner,ikey,'provider_unavailable',detail_code=getattr(exc,'code','provider_failed'))
+        if self.flow_scheduler is not None: self.flow_telemetry.record(flow_request,'completed',canonical_at=technical.admitted_at,provider_started_at=provider_started,provider_finished_at=self.clock.now_iso())
         self._record(wid,owner,src['id'],attempt_key,'appraised'); return LiveSocialAppraisalOutcome(owner,ikey,'appraised',sheet['appraisal_status'],len(sheet['candidates']))
     def _record(self,wid,owner,source_id,key,outcome,detail=None):
         row=self.conn.execute('SELECT id FROM character WHERE world_id=? AND key=?',(wid,owner)).fetchone(); now=self.clock.now_iso(); self.conn.execute('INSERT INTO scc2a_attempt (public_id,world_id,character_id,source_interpretation_id,attempt_key,outcome,detail_code,recorded_at) VALUES (?,?,?,?,?,?,?,?)',(new_uuid(),wid,row['id'],source_id,key,outcome,detail,now)); self.conn.commit()

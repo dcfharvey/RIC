@@ -4,6 +4,7 @@ from vivarium.activities import ActivityEngine
 from vivarium.autonomy_cycle import AutonomyCycle
 from vivarium.cognition import CognitionDecision
 from vivarium.cognition_call_ledger import CognitionCallLedgerService
+from vivarium.cognitive_flow import CognitiveFlowScheduler
 from vivarium.cognition_policy import CognitionCallLimits
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
@@ -119,7 +120,7 @@ def test_invalid_llm_response_is_retried_after_a_bounded_delay():
         conn.close()
 
 
-def test_budget_deferred_idle_is_silent_until_its_budget_window_reopens():
+def test_budget_deferred_idle_is_explicit_until_its_budget_window_reopens():
     conn = connect_database(":memory:")
     ensure_schema(conn)
     clock = AdvancingClock()
@@ -134,10 +135,13 @@ def test_budget_deferred_idle_is_silent_until_its_budget_window_reopens():
         )
         provider = Provider()
 
-        # MVPRuntime reconstruit le cycle a chaque pulse : le silence doit donc
-        # etre derive du ledger, pas d'un cache porte par AutonomyCycle.
+        # Une occasion refusée ne doit plus disparaître silencieusement, même
+        # lorsque ce test exerce encore explicitement l'ancien quota.
         for _ in range(3):
-            assert AutonomyCycle(conn, provider, clock=clock).tick(world_id, limits).character_key is None
+            outcome = AutonomyCycle(conn, provider, clock=clock).tick(world_id, limits)
+            assert outcome.character_key == "sophie"
+            assert outcome.routed is not None
+            assert outcome.routed.admission.verdict.reason_code == "budget_exhausted"
         assert provider.calls == []
 
         clock.advance(3_600)
@@ -169,5 +173,34 @@ def test_budget_silence_for_one_idle_does_not_starve_another_resident():
         assert outcome.character_key == "sophie" and outcome.routed is not None and outcome.routed.attempted
         assert [context.character_key for context in provider.calls] == ["sophie"]
         assert activities.activity_sheet(world_id, "sophie")["type"] == "photography"
+    finally:
+        conn.close()
+
+
+def test_planned_reflection_is_not_rejected_after_eight_normal_calls():
+    conn, world_id, clock = _setup()
+    try:
+        activities = ActivityEngine(conn, clock=clock)
+        activities.start_activity(
+            world_id, "sophie", "idle", "entree_exterieure", duration_seconds=7_200
+        )
+        normal_limits = CognitionCallLimits(0, 3_600, None)
+        ledger = CognitionCallLedgerService(conn, clock=clock)
+        for index in range(8):
+            admission = ledger.admit(
+                world_id, "sophie", "direct_event", f"normal_call_{index}", normal_limits,
+            )
+            assert admission.verdict.eligible
+
+        provider = Provider()
+        cycle = AutonomyCycle(
+            conn, provider, clock=clock, flow_scheduler=CognitiveFlowScheduler()
+        )
+        outcome = cycle.tick(world_id, normal_limits)
+
+        assert outcome.character_key == "sophie"
+        assert outcome.routed is not None and outcome.routed.attempted
+        assert outcome.routed.turn is not None
+        assert len(provider.calls) == 1
     finally:
         conn.close()

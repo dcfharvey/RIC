@@ -18,6 +18,7 @@ from .activities import ActivityEngine
 from .character_capabilities import sapient_character_keys
 from .cognition import CognitionProvider
 from .cognition_call_ledger import CognitionCallLedgerService
+from .cognitive_flow import CognitiveFlowScheduler
 from .cognition_policy import CALL_TRIGGER_PLANNED_REFLECTION, CognitionCallLimits
 from .cognition_router import CognitionCallRouter, CognitionCallRouterError, RoutedCognitionCall
 from .util import Clock, parse_iso, to_iso
@@ -40,8 +41,13 @@ class AutonomyOutcome:
 class AutonomyCycle:
     """Route au plus un véritable appel de réflexion par tick de runtime."""
 
-    def __init__(self, conn: sqlite3.Connection, provider: CognitionProvider, clock: Clock | None = None) -> None:
+    def __init__(
+        self, conn: sqlite3.Connection, provider: CognitionProvider,
+        clock: Clock | None = None,
+        flow_scheduler: CognitiveFlowScheduler | None = None,
+    ) -> None:
         self._conn, self._provider, self._clock = conn, provider, clock or Clock()
+        self._flow_scheduler = flow_scheduler
 
     def _active_idle_sources(self, world_id: int) -> tuple[tuple[str, int], ...]:
         candidates: list[tuple[str, int]] = []
@@ -114,8 +120,13 @@ class AutonomyCycle:
         if not isinstance(limits, CognitionCallLimits):
             return AutonomyOutcome(None, None, None, "invalid_limits")
         limits.validated()
-        ledger = CognitionCallLedgerService(self._conn, clock=self._clock)
-        router = CognitionCallRouter(self._conn, self._provider, clock=self._clock)
+        ledger = CognitionCallLedgerService(
+            self._conn, clock=self._clock, flow_scheduler=self._flow_scheduler,
+        )
+        router = CognitionCallRouter(
+            self._conn, self._provider, clock=self._clock,
+            flow_scheduler=self._flow_scheduler,
+        )
         deferred: AutonomyOutcome | None = None
         for character_key, event_seq in self._active_idle_sources(world_id):
             source_key = f"idle_{event_seq}"
@@ -123,14 +134,6 @@ class AutonomyCycle:
                 record.trigger == CALL_TRIGGER_PLANNED_REFLECTION and record.source_key == source_key
                 for record in ledger.history(world_id, character_key)
             ):
-                continue
-            verdict = ledger.verdict(
-                world_id, character_key, CALL_TRIGGER_PLANNED_REFLECTION, source_key, limits,
-            )
-            if verdict.reason_code in {"budget_exhausted", "debounced"}:
-                # Ce refus est entièrement dérivable du ledger canonique. Ne pas
-                # créer de télémétrie par pulse et ne pas dépendre d'un cache de
-                # cycle éphémère : une reconstruction reste silencieuse.
                 continue
             try:
                 routed = router.run(

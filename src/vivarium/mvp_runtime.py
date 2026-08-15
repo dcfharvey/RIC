@@ -16,6 +16,7 @@ from typing import Any, Literal
 from .cognition import CognitionProvider
 from .diagnostics import DiagnosticRecorder
 from .cognition_policy import CognitionCallLimits
+from .cognitive_flow import CognitiveFlowScheduler
 from .autonomy_cycle import AutonomyCycle, AutonomyOutcome
 from .arrival_cycle import InitialArrivalCycle, InitialArrivalOutcome
 from .orchestrator import OrchestratorTick, VivariumOrchestrator
@@ -99,11 +100,17 @@ class MVPRuntime:
         self._scene_provider = scene_provider
         self._interpretation_provider = interpretation_provider
         self._admission_policy = admission_policy
-        self._limits = limits or CognitionCallLimits(0, 3600, 8)
+        self._limits = limits or CognitionCallLimits(0, 3600, None)
         self._limits.validated()
         self._max_transitions = max_transitions
         self._simulation_contract = simulation_contract
         self._clock = clock or Clock()
+        # Explicit legacy limits remain available to deterministic benches.
+        # The normal runtime path (no caller-supplied quota) uses the technical
+        # scheduler and has no behavior-shaping hourly quota.
+        self._flow_scheduler = (
+            CognitiveFlowScheduler() if self._limits.max_calls_per_window is None else None
+        )
         self._social_cycle = None if scene_provider is None else SocialSceneCycle(
             conn, scene_provider, clock=self._clock,
             interpretation_provider=interpretation_provider,
@@ -111,10 +118,13 @@ class MVPRuntime:
             affect_provider=affect_provider,
             admission_policy=admission_policy,
             diagnostics=diagnostics,
+            flow_scheduler=self._flow_scheduler,
         )
 
     def run_once(self) -> MVPRunReport:
         """Fait progresser un monde actif, sans jamais traiter une pause."""
+        if self._flow_scheduler is not None:
+            self._flow_scheduler.begin_tick()
         if self._simulation_contract == "active" and not self._physiology_active():
             raise MVPRuntimeError(
                 "le contrat de rodage officiel exige une physiologie active",
@@ -125,7 +135,10 @@ class MVPRuntime:
             return MVPRunReport(self.world_id, "paused", None, None, None, None, None)
         arrival = None
         if self._cognition_provider is not None and self._scene_provider is not None:
-            arrival = InitialArrivalCycle(self._conn, self._cognition_provider, clock=self._clock).tick(
+            arrival = InitialArrivalCycle(
+                self._conn, self._cognition_provider, clock=self._clock,
+                flow_scheduler=self._flow_scheduler,
+            ).tick(
                 self.world_id, self._limits
             )
             # L'activité déterministe verrouille un déplacement en cours. La
@@ -173,7 +186,10 @@ class MVPRuntime:
                     self.world_id, "active", simulation, arrival, None, None, social,
                     non_sapient,
                 )
-            autonomy = AutonomyCycle(self._conn, self._cognition_provider, clock=self._clock).tick(
+            autonomy = AutonomyCycle(
+                self._conn, self._cognition_provider, clock=self._clock,
+                flow_scheduler=self._flow_scheduler,
+            ).tick(
                 self.world_id, self._limits
             )
             if self._simulation_due(
@@ -184,7 +200,8 @@ class MVPRuntime:
                     non_sapient,
                 )
             cognition = VivariumOrchestrator(
-                self._conn, self._cognition_provider, clock=self._clock
+                self._conn, self._cognition_provider, clock=self._clock,
+                flow_scheduler=self._flow_scheduler,
             ).tick(self.world_id, self._limits, max_events_per_character=1)
         return MVPRunReport(
             self.world_id, "active", simulation, arrival, cognition, autonomy, social,

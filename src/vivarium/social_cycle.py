@@ -21,6 +21,7 @@ from datetime import timedelta
 from typing import Any
 
 from .cognition_policy import CognitionCallLimits
+from .cognitive_flow import CognitiveFlowScheduler
 from .diagnostics import DiagnosticRecorder
 from .scene_scheduler import SceneSchedulerError, SceneTurnScheduler
 from .scene_turn import SceneTurnProvider, SceneTurnResult, SceneTurnService
@@ -58,6 +59,7 @@ class SocialSceneCycle:
         clock: Clock | None = None, interpretation_provider: Any | None = None,
         admission_policy: Any = None, appraisal_provider: Any | None = None, affect_provider: Any | None = None,
         diagnostics: DiagnosticRecorder | None = None,
+        flow_scheduler: CognitiveFlowScheduler | None = None,
     ) -> None:
         self._conn = conn
         self._provider = provider
@@ -66,6 +68,7 @@ class SocialSceneCycle:
         self._appraisal_provider = appraisal_provider
         self._affect_provider = affect_provider
         self._diagnostics = diagnostics
+        self._flow_scheduler = flow_scheduler
         self._clock = clock or Clock()
         self._scenes = SocialSceneService(conn, clock=self._clock)
         self._scheduler = SceneTurnScheduler(conn)
@@ -348,6 +351,7 @@ class SocialSceneCycle:
                 appraisal_provider=self._appraisal_provider,
                 affect_provider=self._affect_provider,
                 diagnostics=self._diagnostics,
+                flow_scheduler=self._flow_scheduler,
             ).retry_one_pending(world_id, limits)
             if pending is not None:
                 cognition.append(pending)
@@ -377,7 +381,8 @@ class SocialSceneCycle:
                 continue
             self._deferred_until_by_turn.pop(opportunity.turn_key, None)
             result = SceneTurnService(
-                self._conn, self._provider, clock=self._clock, diagnostics=self._diagnostics
+                self._conn, self._provider, clock=self._clock, diagnostics=self._diagnostics,
+                flow_scheduler=self._flow_scheduler,
             ).run(
                 world_id, scene_key, opportunity.speaker_key, opportunity.turn_key, limits
             )
@@ -395,6 +400,7 @@ class SocialSceneCycle:
                     appraisal_provider=self._appraisal_provider,
                     affect_provider=self._affect_provider,
                     diagnostics=self._diagnostics,
+                    flow_scheduler=self._flow_scheduler,
                 ).process_speech(self._world_id(world_id), scene_key, opportunity.turn_key, limits))
             return SocialCycleOutcome(tuple(opened), tuple(closed), tuple(interrupted), result, tuple(cognition))
         return SocialCycleOutcome(tuple(opened), tuple(closed), tuple(interrupted), None, tuple(cognition))

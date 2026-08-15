@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .cognition_call_ledger import CognitionCallLedgerService
+from .cognitive_flow import CognitiveFlowRequest, CognitiveFlowScheduler, CognitiveFlowTelemetry, flow_failure_state
 from .diagnostics import DiagnosticRecorder
 from .cognition import CognitionError
 from .cognition_policy import CALL_TRIGGER_SOCIAL_INTERPRETATION, CognitionCallLimits
@@ -49,19 +50,24 @@ class LiveSocialCognitionError(ValueError):
 class LiveSocialCognitionService:
     """Ne possède ni le canon, ni SCC-1B; il ne fait que chaîner les owners."""
 
-    def __init__(self, conn: sqlite3.Connection, provider: Any, clock: Clock | None = None, admission_policy: Any = None, appraisal_provider: Any = None, affect_provider: Any = None, diagnostics: DiagnosticRecorder | None = None) -> None:
+    def __init__(self, conn: sqlite3.Connection, provider: Any, clock: Clock | None = None, admission_policy: Any = None, appraisal_provider: Any = None, affect_provider: Any = None, diagnostics: DiagnosticRecorder | None = None, flow_scheduler: CognitiveFlowScheduler | None = None) -> None:
         self._conn = conn
         self._provider = provider
         self._clock = clock or Clock()
+        self._flow_scheduler = flow_scheduler
+        self._flow_telemetry = CognitiveFlowTelemetry(conn, clock=self._clock)
         self._memory = SubjectiveMemoryService(conn, clock=self._clock)
         self._admissions = SCC1CAdmissionService(conn, clock=self._clock, policy=admission_policy)
-        self._ledger = CognitionCallLedgerService(conn, clock=self._clock)
+        self._ledger = CognitionCallLedgerService(conn, clock=self._clock, flow_scheduler=flow_scheduler)
         self._interpretations = SocialInterpretationLLMService(conn, provider, clock=self._clock)
         self._appraisal_provider = appraisal_provider
         self._appraisals = None if appraisal_provider is None else LiveSocialAppraisalService(
-            conn, appraisal_provider, clock=self._clock, diagnostics=diagnostics
+            conn, appraisal_provider, clock=self._clock, diagnostics=diagnostics,
+            flow_scheduler=flow_scheduler,
         )
-        self._affect = None if affect_provider is None else LiveSCC3AAffectService(conn, affect_provider, clock=self._clock)
+        self._affect = None if affect_provider is None else LiveSCC3AAffectService(
+            conn, affect_provider, clock=self._clock, flow_scheduler=flow_scheduler,
+        )
         self._diagnostics = diagnostics
 
     def _scene_participants(self, world_id: int, scene_key: str, act_key: str) -> tuple[str, ...]:
@@ -114,6 +120,16 @@ class LiveSocialCognitionService:
                 character_key, trace_request_key, admission.decision,
                 attempt.outcome, attempt.detail_code, None,
             )
+        flow_request = CognitiveFlowRequest(
+            world_id, character_key, CALL_TRIGGER_SOCIAL_INTERPRETATION, source_key,
+            technical.admitted_at or self._clock.now_iso(),
+        )
+        provider_started = self._clock.now_iso()
+        if self._flow_scheduler is not None:
+            self._flow_telemetry.record(
+                flow_request, "executing", canonical_at=technical.admitted_at,
+                provider_started_at=provider_started,
+            )
         interpretation_key = f"live_scc1b_{admission.trace_id}"
         try:
             self._interpretations.run(
@@ -121,12 +137,25 @@ class LiveSocialCognitionService:
                 provider_turn_id=f"scc1c_{admission.trace_id}_{attempt_number}",
             )
         except (CognitionError, SocialInterpretationProviderError, SocialInterpretationError) as exc:
+            if self._flow_scheduler is not None:
+                self._flow_telemetry.record(
+                    flow_request, flow_failure_state(getattr(exc, "code", "provider_failed")), reason_code=getattr(exc, "code", "provider_failed"),
+                    canonical_at=technical.admitted_at,
+                    provider_started_at=provider_started,
+                    provider_finished_at=self._clock.now_iso(),
+                )
             attempt = self._admissions.record_attempt(
                 admission, attempt_key, "provider_unavailable", getattr(exc, "code", "provider_failed"),
             )
             return LiveSocialCognitionOutcome(
                 character_key, trace_request_key, admission.decision,
                 attempt.outcome, attempt.detail_code, None,
+            )
+        if self._flow_scheduler is not None:
+            self._flow_telemetry.record(
+                flow_request, "completed", canonical_at=technical.admitted_at,
+                provider_started_at=provider_started,
+                provider_finished_at=self._clock.now_iso(),
             )
         attempt = self._admissions.record_attempt(admission, attempt_key, "interpreted")
         appraisal = None
