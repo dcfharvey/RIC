@@ -64,7 +64,7 @@ class WorldError(RuntimeError):
         self.code = code
 
 
-def _append_event(
+def append_event(
     conn: sqlite3.Connection,
     world_id: int,
     source_kind: str,
@@ -102,6 +102,10 @@ def _append_event(
     return cur.lastrowid
 
 
+# Compatibility alias for code that still calls the helper inside this owner.
+_append_event = append_event
+
+
 class WorldEngine:
     """Moteur canonique. Unique chemin de modification des données du monde."""
 
@@ -119,10 +123,12 @@ class WorldEngine:
         ).fetchone() is not None
 
     @staticmethod
-    def _has_table(conn: sqlite3.Connection, name: str) -> bool:
+    def has_table(conn: sqlite3.Connection, name: str) -> bool:
         return conn.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)
         ).fetchone() is not None
+
+    _has_table = has_table
 
     @staticmethod
     def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -131,7 +137,7 @@ class WorldEngine:
             for row in conn.execute(f"PRAGMA table_info({table})")
         )
 
-    def _create_empty_world_in_transaction(
+    def create_empty_world_in_transaction(
         self, c: sqlite3.Connection, name: str, *, seeded: bool
     ) -> tuple[int, str]:
         """Crée monde, horloge et premier fait dans une transaction appelante."""
@@ -159,6 +165,8 @@ class WorldEngine:
                 (world_id, now),
             )
         return world_id, now
+
+    _create_empty_world_in_transaction = create_empty_world_in_transaction
 
     # --- Création / destruction -------------------------------------------------
 
@@ -435,7 +443,7 @@ class WorldEngine:
                     injury_regime = CharacterEngine(
                         self._conn, clock=self._clock
                     )._active_recovery_regime(world_id, key)
-                    InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
+                    InjuryEngine(self._conn, clock=self._clock).materialize_injury_sim(
                         world_id, key, frozen, injury_regime, _conn=c
                     )
                 else:

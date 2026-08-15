@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Mapping
 
 from .db import transaction
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .sleep_physiology import OwnerBackedWakeViability, SleepPhysiologyService
 from .util import Clock, new_uuid, parse_iso, to_iso
 

@@ -306,7 +306,7 @@ class AdminCommandService:
 
     Dispatcher fermé aux quatre commandes `pause`, `resume`, `rename`, `move`.
     Toute erreur métier est traduite en un code stable ; aucun événement ni
-    mutation en cas de refus. Aucun SQL d'écriture, aucun appel à `_append_event`,
+    mutation en cas de refus. Aucun SQL d'écriture, aucun appel à `append_event`,
     aucun Prepared Change, aucune logique HTTP.
     """
 

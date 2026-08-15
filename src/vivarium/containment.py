@@ -22,7 +22,7 @@ from .objects import (
     subtree_rows,
 )
 from .util import Clock
-from .world import SOURCE_OWNER, WorldEngine, _append_event
+from .world import SOURCE_OWNER, WorldEngine, append_event as _append_event
 
 
 class ContainmentService:

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .action_contract import PerceptionCandidate, WorldFact
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock
 from .world import WorldEngine
 

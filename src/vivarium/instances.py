@@ -10,10 +10,10 @@ from .character import CharacterEngine
 from .db import transaction
 from .personality import PersonalityService
 from .values import ValuesService
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .templates import CharacterTemplateService
 from .util import Clock, new_uuid
-from .world import SOURCE_SYSTEM, WorldEngine, _append_event
+from .world import SOURCE_SYSTEM, WorldEngine, append_event as _append_event
 
 _DEFAULT_PROFILE = {
     "satiete_threshold_mult_milli": 1000,
@@ -65,7 +65,7 @@ class CharacterInstanceService:
             if template is None or template["status"] != "published":
                 raise InstanceError("gabarit non publié")
             bindings = json.loads(template["component_bindings_json"])
-            validation_errors = CharacterTemplateService._validation_errors(conn, bindings)
+            validation_errors = CharacterTemplateService.validation_errors(conn, bindings)
             if validation_errors:
                 raise InstanceError(validation_errors[0]["code"])
             definition = json.loads(template["definition_json"])

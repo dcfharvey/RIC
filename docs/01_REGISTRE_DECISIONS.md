@@ -113,3 +113,15 @@ Statuts : `implémenté` (présent dans le code et testé), `normatif futur` (di
 | ID | Décision | Statut |
 | --- | --- | --- |
 | DEC-067 | Désendettement continu : la dette technique est traitée de façon incrémentale. Avant une nouvelle feature, les dettes susceptibles d’être multipliées par son ajout sont payées juste assez pour préserver des frontières, owners et interfaces propres. Lorsqu’un WO touche une zone endettée, il inclut le désendettement minimal nécessaire pour ne pas propager cette dette. Les refontes globales, préventives ou purement esthétiques sans problème concret démontré sont évitées; tout désendettement doit préserver les invariants et être vérifié par les tests appropriés. | **actif** |
+
+### Application technique de DEC-067
+
+Un owner persistant reste responsable de son état et expose les contrats de
+lecture ou d'opération dont les autres modules ont réellement besoin. Un
+consommateur ne doit pas importer un symbole privé d'un autre module ni
+dépendre silencieusement de sa représentation interne. Une lecture
+cross-owner déjà existante peut rester en place lorsqu'elle correspond à un
+contrat de données stable; elle n'est déplacée que lorsqu'une correction
+petite et démontrablement utile est disponible. Les couches Repository/DAO et
+les abstractions supplémentaires ne sont introduites qu'en présence d'un
+besoin concret.

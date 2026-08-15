@@ -8,7 +8,7 @@ from typing import Any
 from .db import transaction
 from .seed import SEED_ACTIVITIES, SEED_ACTIVITY_ALLOWED, SEED_NEEDS
 from .util import Clock, new_uuid
-from .world import SOURCE_SYSTEM, WorldEngine, _append_event
+from .world import SOURCE_SYSTEM, WorldEngine, append_event as _append_event
 
 STANDARD_RULESET_KEY = "standard_residence.v1"
 

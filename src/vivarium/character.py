@@ -3,7 +3,7 @@
 `CharacterEngine` encapsule la logique des personnages mais **n'est pas une
 seconde autorité canonique** : toutes ses écritures passent par la même
 infrastructure transactionnelle (`db.transaction`) et événementielle
-(`world._append_event`) que le moteur canonique, et les déplacements sont
+(`world.append_event`) que le moteur canonique, et les déplacements sont
 validés par `GraphEngine` (lectures pures). Une seule couche contrôle les
 modifications de l'état canonique.
 
@@ -25,7 +25,7 @@ from .needs import NeedsEngine
 from .objects import relocate_subtree
 from .seed import SEED_CHARACTERS
 from .util import Clock, new_uuid
-from .world import SOURCE_ENGINE, SOURCE_SYSTEM, WorldEngine, _append_event
+from .world import SOURCE_ENGINE, SOURCE_SYSTEM, WorldEngine, append_event as _append_event
 from .spatial import GraphEngine
 
 
@@ -126,9 +126,9 @@ class CharacterEngine:
     def move_character(self, world_id: int, key: str, target_key: str) -> dict[str, Any]:
         """Déplace un personnage d'une **arête dirigée** à la fois (transaction propre)."""
         with transaction(self._conn) as c:
-            return self._move(c, world_id, key, target_key)
+            return self.move_in_transaction(c, world_id, key, target_key)
 
-    def _move(
+    def move_in_transaction(
         self,
         c: sqlite3.Connection,
         world_id: int,
@@ -203,7 +203,7 @@ class CharacterEngine:
 
         target_id = self._location_id(world_id, target_key)
         connector = None
-        if WorldEngine._has_table(self._conn, "world_connector"):
+        if WorldEngine.has_table(self._conn, "world_connector"):
             connector = self._conn.execute(
                 "SELECT c.key, c.state FROM location_link ll JOIN world_connector c ON c.id = ll.connector_id "
                 "WHERE ll.world_id = ? AND ll.from_location_id = ? AND ll.to_location_id = ?",
@@ -233,7 +233,7 @@ class CharacterEngine:
         if active is not None:
             regime = self._active_recovery_regime(world_id, key)
             if from_simulator:
-                ie._materialize_injury_sim(world_id, key, sim_now, regime, _conn=c)
+                ie.materialize_injury_sim(world_id, key, sim_now, regime, _conn=c)
             else:
                 ie.materialize_injury(world_id, key, sim_now, regime, _conn=c)
             row = ie.active_injury_row(world_id, key)
@@ -269,7 +269,7 @@ class CharacterEngine:
         # Les objets directement portes restent materialises au lieu effectif du
         # porteur. Ce sont des consequences du meme deplacement, pas des
         # deplacements autonomes et donc pas des evenements supplementaires.
-        if WorldEngine._has_table(c, "character_carried_object"):
+        if WorldEngine.has_table(c, "character_carried_object"):
             carried = c.execute(
                 "SELECT object_id FROM character_carried_object WHERE world_id = ? AND character_id = "
                 "(SELECT id FROM character WHERE world_id = ? AND key = ?)",
@@ -309,6 +309,8 @@ class CharacterEngine:
             occurred_at=sim_now, recorded_at=now,
         )
         return self.character_sheet(world_id, key)
+
+    _move = move_in_transaction
 
     def _physiology_active(self, world_id: int) -> bool:
         from .sleep_physiology import SleepPhysiologyFoundationService
@@ -350,7 +352,7 @@ class CharacterEngine:
             )
         target_id = self._location_id(world_id, target_key)
         connector = None
-        if WorldEngine._has_table(c, "world_connector"):
+        if WorldEngine.has_table(c, "world_connector"):
             connector = c.execute(
                 "SELECT wc.key,wc.state FROM location_link ll JOIN world_connector wc ON wc.id=ll.connector_id "
                 "WHERE ll.world_id=? AND ll.from_location_id=? AND ll.to_location_id=?",
@@ -388,7 +390,7 @@ class CharacterEngine:
         effect_level = "none"
         if active_injury is not None:
             regime = self._active_recovery_regime(world_id, key)
-            ie._materialize_injury_sim(world_id, key, sim_now, regime, _conn=c)
+            ie.materialize_injury_sim(world_id, key, sim_now, regime, _conn=c)
             injury_row = ie.active_injury_row(world_id, key)
             effect_level = level(injury_row["severity_milli"])
             if effect_level == "severe":
@@ -405,7 +407,7 @@ class CharacterEngine:
         except SleepPhysiologyError as exc:
             raise CharacterError(str(exc), code=exc.code) from exc
 
-        if WorldEngine._has_table(c, "character_carried_object"):
+        if WorldEngine.has_table(c, "character_carried_object"):
             carried = c.execute(
                 "SELECT object_id FROM character_carried_object WHERE world_id=? AND character_id="
                 "(SELECT id FROM character WHERE world_id=? AND key=?)",

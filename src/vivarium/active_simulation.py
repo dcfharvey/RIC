@@ -91,7 +91,7 @@ class ActiveSimulationEngine:
         self._physiology.materialize_owner_backed(world_id,key,at)
         with transaction(self._conn) as c:
             NeedsEngine(self._conn,clock=self._clock).materialize_selected_needs(world_id,key,at,"active_passive",_ACTIVE_NEEDS,_conn=c)
-            InjuryEngine(self._conn,clock=self._clock)._materialize_injury_sim(world_id,key,at,"passive",_conn=c)
+            InjuryEngine(self._conn,clock=self._clock).materialize_injury_sim(world_id,key,at,"passive",_conn=c)
     def _sleep_checkpoint(self,world_id:int,key:str,at:str)->None:
         self._physiology.materialize_owner_backed(world_id,key,at)
         cp=self._activities.sleep_checkpoint(world_id,key)
@@ -204,7 +204,7 @@ class ActiveSimulationEngine:
                     path = self._activities._path(world_id, current["key"], plan["target_location_key"])
                     engine = CharacterEngine(self._conn, clock=self._clock)
                     for step in path[1:]:
-                        engine._move(c, world_id, key, step, sim_now=at)
+                        engine.move_in_transaction(c, world_id, key, step, sim_now=at)
                     service.resolve(world_id, plan["id"], outcome="fulfilled", resolved_at=at,
                                     reason_code="canonical_traversal", details={"path": path})
             except (CharacterError, ValueError) as exc:

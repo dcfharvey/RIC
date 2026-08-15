@@ -4,7 +4,7 @@ import json, re, sqlite3
 from typing import Any, Mapping
 from .affect import AffectError, AffectService
 from .db import transaction
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock, new_uuid
 
 FAMILIES=frozenset({'joy','relief','sadness','anger','fear','shame','guilt','affection'})
@@ -12,7 +12,12 @@ INTENSITIES=frozenset({'low','moderate','high'})
 DECISIONS=frozenset({'no_change','start_episode'})
 INTENSITY_MILLI={'low':200,'moderate':500,'high':800}
 _FP=re.compile(r'^[0-9a-f]{64}$')
-_FORBIDDEN=re.compile(r'(voulait|veut|intention|motif|jalou|manipul|mentir|personnalit|sinc[eè]re|coupable|blesser|confronter|fuir|agir|action)',re.I)
+FORBIDDEN_TEXT_RE = re.compile(
+    r"(voulait|veut|intention|motif|jalou|manipul|mentir|personnalit|"
+    r"sinc[eè]re|coupable|blesser|confronter|fuir|agir|action)",
+    re.I,
+)
+_FORBIDDEN = FORBIDDEN_TEXT_RE
 
 class SCC3AAffectError(ValueError):
     def __init__(self,message:str,*,code:str): super().__init__(message); self.code=code

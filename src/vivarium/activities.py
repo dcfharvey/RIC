@@ -8,7 +8,7 @@ en arithmétique entière (dénominateur canonique 36, reste conservé).
 transaction déjà ouverte) afin que chaque transition soit **atomique** sans
 transaction imbriquée : déplacements pièce par pièce + matérialisation +
 création/clôture + événements dans une seule transaction. L'autorité canonique
-unique est préservée (écritures via `db.transaction` + `world._append_event`).
+unique est préservée (écritures via `db.transaction` + `world.append_event`).
 """
 
 from __future__ import annotations
@@ -29,9 +29,9 @@ from .needs import NeedsEngine
 from .seed import SEED_ACTIVITIES, SEED_ACTIVITY_ALLOWED
 from .spatial import GraphEngine
 from .policy import MAX_IDLE
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock, new_uuid, parse_iso, to_iso
-from .world import SOURCE_ENGINE, SOURCE_SYSTEM, _append_event
+from .world import SOURCE_ENGINE, SOURCE_SYSTEM, append_event as _append_event
 
 DEN = 36  # dénominateur canonique commun
 
@@ -308,11 +308,11 @@ class ActivityEngine:
                     raise ActivityError("capacité physique insuffisante pour l'activité")
             except SleepPhysiologyError as exc:
                 raise ActivityError(str(exc)) from exc
-            InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
+            InjuryEngine(self._conn, clock=self._clock).materialize_injury_sim(
                 world_id, character_key, start_at, "passive", _conn=c
             )
             for step in path[1:]:
-                ce._move(c, world_id, character_key, step, sim_now=start_at)
+                ce.move_in_transaction(c, world_id, character_key, step, sim_now=start_at)
             self._materialize_active_needs(
                 c, world_id, character_key, start_at, "activity_start"
             )
@@ -386,7 +386,7 @@ class ActivityEngine:
             raise ActivityError("monde en pause : aucune activité ne peut démarrer")
 
         ce = CharacterEngine(self._conn, clock=self._clock)
-        current_row = ce._conn.execute(
+        current_row = self._conn.execute(
             "SELECT l.key AS cur FROM character ch "
             "JOIN location l ON l.id = ch.current_location_id "
             "WHERE ch.world_id = ? AND ch.key = ?",
@@ -430,7 +430,7 @@ class ActivityEngine:
             start_at = sim_now if sim_now is not None else self._world().read_canonical_time(world_id)
             # 1b) matérialisation de la blessure (ancien régime passif) jusqu'au début
             ie = InjuryEngine(self._conn, clock=self._clock)
-            ie._materialize_injury_sim(world_id, character_key, start_at, "passive", _conn=c)
+            ie.materialize_injury_sim(world_id, character_key, start_at, "passive", _conn=c)
             # 1c) prévalidation du coût total de blessure avant le premier déplacement
             edge_count = len(path) - 1
             row = ie.active_injury_row(world_id, character_key)
@@ -445,7 +445,7 @@ class ActivityEngine:
                     )
             # 2) déplacements pièce par pièce, chacun tracé (même transaction)
             for step in path[1:]:
-                ce._move(c, world_id, character_key, step, sim_now=start_at)
+                ce.move_in_transaction(c, world_id, character_key, step, sim_now=start_at)
             # 3) matérialisation passive à l'heure de début
             NeedsEngine(self._conn, clock=self._clock).materialize_character_needs(
                 world_id, character_key, start_at, "activity_start", _conn=c
@@ -545,7 +545,7 @@ class ActivityEngine:
                     world_id, character_key, active["planned_end_at"],
                     "activity_end", rates, _conn=c, activity_type=active["type"],
                 )
-                ie._materialize_injury_sim(
+                ie.materialize_injury_sim(
                     world_id, character_key, active["planned_end_at"],
                     recovery_regime(active["type"]), _conn=c,
                 )
@@ -563,7 +563,7 @@ class ActivityEngine:
                 ne.materialize_character_needs(
                     world_id, character_key, at_time, "passive", _conn=c
                 )
-                ie._materialize_injury_sim(
+                ie.materialize_injury_sim(
                     world_id, character_key, at_time, "passive", _conn=c,
                 )
             else:
@@ -572,7 +572,7 @@ class ActivityEngine:
                     world_id, character_key, at_time, "activity_ongoing", rates,
                     _conn=c, activity_type=active["type"],
                 )
-                ie._materialize_injury_sim(
+                ie.materialize_injury_sim(
                     world_id, character_key, at_time,
                     recovery_regime(active["type"]), _conn=c,
                 )
@@ -604,7 +604,7 @@ class ActivityEngine:
                     c, world_id, character_key, target_iso, "activity_ongoing",
                     activity_type="sleep",
                 )
-                ie._materialize_injury_sim(
+                ie.materialize_injury_sim(
                     world_id, character_key, target_iso, "sleep", _conn=c
                 )
                 if _reanchor_clock:
@@ -617,7 +617,7 @@ class ActivityEngine:
                     c, world_id, character_key, boundary, "activity_end",
                     activity_type=active["type"],
                 )
-                ie._materialize_injury_sim(
+                ie.materialize_injury_sim(
                     world_id, character_key, boundary, recovery_regime(active["type"]), _conn=c
                 )
                 c.execute("UPDATE activity SET status='completed',updated_at=? WHERE id=?", (now, active["id"]))
@@ -633,7 +633,7 @@ class ActivityEngine:
                     self._materialize_active_needs(
                         c, world_id, character_key, at_time, "passive"
                     )
-                    ie._materialize_injury_sim(
+                    ie.materialize_injury_sim(
                         world_id, character_key, at_time, "passive", _conn=c
                     )
                     if _reanchor_clock:
@@ -644,7 +644,7 @@ class ActivityEngine:
                     c, world_id, character_key, at_time, "activity_ongoing",
                     activity_type=active["type"],
                 )
-                ie._materialize_injury_sim(
+                ie.materialize_injury_sim(
                     world_id, character_key, at_time, recovery_regime(active["type"]), _conn=c
                 )
                 if _reanchor_clock:
@@ -675,7 +675,7 @@ class ActivityEngine:
                 world_id, character_key, canonical, "activity_abort", rates,
                 _conn=c, activity_type=active["type"],
             )
-            InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
+            InjuryEngine(self._conn, clock=self._clock).materialize_injury_sim(
                 world_id, character_key, canonical,
                 recovery_regime(active["type"]), _conn=c,
             )
@@ -715,7 +715,7 @@ class ActivityEngine:
                 c, world_id, character_key, canonical, "activity_abort",
                 activity_type=active["type"],
             )
-            InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
+            InjuryEngine(self._conn, clock=self._clock).materialize_injury_sim(
                 world_id, character_key, canonical, recovery_regime(active["type"]), _conn=c
             )
             now = self._clock.now_iso()
@@ -876,7 +876,7 @@ class ActivityEngine:
                     world_id, character_key, at, "sleep_checkpoint_complete", rates,
                     _conn=c, activity_type="sleep",
                 )
-            InjuryEngine(self._conn, clock=self._clock)._materialize_injury_sim(
+            InjuryEngine(self._conn, clock=self._clock).materialize_injury_sim(
                 world_id, character_key, at, "sleep", _conn=c,
             )
             c.execute("UPDATE activity SET status='completed',updated_at=? WHERE id=?", (now, active["id"]))

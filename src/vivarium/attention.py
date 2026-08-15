@@ -17,7 +17,7 @@ from .activities import ActivityEngine, recovery_regime
 from .injury import InjuryEngine
 from .needs import NeedsEngine
 from .perception import PerceptionService
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .resources import ResourceEngine
 from .util import Clock
 

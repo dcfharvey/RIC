@@ -70,7 +70,7 @@ def _emit_event(
     recorded_at: str,
     occurred_at: str | None = None,
 ) -> None:
-    from .world import SOURCE_ENGINE, _append_event  # évite un cycle d'import
+    from .world import SOURCE_ENGINE, append_event as _append_event  # évite un cycle d'import
 
     _append_event(
         c, world_id, SOURCE_ENGINE, "needs_materialized", payload,

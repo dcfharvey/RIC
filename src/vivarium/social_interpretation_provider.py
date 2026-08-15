@@ -183,15 +183,15 @@ class SocialInterpretationLLMService:
             selected_trace_request_keys: tuple[str, ...] = (), revision_of_key: str | None = None,
             provider_turn_id: str | None = None) -> dict[str, Any]:
         owner_service = SocialInterpretationService(self._conn, clock=self._clock)
-        world_id = owner_service._world_id(world_id)
-        observer_key = owner_service._key(observer_key, "propriétaire")
-        interpretation_key = owner_service._key(interpretation_key, "interprétation")
-        source_trace_request_key = owner_service._key(source_trace_request_key, "source")
+        world_id = owner_service.validate_world_id(world_id)
+        observer_key = owner_service.validate_key(observer_key, "propriétaire")
+        interpretation_key = owner_service.validate_key(interpretation_key, "interprétation")
+        source_trace_request_key = owner_service.validate_key(source_trace_request_key, "source")
         if revision_of_key is not None:
-            revision_of_key = owner_service._key(revision_of_key, "révision")
+            revision_of_key = owner_service.validate_key(revision_of_key, "révision")
         if not isinstance(selected_trace_request_keys, (list, tuple)):
             raise SocialInterpretationProviderError("sélection de traces invalide", code="invalid_context_selection")
-        selected_trace_request_keys = tuple(owner_service._key(key, "trace contextuelle") for key in selected_trace_request_keys)
+        selected_trace_request_keys = tuple(owner_service.validate_key(key, "trace contextuelle") for key in selected_trace_request_keys)
         if provider_turn_id is not None and (not isinstance(provider_turn_id, str) or not 1 <= len(provider_turn_id) <= 120):
             raise SocialInterpretationProviderError("identifiant de tour invalide", code="invalid_provider_turn_id")
         snapshot = SocialInterpretationContextBuilder(self._conn).build(world_id, observer_key, source_trace_request_key, selected_trace_request_keys=selected_trace_request_keys, revision_of_key=revision_of_key)

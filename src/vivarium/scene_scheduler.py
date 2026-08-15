@@ -6,7 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .scenes import SceneError, SocialSceneService
 
 

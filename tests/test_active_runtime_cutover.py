@@ -17,7 +17,7 @@ from vivarium.simulation import SimulationEngine
 from vivarium.sleep_physiology import ADDITIVE_MODEL_KEY,SleepPhysiologyFoundationService,SleepPhysiologyService,V1_PHYSICAL_LOAD_CLASS_BY_ACTIVITY
 from vivarium.sleep_termination import SleepTerminationFoundationService
 from vivarium.util import Clock,to_iso
-from vivarium.world import SOURCE_ENGINE, WorldEngine, _append_event
+from vivarium.world import SOURCE_ENGINE, WorldEngine, append_event
 
 T0_DT=datetime(2026,8,12,21,0,tzinfo=timezone.utc);T0=to_iso(T0_DT)
 class FakeClock(Clock):
@@ -121,7 +121,7 @@ def test_active_scheduler_allows_unrelated_newer_canonical_event_for_anchor():
   )
   unrelated_at=to_iso(T0_DT+timedelta(seconds=30))
   with transaction(conn) as tx:
-   _append_event(
+   append_event(
     tx,wid,SOURCE_ENGINE,"cognition_no_action",
     {"character":"luna","decision":"no_action"},
     occurred_at=unrelated_at,recorded_at=unrelated_at,

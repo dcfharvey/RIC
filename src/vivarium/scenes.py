@@ -7,7 +7,7 @@ from __future__ import annotations
 import json, sqlite3
 from typing import Any, Mapping
 from .db import transaction
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock, new_uuid
 
 _ACTS=frozenset({'greet','ask','answer','inform','offer','decline','apologize','acknowledge','leave'})

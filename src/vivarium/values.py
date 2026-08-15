@@ -6,7 +6,7 @@ import json
 import sqlite3
 from typing import Any, Mapping
 
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock
 
 

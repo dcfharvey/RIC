@@ -11,7 +11,10 @@ from .db import transaction
 from .util import new_uuid, now_utc
 
 _KINDS = frozenset({"component", "capability", "unit"})
-_KEY_RE = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
+# Public contract used by services that validate registry-compatible keys.
+KEY_RE = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
+# Compatibility alias for this owner module's private implementation calls.
+_KEY_RE = KEY_RE
 
 
 class RegistryError(ValueError):

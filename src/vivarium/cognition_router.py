@@ -22,7 +22,7 @@ from .cognition_policy import (
     CognitionCallLimits,
 )
 from .perception import PerceptionError, PerceptionService
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock
 
 

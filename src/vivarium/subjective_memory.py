@@ -10,7 +10,7 @@ from .action_contract import WorldFact
 from .attention import AttentionItem, AttentionService
 from .db import transaction
 from .perception import PerceptionService
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock, new_uuid
 
 

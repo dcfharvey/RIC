@@ -9,7 +9,7 @@ from vivarium.decision import DecisionFrameService
 from vivarium.activities import ActivityEngine
 from vivarium.sleep_physiology import SleepPhysiologyError, SleepPhysiologyService
 from vivarium.util import to_iso
-from vivarium.world import SOURCE_ENGINE, _append_event
+from vivarium.world import SOURCE_ENGINE, append_event
 
 from test_active_runtime_cutover import T0_DT, active_world
 
@@ -61,7 +61,7 @@ def test_decision_frame_reads_persisted_physiology_after_non_physiology_event(
         )
         at = to_iso(T0_DT + timedelta(seconds=30))
         with transaction(conn) as tx:
-            _append_event(
+            append_event(
                 tx,
                 world_id,
                 SOURCE_ENGINE,
@@ -112,7 +112,7 @@ def test_historical_owner_projection_still_rejects_newer_canonical_causes():
         at = to_iso(T0_DT + timedelta(seconds=30))
         before_state = _physiology_snapshot(conn, world_id, "sophie")
         with transaction(conn) as tx:
-            _append_event(
+            append_event(
                 tx,
                 world_id,
                 SOURCE_ENGINE,

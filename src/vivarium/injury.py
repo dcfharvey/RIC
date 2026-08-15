@@ -17,7 +17,7 @@ Règles canoniques de 3.3B1 (effets de mobilité reportés à 3.3B2) :
   événement d'audit `injury_materialized` ; la guérison émet `injury_healed`.
 
 `InjuryEngine` encapsule la logique mais n'est pas une seconde autorité canonique :
-toutes les écritures passent par `db.transaction` + `world._append_event`.
+toutes les écritures passent par `db.transaction` + `world.append_event`.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from typing import Any
 
 from .db import transaction
 from .util import Clock, new_uuid, parse_iso, to_iso
-from .world import SOURCE_ENGINE, SOURCE_OWNER, _append_event
+from .world import SOURCE_ENGINE, SOURCE_OWNER, append_event as _append_event
 
 SEVERITY_MAX = 100000
 DEN = 36  # dénominateur canonique commun (même que besoins/activités)
@@ -457,14 +457,14 @@ class InjuryEngine:
         L'API publique applique toujours la garde `target_at <= heure canonique`.
         Le simulateur, qui avance le temps simulé via les cibles de matérialisation
         (horloge canonique gelée en test), utilise la méthode réservée
-        `_materialize_injury_sim`.
+        `materialize_injury_sim`.
         """
         return self._materialize(
             world_id, character_key, target_at, regime,
             _conn=_conn, check_canonical=True,
         )
 
-    def _materialize_injury_sim(
+    def materialize_injury_sim(
         self,
         world_id: int,
         character_key: str,
@@ -484,6 +484,8 @@ class InjuryEngine:
             world_id, character_key, target_at, regime,
             _conn=_conn, check_canonical=False,
         )
+
+    _materialize_injury_sim = materialize_injury_sim
 
     def _materialize(
         self,

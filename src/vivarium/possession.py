@@ -13,7 +13,7 @@ from typing import Any
 from .db import transaction
 from .objects import ObjectError, ObjectService, object_row, require_key, require_world_id
 from .util import Clock
-from .world import SOURCE_OWNER, WorldEngine, _append_event
+from .world import SOURCE_OWNER, WorldEngine, append_event as _append_event
 
 
 def _character_row(conn: sqlite3.Connection, world_id: int, character_key: str) -> sqlite3.Row:
@@ -32,7 +32,7 @@ def direct_carrier_key(
     conn: sqlite3.Connection, world_id: int, object_id: int
 ) -> str | None:
     """Retourne le porteur direct d'un objet top-level, s'il existe."""
-    if not WorldEngine._has_table(conn, "character_carried_object"):
+    if not WorldEngine.has_table(conn, "character_carried_object"):
         return None
     row = conn.execute(
         "SELECT ch.key FROM character_carried_object co "
@@ -45,7 +45,7 @@ def direct_carrier_key(
 
 def carrier_key(conn: sqlite3.Connection, world_id: int, object_id: int) -> str | None:
     """Retourne le porteur, y compris si l'objet est dans un sac porte."""
-    if not WorldEngine._has_table(conn, "character_carried_object"):
+    if not WorldEngine.has_table(conn, "character_carried_object"):
         return None
     row = conn.execute(
         "WITH RECURSIVE ancestors(id, parent_object_id, depth, path) AS ("

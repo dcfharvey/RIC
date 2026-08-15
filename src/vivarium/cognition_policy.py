@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Iterable
 
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import parse_iso
 
 

@@ -6,7 +6,7 @@ from types import MappingProxyType
 from typing import Any,Mapping,Protocol
 from .affect import AffectService
 from .cognition import LocalLLMSettings, request_local_model
-from .scc3a_affect import DECISIONS,FAMILIES,INTENSITIES,SCC3AAffectError,SCC3AAffectService,_FORBIDDEN
+from .scc3a_affect import DECISIONS,FAMILIES,INTENSITIES,SCC3AAffectError,SCC3AAffectService,FORBIDDEN_TEXT_RE
 
 SCC3A_SCHEMA_VERSION=1; SCC3A_PROVIDER_VERSION='scc3a-affect-v2'
 _OUTPUT=frozenset({'decision','family','qualitative_intensity','target_ref','support_refs'})
@@ -44,7 +44,7 @@ def parse_scc3a_proposal(value:Mapping[str,Any]|str,allowed_targets:set[str])->d
         if any(p[k] is not None for k in ('family','qualitative_intensity','target_ref')) or p['support_refs']: raise SCC3AAffectError('no_change hors contrat',code='invalid_provider_output')
     else:
         if p['family'] not in FAMILIES or p['qualitative_intensity'] not in INTENSITIES or not p['support_refs'] or any(x not in {'candidate:primary','appraisal:primary','interpretation:primary','trace:primary'} for x in p['support_refs']): raise SCC3AAffectError('proposition affective invalide',code='invalid_provider_output')
-        if _FORBIDDEN.search(_wire(p)): raise SCC3AAffectError('psychologisation ou action interdite',code='invalid_provider_output')
+        if FORBIDDEN_TEXT_RE.search(_wire(p)): raise SCC3AAffectError('psychologisation ou action interdite',code='invalid_provider_output')
     return p
 class SCC3AAffectContextBuilder:
     def __init__(self,conn): self.conn=conn

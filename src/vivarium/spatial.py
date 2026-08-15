@@ -25,7 +25,7 @@ from typing import Any
 
 from .db import transaction
 from .util import Clock, new_uuid
-from .world import SOURCE_OWNER, _append_event
+from .world import SOURCE_OWNER, append_event as _append_event
 
 DEFAULT_KIND = "door"
 
@@ -51,7 +51,7 @@ class GraphEngine:
 
     # --- Résolution -------------------------------------------------------------
 
-    def _location_id(self, world_id: int, key: str) -> int:
+    def location_id(self, world_id: int, key: str) -> int:
         row = self._conn.execute(
             "SELECT id FROM location WHERE world_id = ? AND key = ?", (world_id, key)
         ).fetchone()
@@ -61,6 +61,8 @@ class GraphEngine:
                 code="location_not_found",
             )
         return row["id"]
+
+    _location_id = location_id
 
     @staticmethod
     def normalize_link_request(

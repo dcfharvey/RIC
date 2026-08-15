@@ -23,7 +23,7 @@ from .cognition_policy import (
 )
 from .cognitive_flow import CognitiveFlowRequest, CognitiveFlowScheduler, CognitiveFlowTelemetry
 from .db import transaction
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock, new_uuid, parse_iso, to_iso
 from .world import WorldEngine
 

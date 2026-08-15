@@ -24,7 +24,7 @@ from .cognition_call_ledger import CognitionCallAdmission, CognitionCallLedgerSe
 from .cognitive_flow import CognitiveFlowRequest, CognitiveFlowScheduler, CognitiveFlowTelemetry, flow_failure_state
 from .cognition_policy import CALL_TRIGGER_SCENE_TURN, CognitionCallLimits
 from .diagnostics import DiagnosticRecorder
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .scenes import SceneError, SocialSceneService
 from .util import Clock
 

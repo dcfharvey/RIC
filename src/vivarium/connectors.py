@@ -7,9 +7,9 @@ import sqlite3
 from typing import Any
 
 from .db import transaction
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock
-from .world import SOURCE_OWNER, WorldEngine, _append_event
+from .world import SOURCE_OWNER, WorldEngine, append_event as _append_event
 
 AVAILABLE = "available"
 CLOSED = "closed"

@@ -9,9 +9,9 @@ from typing import Any
 
 from .db import transaction
 from .environment_archetypes import CONNECTOR, PLACE
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock, new_uuid, now_utc
-from .world import SOURCE_SYSTEM, WORLD_NAME_MAX_LEN, WorldEngine, _append_event
+from .world import SOURCE_SYSTEM, WORLD_NAME_MAX_LEN, WorldEngine, append_event as _append_event
 
 _POLICIES = frozenset({"none", "strong_anchor"})
 _CONNECTOR_STATES = frozenset({"available", "closed", "blocked"})
@@ -328,7 +328,7 @@ class EnvironmentBlueprintService:
                 raise BlueprintError("blueprint publie introuvable")
             resolved = self._resolve(conn, json.loads(row["definition_json"]))
             engine = WorldEngine(conn, clock=self._clock)
-            world_id, now = engine._create_empty_world_in_transaction(
+            world_id, now = engine.create_empty_world_in_transaction(
                 conn, world_name or resolved["name"], seeded=False
             )
             location_ids: dict[str, int] = {}

@@ -4,7 +4,7 @@ import json, sqlite3
 from typing import Any, Mapping
 from .action_contract import ActionContractError, normalize_action_specification
 from .db import transaction
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock, new_uuid
 
 class GoalError(ValueError):

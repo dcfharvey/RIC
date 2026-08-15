@@ -8,7 +8,7 @@ from typing import Any
 
 from .db import transaction
 from .util import Clock, new_uuid
-from .world import SOURCE_SYSTEM, WorldEngine, _append_event
+from .world import SOURCE_SYSTEM, WorldEngine, append_event as _append_event
 
 
 class InitialContextError(ValueError):

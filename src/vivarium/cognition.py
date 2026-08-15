@@ -28,7 +28,7 @@ from .decision import DecisionFrameService
 from .character import CharacterEngine
 from .perception import PerceptionService
 from .personality import PersonalityService
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .social import SocialService
 from .subjective_memory import SubjectiveMemoryService
 from .util import Clock

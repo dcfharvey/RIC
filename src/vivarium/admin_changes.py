@@ -256,8 +256,8 @@ class AdminChangeService:
                 raise AdminChangeError("monde introuvable", code="world_not_found")
             graph = GraphEngine(conn, clock=self._clock)
             try:
-                graph._location_id(world_id, from_location)
-                graph._location_id(world_id, to_location)
+                graph.location_id(world_id, from_location)
+                graph.location_id(world_id, to_location)
             except GraphError as exc:
                 raise AdminChangeError(str(exc), code=exc.code) from None
             directions = [(from_location, to_location)]

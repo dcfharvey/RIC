@@ -8,7 +8,7 @@ import sqlite3
 from typing import Any, Iterable
 
 from .db import transaction
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock, new_uuid
 
 
@@ -42,11 +42,15 @@ class SocialInterpretationService:
             raise SocialInterpretationError("monde invalide", code="invalid_world")
         return value
 
+    validate_world_id = _world_id
+
     @staticmethod
     def _key(value: Any, label: str) -> str:
         if not isinstance(value, str) or not _KEY_RE.fullmatch(value):
             raise SocialInterpretationError(f"{label} invalide", code="invalid_request")
         return value
+
+    validate_key = _key
 
     @staticmethod
     def _hypotheses(value: Any, label: str) -> tuple[str, ...]:

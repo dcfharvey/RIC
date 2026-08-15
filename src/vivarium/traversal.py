@@ -8,7 +8,7 @@ from typing import Any
 from .character import CharacterEngine, CharacterError
 from .connectors import AVAILABLE, BLOCKED, CLOSED, ConnectorError, WorldConnectorService
 from .db import transaction
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock
 
 
@@ -105,7 +105,7 @@ class TraversalEngine:
         with transaction(self._conn) as conn:
             self._assert_traversable(world_id, character_key, connector_key, target_key)
             try:
-                result = CharacterEngine(conn, clock=self._clock)._move(
+                result = CharacterEngine(conn, clock=self._clock).move_in_transaction(
                     conn, world_id, character_key, target_key, connector_key=connector_key,
                     action_provenance=action_provenance,
                     sim_now=sim_now,

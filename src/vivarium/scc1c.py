@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .db import transaction
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock, new_uuid
 
 

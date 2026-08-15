@@ -6,7 +6,7 @@ import sqlite3
 from typing import Any, Iterable
 
 from .db import transaction
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import new_uuid, now_utc
 
 
@@ -247,7 +247,7 @@ class CharacterTemplateService:
         }
 
     @staticmethod
-    def _validation_errors(
+    def validation_errors(
         conn: sqlite3.Connection, bindings: Iterable[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         errors: list[dict[str, Any]] = []
@@ -272,6 +272,8 @@ class CharacterTemplateService:
                 )
             )
         return errors
+
+    _validation_errors = validation_errors
 
     @staticmethod
     def _config_errors(

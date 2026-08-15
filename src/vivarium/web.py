@@ -5,7 +5,7 @@ validés (`AdminReadService`, `AdminCommandService`). Le serveur :
 
 - n'écrit jamais directement dans SQLite ;
 - ne connaît aucune table, ne contient aucun SQL ;
-- n'appelle aucun moteur directement ni `_append_event` ;
+- n'appelle aucun moteur directement ni `append_event` ;
 - ouvre une connexion par requête et la ferme systématiquement ;
 - n'expose aucune logique métier.
 

@@ -16,7 +16,7 @@ from types import MappingProxyType
 from typing import Any, Mapping
 
 from .activities import ActivityEngine, ActivityError
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .traversal import TraversalEngine, TraversalError
 from .db import transaction
 from .util import Clock, parse_iso

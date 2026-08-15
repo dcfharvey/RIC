@@ -6,7 +6,7 @@ import sqlite3
 from typing import Any, Iterable
 
 from .db import transaction
-from .registry import _KEY_RE
+from .registry import KEY_RE as _KEY_RE
 from .util import Clock, new_uuid, parse_iso
 
 MIN_MILLI = 0
@@ -222,7 +222,7 @@ class ResourceEngine:
             (world_id, resource_key),
         ).fetchone()
         now = self._clock.now_iso()
-        from .world import WorldEngine, SOURCE_SYSTEM, _append_event
+        from .world import WorldEngine, SOURCE_SYSTEM, append_event as _append_event
 
         canonical_now = WorldEngine(conn, clock=self._clock).read_canonical_time(world_id)
         if definition is None:
@@ -397,7 +397,7 @@ class ResourceEngine:
                 "updated_at = ? WHERE id = ?",
                 (value, remainder, target_at, now, row["id"]),
             )
-            from .world import SOURCE_ENGINE, _append_event
+            from .world import SOURCE_ENGINE, append_event as _append_event
 
             _append_event(
                 conn,
@@ -460,7 +460,7 @@ class ResourceEngine:
                 "updated_at = ? WHERE id = ?",
                 (new_value, previous_remainder, target_at, now, row["id"]),
             )
-            from .world import SOURCE_ENGINE, _append_event
+            from .world import SOURCE_ENGINE, append_event as _append_event
 
             _append_event(
                 conn,
@@ -548,7 +548,7 @@ class ResourceEngine:
                     effect["value_milli"],
                 ),
             )
-        from .world import SOURCE_SYSTEM, _append_event
+        from .world import SOURCE_SYSTEM, append_event as _append_event
 
         _append_event(
             conn,
