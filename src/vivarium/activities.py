@@ -207,13 +207,16 @@ class ActivityEngine:
         duration = min(necessary, SLEEP_MAX_SECONDS)
         return _add_seconds(start_at, duration)
 
-    def _path(self, world_id: int, from_key: str, to_key: str) -> list[str]:
+    def resolve_path(self, world_id: int, from_key: str, to_key: str) -> list[str]:
+        """Retourne un trajet d'activité valide ou lève une erreur métier."""
         path = GraphEngine(self._conn).find_path(world_id, from_key, to_key)
         if path is None:
             raise ActivityError(
                 f"trajet impossible de {from_key!r} vers {to_key!r}"
             )
         return path
+
+    _path = resolve_path
 
     _ACTIVE_NEED_KEYS = frozenset({"satiete", "hygiene"})
 
@@ -352,7 +355,7 @@ class ActivityEngine:
                     next_reassessment_at=sleep_plan[1], hard_cap_at=sleep_plan[2],
                 )
             if _reanchor_clock:
-                self._world()._advance_clock(world_id, start_at, c)
+                self._world().advance_clock_in_transaction(world_id, start_at, c)
         return self.activity_sheet(world_id, character_key) or {}
 
     def start_activity(
@@ -492,7 +495,7 @@ class ActivityEngine:
             )
             # 7) avancement de l'horloge canonique à l'instant de début
             if _reanchor_clock:
-                self._world()._advance_clock(world_id, start_at, c)
+                self._world().advance_clock_in_transaction(world_id, start_at, c)
         return self.activity_sheet(world_id, character_key)
 
     def _character_id(self, world_id: int, character_key: str) -> int:
@@ -578,7 +581,7 @@ class ActivityEngine:
                 )
             # avancement de l'horloge canonique à l'instant atteint
             if _reanchor_clock:
-                self._world()._advance_clock(world_id, at_time, c)
+                self._world().advance_clock_in_transaction(world_id, at_time, c)
         return self.activity_sheet(world_id, character_key)
 
     def _advance_to_active(
@@ -608,7 +611,7 @@ class ActivityEngine:
                     world_id, character_key, target_iso, "sleep", _conn=c
                 )
                 if _reanchor_clock:
-                    self._world()._advance_clock(world_id, target_iso, c)
+                    self._world().advance_clock_in_transaction(world_id, target_iso, c)
                 return self.activity_sheet(world_id, character_key)
             if parse_iso(active["planned_end_at"]) <= parse_iso(at_time):
                 boundary = active["planned_end_at"]
@@ -627,7 +630,7 @@ class ActivityEngine:
                     occurred_at=boundary, recorded_at=now,
                 )
                 if _reanchor_clock:
-                    self._world()._advance_clock(world_id, boundary, c)
+                    self._world().advance_clock_in_transaction(world_id, boundary, c)
                 if parse_iso(at_time) > parse_iso(boundary):
                     physiology.materialize_owner_backed(world_id, character_key, at_time)
                     self._materialize_active_needs(
@@ -637,7 +640,7 @@ class ActivityEngine:
                         world_id, character_key, at_time, "passive", _conn=c
                     )
                     if _reanchor_clock:
-                        self._world()._advance_clock(world_id, at_time, c)
+                        self._world().advance_clock_in_transaction(world_id, at_time, c)
             else:
                 physiology.materialize_owner_backed(world_id, character_key, at_time)
                 self._materialize_active_needs(
@@ -648,7 +651,7 @@ class ActivityEngine:
                     world_id, character_key, at_time, recovery_regime(active["type"]), _conn=c
                 )
                 if _reanchor_clock:
-                    self._world()._advance_clock(world_id, at_time, c)
+                    self._world().advance_clock_in_transaction(world_id, at_time, c)
         return self.activity_sheet(world_id, character_key)
 
     def abort_activity(
@@ -693,7 +696,7 @@ class ActivityEngine:
             )
             # avancement de l'horloge canonique à l'instant d'abandon
             if _reanchor_clock:
-                self._world()._advance_clock(world_id, canonical, c)
+                self._world().advance_clock_in_transaction(world_id, canonical, c)
         return self.activity_sheet(world_id, character_key)
 
     def _abort_activity_active(
@@ -728,7 +731,7 @@ class ActivityEngine:
                 occurred_at=canonical, recorded_at=now,
             )
             if _reanchor_clock:
-                self._world()._advance_clock(world_id, canonical, c)
+                self._world().advance_clock_in_transaction(world_id, canonical, c)
         return self.activity_sheet(world_id, character_key)
 
     # --- Frontieres de sommeil synthetiques -----------------------------------
@@ -887,7 +890,7 @@ class ActivityEngine:
                 occurred_at=at, recorded_at=now,
             )
             if _reanchor_clock:
-                self._world()._advance_clock(world_id, at, c)
+                self._world().advance_clock_in_transaction(world_id, at, c)
         return self.activity_sheet(world_id, character_key)
 
     def _active_row(self, c: sqlite3.Connection, world_id: int, character_key: str):

@@ -457,11 +457,14 @@ class CharacterEngine:
         ).fetchone()
         return row["type"] if row else None
 
-    def _active_recovery_regime(self, world_id: int, key: str) -> str:
+    def active_recovery_regime(self, world_id: int, key: str) -> str:
+        """Retourne le régime de récupération actif d'un personnage."""
         from .activities import recovery_regime  # lazy, évite le cycle d'import
 
         atype = self._active_activity_type(world_id, key)
         return recovery_regime(atype) if atype else "passive"
+
+    _active_recovery_regime = active_recovery_regime
 
 
 def upgrade_development_world(

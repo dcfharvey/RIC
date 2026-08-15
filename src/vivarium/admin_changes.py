@@ -437,7 +437,7 @@ class AdminChangeService:
                 raise AdminChangeError("le monde a changé depuis la préparation", code="world_changed")
 
             if plan["action"] == "rename_world":
-                applied = self._world()._rename_world_in_transaction(
+                applied = self._world().rename_world_in_transaction(
                     conn,
                     plan["world_id"],
                     plan["payload"]["to"],
@@ -445,7 +445,7 @@ class AdminChangeService:
                 )
                 result = {"world_id": applied["id"], "name": applied["name"]}
             elif plan["action"] == "add_link":
-                applied = GraphEngine(conn, clock=self._clock)._add_link_in_transaction(
+                applied = GraphEngine(conn, clock=self._clock).add_link_in_transaction(
                     conn,
                     plan["world_id"],
                     plan["payload"]["from"],
@@ -460,7 +460,7 @@ class AdminChangeService:
                 }
             elif plan["action"] == "remove_link":
                 try:
-                    applied = GraphEngine(conn, clock=self._clock)._remove_link_in_transaction(
+                    applied = GraphEngine(conn, clock=self._clock).remove_link_in_transaction(
                         conn,
                         plan["world_id"],
                         plan["payload"]["from"],

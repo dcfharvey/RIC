@@ -201,7 +201,9 @@ class ActiveSimulationEngine:
                 continue
             try:
                 with transaction(self._conn) as c:
-                    path = self._activities._path(world_id, current["key"], plan["target_location_key"])
+                    path = self._activities.resolve_path(
+                        world_id, current["key"], plan["target_location_key"]
+                    )
                     engine = CharacterEngine(self._conn, clock=self._clock)
                     for step in path[1:]:
                         engine.move_in_transaction(c, world_id, key, step, sim_now=at)
@@ -245,6 +247,9 @@ class ActiveSimulationEngine:
         # The world clock may reanchor to the captured real-time target, but the
         # physiology is never materialized merely because wall time passed.
         # Persisted H/phi/P therefore remain at the last processed causal boundary.
-        with transaction(self._conn) as c:WorldEngine(self._conn,clock=self._clock)._advance_clock(world_id,captured,c)
+        with transaction(self._conn) as c:
+            WorldEngine(self._conn, clock=self._clock).advance_clock_in_transaction(
+                world_id, captured, c
+            )
         active_now=[f"{r['character']}:{r['type']}" for r in self._conn.execute("SELECT c.key AS character,a.type FROM activity a JOIN character c ON c.id=a.character_id WHERE a.world_id=? AND a.status='active' ORDER BY c.key",(world_id,))]
         return SimulationReport(True,captured,captured,transitions,active_now)

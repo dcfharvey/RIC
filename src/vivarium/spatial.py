@@ -382,6 +382,28 @@ class GraphEngine:
         )
         return {**payload, "canonical_at": canonical_at}
 
+    def add_link_in_transaction(
+        self,
+        conn: sqlite3.Connection,
+        world_id: int,
+        a_key: str,
+        b_key: str,
+        *,
+        bidirectional: bool,
+        kind: str,
+        admin_change_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Ajoute un passage dans une transaction déjà ouverte."""
+        return self._add_link_in_transaction(
+            conn,
+            world_id,
+            a_key,
+            b_key,
+            bidirectional=bidirectional,
+            kind=kind,
+            admin_change_id=admin_change_id,
+        )
+
     def add_link(
         self,
         world_id: int,
@@ -455,6 +477,26 @@ class GraphEngine:
             occurred_at=canonical_at, recorded_at=_now_iso(self._clock),
         )
         return {**payload, "canonical_at": canonical_at}
+
+    def remove_link_in_transaction(
+        self,
+        conn: sqlite3.Connection,
+        world_id: int,
+        a_key: str,
+        b_key: str,
+        *,
+        bidirectional: bool,
+        admin_change_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Retire un passage dans une transaction déjà ouverte."""
+        return self._remove_link_in_transaction(
+            conn,
+            world_id,
+            a_key,
+            b_key,
+            bidirectional=bidirectional,
+            admin_change_id=admin_change_id,
+        )
 
     def remove_link(
         self,

@@ -442,7 +442,7 @@ class WorldEngine:
                     )
                     injury_regime = CharacterEngine(
                         self._conn, clock=self._clock
-                    )._active_recovery_regime(world_id, key)
+                    ).active_recovery_regime(world_id, key)
                     InjuryEngine(self._conn, clock=self._clock).materialize_injury_sim(
                         world_id, key, frozen, injury_regime, _conn=c
                     )
@@ -526,24 +526,26 @@ class WorldEngine:
             )
         return self.get_world(world_id)
 
-    def _advance_clock(
-        self, world_id: int, target_at: str, _conn: sqlite3.Connection
+    def advance_clock_in_transaction(
+        self, world_id: int, target_at: str, conn: sqlite3.Connection
     ) -> None:
         """Avance l'horloge canonique à `target_at` dans la transaction en cours.
 
         Pose atomiquement `simulated_now = target_at` et `real_updated_at =
-        Clock.now` (heure murale), dans la transaction `_conn` déjà ouverte.
+        Clock.now` (heure murale), dans la transaction `conn` déjà ouverte.
         Réservé aux transitions temporelles du simulateur (`start_activity`,
-        `advance_to`, `abort_activity`) : aucune API publique n'avance l'horloge
-        silencieusement. Un rollback de la transaction annule aussi cette mise à
-        jour. Aucun événement `clock_updated` n'est émis (la progression du run
-        est tracée par ses propres événements).
+        `advance_to`, `abort_activity`) : ce contrat n'ouvre pas de transaction
+        et n'émet pas d'événement `clock_updated`. Un rollback de la transaction
+        annule aussi cette mise à jour; la progression du run est tracée par ses
+        propres événements.
         """
-        _conn.execute(
+        conn.execute(
             "UPDATE canonical_clock SET simulated_now = ?, real_updated_at = ? "
             "WHERE world_id = ?",
             (target_at, self._now_iso(), world_id),
         )
+
+    _advance_clock = advance_clock_in_transaction
 
     # --- Écritures d'état + trace canonique (même transaction) -----------------
 
@@ -605,6 +607,22 @@ class WorldEngine:
             recorded_at=now,
         )
         return {"id": world_id, "name": normalized_name, "canonical_at": canonical}
+
+    def rename_world_in_transaction(
+        self,
+        conn: sqlite3.Connection,
+        world_id: int,
+        normalized_name: str,
+        *,
+        admin_change_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Applique un renommage dans une transaction déjà ouverte."""
+        return self._rename_world_in_transaction(
+            conn,
+            world_id,
+            normalized_name,
+            admin_change_id=admin_change_id,
+        )
 
     def rename_world(self, world_id: int, new_name: str) -> dict[str, Any]:
         """Renomme un monde et trace l'événement dans la même transaction.
