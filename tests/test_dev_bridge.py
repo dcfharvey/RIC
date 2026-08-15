@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import time
 from pathlib import Path
 
@@ -26,6 +27,18 @@ def _script(root: Path, name: str, body: str) -> str:
     path = root / name
     path.write_text(body, encoding="utf-8")
     return name
+
+
+def _git_path(root: Path, name: str) -> Path:
+    result = subprocess.run(
+        ["git", "rev-parse", "--git-path", name],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    path = Path(result.stdout.strip())
+    return path if path.is_absolute() else root / path
 
 
 def test_filesystem_root_lock_and_sensitive_defaults(tmp_path):
@@ -229,8 +242,10 @@ def test_service_auth_capabilities_and_read_only_inspector(tmp_path):
 def test_git_surface_is_read_only_and_sees_untracked_workspace():
     root = Path(__file__).resolve().parents[1]
     service = DevBridgeService(root, "g" * 48)
-    before_head = (root / ".git" / "HEAD").read_bytes()
-    before_index = (root / ".git" / "index").read_bytes()
+    head_path = _git_path(root, "HEAD")
+    index_path = _git_path(root, "index")
+    before_head = head_path.read_bytes()
+    before_index = index_path.read_bytes()
     result = service.dispatch("/dev/git", {"operation": "status"})
     assert result["ok"] is True
     assert result["result"]["exit_code"] == 0
@@ -245,5 +260,5 @@ def test_git_surface_is_read_only_and_sees_untracked_workspace():
     assert injected.value.code == "invalid_git_ref"
     with pytest.raises(BridgeError):
         service._git("show", {"ref": "HEAD:.env"})
-    assert (root / ".git" / "HEAD").read_bytes() == before_head
-    assert (root / ".git" / "index").read_bytes() == before_index
+    assert head_path.read_bytes() == before_head
+    assert index_path.read_bytes() == before_index

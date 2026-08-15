@@ -12,12 +12,16 @@ INTENSITIES=frozenset({'low','moderate','high'})
 DECISIONS=frozenset({'no_change','start_episode'})
 INTENSITY_MILLI={'low':200,'moderate':500,'high':800}
 _FP=re.compile(r'^[0-9a-f]{64}$')
-FORBIDDEN_TEXT_RE = re.compile(
+_FORBIDDEN_TEXT_RE = re.compile(
     r"(voulait|veut|intention|motif|jalou|manipul|mentir|personnalit|"
     r"sinc[eè]re|coupable|blesser|confronter|fuir|agir|action)",
     re.I,
 )
-_FORBIDDEN = FORBIDDEN_TEXT_RE
+
+
+def contains_forbidden_text(value: str) -> bool:
+    """Indique si un support SCC-3A contient un contenu interdit."""
+    return _FORBIDDEN_TEXT_RE.search(value) is not None
 
 class SCC3AAffectError(ValueError):
     def __init__(self,message:str,*,code:str): super().__init__(message); self.code=code
@@ -46,7 +50,7 @@ class SCC3AAffectService:
             if any(x is not None for x in (family,qualitative_intensity,target_ref)) or support_refs: raise SCC3AAffectError('no_change doit rester vide',code='invalid_scc3a')
         else:
             if family not in FAMILIES or qualitative_intensity not in INTENSITIES or not isinstance(support_refs,(list,tuple)) or not support_refs or any(not isinstance(x,str) for x in support_refs): raise SCC3AAffectError('proposition affective incomplete',code='invalid_scc3a')
-            if _FORBIDDEN.search(' '.join(str(x) for x in support_refs)): raise SCC3AAffectError('psychologisation interdite',code='invalid_scc3a')
+            if contains_forbidden_text(' '.join(str(x) for x in support_refs)): raise SCC3AAffectError('psychologisation interdite',code='invalid_scc3a')
             if target_ref is not None and target_ref not in {row['speaker_key'],row['recipient_key']}: raise SCC3AAffectError('cible hors allowlist',code='invalid_scc3a')
             allowed={'candidate:primary','appraisal:primary','interpretation:primary','trace:primary'}
             if any(x not in allowed for x in support_refs): raise SCC3AAffectError('support hors snapshot',code='invalid_scc3a')
