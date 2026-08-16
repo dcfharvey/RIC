@@ -74,7 +74,7 @@ def test_episode_is_distinct_from_trace_and_keeps_support_audit(setup):
     assert episode["support_trace_ids"] == (trace_id,)
     assert episode["gist"]["kind"] == "supported_trace_projection"
     assert episode["gist"]["support_count"] == 1
-    assert episode["source_attribution"]["kind"] == "derived_from_subjective_access"
+    assert episode["source_attribution"] == {"kind": "unresolved"}
     assert episode["participants"] == ("chuu",)
     assert "erika" not in episode["participants"]
     assert episode["recovery_cues"]
@@ -88,6 +88,31 @@ def test_episode_is_distinct_from_trace_and_keeps_support_audit(setup):
     assert conn.execute("SELECT COUNT(*) FROM autobiographical_episode_support").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM autobiographical_episode_event").fetchone()[0] == 1
     assert canonical_state_digest(conn, world_id) == before_canon
+
+    audit = conn.execute(
+        "SELECT trace.source_kind, trace.access_kind, trace.fidelity "
+        "FROM autobiographical_episode_support support "
+        "JOIN subjective_trace trace ON trace.id = support.trace_id "
+        "WHERE support.episode_id = ("
+        "SELECT id FROM autobiographical_episode WHERE episode_key = ?"
+        ")",
+        ("episode-entry",),
+    ).fetchone()
+    assert audit["source_kind"]
+    assert audit["access_kind"]
+    assert audit["fidelity"] == "complete"
+
+    recalled = memory.recall_autobiographical(
+        world_id, "sophie", context={"cues": ["adjacent_connector"]}
+    )[0]
+    assert recalled["source_attribution"] == {"kind": "unresolved"}
+    assert "source_kinds" not in recalled["context"]
+    assert "access_kinds" not in recalled["context"]
+    assert all(
+        key not in support
+        for support in recalled["details"]["supports"]
+        for key in ("source_kind", "access_kind", "fidelity")
+    )
 
     with pytest.raises(Exception, match="immutable"):
         conn.execute("UPDATE autobiographical_episode SET importance_milli = 1")
@@ -208,6 +233,10 @@ def test_cognition_receives_separate_autobiographical_working_set(setup):
     assert context.autobiographical_memories[0]["episode_key"] == "cognition-episode"
     assert "autobiographical_memories" in context.wire()
     assert "support_trace_ids" not in context.wire()["autobiographical_memories"][0]
+    cognitive_memory = context.wire()["autobiographical_memories"][0]
+    assert cognitive_memory["source_attribution"] == {"kind": "unresolved"}
+    assert "source_kinds" not in cognitive_memory["context"]
+    assert "access_kinds" not in cognitive_memory["context"]
     assert CognitionContextService(conn, clock=clock).build(
         world_id, "erika"
     ).autobiographical_memories == ()

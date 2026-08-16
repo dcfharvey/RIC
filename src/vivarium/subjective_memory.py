@@ -353,16 +353,11 @@ class SubjectiveMemoryService:
                         participants.add(value)
 
         fact_types = sorted({trace["fact_type"] for trace in traces})
-        source_kinds = sorted({trace["source_kind"] for trace in traces})
-        access_kinds = sorted({trace["access_kind"] for trace in traces})
-        fidelities = sorted({trace["fidelity"] for trace in traces})
         participant_list = sorted(participants)
         support_details = [
             {
                 "fact_type": trace["fact_type"],
                 "occurred_at": trace["fact_occurred_at"],
-                "access_kind": trace["access_kind"],
-                "fidelity": trace["fidelity"],
                 "payload": json.loads(trace["payload_json"]),
             }
             for trace in traces
@@ -375,19 +370,10 @@ class SubjectiveMemoryService:
         details = {"supports": support_details}
         context = {
             "fact_types": fact_types,
-            "source_kinds": source_kinds,
-            "access_kinds": access_kinds,
             "participants": participant_list,
         }
-        source_attribution = {
-            "kind": "derived_from_subjective_access",
-            "source_kinds": source_kinds,
-            "access_kinds": access_kinds,
-            "fidelities": fidelities,
-        }
-        recovery_cues = tuple(
-            dict.fromkeys(fact_types + access_kinds + source_kinds + participant_list)
-        )
+        source_attribution = {"kind": "unresolved"}
+        recovery_cues = tuple(dict.fromkeys(fact_types + participant_list))
         return (
             _json_object(gist, "gist"),
             _json_object(details, "détails"),
