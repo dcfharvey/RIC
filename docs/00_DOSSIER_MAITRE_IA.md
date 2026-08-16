@@ -1,326 +1,349 @@
-# Vivarium social artificiel
-## Dossier maître d’implémentation destiné à une IA programmeuse
+# RIC — Dossier maître normatif
 
-**Version :** 1.8
-**Date :** 6 août 2026
-**Statut :** source normative unique du dépôt après fermeture technique de la Phase 3
-**Public cible :** IA programmeuse, agent de développement ou développeur humain
-**Commit de référence (Phase 3) :** `7e5459eaac5c2ad8ae8dcb53a197863575ab4914`
-**Tests de référence :** 228 réussis
-**Verdict de fermeture Phase 3 :** `FERMETURE APPROUVABLE`
+**Version :** 2.0  
+**Date :** 16 août 2026  
+**Statut :** noyau normatif stable du projet
 
-> Ce dossier est la version consolidée v0.4. Il remplace les versions antérieures et intègre la
-> direction normative post-audit. Il décrit ce qui est **implémenté**, ce qui est
-> **normatif mais futur**, et ce qui est **historique**. Aucune capacité fictive
-> n’est présentée comme déjà codée.
+RIC — **Reality · Interaction · Cognition** — est un moteur de simulation sociale persistante. Ce document fixe les principes qui doivent rester vrais malgré l'évolution du code. Il n'est volontairement plus une photographie détaillée d'un commit, d'un nombre de tests ou d'un rodage particulier.
 
----
+Pour l'état opérationnel courant, lire `docs/99_PASSATION_COURANTE.md`. Pour les décisions autoritatives, lire `docs/01_REGISTRE_DECISIONS.md`. Pour l'ordre des travaux, lire `docs/15_ROADMAP_ACTIVE.md`. Pour la référence Git, lire `docs/GOUVERNANCE_GIT.md`.
 
-## 1. Statut du document
+## 1. Portée documentaire
 
-Le dossier de contre-audit R&D consolidé de l'alpha actuelle est
-`docs/64_DOSSIER_CONTRE_AUDIT_R_D_0_1_0A9.md`. Il décrit les choix réellement
-implantés et formule les questions scientifiques à soumettre à ChatGPT; il ne
-remplace pas les invariants du présent dossier maître.
+Ce dossier contient les invariants, frontières d'autorité, règles de méthode et contrats conceptuels durables.
 
-Deux catégories de classification sont distinguées et ne doivent pas être confondues.
+Il ne doit pas contenir comme vérité permanente :
 
-### Nature du contenu
+- le HEAD courant;
+- un compteur de tests;
+- une session de rodage;
+- une liste exhaustive de classes/modules;
+- une architecture technique supposée à partir des noms conceptuels;
+- le statut d'un WO volatil.
 
-- **Normatif** : ce qui doit être respecté (moteur canonique seul autorité, transactions atomiques, lecture sans effet de bord, temps simulé, journal append-only, séparation vérité/perception/croyance/mémoire, confirmation des changements profonds).
-- **Descriptif** : ce qui décrit l’implémentation actuelle sans être une règle éternelle (noms de classes, SQLite, nombre de modules, tables, tests, personnages techniques).
-- **Historique** : pourquoi une décision a été prise, quel audit l’a motivée, quelles alternatives ont été rejetées, quel lot l’a implémentée.
+### Hiérarchie de vérité
 
-### Statut de réalisation ou de décision
+Lorsqu'une réponse dépend de l'état réel du produit, utiliser cet ordre :
 
-- **implémenté** ;
-- **partiellement implémenté** ;
-- **normatif futur** ;
-- **supersédé** ;
-- **résolu** ;
-- **dette** ;
-- **limite**.
+1. `product/current`, le code, les migrations et tests réellement intégrés;
+2. `docs/01_REGISTRE_DECISIONS.md` et les décisions approuvées postérieures;
+3. le présent dossier pour les invariants durables;
+4. `docs/99_PASSATION_COURANTE.md` pour la photographie opérationnelle;
+5. `docs/15_ROADMAP_ACTIVE.md` pour l'ordre des prochains travaux;
+6. docs de lots/R&D, `docs/history/` et `sources/` pour provenance et détail historique.
 
-Un même élément peut avoir une nature documentaire et un statut de réalisation distincts.
-Exemple : nature = normative ; statut = normatif futur.
+Ne jamais réconcilier silencieusement deux sources incompatibles. Signaler le conflit et vérifier le dépôt réel.
 
-Les deux catégories sont distinguées dans chaque section. Ne pas les mélanger.
+## 2. Architecture conceptuelle RIC
 
-## 2. Portée et contrat de lecture
+Les trois moteurs sont des responsabilités conceptuelles. Ils ne correspondent pas automatiquement à des packages, services ou processus.
 
-1. Lire ce dossier avant de modifier un fichier.
-2. Ne pas commencer par construire le système complet ; travailler par lots approuvés.
-3. Ce dossier prévaut sur les documents sources antérieurs ; les sources sont conservées pour la traçabilité.
-4. Ne jamais réconcilier silencieusement deux exigences incompatibles : signaler le conflit, son impact et une recommandation.
-5. Une phase ne commence pas avant la porte de qualité précédente.
-6. Le modèle de langage propose ; le moteur local valide et possède la réalité du monde.
-7. Une tâche n’est pas terminée sans tests, preuves, documentation et plan de retour arrière.
+### Reality Engine
 
-### 2.1 Hiérarchie documentaire
+Ce qui est objectivement vrai, possible et causal dans la simulation :
 
-1. Ce dossier maître v0.2 et son registre de décisions v0.2.
-2. Les demandes de changement approuvées et le changelog postérieurs à cette version.
-3. Le code, les migrations et les tests validés, lorsqu’ils matérialisent une exigence approuvée.
-4. Les documents sources et post-audit, uniquement comme historique et détail explicatif.
+- état canonique;
+- temps canonique;
+- espace et topologie;
+- corps et capacités causalement actives;
+- activités et conséquences;
+- règles physiques et contraintes;
+- transactions et journal canonique.
 
-## 3. Glossaire bilingue
+### Interaction Engine
 
-| Terme canonique | Définition | Langue |
-|---|---|---|
-| moteur canonique déterministe | Autorité unique d’écriture du monde ; valide et applique les faits. | FR |
-| état canonique | État courant possédé par le moteur. | FR |
-| temps canonique / temps simulé | Heure simulée dérivée du moteur. | FR |
-| temps mural | Heure réelle d’écriture (`recorded_at`). | FR |
-| événement canonique | Fait officiel immuable du journal. | FR |
-| journal canonique | Journal append-only des événements. | FR |
-| matérialisation | Application d’un intervalle de temps à un état dérivé. | FR |
-| projection sémantique | Projection reproductible des faits significatifs du journal. | FR |
-| digest | Empreinte déterministe d’état ou de journal. | FR |
-| activité / besoin / blessure / régime | Concepts métier du moteur. | FR |
-| arête / edge | Passage dirigé du graphe spatial. | FR/EN |
-| propriétaire / administrateur / owner | Autorité administrative supérieure. | FR/EN |
-| LLM / agent / personnage | Le LLM propose ; l’agent est une entité ; le personnage est une entité du monde. | FR |
-| monde / résidence / vivarium | Racine du projet, habitat, projet global. | FR |
-| seed / peuplement | Constantes de peuplement ; aucun RNG. | FR/EN |
+Ce qui rend les agents et la réalité mutuellement accessibles et structure leurs interactions :
 
-Convention : **documentation en français, code/classes/événements/champs en anglais, glossaire bilingue pour les termes techniques**.
+- perceptibilité;
+- canaux et scènes;
+- accès à des objets/personnes/signaux;
+- affordances physiques;
+- permissions d'interaction;
+- médiation entre une proposition cognitive et une opération moteur validable.
 
-## 4. Principes d’autorité
+### Cognitive Engine
 
-- **Moteur canonique seul arbitre** : toute modification de l’état passe par le moteur, dans une transaction, avec sa trace canonique.
-- **LLM non autoritaire** : il propose, interprète et formule ; il ne modifie ni base, ni événement, ni composant, ni capacité, ni mémoire, ni émotion, ni relation, ni permission, ni identité.
-- **Séparation vérité / perception / interprétation / croyance / mémoire** : aucune couche subjective ne réécrit rétroactivement la réalité.
-- **Autorité et perceptibilité indépendantes** : une intervention n’entre dans les perceptions/croyances/souvenirs d’un personnage que si elle est perceptible selon le mode et la situation.
-- **Impossibilité contre transgression** : une impossibilité canonique n’est pas une règle de politique ; une norme ou valeur ne devient pas une loi physique.
-- **Consentement indépendant** : aucune affection, confiance, intimité, autorité, attirance, promesse ou relation ne constitue un consentement actuel.
-- **Changements profonds** : toute modification canonique profonde exige commande métier, validation en couches, rapport d’impact, plan préparé immuable, checkpoint, confirmation liée à un hash et une version, transaction atomique et audit administratif.
+Ce que chaque agent traite subjectivement :
 
-## 5. Architecture générale
+- perception reçue/détectée;
+- attention;
+- interprétation;
+- croyances;
+- mémoire;
+- affect;
+- valeurs et préférences;
+- motifs, buts et intentions;
+- choix et langage.
 
-### 5.1 Composants
+Cette séparation est une discipline causale, pas une instruction de créer exactement trois sous-systèmes techniques.
 
-| Composant | Responsabilité | Interdiction principale |
-| --- | --- | --- |
-| Interface Discord | Interface sociale principale. | Modifier directement le monde. |
-| Interface web locale | Interface administrative (MVP). | Écrire directement dans SQLite. |
-| Routeur | Identifier personnage, scène, mode du propriétaire et niveau d’autorité. | Inventer une conséquence. |
-| Orchestrateur | Construire le contexte, appeler le modèle, contrôler cadence et reprise. | Contourner permissions ou invariants. |
-| Moteur canonique déterministe | Temps, lieux, actions, validations, transactions, conséquences et vérité. | Accepter un fait généré sans validation. |
-| Couche cognitive | Perception subjective, mémoire récupérée, intention, dialogue. | Écrire directement dans la base canonique. |
-| Mémoire | Événements, perceptions, croyances, souvenirs, provenance, consolidation. | Fusionner croyance et fait. |
-| Planificateur | Routines, échéances, rattrapage, consolidation, notifications. | Déclencher des appels non bornés. |
-| Adaptateur de modèle | Contrat uniforme entre fournisseurs, validation de sortie, métriques. | Enfermer le métier dans une API propriétaire. |
-| Persistance | SQLite, migrations, snapshots, audit et archives. | Cache/embeddings comme source unique. |
-| Technicien | Diagnostic, métriques, preuves et recommandations en lecture seule. | Écrire, migrer ou déployer dans le MVP. |
+## 3. Invariants fondamentaux
 
-### 5.2 Boucle d’exécution
-
-Charger l’état canonique → mettre à jour besoins/routines déterministes → détecter les décisions nécessitant interprétation → construire un contexte subjectif minimal → obtenir une intention structurée → valider par le moteur → appliquer dans une transaction atomique → créer l’événement canonique → distribuer les perceptions → mettre à jour croyances/souvenirs/relations/journaux → continuer, résumer ou attendre.
-
-### 5.3 Niveaux de détail
-
-0 déterministe / 1 condensé / 2 décision / 3 scène / 4 réflexion (définis en v0.1, conservés).
-
-## 6. Moteur canonique déterministe (implémenté)
-
-- `world.py` : moteur canonique, horloge, seed, autorité d’écriture unique.
-- `character.py` : personnages, position canonique, déplacement (garde C-1).
-- `spatial.py` : graphe orienté, BFS, intégrité, modifications administratives atomiques.
-- `needs.py` : besoins dérivés et matérialisés.
-- `activities.py` : activités, régimes, transitions atomiques.
-- `injury.py` : blessures, récupération, causalité.
-- `policy.py` : politique déterministe pure.
-- `simulation.py` : orchestration `run_to` de borne en borne.
-- `repro.py` : digests et audits de reproductibilité.
-- `bench.py` : scénarios temporaires isolés, comparaisons et rapports d'audit.
-
-Toute écriture passe par `db.transaction` + `world._append_event` (helper interne). Aucune API publique ne permet d’écrire un événement brut sans mutation métier (C-3 corrigé).
-
-## 7. Temps et horloge (implémenté)
-
-- Temps réel 1:1 lorsque le monde est actif : `read_canonical_time = simulated_now + (now - real_updated_at)`.
-- Monde paused : `read_canonical_time = simulated_now` (gelée, aucun rattrapage en pause).
-- `_advance_clock` : helper interne qui pose atomiquement `simulated_now` et `real_updated_at` dans la transaction ; réservé aux transitions temporelles du simulateur ; aucun `clock_updated` pour la progression du run.
-- `set_simulated_time` : commande administrative distincte, émet `clock_updated`.
-- Redémarrage : reprise depuis les ancres persistées ; délai mural actif compté exactement une fois ; délai mural ignoré en pause.
-- Frontière multi-personnages : toutes les opérations utilisent le même instant canonique T ; les microsecondes murales ne sont pas du temps simulé.
-
-## 8. Monde et espace (implémenté)
-
-- 9 lieux initiaux : salon, cuisine, salle de bain, cour, couloir, quatre chambres.
-- Graphe orienté `location_link` ; une arête dirigée = un passage ; passage bidirectionnel = deux arêtes réciproques.
-- `find_path` (BFS), `can_traverse`, `has_physical_connection`, `adjacent_from`, `check_graph_integrity`.
-- Déplacement arête par arête, `character_moved` par arête (`edge_count = 1`), aucune téléportation.
-- Énergie : borne basse autorisée à zéro ; surcharge de blessure modérée 500 milli-énergie par arête.
-- **Garde C-1** : aucun déplacement pendant une activité active (refus `CharacterError`, rollback complet).
-
-## 9. Personnages (implémenté, provisoire)
-
-- Quatre personnages techniques `character_1..4`, tous adultes, positions canoniques initiales en chambres 1..4.
-- **Statut** : les placeholders techniques restent réservés aux tests. Le casting MVP définitif compte cinq entités : Sophie et Erika (humaines sapientes adultes), Luna (louve anthro sapiente adulte), Chuu (slime sapiente adulte à apparence féminine) et Patoune (chatte domestique non sapiente). Leurs données sont dans `docs/08_CASTING_MVP.md`; elles sont instanciées génériquement dans le monde d'intégration, jamais ajoutées comme un seed spécial.
-- `key` immuable ; `name` modifiable ; une seule position canonique active.
-
-## 10. Besoins (implémenté)
-
-- `need_state.value_milli ∈ [0, 100000]` (entier à précision fixe, aucune colonne REAL).
-- Taux rationnel entier `rate_num / rate_den` (dénominateur canonique 36) ; `rate_remainder` conserve la fraction.
-- Dérivation pure sans écriture ; matérialisation groupée (`needs_materialized`) avec `rate_source`, `activity_type`, `rate_nums`, `rate_dens`.
-- Évolution exactement indépendante du découpage.
-
-## 11. Activités (implémenté)
-
-- Une seule activité active par personnage (index partiel `activity_one_active`).
-- `start_activity` atomique (validation destination, prévalidation du coût, déplacements pièce par pièce, matérialisations, création, avancement d’horloge).
-- `advance_to` clôture à l’heure canonique de fin puis repasse en passif ; `abort_activity` explicite.
-- Régimes : `idle`, `eat`, `rest`, `clean`, `sleep` ; taux nets /36.
-- Changement de régime : une seule matérialisation à la transition, ancien régime jusqu’à T, nouveau après T.
-
-## 12. Blessures (implémenté)
-
-- Table `injury` : sévérité entière /36, statut `active`/`healed`, une seule active par personnage, historique immuable (terminalité), causalité `UNIQUE(world_id, cause_event_seq)`.
-- Récupération : régimes `passive`/`rest`/`sleep` (2/6/12 sur 36), reste rationnel, guérison exacte à zéro.
-- Niveaux dérivés : `light ≤ 30000`, `moderate ≤ 60000`, `severe > 60000`.
-- Effets : light = aucun coût ; moderate = surcharge 500/arête ; severe = aucun mouvement autonome, activités locales conservées.
-- Frontière severe→moderate : `seconds_to_level`, politique réveillée exactement au croisement.
-
-## 13. Politique déterministe (implémenté)
-
-- `DeterministicPolicy` pure : aucune connexion SQLite, aucun RNG, aucune heure murale, aucune mutation.
-- Ordre stable des candidats, destination déterministe, idle dynamique borné, réveil exact à la frontière de récupération.
-- Aucun LLM ne participe au moteur déterministe.
-
-## 14. Journal et causalité (implémenté)
-
-- `canonical_event` append-only (triggers interdisant UPDATE/DELETE), séquences `UNIQUE(world_id, seq)`.
-- `occurred_at` en temps canonique/simulé ; `recorded_at` mural.
-- Événements : `world_created`, `world_seeded`, `character_created`, `character_moved`, `needs_materialized`, `activity_started/completed/aborted`, `scripted_accident`, `injury_occurred/materialized/healed`, `world_paused/resumed`, `clock_updated`, `world_renamed`, `link_added/removed`.
-- Aucune mutation publique n’antidate le journal (C-2 corrigé).
-
-## 15. Transactions et atomicité (implémenté)
-
-- Toute écriture d’état et son événement canonique dans une seule transaction (`db.transaction`, `BEGIN IMMEDIATE`).
-- Rollback annule état, journal et horloge.
-- Aucune écriture partielle, aucun événement sans état, aucun état sans événement obligatoire.
-
-## 16. Reproductibilité (implémenté)
-
-- Garantie : même état initial + mêmes règles + mêmes commandes + mêmes valeurs d’horloge injectées aux mêmes points + même ordre canonique = même état et même journal sémantique.
-- Objets : `raw_canonical_event_log` (A), `structural_event_audit` (B), `reproducible_semantic_projection` (C), `materialization_chain_audit` (D), `canonical_state_digest`, `max_seq`.
-- Runs continu = segmenté = redémarré (mêmes valeurs `Clock.now`) ; délai mural actif compté une fois ; pause ignore le délai.
-
-## 17. Audits et preuves (Phase 3 fermée)
+Ces règles priment sur toute commodité d'implémentation.
 
 ```text
-Phase 3 — techniquement fermée
-Commit officiel : 7e5459eaac5c2ad8ae8dcb53a197863575ab4914
-Tests : 228 réussis
-Migrations : 8
-Verdict : FERMETURE APPROUVABLE
+réalité/canon ≠ perception ≠ croyance
+parole ≠ fait
+relation ≠ permission ≠ consentement
+LLM propose, moteur valide
+aucun composant cognitif n'écrit directement la réalité canonique
+provenance d'audit ≠ source subjectivement mémorisée
+un seul propriétaire persistant par état
+pas d'omniscience implicite des agents
+mécanisme générique > script propre à un personnage
 ```
 
-Capacités prouvées : horloge canonique, monde actif/paused, redémarrage, besoins, activités, déplacements, énergie, blessures, politique, journal, reproductibilité, rollback, endurance 24 h / 7 jours, audits structurels, audits de chaînes, digests, projection sémantique.
+### 3.1 Réalité, perception et croyance
 
-## 18. Limites connues
+Un fait canonique peut être inaccessible à un agent. Une perception peut être partielle ou erronée. Une croyance peut être fausse. Une mémoire peut être reconstructive. Aucun de ces états subjectifs ne réécrit rétroactivement la réalité.
 
-- Reconstruction event-sourced complète non garantie.
-- Définitions (besoins, activités) actuellement immuables.
-- Absence de RNG.
-- Personnages encore techniques (placeholders).
-- Aucune interface administrative complète.
-- Aucun LLM intégré au moteur canonique.
-- Phase 4.1 déjà entamée : lectures administratives, commandes sûres, API HTTP locale et premier tableau de bord local. La Phase 4.2 a livré le registre versionné, les gabarits de personnage publiables, leur validateur structurel, leur instanciation canonique à provenance figée, le catalogue minimal de composants MVP, les cinq gabarits v1, le noyau générique de ressources et leurs effets déclaratifs, un pipeline administratif immuable, son API locale et les premiers changements topologiques préparés (ajout et fermeture sûre de passage). Le monde d'intégration instancie désormais les cinq résidentes et leur résidence; les changements profonds et gestionnaires administratifs complets restent futurs.
+### 3.2 Parole
 
-## 19. Dettes techniques (documentées, non bloquantes)
+Une phrase prononcée est d'abord un acte social/perceptible. Son contenu propositionnel n'est pas automatiquement vrai.
 
-| ID | Description | Sévérité | Moment recommandé | Bloquante |
-| --- | --- | --- | --- | --- |
-| D-1 | `upgrade_dev_profiles` sans transaction explicite | mineure | Phase 4 | non |
-| D-2 | `destroy_world` incomplet (activity/injury/canonical_event) | mineure | Phase 4 | non |
-| D-3 | `README.md` partiellement en retard — **résolue** | résolue | — | non |
-| D-4 | documentation des événements init/seed | mineure | consolidation | non |
-| D-5 | absence d’outils lint/typecheck/couverture configurés | mineure | Phase 4 | non |
-| D-6 | reconstruction event-sourced complète non garantie | limite assumée | — | non |
-| D-7 | immutabilité actuelle des définitions | limite | si mutation future | non |
+Exemple : « le carnet est dans la cuisine » peut devenir une information mémorisée ou crue, mais ne déplace ni ne crée un carnet dans le canon.
 
-D-3 a été **résolue** par la mise à jour de `README.md` réalisée pendant la
-consolidation documentaire v0.2 (fichier concerné : `README.md` ; impact résiduel :
-aucun ; bloquante : non). Sa trace historique est conservée. Les autres dettes
-D-1, D-2 et D-4 à D-7 restent ouvertes et non bloquantes.
+### 3.3 Relations, permissions et consentement
 
-## 20. Systèmes futurs (normatif futur, non implémenté)
+Affection, confiance, désir, intimité, statut, rôle, promesse ou relation ne constituent pas un consentement actuel. Les permissions et consentements doivent rester des contrats distincts des relations.
 
-Les systèmes suivants sont des **exigences normatives futures**, jamais présentés comme déjà implémentés : perception, croyances, motivation, personnalité, valeurs/limites, objectifs/intentions, arbitrage, mémoire, relations, émotions, ontologie, persistance avancée, administration. Le détail normatif est dans `docs/history/Vivarium_Exigences_Normatives_Post_Audit_v0_1.md` (annexe normative versionnée) et le registre des audits `docs/history/Vivarium_Registre_Audits_v0_9.md`.
+### 3.4 LLM non autoritaire
 
-## 21. Séquence vers la Phase 4
+Le modèle peut interpréter, proposer, formuler ou sélectionner dans un contrat donné. Il ne peut pas :
 
-- **Phase 4 = premier vertical slice administratif** : registre minimal de composants/capacités/unités, pipeline de validation, API `prepare / validate / impact / confirm`, journal administratif, gestionnaire d’univers, gestionnaire de modèles et d’entités, interface web locale, création ou migration de la résidence et des cinq entités définitives.
-- **Avant les couches subjectives** : le banc d'essai moteur reproductible et isolé est livré. Il devient le critère de validation des interactions de systèmes, sans écrire dans le monde MVP ni appeler un LLM dans sa première version. Voir `docs/16_BANC_ESSAI_MOTEUR.md`.
-- L’ancienne définition « actions, scènes, événements, perceptions » est **supersédée** dans la séquence immédiate et devient une étape ultérieure (boucle monde–action–perception).
+- créer directement un fait canonique;
+- contourner une impossibilité physique;
+- s'attribuer une perception non accessible;
+- écrire directement une croyance, mémoire ou relation persistante hors du propriétaire prévu;
+- transformer sa propre narration en preuve.
 
-## 22. Règles de changement
+## 4. Propriété persistante et causalité
 
-Chaque lot : portée et exclusions, inspection de l’existant, tests de référence, plan, modification minimale, tests, régression, preuves/risques/retour arrière, documentation, acceptation du propriétaire. Un lot n’est conforme que s’il ne contourne aucun invariant, déclare précisément ce qui est implémenté, inclut les migrations nécessaires, conserve la provenance, fournit tests positifs/négatifs/régression/crash, différencie MVP et futur, produit un rapport vérifiable et met à jour la traçabilité.
+Chaque état persistant doit avoir un propriétaire technique unique et identifiable.
 
-## 23. Historique des versions
+Un composant peut projeter ou dériver une vue d'un état qu'il ne possède pas, mais ne doit pas créer un deuxième propriétaire silencieux du même concept.
 
-- **v0.1** (3 août 2026) : source normative initiale avant implémentation.
-- **v0.2** (4 août 2026) : consolidation après fermeture technique de la Phase 3 ; intégration de la direction post-audit ; distinction implémenté / normatif futur / historique ; casting de référence (femme humaine, louve anthro, slime, chat) ; Phase 4 = vertical slice administratif.
-- **v0.3** (5 août 2026) : photographie actualisée de la Phase 4.1 ; casting MVP fixé à Sophie, Erika, une louve anthro, une slime et un chat ; le nombre de résidentes sapientes est quatre, sans limiter le noyau à cette population.
-- **v0.4** (5 août 2026) : registre versionné de composants, capacités et unités, puis fondation des gabarits de personnage; aucune instance définitive ni validation structurelle complète n'est encore créée.
-- **v0.5** (5 août 2026) : gabarits liés à des versions précises de composants et validation structurelle déterministe de leur configuration; aucune instance définitive n'est encore créée.
-- **v0.6** (5 août 2026) : instanciation atomique depuis un gabarit publié, avec provenance et définition initiale figées; aucune résidente MVP n'est encore créée ni migrée.
-- **v0.7** (5 août 2026) : catalogue MVP publié (morphologie, profil cognitif, besoins standards), sans confondre contrats descriptifs et mécanismes réellement exécutés.
-- **v0.8** (5 août 2026) : gabarits v1 de Sophie, Erika, Luna, Chuu et Patoune; le contrat d'hydratation de Chuu est explicite mais pas encore simulé.
-- **v0.9** (5 août 2026) : quantité de ressource, taux rationnel, bandes d'état et journal canonique génériques; les conséquences concrètes d'un état restent séparées et déclaratives.
-- **v1.0** (6 août 2026) : effets de ressource déclaratifs pour disponibilité de capacité ou signal contextuel, lus sans imposer d'émotion, de narration ou de décision.
-- **v1.1** (6 août 2026) : premier plan administratif immuable (`prepare -> validate -> impact -> confirm`) pour un renommage de monde; hash exact, expiration, concurrence optimiste, audit séparé et retry idempotent.
-- **v1.2** (6 août 2026) : API HTTP locale du pipeline préparé, protégée par jeton pour les deux mutations et les deux lectures administratives; aucune interface visuelle nouvelle.
-- **v1.3** (6 août 2026) : action topologique `add_link` préparée, avec conservation auditée des plans lors de l'évolution du schéma administratif; aucune suppression de passage ou changement de personnage.
-- **v1.4** (6 août 2026) : monde MVP propre séparé des mondes de test; banc d'essai moteur reproductible placé avant perception, cognition et social.
-- **v1.5** (6 août 2026) : clarification de vocabulaire : résidence initiale = monde d'intégration pré-MVP; MVP = simulateur social présentable après les couches vivantes.
-- **v1.6** (6 août 2026) : chronologie logicielle explicite : état initial `0.0.0.dev0` pré-alpha; premier MVP alpha au jalon `0.1.0a1`.
-- **v1.7** (6 août 2026) : banc d'essai minimal livré; version logicielle `0.0.1.dev0`.
-- **v1.8** (6 août 2026) : monde d'intégration atomique et possession générique;
-  version logicielle `0.0.2.dev0`.
-- **v1.8** (6 août 2026) : fermeture de passage préparée et protégée contre l'isolement spatial.
-- **v1.9** (6 août 2026) : boucle sociale minimale alpha, runtime persistant,
-  contrôle local et version logicielle `0.1.0a1`; voir
-  `docs/58_MVP_ALPHA_0_1_0A1.md`.
-- **v1.10** (6 août 2026) : correctifs alpha `0.1.0a2` (observation et arrivée)
-  puis `0.1.0a3` (cadence utile, rencontre d'attente et lecture de journal
-  compacte), et `0.1.0a4` (sortie LLM sans plafond imposé); voir
-  `docs/59_CORRECTIF_ALPHA_0_1_0A2.md`,
-  `docs/60_RODAGE_CADENCE_ET_RENCONTRE_0_1_0A3.md` et
-  `docs/61_CORRECTIF_ALPHA_0_1_0A4_SORTIE_LLM.md`.
-- **v1.11** (6 août 2026) : `0.1.0a5`, première boucle d'activités autonomes
-  déclenchée par un nouvel `idle`, options canoniques et contrat d'action v2;
-  voir `docs/62_ACTIVITES_AUTONOMES_0_1_0A5.md`.
-- **v1.12** (6 août 2026) : `0.1.0a6`, instant d'observation figé pour les
-  actions LLM et refus optimiste des contextes concurrents; voir
-  `docs/63_CORRECTIF_TEMPS_LLM_0_1_0A6.md`.
+La persistance doit permettre de distinguer :
 
-## 24. Annexes et références
+- état canonique;
+- événements/audit;
+- état subjectif;
+- projections dérivées;
+- caches/observabilité.
 
-- Registre des décisions : `docs/01_REGISTRE_DECISIONS.md` v0.5.
-- Roadmap active : `docs/15_ROADMAP_ACTIVE.md`.
-- Matrice des exigences : `docs/02_MATRICE_EXIGENCES.md` v0.4.
-- Passation opérationnelle : `docs/99_PASSATION_COURANTE.md`.
-- Décisions ouvertes : `docs/03_DECISIONS_OUVERTES.md` v0.3.
-- Gabarits : `docs/05_GABARITS.md` v0.2.
-- Exigences normatives post-audit : `docs/history/Vivarium_Exigences_Normatives_Post_Audit_v0_1.md`.
-- Demande de changement post-audit : `docs/history/Vivarium_Demande_Changement_Post_Audit_v0_2.md`.
-- Feuille de route post-audit : `docs/history/Vivarium_Feuille_Route_Post_Audit_v0_1.md`.
-- Registre des audits : `docs/history/Vivarium_Registre_Audits_v0_9.md`.
-- Index maître des décisions : `docs/history/Vivarium_Index_Maitre_Decisions_v0_3.md`.
-- Mémoire de travail : `docs/history/Vivarium_Memoire_Assistante_v10.md` (non normative).
-- Historique des lots : `CHANGELOG.md`.
-- Contre-audit R&D reçu : `docs/65_CONTRE_AUDIT_R_D_CHATGPT_0_1_0A9.md`.
-- Matrice d'alignement de l'implémentation :
-  `docs/66_MATRICE_ALIGNEMENT_CONTRE_AUDIT_0_1_0A9.md`.
-- Réponse technique R&D post-rodage :
-  `docs/67_REPONSE_TECHNIQUE_R_D_POST_RODAGE_0_1_0A10.md`.
-- Correctif d'arbitrage social `0.1.0a11` :
-  `docs/68_CORRECTIF_ARBITRAGE_SOCIAL_0_1_0A11.md`.
-- Correctif de latence chronologique `0.1.0a12` :
-  `docs/69_CORRECTIF_LATENCE_CHRONOLOGIQUE_0_1_0A12.md`.
-- Sources historiques : `sources/01..05`.
+L'audit sert à expliquer ce qui s'est produit. Il ne doit pas être injecté tel quel dans la mémoire subjective comme si l'agent connaissait la provenance interne du moteur.
+
+## 5. Boucle de runtime normative
+
+La boucle cible est :
+
+```text
+réalité canonique
+→ sous-ensemble physiquement/accessiblement perceptible
+→ détection / attention / accès cognitif selon le système disponible
+→ état subjectif pertinent
+→ opportunités / intentions / décision proposée
+→ validation moteur
+→ conséquence canonique
+→ nouvelles perceptions
+```
+
+Les raccourcis qui fusionnent plusieurs étapes doivent rester explicitement temporaires et ne pas effacer leurs distinctions conceptuelles.
+
+## 6. Perception et attention
+
+Le projet doit conserver la distinction suivante :
+
+```text
+signal accessible
+≠ signal détecté
+≠ signal sélectionné par l'attention
+≠ contenu cognitivement accessible
+```
+
+Une implémentation MVP peut simplifier cette chaîne, mais elle ne doit pas redéfinir la simplification comme une loi générale.
+
+L'agent ne reçoit que ce qui est accessible par une voie causale reconnue. Le moteur ou la couche d'interaction doit être l'autorité sur cette accessibilité; le LLM ne décide pas qu'il « a vu » quelque chose.
+
+L'active sensing est permis conceptuellement : une cognition peut choisir d'orienter une capacité sensorielle disponible, mais le résultat perceptif reste calculé/validé par le système compétent.
+
+## 7. Corps, capacités et affordances
+
+Une description corporelle n'est pas automatiquement une capacité causale.
+
+Exemples :
+
+```text
+body_plan = amorphous        # description
+form.humanoid = available    # capacité/état opérationnel
+```
+
+Les capacités réellement actives doivent dériver de propriétaires canoniques ou owner-backed reconnus.
+
+Une **affordance physique** est une relation située entre un corps/capacité et le monde. Elle répond à une question comme : « cette action est-elle possible ici, maintenant ? »
+
+Elle ne dit pas encore si l'action est comportementalement pertinente pour l'agent.
+
+## 8. Motivation, opportunité et décision
+
+RIC doit maintenir les distinctions :
+
+```text
+motif ≠ but ≠ intention ≠ opportunité ≠ action exécutée
+```
+
+Une activité techniquement faisable n'est pas encore une opportunité comportementale pertinente.
+
+Le futur Behavioral Opportunity Layer doit être conçu comme un mécanisme générique reliant, selon le contrat approuvé :
+
+- motifs;
+- préférences;
+- objectifs/intention;
+- contexte subjectivement accessible;
+- capacités;
+- environnement;
+
+à un petit ensemble d'opportunités comportementales candidates. Le moteur garde ensuite l'autorité sur leur faisabilité et leurs conséquences.
+
+Ne pas remplacer cette couche par des scripts propres à un personnage ou une table universelle rigide `motif → activité` sauf si une règle déterministe particulière est scientifiquement/techniquement justifiée et explicitement bornée.
+
+## 9. Mémoire subjective
+
+La mémoire doit rester distincte du journal canonique et de la télémétrie d'audit.
+
+Le modèle conceptuel actuel distingue au minimum :
+
+- **L0 — canon exact** : vérité du moteur, pas mémoire subjective;
+- **L1 — trace encodée** : représentation subjective initiale d'une expérience;
+- **L2 — épisode autobiographique** : organisation d'une expérience propre à l'agent;
+- **L3 — représentations dérivées** : généralisation, attente, résumé, connaissance subjective;
+- **L4 — working/retrieval set** : contenu temporairement récupéré pour la cognition courante.
+
+Règles :
+
+- perceptibilité ne garantit pas encodage;
+- attention peut influencer l'encodage sans devoir être un interrupteur universel binaire;
+- un contenu jamais admis ne doit pas réapparaître plus tard comme souvenir subjectif détaillé sans source causale;
+- une récupération est une reconstruction subjective, pas une lecture omnisciente du canon;
+- les révisions de mémoire ne doivent pas effacer silencieusement l'historique d'audit;
+- la provenance technique de l'encodage et la source dont l'agent se souvient sont deux choses différentes.
+
+Les choix précis de consolidation, oubli, familiarité, recollection et reconsolidation exigent leur propre fondation scientifique et leurs propres tests. Une structure de données permettant des révisions ne suffit pas à les déclarer implémentés.
+
+## 10. Cognition LLM
+
+Le LLM est un composant d'interprétation/décision remplaçable, pas l'autorité du monde.
+
+Le système normal ne doit pas être conçu autour d'un quota arbitraire du type `N appels par personnage par heure` comme principe cognitif. La maîtrise de charge doit privilégier :
+
+- pertinence;
+- déduplication/coalescence;
+- fraîcheur;
+- backpressure;
+- fairness entre agents/catégories;
+- annulation de travail devenu stale;
+- protection anti-runaway;
+- observabilité.
+
+Un budget financier externe peut exister comme contrainte opérateur distincte si un fournisseur payant est utilisé; il ne doit pas devenir silencieusement une théorie de la cognition.
+
+Le contexte envoyé au modèle doit être borné, subjectivement légitime et traçable pour l'audit technique.
+
+## 11. Social et conversation
+
+Une scène sociale est un support d'interaction, pas une mémoire partagée omnisciente.
+
+Chaque participante conserve son propre accès, interprétation et mémoire.
+
+Le futur Conversation State peut stocker un état partagé nécessaire à la continuité de la scène, mais il ne doit pas fusionner cet état avec les croyances ou souvenirs privés.
+
+Une conversation interrompue doit pouvoir être clôturée sans inventer rétroactivement ce qui aurait été dit.
+
+## 12. Entités et généricité
+
+Le casting de référence comprend Sophie, Erika, Luna, Chuu et Patoune. Leur diversité sert notamment à falsifier les hypothèses trop anthropocentriques ou trop spécifiques à un personnage.
+
+Le moteur ne doit pas être limité globalement à ces cinq entités.
+
+Lorsque le même mécanisme peut expliquer une capacité, une préférence, une transformation, une limitation ou une réaction pour plusieurs types d'agents, préférer ce mécanisme générique à une branche codée au nom du personnage.
+
+Un personnage fictionnel peut nécessiter des hypothèses de transfert ou des paramètres spécifiques de canon, mais ces hypothèses doivent être provenancées et ne doivent pas se déguiser en données empiriques humaines/animales.
+
+## 13. Administration et intervention du propriétaire
+
+Le propriétaire possède une autorité administrative supérieure, mais **autorité** et **perceptibilité** sont indépendantes.
+
+Une intervention administrative peut être :
+
+- non perceptible;
+- perceptible indirectement par ses conséquences;
+- explicitement manifestée/communiquée.
+
+Une modification profonde d'un personnage ou de la réalité persistante doit passer par des commandes métier, validations, analyse d'impact, checkpoint/snapshot lorsque requis, confirmation explicite et audit — jamais par écriture SQLite directe d'une interface.
+
+## 14. Méthode R&D
+
+Tout modèle comportemental, cognitif, social ou physiologique doit commencer par la littérature scientifique ou technique pertinente.
+
+Chaque dossier R&D doit séparer :
+
+1. **résultats empiriques** — ce que les sources soutiennent directement;
+2. **conclusions raisonnables mais incertaines** — inférences avec limites;
+3. **hypothèses de modélisation** — simplifications choisies pour RIC;
+4. **choix de design/ingénierie** — manière de rendre le modèle opérationnel.
+
+Chercher activement :
+
+- théories concurrentes;
+- échecs de réplication;
+- limites de population/tâche;
+- risques de surinterprétation;
+- conditions de falsification.
+
+Ne jamais présenter un compromis d'ingénierie comme une découverte scientifique.
+
+## 15. Gouvernance des acteurs
+
+- **ChatGPT** : recherche scientifique/technique, conception fonctionnelle, cohérence conceptuelle et documentation R&D.
+- **Grok** : contre-audit scientifique adversarial indépendant.
+- **Codex** : autorité sur l'architecture réelle, le code, les migrations, les propriétaires persistants, les invariants techniques, les tests et l'ordre d'implantation.
+- **Propriétaire** : autorité finale sur les choix produit/design.
+
+ChatGPT ne doit pas prescrire silencieusement l'architecture technique à Codex. Un work order peut fixer un contrat fonctionnel et des invariants; Codex choisit l'implantation compatible avec le dépôt réel et signale toute divergence importante.
+
+## 16. Discipline de développement
+
+Avant une modification importante :
+
+- vérifier les hypothèses;
+- vérifier les dépendances;
+- vérifier les propriétaires d'état;
+- vérifier les invariants;
+- vérifier les conséquences/migrations;
+- définir les tests et falsifications;
+- isoler le travail de tout runtime historique actif.
+
+Une fonctionnalité n'est pas « fermée » parce qu'elle fonctionne sur une branche de travail. Elle doit être validée, intégrée et reconnue sur `product/current` selon `docs/GOUVERNANCE_GIT.md`.
+
+## 17. Discipline documentaire
+
+Les documents actifs ont des rôles distincts :
+
+- `00_DOSSIER_MAITRE_IA.md` : invariants durables;
+- `01_REGISTRE_DECISIONS.md` : décisions autoritatives et leur statut;
+- `03_DECISIONS_OUVERTES.md` : arbitrages non fermés;
+- `15_ROADMAP_ACTIVE.md` : séquence des travaux;
+- `99_PASSATION_COURANTE.md` : photographie opérationnelle;
+- `GOUVERNANCE_GIT.md` : référence produit et cycle d'intégration.
+
+Les détails historiques appartiennent aux documents de lots et archives. Ne pas recopier chaque nouvelle photographie technique dans le dossier maître : cela le rendrait faux à chaque avancée.
+
+## 18. Principe final
+
+RIC cherche une simulation suffisamment générale pour laisser émerger des comportements différents sans écrire un scénario pour chaque exception.
+
+La conception reste ouverte tant que la décision n'est pas engagée. Dès qu'elle devient exécutable ou canonique, elle doit devenir rigoureuse, vérifiable et traçable.
+
+> **Flexible creativity. Rigorous execution.**
+>
+> **Verify twice. Commit once.**
