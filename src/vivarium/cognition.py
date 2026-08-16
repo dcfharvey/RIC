@@ -340,10 +340,20 @@ class CognitionContextService:
                 if effect_type == "capability_availability":
                     availability = effect.get("availability")
                     if isinstance(availability, str):
+                        if effect_key in capabilities:
+                            raise CognitionError(
+                                "effets opérationnels ambigus pour le contexte cognitif",
+                                code="ambiguous_operational_grounding",
+                            )
                         capabilities[effect_key] = availability
                 elif effect_type == "context_signal":
                     value = effect.get("value_milli")
                     if isinstance(value, int) and not isinstance(value, bool):
+                        if effect_key in context_signals:
+                            raise CognitionError(
+                                "effets opérationnels ambigus pour le contexte cognitif",
+                                code="ambiguous_operational_grounding",
+                            )
                         context_signals[effect_key] = value
         return {
             "capabilities": dict(sorted(capabilities.items())),

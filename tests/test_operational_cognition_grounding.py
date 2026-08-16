@@ -3,7 +3,12 @@ import json
 
 import pytest
 
-from vivarium.cognition import CognitionContextService, CognitionDecision, CognitionTurnService
+from vivarium.cognition import (
+    CognitionContextService,
+    CognitionDecision,
+    CognitionError,
+    CognitionTurnService,
+)
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
@@ -125,6 +130,66 @@ def test_operational_grounding_uses_generic_resource_contract_for_another_instan
     ).self_profile["operational_grounding"]
     assert grounding["capabilities"] == {"action.test": "available"}
     assert grounding["context_signals"] == {"focus.clarity": 30000}
+
+
+@pytest.mark.parametrize(
+    ("effect_type", "effect_key", "first_effect", "second_effect"),
+    (
+        (
+            "capability_availability",
+            "action.collision",
+            {"effect_type": "capability_availability", "effect_key": "action.collision", "availability": "available"},
+            {"effect_type": "capability_availability", "effect_key": "action.collision", "availability": "unavailable"},
+        ),
+        (
+            "context_signal",
+            "context.collision",
+            {"effect_type": "context_signal", "effect_key": "context.collision", "value_milli": 10000},
+            {"effect_type": "context_signal", "effect_key": "context.collision", "value_milli": -10000},
+        ),
+    ),
+)
+def test_operational_grounding_rejects_duplicate_effects_across_resources(
+    setup, effect_type, effect_key, first_effect, second_effect
+):
+    conn, world_id, clock = setup
+    resources = ResourceEngine(conn, clock=clock)
+    bands = (
+        {"state_key": "low", "min_milli": 0, "max_milli": 49999},
+        {"state_key": "high", "min_milli": 50000, "max_milli": 100000},
+    )
+    resources.register_resource_profile(
+        world_id,
+        "sophie",
+        "resource_a",
+        "Resource A",
+        90000,
+        0,
+        1,
+        bands,
+        {"low": (first_effect,), "high": (first_effect,)},
+    )
+    resources.register_resource_profile(
+        world_id,
+        "sophie",
+        "resource_b",
+        "Resource B",
+        90000,
+        0,
+        1,
+        bands,
+        {"low": (second_effect,), "high": (second_effect,)},
+    )
+
+    effects = resources.active_effects_for_character(world_id, "sophie", clock.now_iso())
+    assert len(effects) == 2
+    assert [item["effects"][0]["effect_type"] for item in effects] == [effect_type, effect_type]
+    assert [item["effects"][0]["effect_key"] for item in effects] == [effect_key, effect_key]
+
+    with pytest.raises(CognitionError) as caught:
+        CognitionContextService(conn, clock=clock).build(world_id, "sophie")
+
+    assert caught.value.code == "ambiguous_operational_grounding"
 
 
 def test_body_plan_is_descriptive_and_does_not_script_activity_selection(setup):
