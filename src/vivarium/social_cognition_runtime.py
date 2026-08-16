@@ -10,7 +10,12 @@ from .cognition_call_ledger import CognitionCallLedgerService
 from .cognitive_flow import CognitiveFlowRequest, CognitiveFlowScheduler, CognitiveFlowTelemetry, flow_failure_state
 from .diagnostics import DiagnosticRecorder
 from .cognition import CognitionError
-from .cognition_policy import CALL_TRIGGER_SOCIAL_INTERPRETATION, CognitionCallLimits
+from .cognition_policy import (
+    CALL_TRIGGER_SOCIAL_AFFECT,
+    CALL_TRIGGER_SOCIAL_APPRAISAL,
+    CALL_TRIGGER_SOCIAL_INTERPRETATION,
+    CognitionCallLimits,
+)
 from .social_appraisal_runtime import LiveSocialAppraisalService
 from .scc3a_affect_runtime import LiveSCC3AAffectService
 from .scenes import SceneError, SocialSceneService
@@ -104,11 +109,12 @@ class LiveSocialCognitionService:
             )
         attempt_number = self._attempt_number(admission)
         attempt_key = f"live_scc1c_attempt_{admission.trace_id}_{attempt_number}"
-        source_key = f"social_trace_{admission.trace_id}_attempt_{attempt_number}"
+        logical_source_key = f"social_trace_{admission.trace_id}"
+        source_key = f"{logical_source_key}_attempt_{attempt_number}"
         try:
             technical = self._ledger.admit(
                 world_id, character_key, CALL_TRIGGER_SOCIAL_INTERPRETATION,
-                source_key, limits,
+                source_key, limits, logical_source_key=logical_source_key,
             )
         except ValueError as exc:
             raise LiveSocialCognitionError(str(exc), code=getattr(exc, "code", "technical_admission_failed")) from exc
@@ -123,6 +129,7 @@ class LiveSocialCognitionService:
         flow_request = CognitiveFlowRequest(
             world_id, character_key, CALL_TRIGGER_SOCIAL_INTERPRETATION, source_key,
             technical.admitted_at or self._clock.now_iso(),
+            logical_source_key=logical_source_key,
         )
         provider_started = self._clock.now_iso()
         if self._flow_scheduler is not None:
@@ -137,15 +144,18 @@ class LiveSocialCognitionService:
                 provider_turn_id=f"scc1c_{admission.trace_id}_{attempt_number}",
             )
         except (CognitionError, SocialInterpretationProviderError, SocialInterpretationError) as exc:
+            error_code = getattr(exc, "code", "provider_failed")
             if self._flow_scheduler is not None:
                 self._flow_telemetry.record(
-                    flow_request, flow_failure_state(getattr(exc, "code", "provider_failed")), reason_code=getattr(exc, "code", "provider_failed"),
+                    flow_request,
+                    "invalidated" if error_code == "source_not_accessible" else flow_failure_state(error_code),
+                    reason_code=error_code,
                     canonical_at=technical.admitted_at,
                     provider_started_at=provider_started,
                     provider_finished_at=self._clock.now_iso(),
                 )
             attempt = self._admissions.record_attempt(
-                admission, attempt_key, "provider_unavailable", getattr(exc, "code", "provider_failed"),
+                admission, attempt_key, "provider_unavailable", error_code,
             )
             return LiveSocialCognitionOutcome(
                 character_key, trace_request_key, admission.decision,
@@ -238,16 +248,21 @@ class LiveSocialCognitionService:
             return LiveSocialCognitionOutcome(character_key, trace_request_key, admission.decision, latest["outcome"], "retry_backoff", None)
         return self._interpret(world_id, character_key, trace_request_key, admission, limits, retry=True)
 
-    def _next_interpretation_retry(self, world_id: int, limits: CognitionCallLimits):
+    def _next_interpretation_retry(
+        self, world_id: int, limits: CognitionCallLimits,
+        *, preferred_idempotency_key: str | None = None,
+    ):
         rows = self._conn.execute(
-            "SELECT ch.key AS character_key, trace.request_key, attempt.recorded_at, attempt.id, attempt.detail_code "
+            "SELECT ch.key AS character_key, trace.id AS trace_id, trace.request_key, attempt.recorded_at, attempt.id, attempt.detail_code "
             "FROM scc1c_attempt attempt JOIN scc1c_admission admission ON admission.id = attempt.admission_id "
             "JOIN character ch ON ch.id = admission.character_id JOIN subjective_trace trace ON trace.id = admission.trace_id "
             "WHERE attempt.world_id = ? AND attempt.outcome IN ('deferred','provider_unavailable') "
+            "AND COALESCE(attempt.detail_code, '') <> 'source_not_accessible' "
             "AND NOT EXISTS (SELECT 1 FROM scc1c_attempt newer WHERE newer.admission_id = attempt.admission_id AND newer.id > attempt.id) "
             "ORDER BY attempt.recorded_at, attempt.id",
             (world_id,),
         ).fetchall()
+        fallback = None
         for row in rows:
             if self._ledger.retry_due(
                 world_id, row["character_key"], limits,
@@ -255,21 +270,42 @@ class LiveSocialCognitionService:
                 reason_code=row["detail_code"] or "technical_failure",
                 retry_delay_seconds=RETRY_DELAY_SECONDS,
             ):
-                return row
-        return None
+                logical_key = (
+                    f"{row['character_key']}:{CALL_TRIGGER_SOCIAL_INTERPRETATION}:"
+                    f"social_trace_{row['trace_id']}"
+                )
+                if logical_key == preferred_idempotency_key:
+                    return row
+                fallback = fallback or row
+        return fallback if preferred_idempotency_key is None else None
 
     def retry_one_pending(self, world_id: int, limits: CognitionCallLimits) -> LiveSocialCognitionOutcome | None:
         """Reprend au plus une tentative explicitement persistée et échouée."""
+        preferred = None if self._flow_scheduler is None else self._flow_scheduler.next_pending_request()
+        preferred_key = None if preferred is None else preferred.idempotency_key
+        social_triggers = {
+            CALL_TRIGGER_SOCIAL_INTERPRETATION,
+            CALL_TRIGGER_SOCIAL_APPRAISAL,
+            CALL_TRIGGER_SOCIAL_AFFECT,
+        }
+        if preferred is not None and preferred.trigger not in social_triggers:
+            return None
         candidates: list[tuple[str, Any]] = []
         if self._appraisals is not None:
-            pending_appraisal = self._appraisals.next_pending_retry(world_id, limits)
+            pending_appraisal = self._appraisals.next_pending_retry(
+                world_id, limits, preferred_idempotency_key=preferred_key,
+            )
             if pending_appraisal is not None:
                 candidates.append(("appraisal", pending_appraisal))
         if self._affect is not None:
-            pending_affect = self._affect.next_pending_retry(world_id, limits)
+            pending_affect = self._affect.next_pending_retry(
+                world_id, limits, preferred_idempotency_key=preferred_key,
+            )
             if pending_affect is not None:
                 candidates.append(("affect", pending_affect))
-        pending_interpretation = self._next_interpretation_retry(world_id, limits)
+        pending_interpretation = self._next_interpretation_retry(
+            world_id, limits, preferred_idempotency_key=preferred_key,
+        )
         if pending_interpretation is not None:
             candidates.append(("interpretation", pending_interpretation))
         if not candidates:

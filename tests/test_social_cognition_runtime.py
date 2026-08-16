@@ -4,6 +4,7 @@ import pytest
 
 from vivarium.cognition_call_ledger import CognitionCallLedgerService
 from vivarium.cognition_policy import CognitionCallLimits, CALL_TRIGGER_SOCIAL_INTERPRETATION
+from vivarium.cognitive_flow import CognitiveFlowScheduler
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
@@ -237,6 +238,47 @@ def test_due_scc1c_retry_is_not_starved_by_a_due_scc2a_retry(setup):
         "SELECT COUNT(*) FROM scc2a_attempt a JOIN character c ON c.id=a.character_id "
         "WHERE c.key='erika'"
     ).fetchone()[0] == 1
+
+
+def test_flow_queue_drains_stable_social_retries_across_residents(setup):
+    conn, world_id, clock = setup
+    provider = DeterministicInterpretationProvider(
+        {"schema_version": 2, "understanding_status": "unresolved", "meaning_hypotheses": []},
+        model_id="fake-qwen3-14b",
+    )
+    scheduler = CognitiveFlowScheduler()
+    service = LiveSocialCognitionService(
+        conn, provider, clock=clock, admission_policy=FixedAdmissionPolicy("selected"),
+        flow_scheduler=scheduler,
+    )
+    limits = CognitionCallLimits(0, 3_600, None)
+
+    initial = service.process_speech(world_id, "live_scene", "speech_1", limits)
+    assert [item.technical_status for item in initial] == ["interpreted", "deferred", "deferred"]
+    assert scheduler.pending_count() == 2
+
+    retried = []
+    for _ in range(3):
+        clock.advance(30)
+        scheduler.begin_tick()
+        outcome = service.retry_one_pending(world_id, limits)
+        if outcome is not None:
+            retried.append(outcome.character_key)
+
+    assert retried == ["erika", "luna"]
+    assert scheduler.pending_count() == 0
+    assert provider.calls == 3
+    assert conn.execute(
+        "SELECT COUNT(DISTINCT idempotency_key) FROM cognition_flow_event "
+        "WHERE trigger='social_interpretation'"
+    ).fetchone()[0] == 3
+    flow_keys = conn.execute(
+        "SELECT DISTINCT source_key, idempotency_key FROM cognition_flow_event "
+        "WHERE trigger='social_interpretation'"
+    ).fetchall()
+    assert len({row[0] for row in flow_keys}) > len({row[1] for row in flow_keys})
+    assert all("social_trace_" in row[1] for row in flow_keys)
+    assert conn.execute("SELECT COUNT(*) FROM scc1c_attempt WHERE outcome='interpreted'").fetchone()[0] == 3
 
 
 def test_r9_idempotent_duplicate_event_does_not_call_provider_twice(setup):

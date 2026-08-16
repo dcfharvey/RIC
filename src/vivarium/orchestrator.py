@@ -57,7 +57,9 @@ class VivariumOrchestrator:
      else:outcome,detail='deferred',routed.admission.verdict.reason_code
     except CognitionCallRouterError as exc:detail=exc.code
     self._record(wid,character['id'],seq,outcome,detail);out.append(OrchestratorOutcome(character['key'],seq,outcome,detail))
-    if detail in {'provider_busy','already_queued','cognitive_queue_full'}:
+    if detail in {'provider_busy','provider_dispatch_pending','already_queued','cognitive_queue_full'}:
      break
+    if detail == 'fairness_wait':
+     continue
     self._save(wid,character['id'],seq)
   return OrchestratorTick(wid,maximum,tuple(out))

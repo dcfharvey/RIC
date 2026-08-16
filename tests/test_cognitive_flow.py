@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from vivarium.cognition_call_ledger import CognitionCallLedgerService
-from vivarium.cognitive_flow import CognitiveFlowRequest, CognitiveFlowScheduler, flow_failure_state
+from vivarium.cognitive_flow import CognitiveFlowRequest, CognitiveFlowScheduler, FlowOffer, flow_failure_state
 from vivarium.cognition_policy import CognitionCallLimits, CognitionCallPolicy, CognitionCallRecord, CognitionCallRequest
 from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
@@ -69,6 +69,74 @@ def test_same_pending_opportunity_is_coalesced_and_never_dispatched_twice():
     scheduler.begin_tick()
     assert scheduler.offer(request_value).state == "ready"
     scheduler.complete(request_value.idempotency_key)
+    assert scheduler.pending_count() == 0
+
+
+def test_retry_attempts_share_one_logical_pending_request():
+    scheduler = CognitiveFlowScheduler()
+    blocker = CognitiveFlowRequest(1, "chuu", "direct_event", "event_1", "t0")
+    first_attempt = CognitiveFlowRequest(
+        1, "sophie", "social_interpretation", "trace_attempt_1", "t0",
+        logical_source_key="trace",
+    )
+    second_attempt = CognitiveFlowRequest(
+        1, "sophie", "social_interpretation", "trace_attempt_2", "t0",
+        logical_source_key="trace",
+    )
+
+    scheduler.begin_tick()
+    assert scheduler.offer(blocker).state == "ready"
+    assert scheduler.offer(first_attempt).state == "queued"
+    assert scheduler.offer(second_attempt).state == "coalesced"
+    assert scheduler.pending_count() == 2
+
+    scheduler.complete(blocker.idempotency_key)
+    scheduler.begin_tick()
+    assert scheduler.offer(second_attempt).state == "ready"
+    scheduler.complete(second_attempt.idempotency_key)
+    assert scheduler.pending_count() == 0
+
+
+def test_fairness_wait_does_not_create_a_selected_ghost():
+    scheduler = CognitiveFlowScheduler()
+    first = CognitiveFlowRequest(1, "chuu", "direct_event", "event_30", "t0")
+    fair_next = CognitiveFlowRequest(1, "sophie", "direct_event", "event_31", "t0")
+    not_yet = CognitiveFlowRequest(1, "chuu", "planned_reflection", "idle_32", "t0")
+
+    scheduler.begin_tick()
+    assert scheduler.offer(first).state == "ready"
+    assert scheduler.offer(fair_next).state == "queued"
+    assert scheduler.offer(not_yet).state == "queued"
+    scheduler.complete(first.idempotency_key)
+
+    scheduler.begin_tick()
+    assert scheduler.offer(not_yet) == FlowOffer("coalesced", "fairness_wait")
+    assert scheduler.offer(fair_next).state == "ready"
+    scheduler.complete(fair_next.idempotency_key)
+
+    scheduler.begin_tick()
+    assert scheduler.offer(not_yet).state == "ready"
+    scheduler.complete(not_yet.idempotency_key)
+
+
+def test_backpressure_recovers_after_the_burst_drains():
+    scheduler = CognitiveFlowScheduler(max_pending=2)
+    first = CognitiveFlowRequest(1, "chuu", "direct_event", "event_40", "t0")
+    second = CognitiveFlowRequest(1, "sophie", "direct_event", "event_41", "t0")
+    third = CognitiveFlowRequest(1, "luna", "planned_reflection", "idle_42", "t0")
+
+    scheduler.begin_tick()
+    assert scheduler.offer(first).state == "ready"
+    assert scheduler.offer(second).state == "queued"
+    assert scheduler.offer(third) == FlowOffer("backpressure", "cognitive_queue_full")
+    scheduler.complete(first.idempotency_key)
+
+    scheduler.begin_tick()
+    assert scheduler.offer(second).state == "ready"
+    scheduler.complete(second.idempotency_key)
+    scheduler.begin_tick()
+    assert scheduler.offer(third).state == "ready"
+    scheduler.complete(third.idempotency_key)
     assert scheduler.pending_count() == 0
 
 

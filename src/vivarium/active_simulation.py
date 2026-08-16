@@ -28,9 +28,9 @@ from .sleep_termination import (
 from .util import Clock, parse_iso, to_iso
 from .world import WorldEngine
 from .location_plans import LocationPlanService
-from .autonomy_cycle import RETRY_IDLE_SECONDS
 
 _POST_BOUNDARY_IDLE_ORIGIN = "wo95_post_boundary_idle"
+POST_BOUNDARY_IDLE_SECONDS = 600
 
 _ACTIVE_NEEDS=frozenset({"satiete","hygiene"})
 
@@ -149,7 +149,7 @@ class ActiveSimulationEngine:
                 "idle",
                 location["key"],
                 sim_now=at,
-                duration_seconds=RETRY_IDLE_SECONDS,
+                duration_seconds=POST_BOUNDARY_IDLE_SECONDS,
                 _reanchor_clock=False,
                 action_provenance={
                     "proposal_id": proposal_id,

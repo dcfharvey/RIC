@@ -6,7 +6,8 @@ import pytest
 
 from vivarium.activities import ActivityEngine
 from vivarium.action_arbitration import ActionArbitrationFoundationService
-from vivarium.active_simulation import ActiveSimulationEngine
+from vivarium.active_simulation import ActiveSimulationEngine, POST_BOUNDARY_IDLE_SECONDS
+from vivarium.autonomy_cycle import RETRY_IDLE_SECONDS
 from vivarium.character_capabilities import sapient_character_keys
 from vivarium.circadian_model import calibration_profiles
 from vivarium.db import connect_database,transaction
@@ -179,3 +180,10 @@ def test_active_runtime_exposes_no_public_synthetic_physiology_apis():
     assert not hasattr(SleepPhysiologyService, "next_critical_boundary_synthetic")
     assert not hasattr(SleepPhysiologyService, "materialize_synthetic")
     assert not hasattr(SleepPhysiologyService, "resolve_light_source_synthetic")
+
+
+def test_post_boundary_idle_horizon_is_not_the_retry_idle_contract(monkeypatch):
+    assert POST_BOUNDARY_IDLE_SECONDS == 600
+    assert RETRY_IDLE_SECONDS == 600
+    monkeypatch.setattr("vivarium.autonomy_cycle.RETRY_IDLE_SECONDS", 1)
+    assert POST_BOUNDARY_IDLE_SECONDS == 600

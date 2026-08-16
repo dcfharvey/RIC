@@ -254,6 +254,7 @@ class CognitionCallLedgerService:
         *,
         source_event_seq: int | None = None,
         parent_event_seq: int | None = None,
+        logical_source_key: str | None = None,
     ) -> CognitionCallAdmission:
         world_id, character_key = _world_id(world_id), _key(character_key, "personnage")
         trigger, source_key = _key(trigger, "motif"), _key(source_key, "source")
@@ -270,6 +271,7 @@ class CognitionCallLedgerService:
             flow_request = CognitiveFlowRequest(
                 world_id, character_key, trigger, source_key, requested_at,
                 source_event_seq=source_event_seq, parent_event_seq=parent_event_seq,
+                logical_source_key=logical_source_key,
             )
             self._flow_telemetry.record(flow_request, "opportunity")
             offer = self._flow_scheduler.offer(flow_request)

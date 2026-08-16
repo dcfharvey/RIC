@@ -43,10 +43,12 @@ class CognitiveFlowRequest:
     parent_event_seq: int | None = None
     lineage_key: str | None = None
     causal_depth: int = 0
+    logical_source_key: str | None = None
 
     @property
     def idempotency_key(self) -> str:
-        return f"{self.character_key}:{self.trigger}:{self.source_key}"
+        logical_source = self.logical_source_key or self.source_key
+        return f"{self.character_key}:{self.trigger}:{logical_source}"
 
     @property
     def opportunity_id(self) -> str:
@@ -108,10 +110,10 @@ class CognitiveFlowScheduler:
         if self._selected_key is None:
             self._dispatches = 0
 
-    def _select_if_available(self) -> None:
+    def _select_if_available(self, *, preferred_key: str) -> None:
         if self._selected_key is None and self._dispatches < self.max_dispatches_per_tick:
             selected = self._choose()
-            if selected is not None:
+            if selected == preferred_key:
                 self._selected_key = selected
 
     def _choose(self) -> str | None:
@@ -135,10 +137,13 @@ class CognitiveFlowScheduler:
     def offer(self, request: CognitiveFlowRequest) -> FlowOffer:
         key = request.idempotency_key
         if key in self._pending:
-            self._select_if_available()
+            was_unselected = self._selected_key is None
+            if was_unselected:
+                self._select_if_available(preferred_key=key)
             if key == self._selected_key:
                 return FlowOffer("ready", "selected")
-            return FlowOffer("coalesced", "already_queued")
+            reason = "fairness_wait" if was_unselected else "already_queued"
+            return FlowOffer("coalesced", reason)
         if request.causal_depth > self.max_causal_depth:
             return FlowOffer("runaway_guard", "causal_depth_exceeded")
         lineage = request.lineage
@@ -150,10 +155,10 @@ class CognitiveFlowScheduler:
         self._buckets[request.bucket].append(key)
         if lineage is not None:
             self._lineage_counts[lineage] += 1
-        self._select_if_available()
+        self._select_if_available(preferred_key=key)
         if key == self._selected_key:
             return FlowOffer("ready", "selected")
-        return FlowOffer("queued", "provider_busy")
+        return FlowOffer("queued", "provider_dispatch_pending")
 
     def complete(self, idempotency_key: str) -> None:
         request = self._pending.pop(idempotency_key, None)
@@ -188,6 +193,11 @@ class CognitiveFlowScheduler:
 
     def pending_count(self) -> int:
         return len(self._pending)
+
+    def next_pending_request(self) -> CognitiveFlowRequest | None:
+        """Expose the fair next retry candidate without mutating the queue."""
+        key = self._choose()
+        return None if key is None else self._pending.get(key)
 
 
 class CognitiveFlowTelemetry:
@@ -311,6 +321,7 @@ class CognitiveFlowTelemetry:
                 "character_key": request.character_key,
                 "trigger": request.trigger,
                 "source_key": request.source_key,
+                "logical_source_key": request.logical_source_key or request.source_key,
                 "opportunity_id": request.opportunity_id,
                 "idempotency_key": request.idempotency_key,
                 "source_event_seq": request.source_event_seq,

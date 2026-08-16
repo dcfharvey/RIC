@@ -29,12 +29,13 @@ class LiveSocialAppraisalService:
         if existing is not None and existing['outcome']=='appraised' and not retry:
             row=self.conn.execute('SELECT appraisal_key,appraisal_status FROM social_appraisal WHERE world_id=? AND source_interpretation_id=?',(wid,src['id'])).fetchone(); sheet=SocialAppraisalService(self.conn).get(wid,owner,row['appraisal_key']); return LiveSocialAppraisalOutcome(owner,ikey,'appraised',sheet['appraisal_status'],len(sheet['candidates']))
         attempt_no=self.conn.execute('SELECT COUNT(*) FROM scc2a_attempt WHERE source_interpretation_id=?',(src['id'],)).fetchone()[0]+1
-        source_key=f'social_appraisal_{src["id"]}_attempt_{attempt_no}'
-        technical=self.ledger.admit(wid,owner,CALL_TRIGGER_SOCIAL_APPRAISAL,source_key,limits)
+        logical_source_key=f'social_appraisal_{src["id"]}'
+        source_key=f'{logical_source_key}_attempt_{attempt_no}'
+        technical=self.ledger.admit(wid,owner,CALL_TRIGGER_SOCIAL_APPRAISAL,source_key,limits,logical_source_key=logical_source_key)
         attempt_key=f'live_scc2a_attempt_{src["id"]}_{attempt_no}'
         if not technical.verdict.eligible:
             self._record(wid,owner,src['id'],attempt_key,'deferred',technical.verdict.reason_code); return LiveSocialAppraisalOutcome(owner,ikey,'deferred',detail_code=technical.verdict.reason_code)
-        flow_request=CognitiveFlowRequest(wid,owner,CALL_TRIGGER_SOCIAL_APPRAISAL,source_key,technical.admitted_at or self.clock.now_iso())
+        flow_request=CognitiveFlowRequest(wid,owner,CALL_TRIGGER_SOCIAL_APPRAISAL,source_key,technical.admitted_at or self.clock.now_iso(),logical_source_key=logical_source_key)
         provider_started=self.clock.now_iso()
         if self.flow_scheduler is not None: self.flow_telemetry.record(flow_request,'executing',canonical_at=technical.admitted_at,provider_started_at=provider_started)
         try:
@@ -59,16 +60,47 @@ class LiveSocialAppraisalService:
             return LiveSocialAppraisalOutcome(owner,ikey,'deferred',detail_code='retry_backoff')
         return self.process(wid,owner,ikey,limits,retry=True)
 
-    def next_pending_retry(self,wid:int,limits:CognitionCallLimits):
-        rows=self.conn.execute("SELECT c.key AS owner,i.interpretation_key,a.recorded_at,a.id,a.detail_code FROM scc2a_attempt a JOIN social_interpretation i ON i.id=a.source_interpretation_id JOIN character c ON c.id=a.character_id WHERE a.world_id=? AND a.outcome IN ('deferred','provider_unavailable') AND NOT EXISTS (SELECT 1 FROM scc2a_attempt newer WHERE newer.source_interpretation_id=a.source_interpretation_id AND newer.id>a.id) ORDER BY a.recorded_at,a.id",(wid,)).fetchall()
+    def next_pending_retry(
+        self,
+        wid: int,
+        limits: CognitionCallLimits,
+        *,
+        preferred_idempotency_key: str | None = None,
+    ):
+        rows = self.conn.execute(
+            "SELECT c.key AS owner,i.id AS source_id,i.interpretation_key,"
+            "a.recorded_at,a.id,a.detail_code "
+            "FROM scc2a_attempt a "
+            "JOIN social_interpretation i ON i.id=a.source_interpretation_id "
+            "JOIN character c ON c.id=a.character_id "
+            "WHERE a.world_id=? "
+            "AND a.outcome IN ('deferred','provider_unavailable') "
+            "AND NOT EXISTS ("
+            "SELECT 1 FROM scc2a_attempt newer "
+            "WHERE newer.source_interpretation_id=a.source_interpretation_id "
+            "AND newer.id>a.id) "
+            "ORDER BY a.recorded_at,a.id",
+            (wid,),
+        ).fetchall()
+        fallback = None
         for row in rows:
-            if self.ledger.retry_due(
-                wid,row['owner'],limits,attempted_at=row['recorded_at'],
-                reason_code=row['detail_code'] or 'technical_failure',
+            if not self.ledger.retry_due(
+                wid,
+                row["owner"],
+                limits,
+                attempted_at=row["recorded_at"],
+                reason_code=row["detail_code"] or "technical_failure",
                 retry_delay_seconds=RETRY_DELAY_SECONDS,
             ):
+                continue
+            logical_key = (
+                f"{row['owner']}:{CALL_TRIGGER_SOCIAL_APPRAISAL}:"
+                f"social_appraisal_{row['source_id']}"
+            )
+            if logical_key == preferred_idempotency_key:
                 return row
-        return None
+            fallback = fallback or row
+        return fallback if preferred_idempotency_key is None else None
 
     def retry_one_pending(self,wid:int,limits:CognitionCallLimits)->LiveSocialAppraisalOutcome|None:
         row=self.next_pending_retry(wid,limits)
