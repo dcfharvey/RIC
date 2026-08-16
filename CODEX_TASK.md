@@ -1,48 +1,125 @@
-# Codex task — WO91
+# Codex task — état courant RIC
 
-Implémenter et qualifier `docs/91_WORK_ORDER_DEMARRAGE_REEL_RODAGE_V2.md` sur `chatgpt/wo91-rodage-v2-live-start`.
+**Mise à jour :** 16 août 2026  
+**Statut :** aucun nouveau WO runtime majeur autorisé pendant le rodage V3c
 
-Base fermée : `ce3bec5d7d9825784f397c8db9c77239f3886b13` (`0.2.0a2`, schéma 56, WO90 fermé).
+## Référence produit
 
-## Pourquoi ce correctif existe
+La seule référence produit autoritative est `product/current`.
 
-La revue pré-lancement a trouvé trois trous que WO90 ne falsifiait pas :
+Au moment de cette mise à jour :
 
-1. `character_location_plan` stocke le retour de Sophie à 16 h mais aucun raccord runtime vérifié ne l'exécute à l'échéance;
-2. le banc utilisait `photography` pour signifier « travaille », ce qui invente un sous-geste non décidé;
-3. le banc physiologique assignait le profil humain à tout le casting. Le catalogue réel ne contient que les candidats humain et félin; Luna est une louve anthropomorphe et Chuu une slime.
+- `PRODUCT_HEAD = 350fbf80353af55994650372b27260eb29dc4dac`
+- version Python déclarée : `0.2.0a5`
+- schéma courant : migration `0061_autobiographical_append_only_lifecycle.sql`
 
-Ne démarre aucun SQLite officiel pendant WO91.
+Toujours refaire le préflight Git décrit dans `docs/GOUVERNANCE_GIT.md` avant tout nouveau travail. Ne jamais utiliser `main`, un ancien worktree ou un runtime historique comme base implicite.
 
-## Contrats à satisfaire
+## Runtime de qualification actif
 
-Lire intégralement WO91 avant de coder. En particulier :
+Rodage P0 Memory V3c :
 
-- rendre les plans de lieu dus causalement exécutables sur une frontière de temps canonique, sans dépendre du LLM et sans cas spécial Sophie;
-- représenter génériquement « être en train de travailler » sans inventer la tâche précise;
-- garder Sophie/Erika sur le candidat humain et Patoune sur le candidat félin;
-- pour Luna/Chuu, utiliser une baseline fictionnelle explicitement provenancée `fictional_canon`, éventuellement quantitative-equivalente au candidat humain comme hypothèse de transfert temporaire, mais jamais étiquetée « physiologie humaine » ni codée par identité;
-- initialiser le manifeste officiel sans passé reconstruit : H/P déterminés par la politique T0 neutre/normal-haut, φ par règle T0 compatible avec l'état lumineux, résidus zéro, bande dérivée/validée; ne pas recopier une fixture comme convention cachée;
-- fournir un point d'entrée opérateur supporté, one-shot, qui cible `data/vivarium-rodage-v2.sqlite`, refuse l'écrasement et ne touche jamais à `data/vivarium-rodage.sqlite` ni ses sidecars;
-- ne pas affaiblir le bridge : il doit continuer à refuser `RUNTIME_CONTROL` et `REAL_WORLD_WRITE`;
-- le point d'entrée doit capturer une seule fois le T0 réel EDT et refuser avant toute création si T0 >= 16 h EDT pour le scénario courant;
-- avant la première session runtime : préflight read-only, Hugin H/φ/P, provider attendu disponible;
-- provider attendu : Qwen3-14B Q4_K_M, FR/FR, interpretation-only; aucune substitution silencieuse.
+- `RUNTIME_HEAD = 350fbf80353af55994650372b27260eb29dc4dac`
+- worktree : `C:\AI\Vivarium social\.rodage-p0-memory-v3c`
+- DB : `data\vivarium-p0-memory-v3c.sqlite`
+- session : `081861ed-b259-45ae-ad3f-4f61517d2c02`
+- moteur : `ActiveSimulationEngine`
+- physiologie : active
+- provider de qualification : `qwen3-14b`
 
-## Faits T0
+Ce runtime est une expérience en cours. Ne pas le rebaser, reset, migrer, renommer, corriger ou utiliser comme worktree de développement.
 
-- Sophie : au travail comme photographe journalistique; revient au foyer à 16 h; ne pas inventer employeur/média/affectation/sous-tâche.
-- Erika : salon, gaming; jeu non spécifié.
-- Patoune : dort dans le salon, blotti contre Erika; précision objet/contact seulement si support générique réel.
-- Chuu : bain/hygiène, détente, réhydratation, s'apprête à sortir; hydratation via ressource générique, aucun confort persistant.
-- Luna : première arrivée en taxi, sac d'effets personnels; contenu indéterminé.
+## État des chantiers
 
-## Exécution
+### Fermé / intégré
 
-Tu as autorité sur l'architecture réelle, migrations, tests, version et ordre d'implantation. Ne suis pas littéralement une architecture suggérée si le dépôt impose mieux, mais conserve les contrats.
+- correctif de drainage/fairness de la file cognitive;
+- fondation autobiographique P0 : épisode + supports + retrieval contextuel borné;
+- admission d'encodage et seeding social;
+- lifecycle autobiographique append-only avec révisions structurelles;
+- Operational Cognition Grounding : morphologie descriptive + capacités/signaux owner-backed dans le contexte cognitif;
+- alignement générique de la projection d'activités avec la faisabilité physique connue.
 
-Traite un problème majeur à la fois : reproduction/diagnostic -> correction -> tests ciblés -> suite élargie si utile -> suivant.
+La qualification complète du dernier lot de grounding rapportée avant intégration est `1033 passed, 1 skipped`.
 
-Avant fermeture : répétition complète sur SQLite jetable, falsifications WO91, compileall, suite complète, dépôt suivi propre, docs synchronisées. Consigner HEAD fonctionnel/final, version, schéma, migration, tests, environnement et preuve qu'aucun SQLite officiel V2 n'a été créé.
+### Ouvert — P0 Memory
 
-Reviens au propriétaire une seule fois à fermeture complète, ou uniquement si une vraie décision produit non résoluble bloque l'implantation. Après fermeture, ARRÊTE : ne lance pas encore le point d'entrée officiel.
+P0 n'est pas fermé. La preuve runtime encore recherchée est :
+
+```text
+expérience sociale accessible
+→ admission
+→ subjective_trace
+→ épisode autobiographique
+→ retrieval contextuel ultérieur
+→ CognitionContext routé
+→ appel provider réel
+```
+
+Une tentative de scène contrôlée Sophie → Erika est actuellement `WAITING FOR VALID ACCESS` : aucune co-présence causale valide n'était disponible. Ne pas téléporter, fabriquer une perception, injecter une mémoire ou appeler directement le retrieval pour produire artificiellement un PASS.
+
+Si la fenêtre V3c se termine sans situation valide, conclure `NOT EXERCISED UNDER VALID CONDITIONS`, pas « mémoire en échec ».
+
+## Diagnostics V3c à conserver comme données, pas comme correctifs live
+
+### `cognition_call_source_not_perceived`
+
+Verdict : `B — HEALTHY BUT NOISY`.
+
+Le volume élevé vient principalement du fait que l'orchestrateur teste des événements canoniques contre la vue perceptive de chaque résidente. Aucun churn logique, backlog durable ou starvation n'a été démontré.
+
+Follow-ups séparés après V3c seulement :
+
+- alignement du payload `character_moved` avec le contrat perceptif (`connector`);
+- conservation de `source_event_seq` sur les invalidations;
+- éventuel préfiltrage perceptif plus tôt uniquement si la même autorité perceptive peut être réutilisée sans dupliquer les règles.
+
+### Chuu — répétition `planned_reflection → no_action`
+
+Le grounding est présent et stable. Le diagnostic n'a pas démontré de panne corporelle ni de refus moteur.
+
+Le constat fonctionnel est :
+
+```text
+activité faisable
+≠
+opportunité comportementale pertinente
+```
+
+`MotiveCandidate.possible_actions` est une projection explicative; il ne construit pas `activity_options`. `sleep` et `rest` sont de vraies activités moteur, mais ne font pas partie de la whitelist MVP des six loisirs autonomes présentés aux `planned_reflection`.
+
+Ne pas ajouter `sleep`/`rest` à cette whitelist comme patch Chuu. Le diagnostic soutient un besoin générique futur de Behavioral Opportunity Layer (BOL), sans en prescrire l'architecture.
+
+## Ordre de travail autorisé
+
+Tant que V3c/P0 n'est pas audité à fermeture :
+
+1. laisser V3c continuer;
+2. diagnostics read-only et consolidation documentaire permis;
+3. exécuter le scénario mémoire A/B seulement quand les préconditions causales réelles existent;
+4. à la fin : audit de fermeture P0;
+5. ensuite seulement : Conversation State minimal;
+6. puis Behavioral Opportunity Layer;
+7. puis P3.5 Perception · Action · Sensorium.
+
+Un seul chantier R&D runtime majeur à la fois.
+
+## Interdictions immédiates
+
+Ne pas :
+
+- modifier WO95 pour masquer les idles de 600 s;
+- patcher Chuu spécifiquement;
+- réintroduire un quota fixe N appels LLM / fenêtre dans la cognition normale;
+- ouvrir Conversation State ou BOL en parallèle de la fermeture P0;
+- modifier les DB/runtime V3, V3b ou V3c utilisés comme preuves historiques;
+- présenter une décision d'ingénierie comme une loi scientifique.
+
+## Gouvernance
+
+- ChatGPT : recherche, conception fonctionnelle, cohérence conceptuelle, documentation R&D.
+- Grok : contre-audit scientifique adversarial indépendant.
+- Codex : autorité sur l'architecture réelle, le code, les migrations, les invariants techniques, les tests et l'ordre d'implantation.
+- Propriétaire : autorité finale produit/design.
+
+**Verify twice. Commit once.**
