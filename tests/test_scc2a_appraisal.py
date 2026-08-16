@@ -127,7 +127,9 @@ def test_scc2a_provider_retry_uses_wall_time_when_canonical_clock_is_skewed(setu
     assert c.execute("SELECT COUNT(*) FROM scc2a_attempt WHERE outcome='provider_unavailable'").fetchone()[0]==1
     clock.advance(1)
     assert service.retry_one_pending(w,CognitionCallLimits(0,3600,20)).technical_status=='appraised'
-    assert c.execute('SELECT COUNT(*) FROM scc2a_attempt').fetchone()[0]==4
+    # Observer memory admission is refused when attention cannot be evaluated;
+    # only the speaker's admitted trace reaches SCC2A in this skewed-anchor case.
+    assert c.execute('SELECT COUNT(*) FROM scc2a_attempt').fetchone()[0]==2
 
 def test_pending_scc2a_retry_is_not_persisted_at_every_pulse_and_recovers(setup):
     c,w,clock=setup

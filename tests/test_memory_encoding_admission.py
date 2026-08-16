@@ -9,6 +9,7 @@ from vivarium.db import connect_database
 from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import ensure_schema
 from vivarium.mvp_runtime import MVPRuntime
+from vivarium.needs import NeedsError
 from vivarium.repro import canonical_state_digest
 from vivarium.scenes import SocialSceneService
 from vivarium.social_cognition_runtime import LiveSocialCognitionService
@@ -35,7 +36,8 @@ def setup():
     conn.close()
 
 
-def test_f1_f2_accessible_is_not_memory_and_selected_is_not_copied(setup):
+def test_f1_accessible_is_not_automatically_memory_and_bootstrap_policy_is_audited(setup):
+    """The MVP policy is conservative; this does not claim attention independence."""
     conn, world_id, clock = setup
     memory = SubjectiveMemoryService(conn, clock=clock)
     snapshot = AttentionService(conn, clock=clock).snapshot(world_id, "sophie")
@@ -50,6 +52,56 @@ def test_f1_f2_accessible_is_not_memory_and_selected_is_not_copied(setup):
         "character_id = (SELECT id FROM character WHERE world_id = ? AND key = 'sophie')",
         (world_id, world_id),
     ).fetchone()[0] < len(snapshot.available)
+
+
+def test_admission_trace_and_decision_rollback_together_on_interruption(setup, monkeypatch):
+    conn, world_id, clock = setup
+    memory = SubjectiveMemoryService(conn, clock=clock)
+    item = AttentionService(conn, clock=clock).snapshot(world_id, "sophie").selected[0]
+    original = memory._record_phase_a
+
+    def interrupted(*args, **kwargs):
+        original(*args, **kwargs)
+        raise RuntimeError("simulated interruption after trace materialization")
+
+    monkeypatch.setattr(memory, "_record_phase_a", interrupted)
+
+    with pytest.raises(RuntimeError, match="simulated interruption"):
+        memory.admit_attention(world_id, "sophie", "atomic-admission", item)
+
+    assert conn.execute(
+        "SELECT COUNT(*) FROM subjective_trace WHERE request_key = 'atomic-admission'"
+    ).fetchone()[0] == 0
+    assert conn.execute(
+        "SELECT COUNT(*) FROM subjective_memory_encoding_admission "
+        "WHERE request_key = 'atomic-admission'"
+    ).fetchone()[0] == 0
+
+
+def test_social_admission_does_not_fail_open_when_attention_is_unavailable(setup, monkeypatch):
+    conn, world_id, clock = setup
+    scenes = SocialSceneService(conn, clock=clock)
+    scenes.open(world_id, "attention-failure-scene", ("sophie", "erika"))
+    scenes.speak(
+        world_id, "attention-failure-scene", "attention-failure-speech", "sophie",
+        act_kind="inform", content="Une parole accessible.", recipient_key="erika",
+    )
+
+    def unavailable(*args, **kwargs):
+        raise NeedsError("physiological anchor unavailable")
+
+    monkeypatch.setattr(AttentionService, "snapshot", unavailable)
+    result = SubjectiveMemoryService(conn, clock=clock).admit_social_speech(
+        world_id, "erika", "attention-failure-request",
+        "attention-failure-scene", "attention-failure-speech",
+    )
+
+    assert result["decision"]["outcome"] == "not_encoded"
+    assert result["decision"]["reason_code"] == "social_admission_unavailable"
+    assert result["trace"] is None
+    assert conn.execute(
+        "SELECT COUNT(*) FROM subjective_trace WHERE request_key = 'attention-failure-request'"
+    ).fetchone()[0] == 0
 
 
 def test_f3_attention_trace_can_remain_trace_only(setup):

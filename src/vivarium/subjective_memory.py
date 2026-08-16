@@ -418,19 +418,21 @@ class SubjectiveMemoryService:
                 item.source_kind,
             )
             return {"decision": admission, "trace": None, "seed": None}
-        trace = self._record(
-            world_id, character_key, request_key, "state", item.source_kind,
-            item.fact, fidelity,
-        )
-        admission = self._record_phase_a(
-            world_id, character_key, request_key, "attention", item.fact.event_type,
-            item.fact.payload, "encoded", "attention_primary_candidate", trace,
-            item.source_kind,
-        )
-        trace_id = self._trace_row(world_id, character_id, request_key)["id"]
-        seed = self._record_seed_decision(
-            world_id, character_id, trace_id, "trace_only", "attention_state_not_episode_unit", None,
-        )
+        with transaction(self._conn):
+            trace = self._record(
+                world_id, character_key, request_key, "state", item.source_kind,
+                item.fact, fidelity,
+            )
+            admission = self._record_phase_a(
+                world_id, character_key, request_key, "attention", item.fact.event_type,
+                item.fact.payload, "encoded", "attention_primary_candidate", trace,
+                item.source_kind,
+            )
+            trace_id = self._trace_row(world_id, character_id, request_key)["id"]
+            seed = self._record_seed_decision(
+                world_id, character_id, trace_id, "trace_only",
+                "attention_state_not_episode_unit", None,
+            )
         return {"decision": admission, "trace": trace, "seed": seed}
 
     def encode_attention(
@@ -495,16 +497,22 @@ class SubjectiveMemoryService:
         candidate = next((candidate for candidate in feed.candidates if candidate.fact.event_seq == event_seq), None)
         if candidate is None:
             raise SubjectiveMemoryError("événement non admissible", code="source_not_accessible")
-        trace = self._record(world_id, character_key, request_key, "event", candidate.access_kind, candidate.fact, fidelity)
         character_id = self._character_id(world_id, character_key)
-        self._record_phase_a(
-            world_id, character_key, request_key, "direct_event", candidate.fact.event_type,
-            candidate.fact.payload, "encoded", "explicit_direct_event", trace,
-        )
-        trace_id = self._trace_row(world_id, character_id, request_key)["id"]
-        self._record_seed_decision(
-            world_id, character_id, trace_id, "trace_only", "episode_seeding_not_requested", None,
-        )
+        with transaction(self._conn):
+            trace = self._record(
+                world_id, character_key, request_key, "event", candidate.access_kind,
+                candidate.fact, fidelity,
+            )
+            self._record_phase_a(
+                world_id, character_key, request_key, "direct_event",
+                candidate.fact.event_type, candidate.fact.payload, "encoded",
+                "explicit_direct_event", trace,
+            )
+            trace_id = self._trace_row(world_id, character_id, request_key)["id"]
+            self._record_seed_decision(
+                world_id, character_id, trace_id, "trace_only",
+                "episode_seeding_not_requested", None,
+            )
         return trace
 
     def _social_speech_source(
@@ -557,14 +565,17 @@ class SubjectiveMemoryService:
         fact, source_act_id, _speaker_key = self._social_speech_source(
             world_id, observer_key, scene_key, act_key,
         )
-        trace = self._record(
-            world_id, observer_key, request_key, "state", "social_scene_participant",
-            fact, fidelity, source_social_speech_act_id=source_act_id,
-        )
-        self._record_phase_a(
-            world_id, observer_key, request_key, "social_speech", fact.event_type,
-            fact.payload, "encoded", "explicit_social_input", trace,
-        )
+        with transaction(self._conn):
+            trace = self._record(
+                world_id, observer_key, request_key, "state",
+                "social_scene_participant", fact, fidelity,
+                source_social_speech_act_id=source_act_id,
+            )
+            self._record_phase_a(
+                world_id, observer_key, request_key, "social_speech",
+                fact.event_type, fact.payload, "encoded", "explicit_social_input",
+                trace,
+            )
         return trace
 
     def admit_social_speech(
@@ -585,17 +596,19 @@ class SubjectiveMemoryService:
                 world_id, observer_key, scene_key, act_key,
             )
             allowed = observer_key == speaker_key
+            denial_reason = "social_source_not_attention_admitted"
             if not allowed:
                 try:
                     snapshot = AttentionService(self._conn, clock=self._clock).snapshot(
                         world_id, observer_key, limit=ATTENTION_ADMISSION_LIMIT,
                     )
                 except NeedsError:
-                    # Un ancrage physiologique/canonique périmé ne doit pas
-                    # transformer une parole déjà validée en crash mémoire.
-                    # L'appelant reste néanmoins le chemin d'admission explicite.
-                    allowed = True
+                    # Une incapacité technique à évaluer l'admission ne vaut
+                    # jamais décision positive d'encodage.
+                    allowed = False
+                    denial_reason = "social_admission_unavailable"
                 else:
+                    denial_reason = "social_source_not_attention_admitted"
                     allowed = any(
                         item.source_kind == "perception:co_presence"
                         and item.fact.payload.get("character") == speaker_key
@@ -605,7 +618,7 @@ class SubjectiveMemoryService:
                 admission = self._record_phase_a(
                     world_id, observer_key, request_key, "social_speech",
                     fact.event_type, fact.payload, "not_encoded",
-                    "social_source_not_attention_admitted", None,
+                    denial_reason, None,
                     "social_scene_participant",
                 )
                 return {"decision": admission, "trace": None, "seed": None}

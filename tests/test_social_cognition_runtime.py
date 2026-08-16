@@ -183,7 +183,13 @@ def test_scc1c_provider_retry_uses_wall_time_when_canonical_clock_is_skewed(setu
     clock.advance(1)
     recovered = service.retry(world_id, "sophie", "live_trace_speech_1_sophie", CognitionCallLimits(0, 3600, 8))
     assert recovered.technical_status == "interpreted"
-    assert conn.execute("SELECT COUNT(*) FROM scc1c_attempt WHERE outcome='interpreted'").fetchone()[0] == 3
+    # The skewed canonical anchor makes attention admission unavailable for
+    # the observer; the memory path must not fail open and encode that speech.
+    assert conn.execute("SELECT COUNT(*) FROM scc1c_attempt WHERE outcome='interpreted'").fetchone()[0] == 1
+    assert conn.execute(
+        "SELECT COUNT(*) FROM subjective_memory_encoding_admission "
+        "WHERE outcome='not_encoded' AND reason_code='social_admission_unavailable'"
+    ).fetchone()[0] == 2
 
 
 def test_due_scc1c_retry_is_not_starved_by_a_due_scc2a_retry(setup):
