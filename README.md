@@ -1,275 +1,148 @@
 # RIC — Reality · Interaction · Cognition
 
-Photographie active — démarrage Rodage V2, 13 août 2026.
+RIC est un moteur de simulation sociale persistante où la réalité canonique, l'accès perceptif et la cognition subjective restent séparés.
 
-- Distribution technique : `vivarium-social` (inchangée).
-- Import Python : `vivarium` (inchangé).
-- Version logicielle courante : `0.2.0a5`.
-- Schéma SQLite du code : **57** ; dernière migration : `0057_location_plan_resolution.sql`.
-- FUNCTIONAL_HEAD : `1a55ce5056309e416865d9bd095e24821c3ef99d`.
-- Validation complète avant correction : **1044 passed, 1 skipped, 0 failed** en `242.01s` ; après correction : **1045 passed, 1 skipped, 0 failed** en `240.88s` ; skip attendu `tests/test_dev_bridge.py:59`.
-- Le launcher exige la preuve structurée LM Studio `quantization.name=Q4_K_M`, une unique `loaded_instance` et ancre le manifeste sur la frontière canonique effectivement gelée par `stop()`.
-- Rodage V2 officiel démarré sur base neuve : `data/vivarium-rodage-v2.sqlite`, world `1`, session `2`, T0 `2026-08-13T19:20:22.071+00:00` (15:20:22 EDT). Préflight et Hugin ont passé avant l’ouverture de la session.
+Le projet s'appelait auparavant **Vivarium Social**. Les noms techniques historiques sont conservés lorsqu'ils font partie du code ou du packaging :
 
-## Reprise d'un travail existant
+- distribution Python : `vivarium-social`
+- import : `vivarium`
 
-Commencer par `docs/99_PASSATION_COURANTE.md`, puis lire
-`docs/00_DOSSIER_MAITRE_IA.md`, les documents de lots cités et l'état Git.
-La passation courante donne l'état opérationnel; le dossier maître reste la
-source normative du dépôt.
+## État produit courant
 
-Les fichiers du dossier `sources/` proviennent des cinq documents de conception antérieurs. Ils sont fournis pour la traçabilité et le détail historique, mais contiennent des formulations préliminaires qui ont été arbitrées dans le dossier maître. Une IA ne doit pas les utiliser pour contredire le dossier maître.
+La seule référence produit autoritative est la branche `product/current`.
 
-## Archive historique
+Photographie vérifiée le 16 août 2026 :
 
-Copier le contenu de `docs/history/04_PROMPT_DEMARRAGE.md` dans l’environnement agentique après avoir ouvert le dossier du projet.
+- `PRODUCT_HEAD = 350fbf80353af55994650372b27260eb29dc4dac`
+- version déclarée : `0.2.0a5`
+- dernière migration : `0061_autobiographical_append_only_lifecycle.sql`
+- chantier actif : qualification P0 Memory, rodage V3c
+- Operational Cognition Grounding : fermé et intégré
 
-## Règle essentielle
+Les compteurs de tests, sessions de rodage et autres métriques volatiles appartiennent à `docs/99_PASSATION_COURANTE.md`, pas à ce README.
 
-Ne pas demander « construis tout ». Exiger d’abord `docs/history/AUDIT_INITIAL.md`, puis travailler par phases approuvées.
+## Architecture conceptuelle
 
-## Développement (Phase 0)
+Les trois moteurs sont des catégories conceptuelles. Ils ne doivent pas être projetés automatiquement sur des packages ou services précis.
 
-### Prérequis
+**Reality Engine** — ce qui est objectivement vrai, possible et causal dans la simulation.
 
-- Python 3.12+ (version de référence 3.12 ; testé sur 3.13 — doit rester compatible avec les versions ultérieures).
-- Git.
+**Interaction Engine** — ce qui rend les agents et la réalité mutuellement accessibles et structure leurs interactions.
 
-### Installation
+**Cognitive Engine** — ce que chaque agent perçoit, interprète, mémorise, priorise et décide subjectivement.
 
-```bash
-python -m venv .venv                # créer l'environnement virtuel
-# Windows : .venv\Scripts\activate ;  Unix : source .venv/bin/activate
-.venv/Scripts/python -m pip install -e ".[dev]"   # installer le paquet + pytest
+La boucle cible est :
+
+```text
+réalité canonique
+→ sous-ensemble perceptible
+→ état subjectif / mémoire / préférences / besoins
+→ intention ou décision proposée
+→ validation moteur
+→ conséquence canonique
+→ nouvelles perceptions
 ```
 
-### Tests
+## Invariants fondamentaux
 
-```bash
-.venv/Scripts/python -m pytest -v
+```text
+réalité/canon ≠ perception ≠ croyance
+parole ≠ fait
+relation ≠ permission ≠ consentement
+LLM propose, moteur valide
+aucun composant cognitif n'écrit directement la réalité canonique
+provenance d'audit ≠ source subjectivement mémorisée
+un seul propriétaire persistant par état
+pas d'omniscience implicite des agents
+mécanisme générique > script propre à un personnage
 ```
 
-### Point d'entrée minimal
+## État fonctionnel général
 
-```bash
-.venv/Scripts/python -m vivarium
+Le produit courant comprend notamment :
+
+- monde canonique persistant et temps 1:1;
+- lieux, connecteurs, traversées et plans de localisation;
+- objets, contenance et possession;
+- activités et conséquences canoniques;
+- physiologie sommeil/capacité physique owner-backed active;
+- ressources et effets déclaratifs;
+- cinq résidentes de référence : Sophie, Erika, Luna, Chuu et Patoune;
+- perception locale, attention, croyances, affect initial, relations/limites initiales;
+- cognition LLM locale derrière un adaptateur et une file avec fairness/backpressure;
+- scènes sociales bornées;
+- traces subjectives et fondations de mémoire autobiographique;
+- contexte cognitif observé avec provenance technique distincte du souvenir subjectif;
+- grounding opérationnel du soi et projection read-only de faisabilité avant exposition d'une activité au modèle.
+
+Cela ne signifie pas que tous les systèmes sont complets. Le projet reste en alpha et les frontières de qualification sont documentées explicitement.
+
+## Priorité actuelle
+
+L'ordre immédiat est :
+
+```text
+V3c long run
+→ qualification / audit de fermeture P0 Memory
+→ Conversation State minimal
+→ Behavioral Opportunity Layer
+→ P3.5 Perception · Action · Sensorium
 ```
 
-Affiche la version et la configuration. Aucun service n'est encore démarré.
+Le BOL devra traiter la différence entre une activité techniquement faisable et une opportunité comportementalement pertinente. P3.5 traitera ensuite les capacités/perceptions/sensorium à une granularité plus générale. Ces chantiers ne doivent pas être confondus.
 
-### Commandes
+## Développement local
+
+Prérequis : Python 3.12+ et Git.
 
 ```bash
-.venv/Scripts/python -m vivarium init [--name NOM] [--force]
-.venv/Scripts/python -m vivarium status
-.venv/Scripts/python -m vivarium upgrade-dev
-.venv/Scripts/python -m vivarium mvp-init --db data/vivarium-alpha.sqlite
-.venv/Scripts/python -m vivarium mvp-run --db data/vivarium-alpha.sqlite --enable-local-llm
-.venv/Scripts/python -m vivarium llm-status
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+.venv\Scripts\python -m pip install -e ".[dev]"
+.venv\Scripts\python -m pytest
 ```
 
-- `init` initialise un monde de développement.
-- `status` inspecte l'état général (intégrité, version de schéma, horloge, compteurs).
-- `mvp-init` crée une résidence alpha sans jamais écraser une base existante;
-  `mvp-run` lance son runtime et sa console locale. `Ctrl+C` ferme proprement
-  les scènes ouvertes et gèle l'heure simulée. Une fermeture brutale est
-  détectée au prochain lancement : le dernier point durable est restauré sans
-  faire vieillir le monde pendant l'arrêt. Ajouter `--enable-local-llm` pour employer le modèle
-  chargé dans LM Studio; sans ce drapeau, seules les routines canoniques tournent.
-- `mvp-preflight --db <base>` inspecte en lecture seule une base candidate au MVP
-  (intégrité, journal, casting et journaux subjectifs), sans LLM ni réparation.
-- `llm-status` vérifie en lecture seule LM Studio et le modèle actuellement chargé.
-- Les bancs jetables de qualification SCC-1B et circadiens ont été retirés du
-  paquet exécutable après fermeture de leurs qualifications. Leurs protocoles,
-  résultats et décisions restent traçables dans `docs/73_R_D_SCC1B_PROVIDER_ET_CALIBRATION.md`,
-  `docs/76_R_D_SCREENING_MULTI_MODELES_SCC1B.md`, `docs/81_BANC_CALIBRATION_CIRCADIEN_V1.md`,
-  `docs/82_SELECTION_ROBUSTESSE_CALIBRATION_CIRCADIEN_V1.md` et
-  `docs/84_AUDIT_COMPATIBILITE_SHADOW_CIRCADIEN_V1.md`.
-- `upgrade-dev` ajoute, de façon **non destructive et idempotente**, les 4 identités
-  provisoires `character_1..4` au monde local (aucun personnage existant modifié ;
-  n'insère que les manquants). `init --force` reste un dernier recours manuel.
+Sous Unix :
 
-> ⚠️ **`init --force` est une commande destructive, réservée au développement.**
-> Elle reconstruit entièrement la base locale de développement. Elle devra être
-> **refusée par défaut** pour tout monde marqué comme réel, persistant ou
-> non-développement. Aucune interface Discord ni commande du propriétaire n'est
-> autorisée à l'exécuter implicitement.
+```bash
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+python -m pytest
+```
+
+Point d'entrée minimal :
+
+```bash
+python -m vivarium
+```
+
+Les commandes opérateur existantes doivent être utilisées selon leur documentation et leur portée. Ne pas lancer un ancien protocole de rodage à partir d'un document historique sans vérifier la passation courante.
+
+## Reprendre le projet
+
+Lire dans cet ordre :
+
+1. `docs/99_PASSATION_COURANTE.md` — photographie opérationnelle et blocages actuels;
+2. `docs/00_DOSSIER_MAITRE_IA.md` — noyau normatif stable;
+3. `docs/01_REGISTRE_DECISIONS.md` — décisions autoritatives;
+4. `docs/03_DECISIONS_OUVERTES.md` — arbitrages encore ouverts;
+5. `docs/15_ROADMAP_ACTIVE.md` — ordre des prochains travaux;
+6. `docs/GOUVERNANCE_GIT.md` — discipline de référence produit et d'intégration.
+
+Les documents de lots, `docs/history/`, `sources/` et la passation du 5 août sont des sources de provenance. Ils ne remplacent pas silencieusement les documents actifs ni le code réellement intégré.
+
+## Gouvernance de développement
+
+- **ChatGPT** : recherche scientifique/technique, conception fonctionnelle, cohérence conceptuelle, documentation R&D.
+- **Grok** : contre-audit scientifique adversarial indépendant.
+- **Codex** : autorité sur l'architecture réelle, le code, les migrations, les invariants techniques, les tests et l'ordre d'implantation.
+- **Propriétaire** : autorité finale produit/design.
+
+La méthode de travail est :
+
+> **Flexible creativity. Rigorous execution.**
 >
-> *Pratique exceptionnelle :* `init --force` a été utilisé pour le Lot 2.2 afin
-> de reconstruire le monde de développement avec le 9ᵉ lieu et le graphe. Elle est
-> **exceptionnelle** : toute future modification structurelle de données devra
-> normalement passer par une migration ou une procédure de mise à niveau sans
-> destruction du monde.
+> **Verify twice. Commit once.**
 
-### Horloge canonique temps réel (Lot 2.1)
-
-- L'heure simulée suit le temps réel (rapport 1:1) et est **dérivée** :
-  `simulated_now` (ancre) + temps réel écoulé depuis `real_updated_at`.
-- Une **lecture** de l'heure ne produit aucune écriture, aucun événement et
-  n'ouvre aucune transaction.
-- `pause_world` gèle le temps ; `resume_world` reprend sans ajouter la durée
-  passée en pause.
-- Statuts de monde : `active` / `paused` (contraints par la migration 0002).
-- Pas d'accélération permanente et aucun appel par minute (rattrapage différé à
-  la phase dédiée).
-
-### Connectivité spatiale (Lot 2.2)
-
-- 9 lieux : salon, cuisine, salle de bain, cour, **couloir** (circulation) et
-  4 chambres.
-- Graphe **orienté** : une ligne `location_link` = passage `from → to` ; un
-  passage bidirectionnel = deux arêtes réciproques (migration 0003).
-- API : `can_traverse(A,B)` (arête dirigée), `has_physical_connection(A,B)`
-  (au moins un sens), `adjacent_from(A)`, `find_path(A,B)` (BFS dirigé).
-- Une simple recherche de trajet/adjacence ne produit aucune écriture ni
-  événement ; une modification administrative du graphe est tracée (un
-  événement par opération physique) et atomique.
-
-### Personnages et présence canonique (Lot 3.1)
-
-- Table `character` (migration 0004) : `key` (identité technique **immuable**), `name`
-  (modifiable), `adult` (= 1), `current_location_id` (position canonique, FK composite
-  `(world_id, location_id)` garantissant le même monde).
-- 4 habitantes provisoires `character_1..4` (Personnages 1..4) en `chambre_1..4` ;
-  clé neutre **définitive** (le remplacement des fiches ne change que `name`).
-- `CharacterEngine` : `create_character`, `character_sheet` (lecture pure),
-  `move_character` (**une arête dirigée** via `GraphEngine`, refus en pause, refus vers
-  le lieu actuel, état + événement `character_moved` dans la même transaction).
-- Toutes les écritures passent par le moteur canonique (même infrastructure
-  transactionnelle/événementielle) ; `CharacterEngine` n'est pas une seconde autorité.
-
-### Besoins dérivés et matérialisation (Sous-lot 3.2A)
-
-- Valeur entière à précision fixe : `value_milli ∈ [0, 100000]` (0 = très déficient,
-  100000 = pleinement satisfait ; affichage = /1000).
-- Taux rationnel entier `rate_num / rate_den` (milli / seconde simulée), sans REAL :
-  évolution exactement reproductible et **indépendante du découpage** (grâce au
-  `rate_remainder` persistant, résidu de division conservé entre matérialisations).
-- 4 besoins : `satiete`, `repos`, `energie`, `hygiene` (migration 0005).
-- Une **lecture** est pure (aucune écriture, aucun événement). Une matérialisation
-  regroupe les 4 besoins d'un personnage dans une transaction et produit **un seul**
-  événement `needs_materialized` (ancres, valeurs et restes anciens/nouveaux, raison).
-- Pause : matérialise les besoins en même temps que le gel de l'horloge et du statut
-  dans **une** transaction atomique ; reprise sans écriture.
-- `upgrade-dev` ajoute aussi les besoins manquants (mise à niveau non destructive,
-  idempotente, ancrée à l'heure simulée canonique).
-- Dénominateur canonique commun **36** pour tous les taux (migration 0006 convertit
-  les taux/restes de 3.2A sans perte).
-
-### Activités et effets (Sous-lot 3.2B)
-
-- `activity_definition` (taux nets /36 par besoin), `activity_allowed_location`
-  (lieux autorisés par clé **ou** type, deux index uniques partiels),
-  `activity` (une seule active par personnage).
-- Activités : `idle`, `eat`, `rest`, `clean`, `sleep` (migration 0006).
-- `start_activity(world, char, type, target_location)` — destination **explicite**
-  et vérifiée (autorisée, existante), **atomique** : trajet pièce par pièce
-  (chaque `character_moved` dans la même transaction) + matérialisation + création
-  + `activity_started`. Retour à la position initiale si une étape échoue.
-- Fin conditionnelle du sommeil : `max(dt_repos, dt_energie)` plafonné à 8 h,
-  calcul exact des échéances (avec reste rationnel), refus si inutile.
-- `advance_to` clôture une activité échue **à son heure canonique de fin**, puis
-  repasse en régime passif ; `abort_activity` abandonne explicitement.
-- Toutes les transitions sont atomiques ; une lecture d'activité est pure.
-
-### Politique de décision et simulation (Sous-lot 3.2C)
-
-- `Intent(activity_type, target_location)` (contrat minimal) ;
-  `DecisionResult(intent, trigger_need, reason_code)` sépare la justification de
-  l'exécution (migration 0007 `character_profile`, entiers, sans REAL).
-- Politique **pure et déterministe** sur un `PolicyContext` immuable : urgence
-  normalisée = `déficit × 1000 // seuil`, comparaisons par **produits croisés**,
-  priorité par déficit normalisé (ordre fixe en égalité), gestion conjointe
-  repos/énergie (critique ⇒ sleep ; double-déficit ⇒ sleep ; modéré isolé ⇒ rest,
-  `rest_preference` graduée jamais opposée à un état critique), destination
-  courante sinon la plus courte (départage par clé), `idle` si rien sous seuil.
-- `SimulationEngine.run_to(world, target, max_transitions=2000)` : avance de
-  borne en borne, bornes simultanées traitées dans l'ordre de `character.key`,
-  heure cible en milieu d'activité sans clôture/décision, garde anti-boucle,
-  replis bornés, rapport (`last_time`, `transitions`, activités actives).
-- Les 4 profils seedés sont **neutres et identiques** (variations seulement en
-  tests). Reproductible : mêmes données + même heure cible ⇒ même état et même journal.
-
-### Attente dynamique et sommeil naturel (Sous-lot 3.3A)
-
-- `Intent` transporte `duration_seconds` : **obligatoire et borné** `1..MAX_IDLE`
-  (8 h) pour `idle`, **refusé** pour `eat`/`clean`/`rest`/`sleep` (durées définies ou
-  conditionnelles). Le moteur valide toujours la durée reçue de la politique.
-- **Attente dynamique** : l'`idle` ne dure plus 15 min fixes. Il se termine à la
-  **première seconde où la décision changerait** — franchissement d'un seuil
-  d'intervention, dépassement du palier d'urgence, ou franchissement critique —
-  calculé mathématiquement (aucun tick par minute), en tenant compte du reste
-  rationnel ; sinon plafond de sécurité `idle_safety_boundary` (8 h). Une unique
-  longue attente remplace les séries de micro-cycles.
-- **Règle de sommeil naturelle** : repos **ou** énergie critique ⇒ `sleep` ; repos
-  déficient ⇒ `sleep` ; seule énergie modérée (repos acceptable) ⇒ `rest` ; les deux
-  déficients ⇒ `sleep`. `rest_preference` ne peut jamais empêcher le sommeil exigé.
-  Aucun retunage de taux.
-- Démo 24 h corrigée : **84** transitions (vs 460), **28** idle (vs 168),
-  **128** matérialisations (vs 692), ≥ 1 sommeil de 8 h par habitante, aucun besoin
-  hors bornes, aucune boucle d'attente, journal et état identiques sur 2 exécutions.
-
-### Blessures de mobilité : état, causalité et récupération (Sous-lot 3.3B1)
-
-- Table `injury` (migration 0008) : une blessure générique `mobility`, sévérité
-  entière `severity_milli ∈ [0,100000]` (aucune REAL), statut `active`/`healed`
-  (CHECK combiné d'invariants), **une seule active** par personnage (index partiel),
-  historique immuable.
-- **Cause canonique** : `UNIQUE(world_id, cause_event_seq)` et FK vers
-  `canonical_event(world_id, seq)` — une cause ne produit qu'une blessure et ne
-  peut être réutilisée après consommation.
-- **Terminalité** : déclencheur interdisant toute transition `healed → …` et toute
-  modification corporelle d'une blessure guérie ; une nouvelle blessure est une
-  nouvelle ligne.
-- **Temps** : `started_at = recovery_anchor_at = cause.occurred_at` (`seq` cause <
-  `seq` constat) ; `injure_character` restreint aux causes dont `occurred_at` est
-  égal à l'heure canonique courante (cause ancienne refusée).
-- **Récupération** : régimes typés `passive`/`rest`/`sleep` (taux 2/6/12 sur 36),
-  reste rationnel persistant, indépendance au découpage et au changement de régime,
-  guérison à l'heure exacte (ancre fixée à cette heure), rejet des cibles
-  antérieures ou futures.
-- **Événements** : `scripted_accident` (source `owner`), `injury_occurred`,
-  `injury_materialized` (audit, seulement si écriture réelle), `injury_healed`.
-- API : `script_accident`, `injure_character`, `inflict_injury` (combiné atomique),
-  `materialize_injury`, `injury_sheet` (lecture pure).
-- Les **effets de mobilité** (déplacements, activités, politique, coût d'énergie)
-  sont reportés à 3.3B2.
-
-### Effets mécaniques des blessures (Sous-lot 3.3B2)
-
-- Classification dérivée `light`/`moderate`/`severe` (seuils 30000/60000).
-- Blessure légère : aucun coût. Blessure modérée : surcharge de déplacement
-  **500 milli-énergie par arête**. Blessure sévère : aucun mouvement autonome,
-  activités locales conservées.
-- Matérialisation canonique de la blessure avant classification, régime réellement
-  actif ; `character_moved` au payload stable (5 champs).
-- Garde : aucun déplacement pendant une activité active.
-
-### Reproductibilité et fermeture (Sous-lot 3.3C)
-
-- `repro.py` : `canonical_state_digest`, `raw_canonical_event_log`,
-  `structural_event_audit`, `reproducible_semantic_projection`,
-  `materialization_chain_audit`, `max_seq`, `SimulationRunReport`.
-- Helper interne `_advance_clock` ; progression `run_to` sans `clock_updated`.
-- Garantie : même état + mêmes règles + mêmes commandes + mêmes valeurs d'horloge
-  injectées + même ordre canonique = même état et même journal sémantique.
-
-### Fermeture technique de la Phase 3
-
-Phase 3 techniquement fermée au commit `7e5459e` : **228 tests réussis**, verdict
-`FERMETURE APPROUVABLE`. Le dossier maître est désormais `docs/00_DOSSIER_MAITRE_IA.md`
-v1.0. La Phase 4.1 a livré les lectures administratives, les commandes sûres, l’API
-HTTP locale et le premier tableau de bord. La Phase 4.2 a désormais posé le
-registre versionné, les gabarits génériques de personnage et leur validation
-structurelle, puis l'instanciation canonique avec provenance figée; leur
-catalogue minimal, les cinq gabarits MVP et le noyau générique de ressources et
-leurs effets déclaratifs sont publiés. L'interface et la création des résidentes
-dans un monde restent à faire.
-
-### Structure
-
-- `src/vivarium/` — paquet Python (package, configuration, journaux).
-- `tests/` — tests de fumée, SQLite et infrastructure.
-- `config/` — fichiers de configuration (`config/.env.example`).
-- `logs/` — répertoire des journaux (non versionné).
-- `data/` — données locales (non versionné, généré à l'exécution).
+Tout modèle comportemental, cognitif, social ou physiologique doit être fondé d'abord sur la littérature scientifique ou technique pertinente, puis traduit explicitement en système opérationnel. Les résultats empiriques, conclusions incertaines, hypothèses de modélisation et choix d'ingénierie doivent rester distingués.
