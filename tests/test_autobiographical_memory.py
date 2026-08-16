@@ -229,7 +229,8 @@ def test_cognition_receives_separate_autobiographical_working_set(setup):
     )
 
     context = CognitionContextService(conn, clock=clock).build(world_id, "sophie")
-    assert context.memories[0]["request_key"] == "cognition_source"
+    assert context.memories[0]["fact_type"]
+    assert "request_key" not in context.memories[0]
     assert context.autobiographical_memories[0]["episode_key"] == "cognition-episode"
     assert "autobiographical_memories" in context.wire()
     assert "support_trace_ids" not in context.wire()["autobiographical_memories"][0]

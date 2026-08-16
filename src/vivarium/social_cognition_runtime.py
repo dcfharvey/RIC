@@ -180,9 +180,14 @@ class LiveSocialCognitionService:
         for character_key in self._scene_participants(world_id, scene_key, act_key):
             trace_request_key = f"live_trace_{act_key}_{character_key}"
             try:
-                self._memory.encode_social_speech(
+                encoding = self._memory.admit_social_speech(
                     world_id, character_key, trace_request_key, scene_key, act_key,
                 )
+                if encoding["trace"] is None:
+                    outcomes.append(LiveSocialCognitionOutcome(
+                        character_key, trace_request_key, "not_encoded", None, None, None,
+                    ))
+                    continue
                 admission = self._admissions.admit(world_id, character_key, trace_request_key)
             except (SubjectiveMemoryError, SCC1CError) as exc:
                 if getattr(exc, "code", None) == "source_not_accessible":

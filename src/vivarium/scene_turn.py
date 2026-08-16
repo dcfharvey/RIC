@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol
 
@@ -26,6 +26,7 @@ from .cognition_policy import CALL_TRIGGER_SCENE_TURN, CognitionCallLimits
 from .diagnostics import DiagnosticRecorder
 from .registry import KEY_RE as _KEY_RE
 from .scenes import SceneError, SocialSceneService
+from .subjective_memory import SubjectiveMemoryService
 from .util import Clock
 
 
@@ -152,19 +153,18 @@ class SceneTurnContextService:
             for item in recent_acts
             if isinstance(item.get("source_social_speech_act_id"), int)
         )
-        subjective = CognitionContextService(self._conn, clock=self._clock).build(world_id, speaker_key)
+        audit_memories = SubjectiveMemoryService(self._conn, clock=self._clock).recall_recent(
+            world_id, speaker_key,
+        )
         duplicate_ids = tuple(sorted(
             source_id for source_id in source_ids
-            if any(memory.get("source_social_speech_act_id") == source_id for memory in subjective.memories)
+            if any(memory.get("source_social_speech_act_id") == source_id for memory in audit_memories)
         ))
-        if duplicate_ids:
-            subjective = replace(
-                subjective,
-                memories=tuple(
-                    memory for memory in subjective.memories
-                    if memory.get("source_social_speech_act_id") not in source_ids
-                ),
-            )
+        subjective = CognitionContextService(self._conn, clock=self._clock).build(
+            world_id,
+            speaker_key,
+            exclude_memory_source_social_speech_act_ids=duplicate_ids,
+        )
         return SceneTurnContext(
             world_id,
             scene_key,

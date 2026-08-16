@@ -31,6 +31,7 @@ from .sleep_physiology import SleepPhysiologyFoundationService
 from .social_cycle import SocialCycleOutcome, SocialSceneCycle
 from .world import WorldEngine
 from .non_sapient import NonSapientAgencyCycle, NonSapientOutcome
+from .subjective_memory import SubjectiveMemoryService
 from .util import Clock
 
 
@@ -163,6 +164,12 @@ class MVPRuntime:
                 simulation = SimulationEngine(self._conn, clock=self._clock).run_to(
                     self.world_id, target, max_transitions=self._max_transitions
                 )
+        # L'admission mémoire est une décision distincte de l'accessibilité et
+        # précède les consommateurs cognitifs du tick. Le service reste
+        # propriétaire des traces et épisodes; le runtime ne fait que l'orchestrer.
+        SubjectiveMemoryService(self._conn, clock=self._clock).admit_current_attention(
+            self.world_id
+        )
         cognition = None
         autonomy = None
         social = None

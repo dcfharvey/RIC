@@ -310,13 +310,19 @@ class CognitionContextService:
         *,
         after_event_seq: Any = 0,
         decision_cue: Mapping[str, Any] | None = None,
+        exclude_memory_source_social_speech_act_ids: tuple[int, ...] = (),
     ) -> CognitionContext:
         world_id, character_key = _world_id(world_id), _key(character_key, "personnage")
         character = CharacterEngine(self._conn, clock=self._clock).character_sheet(world_id, character_key)
         attention = AttentionService(self._conn, clock=self._clock).snapshot(world_id, character_key, limit=MAX_ATTENTION)
         feed = PerceptionService(self._conn, clock=self._clock).events_since(world_id, character_key, after_event_seq)
         memory_service = SubjectiveMemoryService(self._conn, clock=self._clock)
-        memories = memory_service.recall_recent(world_id, character_key, limit=MAX_MEMORIES)
+        memories = memory_service.recall_recent_cognitive(
+            world_id,
+            character_key,
+            limit=MAX_MEMORIES,
+            exclude_source_social_speech_act_ids=exclude_memory_source_social_speech_act_ids,
+        )
         autobiographical_memories = memory_service.recall_autobiographical(
             world_id,
             character_key,

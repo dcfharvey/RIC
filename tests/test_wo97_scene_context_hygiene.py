@@ -114,7 +114,7 @@ def test_new_scene_has_no_recent_acts_but_keeps_historical_memory():
         context = SceneTurnContextService(conn, clock=clock).build(world_id, "new_scene", "sophie")
         assert context.recent_acts == ()
         assert any(
-            item.get("source_social_speech_act_id") == _source_id(conn, "context_scene", "speech-1")
+            "source_social_speech_act_id" not in item
             and item["payload"]["content"] == text
             for item in context.subjective_context.memories
         )
