@@ -1917,6 +1917,55 @@ class SleepPhysiologyService:
         except PhysicalCapacityError as exc:
             raise SleepPhysiologyError(str(exc), code=exc.code) from exc
 
+    def project_physical_capacity_owner_backed(
+        self, world_id: Any, character_key: Any, *, at_time: Any | None = None,
+    ) -> dict[str, Any]:
+        """Project P to a canonical instant without materializing it.
+
+        The projection is a read-only owner contract for option services. It
+        uses the same persisted activity regime and physical policy as the
+        active activity engine, while refusing an unresolved causal boundary
+        instead of mutating physiology during option generation.
+        """
+        world = self._world_id(world_id)
+        character = _key(character_key, field="personnage")
+        target = _at(at_time or WorldEngine(self._conn, clock=self._clock).read_canonical_time(world))
+        live = _at(WorldEngine(self._conn, clock=self._clock).read_canonical_time(world))
+        if parse_iso(target) > parse_iso(live):
+            raise SleepPhysiologyError(
+                "frontière physiologique future", code="stale_canonical_anchor"
+            )
+        state = self.read_state(world, character)
+        duration = self._seconds_between(state.anchor_at, target)
+        self._assert_no_unmaterialized_character_boundary(
+            world, character, state.anchor_at, target
+        )
+        regime, load, _sustained, activity_type = self._owner_backed_regime(
+            world, character
+        )
+        policy = SleepPhysiologyFoundationService(
+            self._conn, clock=self._clock
+        ).validate_physical_capacity_configuration(world)
+        try:
+            capacity_milli, rate_remainder = advance_physical_capacity(
+                policy,
+                capacity_milli=state.regulation.physical_capacity_milli,
+                rate_remainder=state.physical_capacity_remainder,
+                state=regime,
+                physical_load_class=load,
+                duration_seconds=duration,
+            )
+        except PhysicalCapacityError as exc:
+            raise SleepPhysiologyError(str(exc), code=exc.code) from exc
+        return {
+            "capacity_milli": capacity_milli,
+            "rate_remainder": rate_remainder,
+            "anchor_at": state.anchor_at,
+            "canonical_at": target,
+            "physical_load_class": load,
+            "activity_type": activity_type,
+        }
+
     def evaluate_traversal_capacity_owner_backed(
         self, world_id: Any, character_key: Any, *, edge_count: int = 1,
         capacity_milli: int | None = None,

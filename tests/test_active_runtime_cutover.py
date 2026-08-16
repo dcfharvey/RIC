@@ -4,10 +4,11 @@ from datetime import datetime,timezone,timedelta
 
 import pytest
 
-from vivarium.activities import ActivityEngine
+from vivarium.activities import ActivityEngine, ActivityError
 from vivarium.action_arbitration import ActionArbitrationFoundationService
 from vivarium.active_simulation import ActiveSimulationEngine, POST_BOUNDARY_IDLE_SECONDS
 from vivarium.autonomy_cycle import RETRY_IDLE_SECONDS
+from vivarium.action_options import ActionOptionService
 from vivarium.character_capabilities import sapient_character_keys
 from vivarium.circadian_model import calibration_profiles
 from vivarium.db import connect_database,transaction
@@ -187,3 +188,42 @@ def test_post_boundary_idle_horizon_is_not_the_retry_idle_contract(monkeypatch):
     assert RETRY_IDLE_SECONDS == 600
     monkeypatch.setattr("vivarium.autonomy_cycle.RETRY_IDLE_SECONDS", 1)
     assert POST_BOUNDARY_IDLE_SECONDS == 600
+
+
+def test_active_activity_options_exclude_physical_infeasibility_and_return_when_feasible():
+    conn, wid, clock = active_world()
+    try:
+        activity = ActivityEngine(conn, clock=clock)
+        destination = sorted(activity.allowed_locations(wid, "sport"))[0]
+
+        conn.execute(
+            "UPDATE physical_capacity_state SET capacity_milli=10000 "
+            "WHERE world_id=? AND character_id=(SELECT id FROM character WHERE world_id=? AND key='sophie')",
+            (wid, wid),
+        )
+        before_events = conn.execute(
+            "SELECT COUNT(*) FROM canonical_event WHERE world_id=?", (wid,)
+        ).fetchone()[0]
+        low_options = ActionOptionService(conn, clock=clock).available_activities(wid, "sophie")
+        assert ("sport", destination) not in {
+            (option.activity_type, option.target_location_key) for option in low_options
+        }
+        with pytest.raises(ActivityError):
+            activity.start_activity(
+                wid, "sophie", "sport", destination, sim_now=T0
+            )
+        assert conn.execute(
+            "SELECT COUNT(*) FROM canonical_event WHERE world_id=?", (wid,)
+        ).fetchone()[0] == before_events
+
+        conn.execute(
+            "UPDATE physical_capacity_state SET capacity_milli=70000 "
+            "WHERE world_id=? AND character_id=(SELECT id FROM character WHERE world_id=? AND key='sophie')",
+            (wid, wid),
+        )
+        high_options = ActionOptionService(conn, clock=clock).available_activities(wid, "sophie")
+        assert ("sport", destination) in {
+            (option.activity_type, option.target_location_key) for option in high_options
+        }
+    finally:
+        conn.close()

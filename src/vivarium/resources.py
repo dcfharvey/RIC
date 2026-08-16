@@ -592,3 +592,29 @@ class ResourceEngine:
             "state_key": band["state_key"],
             "effects": [dict(item) for item in rows],
         }
+
+    def active_effects_for_character(
+        self, world_id: Any, character_key: Any, target_at: str
+    ) -> tuple[dict[str, Any], ...]:
+        """Read all current owner-backed resource effects for one character.
+
+        This is a pure owner contract for consumers that need the operational
+        consequences of resources without reading the resource tables. The
+        returned resource/state identifiers remain engine data; callers that
+        project a subjective context must select only the effects appropriate
+        for that context.
+        """
+        world_id = self._integer(world_id, "monde", 1)
+        character_key = self._key(character_key, "clé de personnage")
+        if not isinstance(target_at, str):
+            raise ResourceError("heure cible invalide")
+        rows = self._conn.execute(
+            "SELECT DISTINCT rs.resource_key "
+            "FROM resource_state rs JOIN character ch ON ch.id = rs.character_id "
+            "WHERE rs.world_id = ? AND ch.key = ? ORDER BY rs.resource_key",
+            (world_id, character_key),
+        ).fetchall()
+        return tuple(
+            self.active_effects(world_id, character_key, row["resource_key"], target_at)
+            for row in rows
+        )

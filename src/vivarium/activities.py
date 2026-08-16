@@ -218,6 +218,80 @@ class ActivityEngine:
 
     _path = resolve_path
 
+    def preview_start_activity(
+        self, world_id: int, character_key: str, activity_type: str,
+        target_location_key: str, *, sim_now: str | None = None,
+    ) -> dict[str, Any]:
+        """Preview the same deterministic physical gates used at start time.
+
+        The preview never writes. It is an option-projection contract, not a
+        reservation: the atomic start path remains the final validator and can
+        still reject a stale proposal.
+        """
+        if self._world().get_world(world_id)["status"] == "paused":
+            return {"feasible": False, "reason_code": "world_paused"}
+        current_row = self._conn.execute(
+            "SELECT l.key AS cur FROM character ch JOIN location l ON l.id=ch.current_location_id "
+            "WHERE ch.world_id=? AND ch.key=?", (world_id, character_key),
+        ).fetchone()
+        if current_row is None:
+            raise ActivityError(f"personnage introuvable : {character_key!r}")
+        if activity_type == "idle":
+            if target_location_key != current_row["cur"]:
+                return {"feasible": False, "reason_code": "idle_requires_current_location"}
+        else:
+            self._def(world_id, activity_type)
+            self._location_id(world_id, target_location_key)
+            if not self.is_allowed(world_id, activity_type, target_location_key):
+                return {"feasible": False, "reason_code": "activity_location_not_allowed"}
+        path = self.resolve_path(world_id, current_row["cur"], target_location_key)
+        if not self._physiology_active(world_id):
+            return {"feasible": True, "reason_code": "legacy_validation_passed", "path": tuple(path)}
+
+        from .sleep_physiology import SleepPhysiologyError, SleepPhysiologyService
+
+        physiology = SleepPhysiologyService(self._conn, clock=self._clock)
+        start_at = sim_now or self._world().read_canonical_time(world_id)
+        try:
+            projection = physiology.project_physical_capacity_owner_backed(
+                world_id, character_key, at_time=start_at
+            )
+            edge_count = len(path) - 1
+            traversal = physiology.evaluate_traversal_capacity_owner_backed(
+                world_id, character_key, edge_count=max(1, edge_count),
+                capacity_milli=projection["capacity_milli"],
+            ) if edge_count else None
+            if traversal is not None and not traversal.feasible:
+                return {
+                    "feasible": False,
+                    "reason_code": "physical_traversal_infeasible",
+                    "path": tuple(path),
+                }
+            after_path = projection["capacity_milli"] - (
+                0 if traversal is None or traversal.traversal_cost_milli is None
+                else traversal.traversal_cost_milli
+            )
+            activity_eval = physiology.evaluate_activity_capacity_owner_backed(
+                world_id, character_key, activity_type, capacity_milli=after_path
+            )
+            if not activity_eval.feasible:
+                return {
+                    "feasible": False,
+                    "reason_code": "physical_activity_infeasible",
+                    "path": tuple(path),
+                }
+        except SleepPhysiologyError as exc:
+            return {
+                "feasible": False,
+                "reason_code": exc.code,
+                "path": tuple(path),
+            }
+        return {
+            "feasible": True,
+            "reason_code": "physical_validation_passed",
+            "path": tuple(path),
+        }
+
     _ACTIVE_NEED_KEYS = frozenset({"satiete", "hygiene"})
 
     def _physiology_active(self, world_id: int) -> bool:

@@ -26,9 +26,11 @@ from .attention import AttentionService
 from .beliefs import BeliefService
 from .decision import DecisionFrameService
 from .character import CharacterEngine
+from .instances import CharacterInstanceService, InstanceError
 from .perception import PerceptionService
 from .personality import PersonalityService
 from .registry import KEY_RE as _KEY_RE
+from .resources import ResourceEngine
 from .social import SocialService
 from .subjective_memory import SubjectiveMemoryService
 from .util import Clock
@@ -266,42 +268,87 @@ class CognitionContextService:
         self._conn = conn
         self._clock = clock or Clock()
 
-    def _self_profile(self, world_id: int, character_key: str) -> Mapping[str, Any]:
+    def _self_profile(
+        self, world_id: int, character_key: str, observed_at: str
+    ) -> Mapping[str, Any]:
         """Expose une calibration propre au personnage, jamais celle d'autrui.
 
         Les textes des composants restent des directions d'expression; ils ne
         constituent pas une règle qui force l'action ni une connaissance partagée.
         """
-        row = self._conn.execute(
-            "SELECT resolved_initial_definition_json FROM character_instance_origin o "
-            "JOIN character c ON c.id = o.character_id "
-            "WHERE o.world_id = ? AND c.key = ?",
-            (world_id, character_key),
-        ).fetchone()
+        try:
+            origin = CharacterInstanceService(self._conn, clock=self._clock).origin(
+                world_id, character_key
+            )
+        except InstanceError:
+            origin = {"resolved_initial_definition": {}}
         summaries: list[str] = []
-        if row is not None:
-            try:
-                components = json.loads(row["resolved_initial_definition_json"]).get("components", [])
-                for component in components:
-                    if not isinstance(component, Mapping):
-                        continue
-                    if component.get("key") in {"appearance.descriptive", "personality.initial_dispositions"}:
-                        summary = component.get("config", {}).get("summary")
-                        if isinstance(summary, str) and summary:
-                            summaries.append(summary)
-            except (TypeError, ValueError):
-                pass
+        morphology: dict[str, str] = {}
+        definition = origin["resolved_initial_definition"]
+        components = definition.get("components", []) if isinstance(definition, Mapping) else []
+        for component in components:
+            if not isinstance(component, Mapping):
+                continue
+            key = component.get("key")
+            config = component.get("config")
+            if not isinstance(config, Mapping):
+                continue
+            if key in {"appearance.descriptive", "personality.initial_dispositions"}:
+                summary = config.get("summary")
+                if isinstance(summary, str) and summary:
+                    summaries.append(summary)
+            if key == "body.morphology":
+                body_plan = config.get("body_plan")
+                if isinstance(body_plan, str) and body_plan:
+                    morphology["body_plan"] = body_plan
         personality = PersonalityService(self._conn, clock=self._clock).read(world_id, character_key)
         traits = {} if personality is None else {
             key: value["mean_milli"] for key, value in personality["traits"].items()
         }
         values = ValuesService(self._conn, clock=self._clock).read(world_id, character_key)
+        operational_grounding = self._operational_grounding(
+            world_id, character_key, observed_at
+        )
+        if morphology:
+            operational_grounding = {
+                "morphology": morphology,
+                **operational_grounding,
+            }
         return _freeze({
             "expression_summaries": tuple(summaries),
             "trait_means_milli": traits,
             "ranked_values": () if values is None else tuple(values["ranked_value_keys"][:5]),
             "preferences": () if values is None else tuple(values["preferences"]),
+            "operational_grounding": operational_grounding,
         })
+
+    def _operational_grounding(
+        self, world_id: int, character_key: str, observed_at: str
+    ) -> Mapping[str, Any]:
+        """Project generic owner-backed self-state without engine metadata."""
+        capabilities: dict[str, str] = {}
+        context_signals: dict[str, int] = {}
+        resource_effects = ResourceEngine(self._conn, clock=self._clock).active_effects_for_character(
+            world_id, character_key, observed_at
+        )
+        for resource in resource_effects:
+            for effect in resource["effects"]:
+                effect_type = effect.get("effect_type")
+                effect_key = effect.get("effect_key")
+                if not isinstance(effect_key, str):
+                    continue
+                if effect_type == "capability_availability":
+                    availability = effect.get("availability")
+                    if isinstance(availability, str):
+                        capabilities[effect_key] = availability
+                elif effect_type == "context_signal":
+                    value = effect.get("value_milli")
+                    if isinstance(value, int) and not isinstance(value, bool):
+                        context_signals[effect_key] = value
+        return {
+            "capabilities": dict(sorted(capabilities.items())),
+            "context_signals": dict(sorted(context_signals.items())),
+        }
 
     def build(
         self,
@@ -345,7 +392,7 @@ class CognitionContextService:
             candidate = _freeze({"connector_key": payload["connector"], "target_location_key": payload["destination"]})
             if candidate not in visible_traversals:
                 visible_traversals.append(candidate)
-        options = ActionOptionService(self._conn).visible_traversals(
+        options = ActionOptionService(self._conn, clock=self._clock).visible_traversals(
             world_id, character_key, (_plain(item) for item in visible_traversals)
         )
         allowed = tuple(_freeze({
@@ -357,7 +404,7 @@ class CognitionContextService:
         if cue.get("trigger") == "planned_reflection":
             activity_options = tuple(
                 _freeze(option.wire())
-                for option in ActionOptionService(self._conn).available_activities(
+                for option in ActionOptionService(self._conn, clock=self._clock).available_activities(
                     world_id, character_key
                 )
             )
@@ -372,7 +419,7 @@ class CognitionContextService:
             tuple(_freeze(_plain(emotion)) for emotion in emotions),
             tuple(_freeze(_plain(relationship)) for relationship in relationships),
             tuple(_freeze(_plain(boundary)) for boundary in boundaries), _freeze(decision_frame), tuple(allowed),
-            activity_options, self._self_profile(world_id, character_key), cue,
+            activity_options, self._self_profile(world_id, character_key, attention.observed_at), cue,
         )
 
 

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
 from .traversal import TraversalEngine
-from .spatial import GraphEngine
+from .util import Clock
 
 
 AUTONOMOUS_ACTIVITY_TYPES = frozenset({
@@ -53,8 +53,9 @@ class ActivityOption:
 class ActionOptionService:
     """Transforme des passages déjà perceptibles en options encore légales."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, clock: Clock | None = None) -> None:
         self._conn = conn
+        self._clock = clock or Clock()
 
     def visible_traversals(
         self, world_id: int, character_key: str, visible: Iterable[Mapping[str, Any]]
@@ -98,10 +99,9 @@ class ActionOptionService:
         ).fetchone()
         if row is None or row["type"] not in {None, "idle"}:
             return ()
-        from .activities import ActivityEngine
+        from .activities import ActivityEngine, ActivityError
 
-        engine = ActivityEngine(self._conn)
-        graph = GraphEngine(self._conn)
+        engine = ActivityEngine(self._conn, clock=self._clock)
         options: list[ActivityOption] = []
         for activity_type in sorted(AUTONOMOUS_ACTIVITY_TYPES):
             definition = self._conn.execute(
@@ -112,9 +112,16 @@ class ActionOptionService:
             if definition is None:
                 continue
             for destination in sorted(engine.allowed_locations(world_id, activity_type)):
-                # ``preview`` ne couvre qu'un connecteur. Ici une activite peut
-                # demander un trajet; GraphEngine est deja la source BFS de
-                # ActivityEngine et start_activity le reverifiera atomiquement.
-                if graph.find_path(world_id, row["current_location"], destination) is not None:
-                    options.append(ActivityOption(activity_type, destination, definition["min_duration_seconds"]))
+                try:
+                    preview = engine.preview_start_activity(
+                        world_id, character_key, activity_type, destination
+                    )
+                except ActivityError:
+                    continue
+                if preview["feasible"]:
+                    options.append(
+                        ActivityOption(
+                            activity_type, destination, definition["min_duration_seconds"]
+                        )
+                    )
         return tuple(options)
