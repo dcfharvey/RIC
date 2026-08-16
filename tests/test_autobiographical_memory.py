@@ -241,3 +241,172 @@ def test_cognition_receives_separate_autobiographical_working_set(setup):
     assert CognitionContextService(conn, clock=clock).build(
         world_id, "erika"
     ).autobiographical_memories == ()
+
+
+def test_append_only_lifecycle_keeps_history_and_retrieves_only_current(setup):
+    conn, world_id, clock = setup
+    memory = SubjectiveMemoryService(conn, clock=clock)
+
+    trace_a = _direct_trace(
+        conn, world_id, clock, "lifecycle-a", "porte_entree", "salon"
+    )
+    trace_a_id = _trace_id(conn, "lifecycle-a")
+    episode_zero = memory.form_episode(
+        world_id, "sophie", "lifecycle-e0", [trace_a_id],
+        importance_milli=640, accessibility_milli=720,
+    )
+    episode_zero_before = memory.get_episode(world_id, "sophie", "lifecycle-e0")
+
+    attention_item = AttentionService(conn, clock=clock).snapshot(
+        world_id, "sophie"
+    ).selected[0]
+    trace_b = memory.encode_attention(
+        world_id, "sophie", "lifecycle-b", attention_item
+    )
+    trace_b_id = _trace_id(conn, "lifecycle-b")
+    revision_one = memory.revise_episode(
+        world_id, "sophie", "lifecycle-e0", "lifecycle-e1", [trace_b_id],
+        request_key="lifecycle-revision-1",
+    )
+
+    assert revision_one["successor"]["episode_key"] == "lifecycle-e1"
+    assert revision_one["successor"]["support_trace_ids"] == (trace_a_id, trace_b_id)
+    assert revision_one["successor"]["importance_milli"] == 640
+    assert revision_one["successor"]["accessibility_milli"] == 720
+    assert memory.get_episode(world_id, "sophie", "lifecycle-e0") == episode_zero_before
+    assert memory.get_current_episode(
+        world_id, "sophie", "lifecycle-e0"
+    )["episode_key"] == "lifecycle-e1"
+
+    history_one = memory.get_episode_history(world_id, "sophie", "lifecycle-e1")
+    assert tuple(item["episode_key"] for item in history_one) == (
+        "lifecycle-e0", "lifecycle-e1"
+    )
+    assert history_one[0]["is_current"] is False
+    assert history_one[1]["is_current"] is True
+    assert history_one[1]["revision_from_predecessor"]["new_support_trace_ids"] == (
+        trace_b_id,
+    )
+    recalled = memory.recall_autobiographical(
+        world_id, "sophie", context={"cues": ["character_moved"]}
+    )
+    assert tuple(item["episode_key"] for item in recalled) == ("lifecycle-e1",)
+    cognitive = CognitionContextService(conn, clock=clock).build(world_id, "sophie")
+    assert tuple(item["episode_key"] for item in cognitive.autobiographical_memories) == (
+        "lifecycle-e1",
+    )
+    assert "revision_from_predecessor" not in cognitive.wire()["autobiographical_memories"][0]
+
+    trace_c = memory.encode_attention(
+        world_id, "sophie", "lifecycle-c", attention_item
+    )
+    trace_c_id = _trace_id(conn, "lifecycle-c")
+    revision_two = memory.revise_episode(
+        world_id, "sophie", "lifecycle-e1", "lifecycle-e2", [trace_c_id],
+        request_key="lifecycle-revision-2",
+    )
+    assert revision_two["successor"]["episode_key"] == "lifecycle-e2"
+    assert tuple(item["episode_key"] for item in memory.recall_autobiographical(
+        world_id, "sophie", context={"cues": ["character_moved"]}
+    )) == ("lifecycle-e2",)
+    assert tuple(item["episode_key"] for item in memory.get_episode_history(
+        world_id, "sophie", "lifecycle-e0"
+    )) == ("lifecycle-e0", "lifecycle-e1", "lifecycle-e2")
+
+
+def test_append_only_lifecycle_rejects_forks_cross_owner_and_cycles(setup):
+    conn, world_id, clock = setup
+    memory = SubjectiveMemoryService(conn, clock=clock)
+    item = AttentionService(conn, clock=clock).snapshot(world_id, "sophie").selected[0]
+    memory.encode_attention(world_id, "sophie", "fork-a", item)
+    a_id = _trace_id(conn, "fork-a")
+    memory.form_episode(world_id, "sophie", "fork-e0", [a_id])
+    memory.encode_attention(world_id, "sophie", "fork-b", item)
+    b_id = _trace_id(conn, "fork-b")
+    memory.revise_episode(
+        world_id, "sophie", "fork-e0", "fork-e1", [b_id],
+        request_key="fork-revision-1",
+    )
+
+    with pytest.raises(SubjectiveMemoryError) as raised:
+        memory.revise_episode(
+            world_id, "sophie", "fork-e0", "fork-e-other", [b_id],
+            request_key="fork-revision-2",
+        )
+    assert raised.value.code == "episode_not_current"
+
+    erika_item = AttentionService(conn, clock=clock).snapshot(world_id, "erika").selected[0]
+    memory.encode_attention(world_id, "erika", "fork-erika", erika_item)
+    erika_trace_id = _trace_id(conn, "fork-erika")
+    with pytest.raises(SubjectiveMemoryError) as raised:
+        memory.revise_episode(
+            world_id, "sophie", "fork-e1", "fork-cross-owner", [erika_trace_id],
+            request_key="fork-cross-owner-request",
+        )
+    assert raised.value.code == "source_not_accessible"
+
+    episode_zero_id = conn.execute(
+        "SELECT id FROM autobiographical_episode WHERE episode_key = 'fork-e0'"
+    ).fetchone()[0]
+    episode_one_id = conn.execute(
+        "SELECT id FROM autobiographical_episode WHERE episode_key = 'fork-e1'"
+    ).fetchone()[0]
+    with pytest.raises(Exception, match="cycle"):
+        conn.execute(
+            "INSERT INTO autobiographical_episode_revision "
+            "(public_id, world_id, character_id, request_key, predecessor_episode_id, "
+            "successor_episode_id, reason_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "cycle-public-id", world_id,
+                conn.execute(
+                    "SELECT id FROM character WHERE world_id = ? AND key = 'sophie'",
+                    (world_id,),
+                ).fetchone()[0],
+                "cycle-request", episode_one_id, episode_zero_id,
+                "test_cycle", clock.now_iso(),
+            ),
+        )
+
+
+def test_append_only_lifecycle_is_immutable_and_retry_idempotent(setup):
+    conn, world_id, clock = setup
+    memory = SubjectiveMemoryService(conn, clock=clock)
+    item = AttentionService(conn, clock=clock).snapshot(world_id, "sophie").selected[0]
+    memory.encode_attention(world_id, "sophie", "immutable-a", item)
+    a_id = _trace_id(conn, "immutable-a")
+    memory.form_episode(world_id, "sophie", "immutable-e0", [a_id])
+    memory.encode_attention(world_id, "sophie", "immutable-b", item)
+    b_id = _trace_id(conn, "immutable-b")
+    first = memory.revise_episode(
+        world_id, "sophie", "immutable-e0", "immutable-e1", [b_id],
+        request_key="immutable-revision",
+    )
+    counts_before = tuple(
+        conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        for table in (
+            "autobiographical_episode",
+            "autobiographical_episode_revision",
+            "autobiographical_episode_revision_support",
+        )
+    )
+    second = memory.revise_episode(
+        world_id, "sophie", "immutable-e0", "immutable-e1", [b_id],
+        request_key="immutable-revision",
+    )
+    counts_after = tuple(
+        conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        for table in (
+            "autobiographical_episode",
+            "autobiographical_episode_revision",
+            "autobiographical_episode_revision_support",
+        )
+    )
+    assert first == second
+    assert counts_after == counts_before
+
+    with pytest.raises(Exception, match="append-only"):
+        conn.execute(
+            "UPDATE autobiographical_episode_revision SET reason_code = 'changed'"
+        )
+    with pytest.raises(Exception, match="append-only"):
+        conn.execute("DELETE FROM autobiographical_episode_revision")

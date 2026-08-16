@@ -1,9 +1,15 @@
 """Tests du runner de migrations (Phase 1)."""
 
+from datetime import datetime, timezone
+from shutil import copy2
+
 import pytest
 
+from vivarium.attention import AttentionService
 from vivarium.db import connect_database, transaction
+from vivarium.integration_world import IntegrationWorldService
 from vivarium.migrations import (
+    MIGRATIONS_DIR,
     Migration,
     MigrationError,
     current_version,
@@ -11,6 +17,15 @@ from vivarium.migrations import (
     load_migrations,
     split_sql_statements,
 )
+from vivarium.subjective_memory import SubjectiveMemoryService
+
+
+class FixedClock:
+    def now(self):
+        return datetime(2026, 8, 16, 12, tzinfo=timezone.utc)
+
+    def now_iso(self):
+        return self.now().isoformat()
 
 
 @pytest.fixture
@@ -60,12 +75,12 @@ def test_ensure_schema_applique_et_est_idempotent(conn):
 
 
 def test_scc1b_interpretation_only_renomme_lancienne_colonne_et_reste_idempotente(conn):
-    assert ensure_schema(conn) == 60
+    assert ensure_schema(conn) == 61
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(social_interpretation)")}
     assert "meaning_hypotheses_json" in columns
     assert "legacy_motive_hypotheses_json" in columns
     assert "motive_hypotheses_json" not in columns
-    assert ensure_schema(conn) == 60
+    assert ensure_schema(conn) == 61
 
 
 def test_migrations_enregistre_ledger(conn):
@@ -80,7 +95,7 @@ def test_migrations_enregistre_ledger(conn):
 
 
 def test_autobiographical_memory_migration_creates_owner_scoped_tables(conn):
-    assert ensure_schema(conn) == 60
+    assert ensure_schema(conn) == 61
     tables = {
         row["name"]
         for row in conn.execute(
@@ -93,22 +108,59 @@ def test_autobiographical_memory_migration_creates_owner_scoped_tables(conn):
         "autobiographical_episode_event",
         "subjective_memory_encoding_admission",
         "autobiographical_episode_seed_decision",
+        "autobiographical_episode_revision",
+        "autobiographical_episode_revision_support",
     } <= tables
-    assert ensure_schema(conn) == 60
+    assert ensure_schema(conn) == 61
 
 
 def test_autobiographical_memory_migration_survives_existing_database_reopen(tmp_path):
     path = tmp_path / "existing.sqlite"
     first = connect_database(str(path))
-    assert ensure_schema(first) == 60
+    assert ensure_schema(first) == 61
     first.close()
 
     reopened = connect_database(str(path))
     try:
-        assert ensure_schema(reopened) == 60
+        assert ensure_schema(reopened) == 61
         assert reopened.execute(
-            "SELECT checksum FROM migrations WHERE version = 60"
+            "SELECT checksum FROM migrations WHERE version = 61"
         ).fetchone()[0]
+    finally:
+        reopened.close()
+
+
+def test_append_only_migration_preserves_existing_episode_as_current(tmp_path):
+    legacy_dir = tmp_path / "legacy-migrations"
+    legacy_dir.mkdir()
+    for path in MIGRATIONS_DIR.glob("*.sql"):
+        if path.name != "0061_autobiographical_append_only_lifecycle.sql":
+            copy2(path, legacy_dir / path.name)
+
+    path = tmp_path / "existing-episode.sqlite"
+    legacy = connect_database(str(path))
+    clock = FixedClock()
+    assert ensure_schema(legacy, legacy_dir) == 60
+    world_id = IntegrationWorldService(legacy, clock=clock).create_initial_world()["id"]
+    item = AttentionService(legacy, clock=clock).snapshot(world_id, "sophie").selected[0]
+    memory = SubjectiveMemoryService(legacy, clock=clock)
+    memory.encode_attention(world_id, "sophie", "legacy-trace", item)
+    trace_id = legacy.execute(
+        "SELECT id FROM subjective_trace WHERE request_key = 'legacy-trace'"
+    ).fetchone()[0]
+    memory.form_episode(world_id, "sophie", "legacy-episode", [trace_id])
+    legacy.close()
+
+    reopened = connect_database(str(path))
+    try:
+        assert ensure_schema(reopened) == 61
+        current = SubjectiveMemoryService(reopened, clock=clock).get_current_episode(
+            world_id, "sophie", "legacy-episode"
+        )
+        assert current["episode_key"] == "legacy-episode"
+        assert reopened.execute(
+            "SELECT COUNT(*) FROM autobiographical_episode_revision"
+        ).fetchone()[0] == 0
     finally:
         reopened.close()
 

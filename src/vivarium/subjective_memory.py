@@ -752,6 +752,47 @@ class SubjectiveMemoryService:
             (world_id, character_id, episode_key),
         ).fetchone()
 
+    def _episode_revision_by_request(
+        self, world_id: int, character_id: int, request_key: str,
+    ):
+        return self._conn.execute(
+            "SELECT * FROM autobiographical_episode_revision "
+            "WHERE world_id = ? AND character_id = ? AND request_key = ?",
+            (world_id, character_id, request_key),
+        ).fetchone()
+
+    def _episode_revision_from(self, episode_id: int):
+        return self._conn.execute(
+            "SELECT * FROM autobiographical_episode_revision "
+            "WHERE predecessor_episode_id = ?", (episode_id,)
+        ).fetchone()
+
+    def _episode_revision_to(self, episode_id: int):
+        return self._conn.execute(
+            "SELECT * FROM autobiographical_episode_revision "
+            "WHERE successor_episode_id = ?", (episode_id,)
+        ).fetchone()
+
+    def _episode_revision_sheet(self, row: sqlite3.Row) -> dict[str, Any]:
+        supports = self._conn.execute(
+            "SELECT trace_id, support_origin FROM autobiographical_episode_revision_support "
+            "WHERE revision_id = ? ORDER BY id", (row["id"],)
+        ).fetchall()
+        return {
+            "public_id": row["public_id"],
+            "request_key": row["request_key"],
+            "predecessor_episode_id": row["predecessor_episode_id"],
+            "successor_episode_id": row["successor_episode_id"],
+            "reason_code": row["reason_code"],
+            "created_at": row["created_at"],
+            "inherited_support_trace_ids": tuple(
+                item["trace_id"] for item in supports if item["support_origin"] == "inherited"
+            ),
+            "new_support_trace_ids": tuple(
+                item["trace_id"] for item in supports if item["support_origin"] == "new"
+            ),
+        }
+
     def _source_rows(
         self, world_id: int, character_id: int, source_trace_ids: Any
     ) -> tuple[sqlite3.Row, ...]:
@@ -962,6 +1003,231 @@ class SubjectiveMemoryService:
             raise SubjectiveMemoryError("épisode introuvable", code="episode_not_found")
         return self._episode_sheet(row, include_audit=True)
 
+    def get_current_episode(
+        self, world_id: Any, character_key: Any, episode_key: Any,
+    ) -> dict[str, Any]:
+        """Résout la feuille courante sans exposer la chaîne au contexte cognitif."""
+        world_id = self._world_id(world_id)
+        character_key = self._key(character_key, "personnage")
+        episode_key = self._key(episode_key, "épisode")
+        character_id = self._character_id(world_id, character_key)
+        row = self._episode_row(world_id, character_id, episode_key)
+        if row is None:
+            raise SubjectiveMemoryError("épisode introuvable", code="episode_not_found")
+        seen: set[int] = set()
+        while True:
+            if row["id"] in seen:
+                raise SubjectiveMemoryError("cycle de mémoire autobiographique", code="lifecycle_cycle")
+            seen.add(row["id"])
+            revision = self._episode_revision_from(row["id"])
+            if revision is None:
+                return self._episode_sheet(row, include_audit=True)
+            row = self._conn.execute(
+                "SELECT * FROM autobiographical_episode WHERE id = ? AND world_id = ? "
+                "AND character_id = ?",
+                (revision["successor_episode_id"], world_id, character_id),
+            ).fetchone()
+            if row is None:
+                raise SubjectiveMemoryError(
+                    "successeur autobiographique introuvable", code="lifecycle_corrupt"
+                )
+
+    def get_episode_history(
+        self, world_id: Any, character_key: Any, episode_key: Any,
+    ) -> tuple[dict[str, Any], ...]:
+        """Retourne la chaîne historique complète pour moteur/audit uniquement."""
+        world_id = self._world_id(world_id)
+        character_key = self._key(character_key, "personnage")
+        episode_key = self._key(episode_key, "épisode")
+        character_id = self._character_id(world_id, character_key)
+        start = self._episode_row(world_id, character_id, episode_key)
+        if start is None:
+            raise SubjectiveMemoryError("épisode introuvable", code="episode_not_found")
+
+        root = start
+        seen: set[int] = set()
+        while True:
+            if root["id"] in seen:
+                raise SubjectiveMemoryError("cycle de mémoire autobiographique", code="lifecycle_cycle")
+            seen.add(root["id"])
+            revision = self._episode_revision_to(root["id"])
+            if revision is None:
+                break
+            root = self._conn.execute(
+                "SELECT * FROM autobiographical_episode WHERE id = ? AND world_id = ? "
+                "AND character_id = ?",
+                (revision["predecessor_episode_id"], world_id, character_id),
+            ).fetchone()
+            if root is None:
+                raise SubjectiveMemoryError(
+                    "prédécesseur autobiographique introuvable", code="lifecycle_corrupt"
+                )
+
+        rows: list[sqlite3.Row] = []
+        row = root
+        seen.clear()
+        while True:
+            if row["id"] in seen:
+                raise SubjectiveMemoryError("cycle de mémoire autobiographique", code="lifecycle_cycle")
+            seen.add(row["id"])
+            rows.append(row)
+            revision = self._episode_revision_from(row["id"])
+            if revision is None:
+                break
+            row = self._conn.execute(
+                "SELECT * FROM autobiographical_episode WHERE id = ? AND world_id = ? "
+                "AND character_id = ?",
+                (revision["successor_episode_id"], world_id, character_id),
+            ).fetchone()
+            if row is None:
+                raise SubjectiveMemoryError(
+                    "successeur autobiographique introuvable", code="lifecycle_corrupt"
+                )
+
+        history: list[dict[str, Any]] = []
+        for index, item in enumerate(rows):
+            entry = self._episode_sheet(item, include_audit=True)
+            entry["is_current"] = index == len(rows) - 1
+            entry["revision_from_predecessor"] = None
+            if index:
+                revision = self._episode_revision_to(item["id"])
+                if revision is None:
+                    raise SubjectiveMemoryError(
+                        "révision autobiographique manquante", code="lifecycle_corrupt"
+                    )
+                entry["revision_from_predecessor"] = self._episode_revision_sheet(revision)
+            history.append(entry)
+        return tuple(history)
+
+    def revise_episode(
+        self,
+        world_id: Any,
+        character_key: Any,
+        predecessor_episode_key: Any,
+        successor_episode_key: Any,
+        new_source_trace_ids: Any,
+        *,
+        request_key: Any,
+        reason_code: Any = "subjective_support_added",
+    ) -> dict[str, Any]:
+        """Crée une représentation successor groundée, sans mutation de l'ancienne."""
+        world_id = self._world_id(world_id)
+        character_key = self._key(character_key, "personnage")
+        predecessor_episode_key = self._key(predecessor_episode_key, "prédécesseur")
+        successor_episode_key = self._key(successor_episode_key, "successeur")
+        request_key = self._key(request_key, "clé de demande")
+        reason_code = self._key(reason_code, "raison de révision")
+        character_id = self._character_id(world_id, character_key)
+        new_traces = self._source_rows(world_id, character_id, new_source_trace_ids)
+        new_trace_ids = tuple(trace["id"] for trace in new_traces)
+
+        with transaction(self._conn) as conn:
+            existing = self._episode_revision_by_request(world_id, character_id, request_key)
+            if existing is not None:
+                successor = conn.execute(
+                    "SELECT * FROM autobiographical_episode WHERE id = ? AND world_id = ? "
+                    "AND character_id = ?",
+                    (existing["successor_episode_id"], world_id, character_id),
+                ).fetchone()
+                predecessor = conn.execute(
+                    "SELECT * FROM autobiographical_episode WHERE id = ? AND world_id = ? "
+                    "AND character_id = ?",
+                    (existing["predecessor_episode_id"], world_id, character_id),
+                ).fetchone()
+                recorded_new = tuple(
+                    item["trace_id"] for item in conn.execute(
+                        "SELECT trace_id FROM autobiographical_episode_revision_support "
+                        "WHERE revision_id = ? AND support_origin = 'new' ORDER BY id",
+                        (existing["id"],),
+                    ).fetchall()
+                )
+                if (
+                    predecessor is None
+                    or successor is None
+                    or predecessor["episode_key"] != predecessor_episode_key
+                    or successor["episode_key"] != successor_episode_key
+                    or existing["reason_code"] != reason_code
+                    or recorded_new != new_trace_ids
+                ):
+                    raise SubjectiveMemoryError(
+                        "clé de révision déjà utilisée pour une autre demande",
+                        code="revision_request_conflict",
+                    )
+                return {
+                    "revision": self._episode_revision_sheet(existing),
+                    "predecessor": self._episode_sheet(predecessor, include_audit=True),
+                    "successor": self._episode_sheet(successor, include_audit=True),
+                }
+
+            predecessor = self._episode_row(world_id, character_id, predecessor_episode_key)
+            if predecessor is None:
+                raise SubjectiveMemoryError("épisode introuvable", code="episode_not_found")
+            if self._episode_revision_from(predecessor["id"]) is not None:
+                raise SubjectiveMemoryError(
+                    "seul l'épisode courant peut être révisé", code="episode_not_current"
+                )
+            if self._episode_row(world_id, character_id, successor_episode_key) is not None:
+                raise SubjectiveMemoryError(
+                    "clé de successeur déjà utilisée", code="episode_key_conflict"
+                )
+
+            inherited_ids = tuple(
+                item["trace_id"] for item in conn.execute(
+                    "SELECT trace_id FROM autobiographical_episode_support "
+                    "WHERE episode_id = ? ORDER BY id", (predecessor["id"],)
+                ).fetchall()
+            )
+            if set(inherited_ids) & set(new_trace_ids):
+                raise SubjectiveMemoryError(
+                    "un support de révision est déjà hérité", code="revision_support_conflict"
+                )
+            all_support_ids = inherited_ids + new_trace_ids
+            successor = self.form_episode(
+                world_id,
+                character_key,
+                successor_episode_key,
+                all_support_ids,
+                importance_milli=predecessor["importance_milli"],
+                accessibility_milli=predecessor["accessibility_milli"],
+            )
+            successor_row = self._episode_row(world_id, character_id, successor_episode_key)
+            assert successor_row is not None
+            created_at = self._clock.now_iso()
+            cur = conn.execute(
+                "INSERT INTO autobiographical_episode_revision "
+                "(public_id, world_id, character_id, request_key, predecessor_episode_id, "
+                "successor_episode_id, reason_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    new_uuid(), world_id, character_id, request_key, predecessor["id"],
+                    successor_row["id"], reason_code, created_at,
+                ),
+            )
+            revision_id = cur.lastrowid
+            for trace_id in inherited_ids:
+                conn.execute(
+                    "INSERT INTO autobiographical_episode_revision_support "
+                    "(world_id, character_id, revision_id, trace_id, support_origin, created_at) "
+                    "VALUES (?, ?, ?, ?, 'inherited', ?)",
+                    (world_id, character_id, revision_id, trace_id, created_at),
+                )
+            for trace_id in new_trace_ids:
+                conn.execute(
+                    "INSERT INTO autobiographical_episode_revision_support "
+                    "(world_id, character_id, revision_id, trace_id, support_origin, created_at) "
+                    "VALUES (?, ?, ?, ?, 'new', ?)",
+                    (world_id, character_id, revision_id, trace_id, created_at),
+                )
+
+        revision_row = self._conn.execute(
+            "SELECT * FROM autobiographical_episode_revision WHERE id = ?", (revision_id,)
+        ).fetchone()
+        assert revision_row is not None
+        return {
+            "revision": self._episode_revision_sheet(revision_row),
+            "predecessor": self._episode_sheet(predecessor, include_audit=True),
+            "successor": self._episode_sheet(successor_row, include_audit=True),
+        }
+
     def recall_autobiographical(
         self,
         world_id: Any,
@@ -986,7 +1252,11 @@ class SubjectiveMemoryService:
         character_id = self._character_id(world_id, character_key)
         rows = self._conn.execute(
             "SELECT * FROM autobiographical_episode "
-            "WHERE world_id = ? AND character_id = ? ORDER BY id",
+            "WHERE world_id = ? AND character_id = ? "
+            "AND NOT EXISTS ("
+            "SELECT 1 FROM autobiographical_episode_revision revision "
+            "WHERE revision.predecessor_episode_id = autobiographical_episode.id"
+            ") ORDER BY id",
             (world_id, character_id),
         ).fetchall()
         ranked: list[tuple[tuple[Any, ...], sqlite3.Row]] = []
