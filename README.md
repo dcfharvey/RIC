@@ -11,15 +11,13 @@ Le projet s'appelait auparavant **Vivarium Social**. Les noms techniques histori
 
 La seule référence produit autoritative est la branche `product/current`.
 
-Photographie vérifiée le 16 août 2026 :
+Ne pas conserver de SHA, compteur de tests, session de rodage ou autre photographie volatile dans ce README. Pour connaître l'état courant :
 
-- `PRODUCT_HEAD = 350fbf80353af55994650372b27260eb29dc4dac`
-- version déclarée : `0.2.0a5`
-- dernière migration : `0061_autobiographical_append_only_lifecycle.sql`
-- chantier actif : qualification P0 Memory, rodage V3c
-- Operational Cognition Grounding : fermé et intégré
+1. résoudre le SHA réel de `product/current`;
+2. consulter `docs/INDEX_DOCUMENTAIRE.md`;
+3. lire `docs/99_PASSATION_COURANTE.md` pour la photographie opérationnelle la plus récente.
 
-Les compteurs de tests, sessions de rodage et autres métriques volatiles appartiennent à `docs/99_PASSATION_COURANTE.md`, pas à ce README.
+Le README décrit le projet et ses invariants; il n'est pas un journal de release.
 
 ## Architecture conceptuelle
 
@@ -59,37 +57,22 @@ mécanisme générique > script propre à un personnage
 
 ## État fonctionnel général
 
-Le produit courant comprend notamment :
+Le produit comprend notamment :
 
 - monde canonique persistant et temps 1:1;
 - lieux, connecteurs, traversées et plans de localisation;
 - objets, contenance et possession;
 - activités et conséquences canoniques;
-- physiologie sommeil/capacité physique owner-backed active;
-- ressources et effets déclaratifs;
-- cinq résidentes de référence : Sophie, Erika, Luna, Chuu et Patoune;
-- perception locale, attention, croyances, affect initial, relations/limites initiales;
+- physiologie et ressources owner-backed;
+- population de référence Sophie, Erika, Luna, Chuu et Patoune;
+- perception locale, attention et structures cognitives subjectives;
 - cognition LLM locale derrière un adaptateur et une file avec fairness/backpressure;
 - scènes sociales bornées;
-- traces subjectives et fondations de mémoire autobiographique;
-- contexte cognitif observé avec provenance technique distincte du souvenir subjectif;
+- fondations de mémoire autobiographique;
+- observabilité du contexte cognitif avec provenance technique séparée du souvenir subjectif;
 - grounding opérationnel du soi et projection read-only de faisabilité avant exposition d'une activité au modèle.
 
-Cela ne signifie pas que tous les systèmes sont complets. Le projet reste en alpha et les frontières de qualification sont documentées explicitement.
-
-## Priorité actuelle
-
-L'ordre immédiat est :
-
-```text
-V3c long run
-→ qualification / audit de fermeture P0 Memory
-→ Conversation State minimal
-→ Behavioral Opportunity Layer
-→ P3.5 Perception · Action · Sensorium
-```
-
-Le BOL devra traiter la différence entre une activité techniquement faisable et une opportunité comportementalement pertinente. P3.5 traitera ensuite les capacités/perceptions/sensorium à une granularité plus générale. Ces chantiers ne doivent pas être confondus.
+Cela ne signifie pas que tous les systèmes sont complets. Le projet reste en alpha et les frontières de qualification sont documentées explicitement dans les documents actifs.
 
 ## Développement local
 
@@ -123,12 +106,13 @@ Les commandes opérateur existantes doivent être utilisées selon leur document
 
 Lire dans cet ordre :
 
-1. `docs/99_PASSATION_COURANTE.md` — photographie opérationnelle et blocages actuels;
-2. `docs/00_DOSSIER_MAITRE_IA.md` — noyau normatif stable;
-3. `docs/01_REGISTRE_DECISIONS.md` — décisions autoritatives;
-4. `docs/03_DECISIONS_OUVERTES.md` — arbitrages encore ouverts;
-5. `docs/15_ROADMAP_ACTIVE.md` — ordre des prochains travaux;
-6. `docs/GOUVERNANCE_GIT.md` — discipline de référence produit et d'intégration.
+1. `docs/INDEX_DOCUMENTAIRE.md` — hiérarchie documentaire et statut des familles de documents;
+2. `docs/99_PASSATION_COURANTE.md` — photographie opérationnelle et blocages actuels;
+3. `docs/00_DOSSIER_MAITRE_IA.md` — noyau normatif stable;
+4. `docs/01_REGISTRE_DECISIONS.md` — décisions autoritatives;
+5. `docs/03_DECISIONS_OUVERTES.md` — arbitrages encore ouverts;
+6. `docs/15_ROADMAP_ACTIVE.md` — ordre des prochains travaux;
+7. `docs/GOUVERNANCE_GIT.md` — discipline de référence produit et d'intégration.
 
 Les documents de lots, `docs/history/`, `sources/` et la passation du 5 août sont des sources de provenance. Ils ne remplacent pas silencieusement les documents actifs ni le code réellement intégré.
 
