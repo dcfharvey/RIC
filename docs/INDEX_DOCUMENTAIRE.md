@@ -63,7 +63,7 @@ Une ancienne passation, un ancien WO ou un protocole de rodage terminé ne redev
 
 ## 5. Historique conservé en place
 
-Plusieurs documents antérieurs restent actuellement à la racine de `docs/` pour préserver les références et éviter un déplacement massif pendant le rodage V3c. Ils doivent être considérés comme historiques lorsqu'ils décrivent un lot, une alpha, un correctif ou un work order déjà fermé.
+Plusieurs documents antérieurs restent actuellement à la racine de `docs/` pour préserver les références et éviter un déplacement massif pendant un rodage actif. Ils doivent être considérés comme historiques lorsqu'ils décrivent un lot, une alpha, un correctif ou un work order déjà fermé.
 
 Familles concernées notamment :
 
@@ -100,13 +100,8 @@ Avant de déplacer ou supprimer un document :
 4. mettre à jour les index/liens affectés;
 5. ne jamais profiter d'un archivage documentaire pour modifier le runtime ou réinterpréter rétroactivement un résultat expérimental.
 
-## 10. Photographie actuelle
+## 10. Maintenance de cet index
 
-À la création de cet index :
+Cet index ne doit pas contenir de SHA produit, compteur de tests, session de rodage ou autre valeur appelée à changer à chaque intégration. Ces informations appartiennent aux documents opérationnels périssables.
 
-- `product/current` pointe sur `17051635ef420fb25dcae89ab5a5b7a247822e16`;
-- le runtime V3c reste volontairement sur son snapshot antérieur;
-- P0 Memory demeure ouvert;
-- aucun déplacement massif des documents historiques n'est effectué par cet index.
-
-Toujours refaire le préflight Git avant de prendre ces valeurs comme état courant.
+Lorsqu'un chantier change de statut, mettre à jour sa classification ici seulement si son rôle documentaire change. L'état fonctionnel détaillé reste dans la passation courante, la roadmap et le registre de décisions.
