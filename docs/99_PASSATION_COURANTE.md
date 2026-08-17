@@ -1,66 +1,65 @@
 # Passation courante — RIC
 
-**Mise à jour :** 13 août 2026
-**But :** point d'entrée opérationnel obligatoire pour toute nouvelle instance de Codex.  
-**Projet :** RIC — Reality · Interaction · Cognition (anciennement Vivarium social).
+**Mise à jour :** 16 août 2026  
+**Projet :** RIC — Reality · Interaction · Cognition  
+**Statut :** point d'entrée opérationnel courant
 
-> **Mise au point prioritaire — fermeture WO89 (13 août 2026) :** WO89 est **FERMÉ**. FUNCTIONAL_HEAD `fcc574c182dc40abef0d6255e5587ecab0a1266c`; version `0.2.0a1`; schéma 55; migration `0055_sleep_completion_authorization.sql`; validation complète **1030 passed, 1 skipped, 0 failed en 235,76 s** (skip attendu `tests/test_dev_bridge.py:59`). 89C et 89D sont fermés. Le nom technique `vivarium-social` et l'import `vivarium` sont conservés. Aucune migration/reprise de l'ancien rodage n'a été effectuée et aucune histoire officielle Rodage V2 n'a commencé. **Prochaine étape autorisée : construction du vrai T0 neuf et démarrage explicite du Rodage V2.**
+> Commencer ici pour reprendre le travail. Cette passation décrit l'état opérationnel et les priorités immédiates. Elle ne remplace ni le noyau normatif de `docs/00_DOSSIER_MAITRE_IA.md`, ni le registre autoritatif `docs/01_REGISTRE_DECISIONS.md`, ni `docs/GOUVERNANCE_GIT.md`.
 
-> **Mise au point prioritaire — fermeture WO90 (13 août 2026) :** WO90 est **FERMÉ**. FUNCTIONAL_HEAD `989188fb01087878a581bd51f861014a82554a20`; version `0.2.0a2`; schéma 56; migration `0056_location_plan.sql`; validation complète **1033 passed, 1 skipped, 0 failed en 236,58 s** (skip attendu `tests/test_dev_bridge.py:59`). La topologie externe générique, le sommeil dans tout lieu canonique accessible, les plans de retour et le bootstrap T0 jetable sont qualifiés. Le nom technique `vivarium-social` et l'import `vivarium` sont conservés. Aucune migration/reprise de l'ancien rodage n'a été effectuée et aucune histoire officielle Rodage V2 n'a commencé. **Prochaine étape autorisée : construction du vrai T0 neuf et démarrage explicite du Rodage V2.**
-> **Mise au point prioritaire — fermeture WO91 (13 août 2026) :** WO91 est **FERMÉ**. FUNCTIONAL_HEAD `20291d43be6ab8264c556b1029c7ca1bfb75809e`; version `0.2.0a3`; schéma 57; migration `0057_location_plan_resolution.sql`; validation complète **1036 passed, 1 skipped, 0 failed en 243,21 s** (skip attendu `tests/test_dev_bridge.py:59`). Le scheduler temporel générique, le retour causal de Sophie à 16 h, `work`, le manifeste T0 provenancé et le point d'entrée one-shot sont qualifiés. Aucune migration/reprise de l'ancien rodage ni création de `data/vivarium-rodage-v2.sqlite` n'a été effectuée; aucune histoire officielle Rodage V2 n'a commencé. **Prochaine étape autorisée : exécution explicite du point d'entrée sur une base neuve.**
-> **Mise au point prioritaire — durcissement provider WO91 (13 août 2026) :** le build `0.2.0a4` est qualifié sur FUNCTIONAL_HEAD `b272006bb5c72085487816b2fab2cf12800f0fa5`, schéma 57, migration `0057_location_plan_resolution.sql`. Le launcher officiel exige la clé Qwen3-14B configurée, `quantization.name=Q4_K_M` et exactement une `loaded_instance` native LM Studio avant toute création de `data/vivarium-rodage-v2.sqlite`; les refus provider sont donc sans base partielle. Suite complète : **1044 passed, 1 skipped, 0 failed en 242,01 s** (skip attendu `tests/test_dev_bridge.py:59`). LM Studio local n'expose actuellement aucune instance utilisable; le Rodage V2 officiel n'a pas commencé et l'ancien SQLite reste inchangé.
-> **Mise au point prioritaire — démarrage officiel (13 août 2026) :** build `0.2.0a5`, FUNCTIONAL_HEAD `1a55ce5056309e416865d9bd095e24821c3ef99d`, qualification complète **1045 passed, 1 skipped, 0 failed en 240,88 s**. Le launcher conserve les gardes Qwen3-14B Q4_K_M et utilise désormais l’ancre canonique retournée par l’arrêt technique. LM Studio expose l’instance Qwen requise. Le Rodage V2 officiel est ouvert sur `data/vivarium-rodage-v2.sqlite`, world `1`, session `2`, T0 `2026-08-13T19:20:22.071+00:00`; préflight et Hugin ont passé avant l’ouverture. L’ancien SQLite reste inchangé.
+## 1. Référence produit
 
-> **Mise au point prioritaire — fermeture WO88 (13 août 2026) :** `docs/88_WORK_ORDER_RUNTIME_CIRCADIEN_ACTIF_V1.md` est fermé. Le HEAD fonctionnel exact `fe1d24a0cd5f32463c594d2de6bf2e3ba7ad0667` a passé `python -m compileall -q src tests` puis la suite complète GitHub Actions sur Windows Server 2025 / Python 3.12.10 : **1029 tests réussis en 392,09 s, 0 échec**. Le runtime `physiology=active` utilise H/φ/P depuis les owners canoniques; `repos`/`energie` ne sont plus des causes actives et l'arbitrage owner-backed n'appelle plus `project_synthetic()`. Les mondes `inactive` et `prepared` conservent le chemin legacy. L'activation T0 atomique appartient au service de fondation physiologique; après activation, `SleepPhysiologyService` est l'écrivain runtime de H/φ/P/résidus/hystérésis. Aucun cutover de la résidence persistante, aucune migration de l'ancien rodage et aucune modification de `data/vivarium-rodage.sqlite` n'ont été effectués. Les workflows/scripts WO88 jetables ont été retirés après validation. **Prochaine étape autorisée : Rodage V2 sur base neuve, manifeste T0 explicite, politiques complètes, sans migration de l'ancien rodage par défaut.** Les photographies plus anciennes ci-dessous restent historiques lorsqu'elles contredisent ce bloc.
+La branche distante `product/current` est la seule référence autoritative du produit courant.
 
-> **Mise au point prioritaire — 12 août 2026 :** les photographies techniques plus anciennes conservées ci-dessous sont historiques. Au moment de la validation WO86, `main` est resté sur `a171a2111fdb2a5f5b85796cdc2e8647c24c72b8` (schéma 54). Une implantation candidate isolée porte le schéma 55 et a obtenu **974/974 tests réussis** sous Python 3.12.13. Elle reste strictement synthétique : aucun cutover, runtime actif ou accès à la résidence réelle n'est autorisé. Lire l'addendum WO86 en fin de fichier et `docs/86_WORK_ORDER_CONTRATS_CUTOVER_CIRCADIEN_V1.md` avant toute suite.
+Photographie vérifiée au moment de cette passation :
 
-> Commencer ici. Ne pas reconstruire l'histoire du projet à partir des anciens lots.
-> Vérifier le dépôt réel avant toute écriture.
+- `PRODUCT_HEAD = 350fbf80353af55994650372b27260eb29dc4dac`
+- commit : `Reject ambiguous operational grounding effects`
+- distribution technique : `vivarium-social`
+- import Python : `vivarium`
+- version déclarée : `0.2.0a5`
+- dernière migration : `0061_autobiographical_append_only_lifecycle.sql`
+- dernière qualification complète connue du lot Operational Cognition Grounding : `1033 passed, 1 skipped`
 
----
+Ne pas utiliser `main`, un ancien worktree, une branche de WO ou un runtime historique comme base implicite. Vérifier à nouveau `origin/product/current` avant toute écriture.
 
-## 1. Philosophie et gouvernance
+## 2. Runtime V3c actif
 
-Deux maximes structurent le travail :
+Le rodage P0 Memory V3c tourne sur une base isolée :
 
-> **Flexible creativity. Rigorous execution.**
->
-> **Verify twice. Commit once.**
+- `RUNTIME_HEAD = 350fbf80353af55994650372b27260eb29dc4dac`
+- worktree : `C:\AI\Vivarium social\.rodage-p0-memory-v3c`
+- DB : `data\vivarium-p0-memory-v3c.sqlite`
+- world : `1`
+- session : `081861ed-b259-45ae-ad3f-4f61517d2c02`
+- moteur : `ActiveSimulationEngine`
+- physiologie : active
+- provider de qualification : Qwen3-14B, reasoning off, une instance
 
-La première concerne la conception : exploration ouverte tant qu'aucune décision n'est engagée, puis spécification et exécution rigoureuses dès qu'une idée devient architecture, code ou canon.
+Le runtime est une expérience en cours. Il ne doit pas être modifié, rebasé, reset, migré ou utilisé pour développer.
 
-La seconde concerne le développement : avant une modification importante, vérifier hypothèses, dépendances, invariants, conséquences, migrations et tests; ne committer qu'après preuve suffisante.
+Les anciennes bases et worktrees V3/V3b restent des artefacts historiques à conserver en lecture seule jusqu'à fermeture du rapport correspondant.
 
-Répartition des responsabilités :
+## 3. Architecture conceptuelle
 
-- **ChatGPT** : recherche scientifique/technique, conception fonctionnelle, cohérence conceptuelle, documentation R&D et préparation des work orders;
-- **Grok** : contre-audit scientifique adversarial indépendant;
-- **Codex** : autorité sur l'architecture réelle, le code, les migrations, les propriétaires persistants, les invariants techniques, les tests et l'ordre d'implantation;
-- **propriétaire** : autorité finale sur les choix de produit et de design.
+Les noms suivants sont conceptuels et ne prescrivent pas le découpage du code :
 
-Codex ne doit pas suivre aveuglément une proposition R&D si le dépôt réel impose une autre implantation. Il doit signaler la divergence et l'expliquer. Inversement, une décision d'ingénierie ne doit jamais être présentée comme une loi scientifique.
-
-Pour tout modèle comportemental, cognitif, social ou physiologique, conserver explicitement la séparation suivante :
-
-1. résultats empiriques;
-2. conclusions raisonnables mais incertaines;
-3. hypothèses de modélisation;
-4. choix de design/ingénierie.
-
----
-
-## 2. Architecture conceptuelle RIC
-
-Les noms suivants sont **conceptuels**. Ils ne constituent pas une instruction de renommer des packages, classes ou services existants.
-
-- **Reality Engine** : ce qui est objectivement vrai, possible et causal dans la simulation;
+- **Reality Engine** : ce qui est objectivement vrai, possible et causal;
 - **Interaction Engine** : ce qui rend agents et réalité mutuellement accessibles et structure leurs interactions;
 - **Cognitive Engine** : ce que chaque agent perçoit, interprète, mémorise, priorise et décide subjectivement.
 
-Le mapping de ces concepts sur le code réel doit être établi à partir du dépôt, pas supposé depuis les noms.
+Contrat de runtime recherché :
 
-### Invariants fondamentaux
+```text
+réalité canonique
+→ sous-ensemble perceptible
+→ état subjectif / mémoire / préférences / besoins
+→ intention / décision proposée
+→ validation moteur
+→ conséquence canonique
+→ nouvelles perceptions
+```
+
+## 4. Invariants qui priment sur la commodité
 
 ```text
 réalité/canon ≠ perception ≠ croyance
@@ -74,368 +73,206 @@ pas d'omniscience implicite des agents
 mécanisme générique > script propre à un personnage
 ```
 
-Ces invariants priment sur les commodités d'implémentation.
+## 5. Travaux récents fermés
 
----
+### File cognitive
 
-## 3. Hiérarchie de vérité pour une reprise
+Le défaut de saturation observé pendant V3 a été corrigé et intégré avant V3c : identité logique stable, drainage/re-offer, fairness et état `provider_dispatch_pending` ont été revus. Ne pas remettre l'ancien bug dans la liste des défauts ouverts sans nouvelle preuve.
 
-Lorsqu'une documentation ancienne contredit le dépôt courant, utiliser cet ordre :
+### P0 Memory — fondations déjà intégrées
 
-1. **HEAD réel + migrations + tests exécutés**;
-2. **documentation normative active** (`docs/00_DOSSIER_MAITRE_IA.md`, registre de décisions et changements approuvés postérieurs);
-3. **cette passation courante** pour l'état opérationnel et les priorités immédiates;
-4. **CHANGELOG et documents de version récents**;
-5. documents de lot historiques et `sources/` pour provenance seulement.
+Les tranches suivantes sont présentes :
 
-Ne jamais réconcilier silencieusement deux exigences incompatibles.
+- fondation autobiographique : épisode, supports, événements d'audit, retrieval contextuel borné;
+- admission d'encodage append-only;
+- seeding social des épisodes;
+- lifecycle autobiographique append-only avec révisions structurelles et représentation courante par feuille;
+- séparation dans `CognitionContext` entre traces récentes et `autobiographical_memories`.
 
-### Documents à lire avec leur portée documentaire
+Ces fondations ne signifient pas que P0 est fermé ni que l'oubli/reconsolidation complet est implémenté.
 
-- `docs/00_DOSSIER_MAITRE_IA.md` conserve des références historiques de commit/tests de fermeture de Phase 3;
-- `README.md` et `docs/15_ROADMAP_ACTIVE.md` portent maintenant une photographie opérationnelle synchronisée, mais leurs sections historiques restent contextuelles.
+### Operational Cognition Grounding — fermé
 
-Pour les compteurs de version ou la photographie de HEAD, vérifier toujours `pyproject.toml`, `CHANGELOG.md`, les migrations, les tests et `git log`.
+Le contexte cognitif reçoit maintenant génériquement :
 
----
+- morphologie descriptive de l'agent;
+- capacités owner-backed actives pertinentes;
+- signaux de contexte owner-backed pertinents.
 
-## 4. État technique vérifié au dernier lot de code
+La morphologie descriptive ne devient pas une capacité causale. Les effets opérationnels ambigus portant la même clé sont refusés plutôt qu'agrégés arbitrairement.
 
-Référence fonctionnelle actuelle :
+La projection d'activités utilise en outre une prévisualisation read-only de la faisabilité physique connue avant de présenter une option au LLM; l'exécution finale continue de revalider l'état réel.
 
-- version logicielle : **`0.2.0a5`**;
-- schéma SQLite du **code** : **57**;
-- dernière migration : `0057_location_plan_resolution.sql`;
-- dernière validation complète : **1045 passed, 1 skipped, 0 failed en 240,88 s** (skip attendu `tests/test_dev_bridge.py:59`);
-- HEAD fonctionnel courant : `b272006bb5c72085487816b2fab2cf12800f0fa5`;
-- `1cf8278` est la photographie documentaire R&D SCC-1B; les commits `.gitignore` historiques ne font pas partie de l'état fonctionnel courant.
+## 6. P0 Memory — état actuel
 
-Toujours revérifier localement avant d'agir :
+**Statut : OPEN.**
 
-```bash
-git status --short
-git log -5 --oneline
-python -m pytest
-```
-
-Adapter la commande Python à l'environnement local (`.venv/Scripts/python.exe -m pytest` sous Windows si nécessaire).
-
-### Évolution récente réellement livrée
-
-- `0.1.0a11` : une occasion sociale factuelle est observée **avant** que l'autonomie sapiente ne remplace l'attente qui la source;
-- `0.1.0a12` : la latence LLM ne peut plus faire passer une proposition subjective devant une échéance déterministe déjà exigible;
-- `0.1.0a13` : première agence non sapiente générique **CAT-0**, sans LLM et sans branche codée au nom/à l'espèce de Patoune; intentions courtes, passages adjacents, attente et abandon après échecs bornés;
-- `0.1.0a14` : les tours sociaux bloqués par budget sont différés jusqu'à leur renouvellement au lieu d'être repollés à chaque tick; temps simulé et temps mural restent distincts;
-- `0.1.0a15` : l'horloge canonique ne progresse que pendant une session runtime; arrêt propre = gel, crash = récupération au dernier instant durable, sans rattrapage accidentel hors ligne.
-- lot circadien V1 : fondations persistantes inactives, matérialisation synthétique, shadow et work order de cutover acceptés ; les contrats arbitre/sommeil/P/manifeste sont à traduire techniquement avant tout code comportemental, `repos`/`energie` restent legacy et aucun cutover n'est autorisé.
-
-Documents récents associés :
-
-- `docs/67_REPONSE_TECHNIQUE_R_D_POST_RODAGE_0_1_0A10.md`;
-- `docs/68_CORRECTIF_ARBITRAGE_SOCIAL_0_1_0A11.md`;
-- `docs/69_CORRECTIF_LATENCE_CHRONOLOGIQUE_0_1_0A12.md`;
-- `docs/70_GEL_HORS_LIGNE_ET_RECUPERATION_CRASH_0_1_0A15.md`;
-- `docs/79_R_D_CYCLE_DIURNE_CIRCADIEN_SOMMEIL.md` à `docs/84_AUDIT_COMPATIBILITE_SHADOW_CIRCADIEN_V1.md` pour les contrats et lots circadiens déjà acceptés;
-- `docs/85_WORK_ORDER_CUTOVER_CIRCADIEN_V1.md` : plan de cutover accepté ; aucune implémentation, migration réelle ou activation n'en découle seule;
-- `docs/86_WORK_ORDER_CONTRATS_CUTOVER_CIRCADIEN_V1.md` : traduction technique des contrats approuvés, à revoir avant code comportemental;
-- `docs/71_R_D_SOCIAL_CONSEQUENCE_CORE.md`;
-- `docs/72_R_D_SCC1_INTERPRETATION_SOCIALE.md`;
-- `docs/73_R_D_SCC1B_PROVIDER_ET_CALIBRATION.md` décrit le banc SCC-1B2A;
-  son implantation est `vivarium.social_interpretation_bench` et sa commande
-  opérateur est `python -m vivarium social-interpretation-bench --level T0`;
-- `CHANGELOG.md` pour `a13` et `a14`.
-
----
-
-## 5. Ce qui est solide et ce qui ne l'est pas encore
-
-### Solide / réellement matérialisé
-
-- autorité canonique locale et transactions;
-- journal canonique append-only;
-- séparation temps simulé / temps mural / état runtime;
-- monde, graphe, connecteurs, traversée, objets, contenance, possession;
-- besoins, activités, ressources, blessures et transitions déterministes;
-- cinq résidentes MVP et monde d'intégration;
-- perception factuelle locale et attention technique bornée;
-- premières traces subjectives, croyances sourcées, affect, buts/intention, relations/limites/permissions comme services contrôlés;
-- frontière LLM locale structurée et validée;
-- scènes sociales alpha;
-- bancs d'essai, prévol, télémétrie et gardien local;
-- CAT-0 non sapient générique;
-- protection de chronologie contre latence LLM et arrêt hors ligne.
-- fondations circadiennes V1, projections synthétiques H/φ/P et audit shadow des consommateurs legacy; aucune activation réelle.
-
-SCC-1B2A finalisé porte 30 IDs, 31 variantes déclarées, 27 fixtures T0
-déterministes et 805 tests passants. B17/B18 opposent honnêtement absence et
-présence d'un support `co_presence`; B24/B25 distinguent mention et compliance;
-les métriques métamorphiques utilisent toutes les répétitions; provenance et
-partial-write sont des contrôles bloquants. B15/B16 disposent d'un runner pairé
-avec seed fake. La campagne T2a réelle Gemma 4 12B conserve ses 105 appels
-génériques dans `data/bench/scc1b2_t2a_gemma4_12b.json`; après fermeture du faux
-positif de provenance, cinq paires B15/B16 (10 appels, 10 valides, 5 lignées)
-sont conservées séparément dans `data/bench/scc1b2_t2a_paired_gemma4_12b.json`.
-B26–B29 sont `deferred`;
-B20–B23 sont T0-only. Le dernier smoke T1 borné a utilisé
-`google/gemma-4-12b-qat`, recette `scc1b1-native-v2`, pour 11 appels : 11
-sorties valides, sans hard blocker ni fuite de canary. La campagne T2a ne
-constitue pas une qualification du modèle; T2b et l'admission cognitive restent
-hors périmètre. SCC-1B2C fournit désormais l'inventaire LM Studio local et le
-screening multi-modèles Screen-47 model-agnostic; le hardening final distingue
-model key et instance id, capture la configuration réellement chargée, refuse
-les déploiements ambigus/mismatch, et marque explicitement les warm-up failures;
-aucune campagne comparative n'a été lancée.
-
-### Présent mais encore mince / alpha
-
-Le rodage a montré que plusieurs services subjectifs existent sans encore participer causalement de façon riche à la vie courante. Ne pas confondre **API implémentée** et **mécanisme vivant raccordé**.
-
-Placeholders alpha à ne pas fossiliser :
-
-- hiérarchie globale `intention > physiologie > objectif`;
-- `idle` comme principal déclencheur cognitif;
-- attention surtout technique;
-- activités volontaires peu nombreuses et calibrations uniformes;
-- scène dyadique bornée à quatre tours;
-- co-présence/co-attente comme proxy social;
-- topologie sociale réduite essentiellement à la pièce;
-- petite taxonomie des actes de parole;
-- relation résumée par quelques dimensions scalaires;
-- mémoire essentiellement récente et exacte;
-- mouvement incompatible avec activité;
-- sommeil et motivation encore simplifiés.
-
-Le rodage a notamment montré : small talk circulaire, concentration de certaines activités, socialité pauvre malgré des phrases lexicalement variées, absence d'anticipation riche, topologie sociale trop grossière, et distinction insuffisante entre activité/attente/intention/engagement.
-
----
-
-## 6. Direction R&D actuelle — ne pas coder sans work order
-
-La prochaine grosse étape conceptuelle n'est **pas** « générer davantage de texte ».
-
-La direction R&D est de donner aux événements une conséquence subjective située, incertaine, mémorisable et révisable, tout en préservant les frontières RIC.
-
-Les blocs actuellement préparés en amont sont notamment :
-
-1. **Social Consequence Core** : interprétation sociale située et conséquences candidates séparées, sans `speech_act -> relation_delta` mécanique;
-2. **mémoire minimale** : encodage, récupération, reconstruction, source monitoring, oubli/consolidation et mémoire prospective;
-3. **Cognitive Admission** : accessible ≠ remarqué; sélection événementielle sans omniscience;
-4. **topologie socio-spatiale** : visibilité, audibilité, orientation, distance qualitative, portes, privacité, participation et overhearing;
-5. **Conversation State** : conversation ≠ compteur de tours; séquences ouvertes, repair, participation, adressage, floor et clôture;
-6. **Behavioral Opportunity Layer** : remplacer la priorité globale fixe par un champ local de possibilités et de raisons structurées;
-7. **agence non sapiente** : étendre CAT-0 sans transformer l'animal en petit humain ni en script d'espèce;
-8. scénarios d'acceptation/falsification inter-systèmes.
-
-Ces blocs sont des **contrats fonctionnels en préparation**. Codex conserve l'autorité sur leur traduction dans l'architecture réelle. Ne pas créer de nouvelles tables/classes juste à partir de cette liste.
-
----
-
-## 7. Politique de travail pour la nouvelle instance Codex Luna
-
-**Modèle de base recommandé : Luna.** Le but est de lui fournir des lots suffisamment spécifiés pour que le raisonnement scientifique et produit ait déjà été fait en amont.
-
-Luna peut normalement traiter :
-
-- inspection ciblée;
-- implémentation locale bien spécifiée;
-- tests définis;
-- correctifs et refactors bornés;
-- documentation technique liée au lot.
-
-### Critères d'escalade
-
-Arrêter et produire un rapport d'escalade au lieu de deviner si le travail rencontre :
-
-- propriétaire persistant ambigu ou multiple;
-- contradiction entre invariants;
-- migration risquée ou irréversible sur une histoire persistante;
-- changement architectural transversal important;
-- plusieurs implantations incompatibles sans critère produit/architecture clair;
-- bug non local dont la cause reste ambiguë après inspection et tests ciblés;
-- besoin de remettre en cause un contrat scientifique/fonctionnel plutôt que son implantation.
-
-Dans ces cas : **ne pas brute-force**. Expliquer les faits, options, risques et recommander Terra ou Sol si nécessaire.
-
-### Règle de sécurité dépôt
-
-Par défaut :
-
-- ne supprimer aucun fichier/dossier;
-- ne nettoyer aucun historique;
-- ne rebase/force-push rien;
-- ne lancer aucune reconstruction destructive (`init --force` ou équivalent) sur un monde qui compte;
-- ne modifier aucune base persistante pour « réparer » silencieusement un problème;
-- ne faire aucun ménage parce qu'un fichier « a l'air temporaire » sans vérifier ses références et sa provenance.
-
-Tout ménage doit d'abord être classé `KEEP / GENERATED / OBSOLETE? / REVIEW / SAFE TO REMOVE` et approuvé avant suppression.
-
----
-
-## 8. Procédure de reprise obligatoire
-
-Pour une nouvelle conversation Codex :
-
-1. lire ce fichier en entier;
-2. exécuter `git status --short` et `git log -5 --oneline`;
-3. vérifier `pyproject.toml`, dernière migration et tête de `CHANGELOG.md`;
-4. lire les parties pertinentes de `docs/00_DOSSIER_MAITRE_IA.md`;
-5. lire `docs/67_REPONSE_TECHNIQUE_R_D_POST_RODAGE_0_1_0A10.md` et les correctifs `68` à `70`;
-6. inspecter le code réel uniquement là où nécessaire pour confirmer la photographie;
-7. exécuter la suite de tests avant une modification significative;
-8. signaler toute divergence entre cette passation et le dépôt;
-9. **au premier tour, ne modifier aucun fichier** : rendre une photographie de reprise concise et attendre le work order suivant.
-
-La première réponse attendue n'est pas un nouveau plan d'architecture. Elle doit confirmer que Codex comprend le système qu'il reprend et isoler toute divergence réelle.
-
----
-
-## 9. Format de réponse de reprise attendu
-
-Répondre brièvement avec :
+V3c a déjà observé :
 
 ```text
-HEAD / arbre de travail :
-Version / schéma / tests :
-État général :
-Invariants critiques compris :
-Écarts passation ↔ dépôt :
-Risques immédiats :
-Prêt pour work order Luna : OUI/NON
-Escalade nécessaire maintenant : OUI/NON + raison
+contenu accessible
+→ décision d'admission
+→ parfois subjective_trace
+→ trace_only possible
 ```
 
-Aucune écriture sur ce premier tour.
+La preuve runtime principale encore recherchée est :
 
----
+```text
+expérience sociale accessible
+→ admission
+→ subjective_trace
+→ épisode autobiographique
+→ retrieval contextuel ultérieur
+→ CognitionContext routé
+→ appel provider réel
+```
 
-## Addendum opérationnel — SCC-1C borné (10 août 2026)
+Une lecture directe de `CognitionContextService` ou du service de retrieval ne suffit pas à qualifier cette dernière chaîne : il faut un vrai appel routé et son contexte observé.
 
-`main` est sur `cc161555`; la migration `0041_scc1c_admission.sql` porte le
-schéma à 41. L'étude d'attribution imbriquée est négative pour une persistance
-libre. SCC-1C est implanté et testé hors runtime via une admission append-only
-owner-scoped depuis une trace SCC-0 explicitement fournie, avec tentatives
-techniques séparées. Aucun rattrapage au redémarrage, aucun effet causal et
-aucun raccordement vivant ne sont autorisés dans ce lot. Prochain work order :
-raccordement événementiel SCC-0 -> SCC-1C -> SCC-1B.
+### Scène mémoire A/B
 
-## Addendum opérationnel — SCC-3A affect (10 août 2026)
+Protocole de qualification :
 
-Le schéma courant est 44 (`0044_scc3a_affect_owner.sql`). SCC-3A examine
-exclusivement les candidates `affect` de SCC-2A. Le provider peut répondre
-`no_change` ou proposer un épisode; toute création passe par `AffectService`,
-reste owner-scoped, sourcée par la trace privée et utilise une expression
-nulle et une tendance d'action neutre. Humeur, croyances, relations, buts,
-mémoire, actions et canon restent inchangés. Les autres domaines de candidates
-restent en attente de work orders dédiés.
+A. Sophie dit à Erika : `J’ai laissé mon carnet rouge dans la cuisine.`  
+B. plus tard : `J’ai déplacé mon carnet rouge dans le salon.`
 
-## Addendum opérationnel — Hugin / Munin V0
+Les deux phrases sont des paroles, jamais des faits canoniques concernant un carnet.
 
-Le HEAD opérationnel porte maintenant le read-model Hugin/Munin V0, sans
-migration supplémentaire (schéma 44 inchangé). Le service est lecture seule et
-non persistant: Hugin rapporte le canon et les paroles comme paroles; Munin
-rapporte, par propriétaires explicitement demandés, les traces, interprétations,
-appraisals, candidates, décisions et états subjectifs réellement présents.
-Les claims référencent les preuves moteur et l’audit est déterministe. Il n’y a
-ni planificateur LLM, ni UI complète, ni rattrapage, ni nouvelle conséquence.
+La première tentative V3c de scène A a donné :
 
-## Addendum opérationnel — console de rodage Hugin / Munin V0.1
+`MEMORY SCENE A: WAITING FOR VALID ACCESS`
 
-La page locale `/observer` et la route `POST /api/worlds/{world_id}/observer`
-sont livrées. Elles utilisent une connexion SQLite explicitement read-only et
-le read-model moteur. Le focus `current_state` expose position, activité et
-durée uniquement si la transition canonique est prouvée. Le planner naturel
-est déterministe et optionnel; les plans structurés manuels restent le fallback.
-Patoune est observé comme `character` non-sapient, sans cognition inventée.
+Sophie et Erika n'étaient pas co-présentes; aucune scène, téléportation, perception, parole ou mémoire n'a été fabriquée. Si V3c se termine sans précondition valide, le chemin doit être classé `NOT EXERCISED UNDER VALID CONDITIONS`, pas « failed ».
 
-## Addendum opérationnel — état du rodage et instrumentation préparatoire
-Le burn-in nocturne a été techniquement réussi. Son autopsie a confirmé et
-fermé les défauts de classe A corrigés par `da30d5d`. Deux signaux de classe C
-restent volontairement non résolus : la répétition dialogique importante et les
-sorties SCC-2A `invalid_appraisal`, pour lesquelles la réponse provider brute
-n’était pas encore conservée.
+## 7. Diagnostics V3c importants
 
-Le prochain lot ajoute uniquement une instrumentation diagnostique locale,
-désactivable et bornée des appels pertinents. Elle est séparée de l’histoire
-canonique et de l’état subjectif, n’est pas exposée par Hugin/Munin et ne change
-ni prompts, ni budgets, ni providers, ni contrats. Après sa qualification, le
-prochain jalon est un burn-in court; aucun nouveau mécanisme cognitif n’est
-autorisé par cette observation.
+### `cognition_call_source_not_perceived`
 
-## Addendum opérationnel — SCC-2A provider v2
+Verdict : **B — HEALTHY BUT NOISY**.
 
-Le correctif SCC-2A est isolé sur le provider `scc2a-appraisal-v2`. La
-justification est un texte de routage non autoritatif; les bases engine-owned
-restent la seule provenance causale. `interpretation:primary` peut soutenir une
-candidate `goal_or_intention` lorsque l'interprétation de l'owner représente
-déjà cette proposition, sans exiger une intention persistée préalable.
+Le routeur revalide qu'un événement canonique appartient réellement à la vue perceptive de la résidente avant admission/provider. Le volume élevé observé vient surtout de l'orchestrateur qui tente beaucoup d'événements pour chaque résidente avant ce filtre.
 
-Le parser provider et la validation persistante partagent désormais les
-contraintes structurelles. SCC-3A ne reçoit plus la justification dans son
-snapshot provider. Aucun schéma n'est migré et aucun rodage vivant n'est
-redémarré par ce lot.
+Aucun churn logique, backlog durable, queue full ou starvation causée par ce mécanisme n'a été démontré.
 
-## 10. Rappel final
+Follow-ups possibles, séparés de V3c :
 
-Le but de RIC n'est pas de faire croire qu'un LLM est la réalité.
+- vérifier l'alignement `character_moved` ↔ champ `connector`;
+- conserver `source_event_seq` même sur les invalidations;
+- envisager un préfiltrage perceptif plus tôt seulement si la même autorité perceptive peut être réutilisée sans dupliquer la règle.
 
-Le moteur établit ce qui est vrai et possible. L'interaction établit ce qui est accessible. La cognition établit ce qui est subjectivement compris, mémorisé, priorisé et décidé. Les trois couches peuvent se répondre, mais aucune ne doit être silencieusement confondue avec une autre.
-## Addendum technique — SCC-1B interpretation-only (10 août 2026)
+### Chuu — `planned_reflection → no_action`
 
-Le dépôt réel doit être relu sur HEAD avant toute suite. Le lot ajoute la migration forward-only `0040_scc1b_interpretation_only.sql` (schéma 40); les anciennes valeurs de motif sont conservées sous colonne legacy non projetée. SCC-1C reste hors runtime.
+Une séquence de 12 réflexions a donné exactement `no_action` alors que :
 
-État opérationnel courant : `main` porte maintenant le raccordement vivant
-SCC-0 -> SCC-1C -> SCC-1B; les migrations `0041_scc1c_admission.sql` et
-Les lignes historiques ci-dessous décrivaient alors le schéma 42; l'état
-opérationnel courant est désormais le schéma 44. Un acte
-social runtime accepté encode les participantes de sa scène, puis passe par
-l'admission owner-scoped, le budget technique et SCC-1B. Les retries sont
-bornés et techniques; aucun scan historique, effet causal ou SCC-2/SCC-3 n'est
-autorisé.
+- grounding opérationnel présent;
+- provider sain;
+- aucune activité refusée;
+- même catalogue de 6 types/15 couples activité-lieu;
+- contexte presque figé;
+- motifs dominants `sleep` / `rest`;
+- préférence sociale de Chuu sans cible sociale accessible.
 
-Le raccordement est désormais livré sur le runtime social : un acte accepté
-par `SceneTurnService` déclenche, pour les participantes de la scène seulement,
-SCC-0 puis SCC-1C et, si sélectionné, la porte technique et SCC-1B. La migration
-`0042_social_interpretation_call_trigger.sql` ajoute le trigger technique
-`social_interpretation` au ledger historique; cette photographie est historique. Les
-tentatives différées/indisponibles sont reprises explicitement et au plus une
-par pulsation, sans nouvelle admission cognitive ni scan exhaustif. Aucun effet
-SCC-2/SCC-3 n'est raccordé.
+Audit du contrat :
 
-## Addendum opérationnel — SCC-2A appraisal situé (10 août 2026)
+- `MotiveCandidate.possible_actions` est explicatif et exposé au provider;
+- il ne construit pas `activity_options`;
+- `sleep` et `rest` sont de vraies activités moteur;
+- la whitelist de `planned_reflection` reste celle des six loisirs alpha;
+- `no_action` collapse plusieurs raisons possibles sans justification obligatoire.
 
-`main` porte la migration forward-only `0043_scc2a_appraisal.sql` et le
-schéma 43. Après une `social_interpretation` SCC-1B persistée, le runtime peut
-ouvrir une appraisal SCC-2A dans un snapshot owner-scoped fermé. Le provider
-retourne un statut qualitatif et zéro ou plusieurs candidates génériques;
-`social_appraisal` reste le propriétaire de cet état et aucune candidate n'est
-appliquée à l'affect, aux croyances, aux relations, aux buts, aux actions ou au
-canon. SCC-3 reste hors lot.
+Verdict : dette MVP + contrat ambigu + besoin BOL; aucun bug de raccordement pré-BOL démontré.
 
-## Addendum opérationnel — WO86 raccord causal synthétique (12 août 2026)
+**Ne pas patcher Chuu ni ajouter isolément `sleep`/`rest` à la whitelist.**
 
-Cet addendum prévaut sur les anciennes photographies HEAD/schéma/tests de cette passation lorsqu'il s'agit du lot circadien courant.
+Le besoin fonctionnel qui ressort est :
 
-Au moment de la validation :
+> Produire, à partir des motifs, préférences, objectifs, contexte, capacités et environnement accessibles, un ensemble borné d'opportunités comportementales génériques, distinctes des affordances physiques, que le moteur peut ensuite valider et que la cognition peut sélectionner.
 
-- `main` est resté sur `a171a2111fdb2a5f5b85796cdc2e8647c24c72b8`, schéma de code 54 ;
-- la candidate WO86 isolée porte la migration `0055_sleep_completion_authorization.sql`, donc le schéma 55 ;
-- la suite complète a été exécutée sur GitHub Actions avec Python 3.12.13 : **974 tests réussis, 0 échec** ;
-- aucun workflow de test temporaire n'est conservé dans l'arbre de passation ;
-- aucune résidence persistante, session runtime réelle ou donnée locale n'a été modifiée.
+## 8. WO95 — idle technique
 
-Le lot matérialise et falsifie le raccord causal **synthétique** : H/phi/P restent séparés, P ne devient jamais une cause de sommeil, les plans subjectifs opaques ne sont pas parsés en actions, les mappings identité et activités physiquement non classées échouent fermés, et la complétion canonique d'un sommeil de checkpoint exige désormais une autorisation privée consommable et atomique.
+Le fallback technique post-frontière reste fixé à 600 secondes et porte la provenance `wo95_post_boundary_idle`.
 
-Le cutover reste **NO-GO**. À soumettre à Codex avant toute promotion production : provenance owner-backed de `wake_viability_milli`, résolution production de `wake_source`, owner/accessibilité des réveils externes, classification/calibration des charges physiques, scheduler/frontières runtime et commutation atomique des consommateurs legacy. Ne pas combler ces trous par défauts implicites ou en promouvant les APIs `_synthetic`.
+V3c a montré qu'un tel idle peut être interrompu rapidement lorsqu'une nouvelle activité prend le relais, mais Chuu a aussi montré des chaînes d'idles expirant normalement.
 
-### Mise à jour de clôture WO86 — 12 août 2026
+Ne pas réduire ce délai pendant V3c pour masquer un symptôme. Le mesurer et l'interpréter au rapport final.
 
-La revue Sol a accepté et clos le lot owner-backed preflight au commit
-`dea3a1639c3567f39424e1b1453d23b4c0f0f5ac`. La validation finale compte
-**984 tests réussis**. Cette clôture ne constitue pas un cutover : le runtime
-physiologique, la résidence réelle, le scheduler et les débits P restent
-inactifs; `external wake` reste fermé et le gate legacy continue de refuser
-fail-closed les mondes actifs non commutés.
+## 9. Ce qui n'est pas à corriger pendant V3c
 
-Une branche candidate d’intégration est préparée depuis `main` et conserve le
-workflow temporaire `.github/workflows/local-llm-smoke.yml` pour le bridge. Elle
-ne doit pas être mergée vers `main` sans revue d’intégration distincte.
+- Erika/gaming et autres signatures comportementales : observation, pas patch prompt/personnage;
+- répétition/conversation : relève du futur Conversation State, pas d'un hack de prompt live;
+- Chuu/no_action : cas de référence BOL, pas règle spéciale Chuu;
+- double représentation trace + épisode : mesurer avant de corriger;
+- absence d'épisode autobiographique : qualifier le chemin sous conditions valides avant toute modification;
+- bruit `source_not_perceived` : diagnostic connu, pas urgence runtime.
+
+## 10. Ordre immédiat R&D / développement
+
+```text
+V3c long run
+→ scène mémoire A/B si causalement possible
+→ preuve episode → retrieval → contexte routé si elle survient
+→ audit de fermeture P0
+→ Conversation State minimal
+→ Behavioral Opportunity Layer
+→ P3.5 Perception · Action · Sensorium
+→ affect au-delà du SCC
+→ cognition animale au-delà de Patoune
+→ physiologie plus large
+```
+
+Un seul chantier R&D runtime majeur à la fois.
+
+Conversation State ne doit pas démarrer avant l'audit de fermeture P0. BOL vient après Conversation State minimal. P3.5 ne doit pas être confondu avec BOL :
+
+```text
+affordance physique ≠ opportunité comportementale
+```
+
+## 11. Limites P0 à décider à la fermeture
+
+Points à distinguer entre « requis pour fermer P0 » et « volontairement différé » :
+
+- seeding d'épisode depuis l'attention ordinaire;
+- déclencheur naturel de lifecycle/révision;
+- activation de candidats mémoire dans SCC;
+- oubli, consolidation, familiarité, recollection et reconstruction avancée.
+
+Ne pas présenter une structure de révision append-only comme une preuve que l'oubli ou la reconsolidation psychologique sont déjà simulés.
+
+## 12. Méthode R&D
+
+Pour tout modèle comportemental, cognitif, social ou physiologique :
+
+1. établir les résultats empiriques/techniques pertinents;
+2. séparer les conclusions raisonnables mais incertaines;
+3. expliciter les hypothèses de modélisation;
+4. expliciter les choix de design/ingénierie;
+5. chercher théories concurrentes, limites et falsifications;
+6. ne jamais transformer un choix d'ingénierie en « loi scientifique ».
+
+## 13. Gouvernance
+
+- **ChatGPT** : recherche scientifique/technique, conception fonctionnelle, cohérence conceptuelle, documentation R&D.
+- **Grok** : contre-audit scientifique adversarial indépendant.
+- **Codex** : architecture réelle, code, migrations, propriétaires persistants, invariants techniques, tests et ordre d'implantation.
+- **Propriétaire** : autorité finale produit/design.
+
+Codex ne doit pas exécuter littéralement une architecture proposée par ChatGPT si le dépôt réel impose mieux; la divergence doit être expliquée et les contrats fonctionnels conservés.
+
+## 14. Documents de reprise
+
+Ordre recommandé :
+
+1. `docs/99_PASSATION_COURANTE.md` — état opérationnel;
+2. `docs/00_DOSSIER_MAITRE_IA.md` — noyau normatif stable;
+3. `docs/01_REGISTRE_DECISIONS.md` — décisions autoritatives;
+4. `docs/03_DECISIONS_OUVERTES.md` — décisions encore ouvertes;
+5. `docs/15_ROADMAP_ACTIVE.md` — ordre de travail;
+6. `docs/GOUVERNANCE_GIT.md` — référence produit et cycle Git;
+7. docs de lot/R&D cités au besoin pour la provenance.
+
+Les documents historiques et `sources/` restent utiles pour comprendre l'origine des décisions, mais ne doivent pas contredire silencieusement le produit courant ou le registre autoritatif.
+
+**Flexible creativity. Rigorous execution.**  
+**Verify twice. Commit once.**

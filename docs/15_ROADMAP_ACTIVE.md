@@ -1,228 +1,246 @@
-# Roadmap active — du moteur au Vivarium MVP
+# Roadmap active — RIC
 
-**Version :** 1.5
-**Mise à jour :** 13 août 2026
-**Statut :** trajectoire opérationnelle. Elle remplace l'ordre immédiat des
-anciennes feuilles de route historiques, sans effacer leur valeur documentaire.
+**Version :** 2.0  
+**Mise à jour :** 16 août 2026  
+**Statut :** trajectoire opérationnelle courante
 
-> **Mise au point prioritaire — démarrage Rodage V2 (13 août 2026) :** WO91 reste **FERMÉ**. Version corrective `0.2.0a5`, schéma 57, migration `0057_location_plan_resolution.sql`. La correction ancre le manifeste sur la frontière canonique effectivement gelée par `stop()`; validation complète : **1045 passed, 1 skipped, 0 failed en 240,88 s**; skip attendu `tests/test_dev_bridge.py:59`. Qwen3-14B Q4_K_M est chargé et vérifié nativement. Le démarrage officiel a réussi sur `data/vivarium-rodage-v2.sqlite` (world `1`, session `2`, T0 `2026-08-13T19:20:22.071+00:00`); préflight et Hugin ont passé avant ouverture. L'ancien SQLite reste hors portée.
+Cette roadmap fixe l'ordre des grands chantiers. Elle ne remplace ni la passation opérationnelle (`docs/99_PASSATION_COURANTE.md`), ni le noyau normatif (`docs/00_DOSSIER_MAITRE_IA.md`), ni le registre de décisions (`docs/01_REGISTRE_DECISIONS.md`).
 
 ## Principe de conduite
 
-Chaque capacité importante doit avoir un moyen reproductible d'être mise en
-situation, observée et comparée **avant** de contaminer le monde MVP. Le banc
-d'essai n'est donc pas une interface de fin de projet : c'est une couche de
-validation du moteur qui croît avec lui.
+RIC suit deux règles :
 
-Avant de concevoir un nouveau système vivant, cognitif, social ou physique,
-une revue de la littérature scientifique ou technique appropriée est requise.
-Elle doit distinguer ce qui est robuste, ce qui demeure débattu et ce qui est
-un choix d'ingénierie du Vivarium; les sources et limites doivent être consignées
-dans le document de lot. Une intuition utile peut ouvrir une piste, jamais
-tenir lieu de fondation. Cette règle applique DEC-036.
+> **Flexible creativity. Rigorous execution.**
+>
+> **Verify twice. Commit once.**
 
-La routine `docs/35_ROUTINE_AUDIT_SILENCIEUX.md` est une porte de qualité
-complémentaire : elle recherche les écarts entre état, journal, audits, banc,
-tests et documentation après un lot à conséquences étendues.
+Une idée peut rester ouverte tant qu'elle est exploratoire. Dès qu'elle devient spécification, architecture, code ou canon, elle doit être testable, traçable et falsifiable.
 
-## État actuel
+Pour tout système comportemental, cognitif, social ou physiologique : littérature scientifique/technique d'abord, traduction opérationnelle ensuite. Séparer explicitement résultats empiriques, conclusions incertaines, hypothèses de modélisation et choix d'ingénierie.
 
-**Version logicielle actuelle :** `0.2.0a5` — schéma de code 57, migration
-`0057_location_plan_resolution.sql`, FUNCTIONAL_HEAD
-`1a55ce5056309e416865d9bd095e24821c3ef99d`, validation complète **1045 passed, 1 skipped, 0 failed
-en 240,88 s**. WO89, WO90 et WO91 sont fermés; le bootstrap T0 jetable, le
-point d'entrée one-shot et le garde provider Qwen3-14B Q4_K_M sont qualifiés.
-Aucun ancien SQLite n'a été migré et aucune histoire officielle Rodage V2 n'a commencé.
+Un seul chantier R&D runtime majeur à la fois.
 
-- moteur déterministe, journal canonique, transactions et audits : livrés ;
-- contrats/personnages versionnés, ressources et effets déclaratifs : livrés ;
-- premiers changements administratifs préparés (renommage, ajout de passage) :
-  livrés ;
-- cinq résidentes MVP et leur contexte d'arrivée : assemblables atomiquement
-  dans le monde d'intégration ;
-- objets portables, installations fixes, contenance objet‑dans‑objet et
-  possession par personnage : livrés; équipement, liquides et formes restent
-  futurs ;
-- presets de lieux et connecteurs versionnés : livrés; leur instanciation
-  propre par blueprint est livrée; les connecteurs à état simple sont livrés;
-  la traversée validée initiale est livrée; le monde d'intégration devient le
-  prochain jalon avant la cognition ;
-- règles standard de résidence installables hors du seed technique : livrées;
-  la calibration déclarative de Chuu et l'arrivée initiale commune à la boîte
-  aux lettres sont définies; l'instanciation réelle peut être préparée ;
-- contrat fermé moteur–cognition v2, perception factuelle locale, attention
-  déterministe et première trace subjective : livrés; relations et décision
-  sociale restent futures ;
-- SCC-0 : encodage privé idempotent des paroles sociales depuis leur source
-  persistante; SCC-1A : interprétations sociales privées, bornées et révisables,
-  sans LLM ni raccordement runtime ;
-- SCC-1B2A : banc de calibration/falsification jetable livré avec 30 IDs,
-  31 variantes déclarées, 27 fixtures T0 vérifiées, cas deferred explicites et
-  smoke T1 borné; campagne T2a réelle exécutée en deux segments (105 appels
-  génériques + 10 appels pairés B15/B16), sans admission cognitive ; SCC-1B2C
-  ajoute l'outillage d'inventaire et Screen-47 multi-modèles, sans campagne
-  comparative exécutée ;
-- première frontière LLM locale LM Studio : livrée, avec contexte borné,
-  réponse JSON validée, admission événementielle append-only et routeur de
-  source perceptible; l'action reste soumise au moteur. La première boucle
-  autonome choisit maintenant une activité à chaque nouvel `idle`; les
-  intentions longues et la planification multi-étapes restent futures ;
-- première disposition de personnalité canonique : livrée (Big Five,
-  attachement général, versions de gabarits immuables); valeurs, conception de
-  soi, réputation, relations et émotions restent futurs ;
-- croyances subjectives initiales : livrées partiellement (source privée,
-  preuve, révision auditée et contexte LLM v2); hypothèses concurrentes,
-  modèles de source et contradictions gérées restent futurs ;
-- affect subjectif initial : livré partiellement (humeur, épisodes causés,
-  résolution auditée et contexte LLM v3); dynamique, expression et régulation
-  restent futurs ;
-- social initial : livré partiellement (relations directionnelles sourcées,
-  limites et permissions explicites, contexte LLM v4); réparation, réseau,
-  consentement opérationnel et actes sociaux restent futurs ;
-- premier orchestrateur : livré pour les événements directs perceptibles,
-  avec snapshot borné, curseur persistant et dégradation LLM; déclencheurs de
-  scènes, intentions et réflexion restent futurs ;
-- premier tour social LLM : livré pour une scène active et co-localisée,
-  avec admission technique, schéma propre, validation de destinataire et acte
-  append-only; sa sélection automatique par l'orchestrateur reste future ;
-- banc social multi-tours : livré, avec occasions de parole alternées,
-  déterministes et bornées dans un monde jetable; il ne remplace pas encore
-  le déclenchement autonome d'une scène ;
-- boucle alpha : livrée. Les options de traversée visibles sont revérifiées par
-  le moteur, les rencontres canoniques ouvrent des scènes bornées, le contexte
-  initial commun peut amorcer une première rencontre, et le runtime local
-  persistant offre le contrôle opérateur; voir `docs/58_MVP_ALPHA_0_1_0A1.md` ;
-- banc d'essai minimal : livré (`vivarium.bench`), avant ces systèmes subjectifs.
-- porte de prévol MVP : livrée (`mvp-preflight`) pour inspecter une base candidate
-  sans écriture ni appel LLM; elle ne remplace ni les scénarios vivants ni les
-  contrôles opérateur qui restent à raccorder.
+## Référence produit
 
-## Jalons de version produit
+Au moment de cette mise à jour :
 
-| Version | Place dans la roadmap | Signification |
-| --- | --- | --- |
-| `0.2.0a1` | Atteint | Base alpha du Rodage V2 : physiologie active owner-backed H/φ/P, observabilité opérateur et bootstrap T0 neuf qualifiés; histoire officielle non encore démarrée. |
-| `0.2.0a2` | Atteint | Bootstrap WO90 : topologie externe générique, sommeil dans tout lieu canonique accessible, plans de retour et T0 jetable complet qualifiés; histoire officielle non encore démarrée. |
-| `0.2.0a3` | Atteint | WO91 : scheduler temporel générique, retour causal à 16 h, manifeste T0 provenancé et point d'entrée one-shot qualifiés; histoire officielle non encore démarrée. |
-| `0.2.0a4` | Atteint | Durcissement du provider officiel : preuve structurée Qwen3-14B Q4_K_M et instance LM Studio chargée vérifiées avant création SQLite; histoire officielle non encore démarrée. |
-| `0.2.0a5` | Atteint | Correction de l’ancre T0 du manifeste sur la frontière canonique gelée par l’arrêt technique; qualification complète verte. |
-| `0.0.0.dev0` | État actuel | Pré-alpha : fondations rigoureuses, mais pas encore de boucle sociale complète. |
-| `0.0.1.dev0` | Jalon atteint après le banc minimal | Les interactions du moteur peuvent être mises en situation et comparées de façon reproductible. |
-| `0.0.2.dev0` | État actuel, après le monde d'intégration | Les cinq vraies configurations peuvent être assemblées et réinitialisées sans histoire officielle. |
-| `0.1.0a1` | Atteint | **Premier MVP alpha** : boucle sociale minimale complète et présentable, encore réinitialisable. |
-| `0.1.0a2` | Atteint | Correctif d'observation et d'arrivée : le tableau se rafraîchit, et l'occasion initiale de traversée est bornée et validée. |
-| `0.1.0a3` | Atteint | Cadence runtime sans écritures intermédiaires, rencontre unique pendant une attente commune et filtre de lecture du bruit de journal. |
-| `0.1.0a4` | Atteint | Le runtime ne transmet plus de plafond de sortie à LM Studio; le modèle suit sa configuration locale. |
-| `0.1.0a5` | Atteint | Un nouvel `idle` ouvre une décision autonome unique parmi des activités canoniquement disponibles; le moteur exécute ou refuse atomiquement. |
-| `0.1.0a6` | Atteint | La latence LLM ne peut plus désordonner le journal; une proposition issue d'un contexte devenu périmé est refusée sans écriture. |
-| `0.1.0b1` | Après essais prolongés | Bêta : le MVP tourne durablement; les défauts restants sont recherchés par observation réelle. |
-| `1.0.0` | Lancement | Usage normal et persistance suffisamment fiables pour que l'histoire compte durablement. |
+- `PRODUCT_HEAD = 350fbf80353af55994650372b27260eb29dc4dac`
+- version déclarée : `0.2.0a5`
+- dernière migration : `0061_autobiographical_append_only_lifecycle.sql`
+- Operational Cognition Grounding : fermé
+- P0 Memory : ouvert, en rodage V3c
 
-Les suffixes suivent la convention Python/PEP 440 : `dev0` = développement,
-`a1` = alpha 1 et `b1` = bêta 1. Un jalon est publié seulement lorsque ses
-critères sont réellement atteints, jamais parce qu'un calendrier l'exige.
+Toujours revérifier `origin/product/current` avant tout WO.
 
-## Ordre de travail
+## Porte actuelle — P0 Memory / V3c
 
-La trajectoire détaillée jusqu'aux premiers systèmes cognitifs est dans
-`docs/21_TRAJECTOIRE_VERS_COGNITION.md`. Elle fixe les portes de qualité :
-blueprint, connecteurs à état, traversée validée, monde d'intégration, puis
-contrat moteur–cognition, perception, état interne, mémoire, social et LLM.
+Le produit possède maintenant les fondations autobiographiques suivantes :
 
-### 1. Sûreté de l'univers administratif — fermeture de passage livrée
+- admission sélective d'encodage;
+- `subjective_trace` append-only;
+- épisodes autobiographiques avec supports;
+- retrieval contextuel borné;
+- seeding social d'épisode;
+- lifecycle append-only et révisions structurelles;
+- exposition séparée de `memories` et `autobiographical_memories` au contexte cognitif.
 
-La fermeture de passage détecte maintenant l'isolement dans les deux sens du
-graphe et suit le protocole préparé. Les premiers lieux/objets attendent encore
-un cas concret; aucune suppression ne doit devenir une voie rapide. Voir
-`docs/17_PLAN_LOT_4_2L_FERMETURE_PASSAGE.md`.
+Le rodage doit déterminer ce que ces mécanismes font réellement dans la boucle normale.
 
-### 2. Banc d'essai minimal du moteur — livré
+### Preuve runtime encore recherchée
 
-Construire un outil sans LLM et sans interface graphique qui :
+```text
+expérience sociale accessible
+→ admission
+→ trace subjective
+→ épisode autobiographique
+→ retrieval contextuel
+→ CognitionContext routé
+→ provider réel
+```
 
-- crée une base isolée et temporaire à partir d'un scénario déclaratif ;
-- fixe l'horloge, le monde initial et les actions injectées ;
-- exécute le moteur jusqu'à une borne choisie ;
-- produit un rapport lisible, le digest d'état, les événements et les refus ;
-- compare deux exécutions identiques ou deux variantes ;
-- ne modifie jamais une base MVP ou un monde de développement existant.
+La preuve qualifie l'exposition du souvenir au provider; elle ne prouve pas à elle seule que le souvenir a causé la décision du modèle.
 
-La première version est un outil pour l'IA et les tests automatisés. Voir
-`docs/16_BANC_ESSAI_MOTEUR.md`. Une interface d'exploration humaine pourra
-venir ensuite, si elle répond à une friction observée.
+### Si la situation de test n'arrive pas
 
-### 3. Scénarios d'acceptation inter-systèmes
+La scène A Sophie → Erika ne peut être exercée que sous accessibilité causale réelle. Sans co-présence valide avant la fin de V3c, classer le chemin `NOT EXERCISED UNDER VALID CONDITIONS`, pas `FAILED`.
 
-Ajouter progressivement des situations de référence : passage ouvert/fermé,
-ressource qui bloque une capacité, blessure et trajet, pause/reprise,
-intervention admin et redémarrage. Chaque nouveau système devra fournir ses
-propres scénarios reproductibles avant d'être activé dans le monde MVP.
+### Porte de sortie P0
 
-### 4. Monde d'intégration pré-MVP propre — livré
+À la fin de V3c, faire un audit explicite de fermeture. Distinguer :
 
-Une base séparée de tout monde technique construit la résidence et
-instancier Sophie, Erika, Luna, Chuu et Patoune par les gestionnaires réels, avec
-une validation rapide du propriétaire sur leurs fiches détaillées. Ce monde
-d'intégration permet de tester les vraies configurations sans transformer des
-bugs précoces en histoire officielle. Les téléphones initiaux sont maintenant
-portés par leurs propriétaires; l'équipement et la buanderie restent des lots
-ultérieurs.
+- ce qui est réellement qualifié;
+- ce qui manque pour P0;
+- ce qui est volontairement différé à une couche mémoire ultérieure.
 
-### 5. Couches vivantes puis MVP présentable
+Les points à trancher comprennent notamment :
 
-Ajouter ces couches dans cet ordre, avec le banc d'essai comme critère de sortie
-de chaque lot. Le LLM n'entre qu'après le contrat moteur–LLM, avec sorties
-structurées, validation et coût borné. Le **MVP** est atteint seulement lorsque
-le simulateur social est suffisamment cohérent, stable et lisible pour être
-présenté : il ne se confond pas avec le simple monde d'intégration. Ce jalon
-correspond à `0.1.0a1`, pas à une date arbitraire.
+- seeding d'épisode à partir de l'attention ordinaire;
+- déclencheur naturel de lifecycle/révision;
+- activation de candidats mémoire dans SCC;
+- oubli, consolidation, familiarité, recollection et reconstruction avancée.
 
-### Addendum opérationnel — Hugin / Munin V0
+Une structure de révision append-only n'est pas une implémentation complète de la reconsolidation ou de l'oubli psychologique.
 
-Le read-model lecture seule Hugin/Munin est livré sur le schéma 44. Il expose
-des rapports structurés bornés: Hugin pour les faits canoniques établis et les
-actes de parole, Munin pour les états subjectifs explicitement demandés et
-effectivement persistés. Aucun rapport n’est persisté, aucun LLM n’accède à la
-base, et aucune requête ne produit de conséquence. Une interface narrative LLM,
-une UI complète et les extensions de mémoire restent différées.
+## Étape 1 après P0 — Conversation State minimal
 
-### Addendum opérationnel — console de rodage Hugin / Munin V0.1
+Conversation State vient immédiatement après l'audit de fermeture P0.
 
-Une console locale temporaire est maintenant disponible sur `/observer`. Elle
-consomme le read-model sans SQL dans le transport et fournit le focus canonique
-`current_state` ainsi qu’un planner naturel déterministe très borné. Les
-contrôles structurés restent la voie fiable; aucune narration LLM, détection
-d’anomalies ou interface finale n’est engagée.
+But fonctionnel : donner à une conversation une continuité explicite suffisante pour éviter que chaque tour soit traité comme une fenêtre presque indépendante, sans transformer le dialogue en script.
 
-### Addendum opérationnel — rodage vivant et instrumentation diagnostique
+Questions à spécifier avant code :
 
-Le rodage vivant est en cours. Le burn-in nocturne a réussi techniquement; il a
-révélé deux défauts de classe A, les retries cognitifs et le polling excessif de
-l’autonomie, corrigés dans `da30d5d` (`fix: bound cognitive retry storms`) et
-contre-vérifiés. Deux signaux de classe C restent ouverts : la répétition
-dialogique et les sorties SCC-2A `invalid_appraisal` dont la réponse provider
-brute n’était pas conservée.
+- quel état de conversation doit persister;
+- comment distinguer sujet courant, engagements conversationnels, questions ouvertes et clôture;
+- comment réduire répétition et perte de continuité;
+- ce qui appartient à l'état partagé de scène versus à la mémoire subjective de chaque participante;
+- comment une scène interrompue se ferme sans inventer la suite.
 
-Le prochain jalon est une instrumentation diagnostique locale, optionnelle et
-bornée, puis un burn-in court. Aucun nouveau mécanisme cognitif ni changement
-de contrat n’est décidé par ce jalon.
+Le mécanisme actuel de scènes bornées reste une contrainte de sécurité, pas la définition finale d'une conversation naturelle.
 
-## Frontières explicites
+Ne pas corriger la répétition par accumulation de prompt ad hoc avant ce chantier.
 
-- Les tests unitaires actuels restent la preuve des règles locales.
-- Le banc d'essai prouve les interactions de systèmes et les "what if".
-- Le monde MVP est une histoire persistante, jamais une poubelle de test.
-- Un test emergent intéressant n'est pas une règle : il doit être reproduit,
-  expliqué et décidé avant de devenir du canon.
-## État à vérifier après le lot SCC-1B
+## Étape 2 — Behavioral Opportunity Layer (BOL)
 
-La migration `0040_scc1b_interpretation_only.sql` porte le schéma SCC-1B à 40. Le provider actif produit uniquement `schema_version`, `understanding_status` et `meaning_hypotheses`. Le raccordement SCC-1C vivant est décrit par l'état courant ci-dessous.
+Le diagnostic V3c de Chuu a fourni un cas empirique clair : la faisabilité moteur ne suffit pas à créer une opportunité comportementale pertinente.
 
-État courant vérifié après ce jalon : les migrations forward-only
-`0041_scc1c_admission.sql`, `0042_social_interpretation_call_trigger.sql` et
-`0043_scc2a_appraisal.sql` et `0044_scc3a_affect_owner.sql`
-portent le schéma à 44. Le raccordement événementiel SCC-0 -> SCC-1C -> SCC-1B
-est livré dans le runtime social; SCC-2A ajoute un appraisal privé et SCC-3A
-examine exclusivement les candidates affect, avec arrêt avant les autres domaines. Les retries
-techniques restent bornés et l'attribution imbriquée reste explicitement
-reportée après son échec structurel en R&D.
+État actuel observé :
+
+```text
+motifs / préférences / buts / contexte
+        ↓
+   [raccord générique incomplet]
+        ↓
+whitelist d'activités MVP techniquement faisables
+        ↓
+choix LLM ou no_action
+```
+
+Le BOL doit traiter le besoin fonctionnel suivant :
+
+> À partir des motifs, préférences, objectifs, contexte, capacités et environnement réellement accessibles, produire un ensemble borné d'opportunités comportementales génériques, distinct des affordances physiques, que le moteur peut valider et que la cognition peut sélectionner.
+
+Contraintes de conception :
+
+- ne pas coder des comportements propres à Chuu, Erika ou un autre personnage;
+- ne pas réduire le système à une table rigide `motif → activité`;
+- peu d'opportunités pertinentes valent mieux qu'un énorme catalogue brut;
+- la cognition peut proposer, jamais rendre une action physiquement possible;
+- le moteur conserve l'autorité finale de faisabilité et de conséquence;
+- une absence d'opportunité pertinente doit rester distinguable d'une impossibilité physique.
+
+### Cas de référence Chuu
+
+Le futur BOL devra pouvoir expliquer génériquement pourquoi une slime avec préférence `playful_group`, aucun partenaire social accessible, un motif de récupération et un environnement donné a ou n'a pas une occasion intéressante — sans règle spéciale `if character == Chuu`.
+
+### Contrats à clarifier avec le BOL
+
+- `MotiveCandidate.possible_actions` : projection explicative, pas liste légale d'options;
+- `no_action` : aujourd'hui plusieurs causes sémantiques sont collapsées dans la même réponse minimale;
+- relation entre préférences abstraites et occasions concrètes;
+- relation entre activité moteur et opportunité cognitive.
+
+Ne pas patcher simplement `sleep`/`rest` dans la whitelist des `planned_reflection` pour contourner le problème général.
+
+## Étape 3 — P3.5 Perception · Action · Sensorium
+
+P3.5 vient après BOL.
+
+Principe central :
+
+```text
+accessible signal
+≠ détecté
+≠ sélectionné par l'attention
+≠ accessible cognitivement
+```
+
+P3.5 doit généraliser les contrats de perception/action/sensorium : modalités, détection, attention, active sensing, relation corps-environnement et affordances physiques.
+
+Frontière conceptuelle :
+
+```text
+affordance physique = relation corps ↔ monde permettant une action
+opportunité BOL = possibilité comportementale considérée comme pertinente
+```
+
+Operational Cognition Grounding prépare cette étape en exposant déjà une partie du soi opérationnel et des capacités owner-backed, mais ne remplace pas P3.5.
+
+## Étape 4 — Affect au-delà du SCC
+
+Après les fondations décisionnelles précédentes :
+
+- dynamique affective plus générale;
+- expression;
+- régulation;
+- interaction avec mémoire, buts, attention et relations;
+- séparation stricte entre état subjectif et vérité canonique.
+
+Toute extension devra être fondée scientifiquement et testable; éviter les labels émotionnels décoratifs sans mécanisme.
+
+## Étape 5 — cognition animale au-delà de Patoune CAT-0
+
+Développer une agence non sapiente plus riche sans projeter automatiquement le modèle cognitif humain sur l'animal.
+
+Les mécanismes devront être génériques, comparables et fondés sur la littérature pertinente.
+
+## Étape 6 — physiologie plus large
+
+Étendre au-delà du cycle sommeil/capacité physique seulement lorsque les systèmes précédents offrent les interfaces nécessaires.
+
+Éviter d'ajouter des jauges physiologiques simplement parce qu'elles sont simulables : chaque variable doit avoir un propriétaire persistant, une causalité utile et une traduction comportementale justifiable.
+
+## Signaux V3c à conserver pour les futurs chantiers
+
+### Chuu / idles techniques
+
+Les chaînes `idle WO95 → planned_reflection → no_action → expiration` sont actuellement un cas de diagnostic BOL/contrat de décision, pas une justification pour raccourcir WO95 ou patcher Chuu.
+
+### Erika / gaming
+
+La préférence très alignée sur la whitelist peut produire une signature répétitive. Observer la monoculture pendant V3c; ne pas la corriger avant BOL/calibration appropriée.
+
+### `cognition_call_source_not_perceived`
+
+Verdict actuel : `HEALTHY BUT NOISY`. Le filtre protège correctement l'accès subjectif mais est utilisé tardivement par rapport à la génération des tentatives. Optimisation possible après mesure, sans dupliquer l'autorité perceptive.
+
+### `character_moved` / observabilité
+
+Deux follow-ups techniques ont été repérés : payload `connector` potentiellement incomplet dans certains événements et `source_event_seq` absent sur le chemin d'invalidation cognitive. Aucun des deux ne justifie une modification live de V3c.
+
+## Backlog explicitement différé
+
+Les éléments suivants sont importants mais ne doivent pas interrompre la trajectoire actuelle :
+
+- oubli/consolidation/recollection mémoire avancés;
+- hypothèses concurrentes et contradictions de croyances plus riches;
+- réseau relationnel et réparation;
+- consentement opérationnel complet;
+- identité/transformation/copie/fusion avancées;
+- rattrapage temporel hors ligne condensé;
+- interface sociale externe complète;
+- optimisation fine des coûts/provider après qualification fonctionnelle.
+
+## Discipline de fermeture
+
+Une étape n'est pas fermée parce que le code existe. La fermeture exige :
+
+```text
+contrat explicite
+→ implémentation vérifiée
+→ tests/falsifications
+→ observation runtime lorsque nécessaire
+→ intégration reconnue
+→ product/current avancé
+→ documentation synchronisée
+```
+
+Un résultat négatif ou `NOT EXERCISED` doit être conservé tel quel. Ne jamais transformer l'absence de preuve en PASS documentaire.
+
+## Gouvernance
+
+- ChatGPT : science, conception fonctionnelle, cohérence conceptuelle, documentation R&D.
+- Grok : contre-audit scientifique adversarial indépendant.
+- Codex : architecture réelle, code, migrations, tests, invariants techniques, ordre d'implantation.
+- Propriétaire : autorité finale produit/design.
+
+Le code réel peut imposer une meilleure architecture que celle imaginée en R&D; Codex doit alors préserver le contrat fonctionnel et expliquer la divergence.
