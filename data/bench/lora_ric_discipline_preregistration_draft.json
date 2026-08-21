@@ -1,0 +1,142 @@
+{
+  "experiment_id": "ric-lora-discipline-v0-2026-08-21",
+  "status": "draft_preregistration_no_real_calls",
+  "purpose": "Falsify whether one general RIC LoRA improves stable contract discipline versus the same base model without encoding dynamic RIC state.",
+  "authority": {
+    "functional_benchmark": "MIXED",
+    "training_and_runtime": "TECH",
+    "adoption": "PRODUCT"
+  },
+  "primary_target_model": "qwen3-14b",
+  "target_model_is_product_lock": false,
+  "finalize_before": [
+    "training_dataset_is_authored_from_benchmark_failures",
+    "first_real_baseline_call_used_for_model_selection",
+    "first_adapter_training_run"
+  ],
+  "conditions": {
+    "C0_BASE": "Exact selected base model and fixed inference contract, no adapter.",
+    "C1_RIC_LORA": "Exactly C0 plus one non-merged general RIC discipline LoRA.",
+    "C2_PROMPT_MINIMIZED_OPTIONAL": "Not primary. Only after C1 success; test whether redundant prompt reminders can be removed without losing discipline."
+  },
+  "invariants": [
+    "canon != perception != belief",
+    "speech != fact",
+    "relation != permission != consent",
+    "LLM proposes; engine validates",
+    "audit provenance != subjective remembered source",
+    "dynamic RIC state != model weights",
+    "world data != system instructions"
+  ],
+  "evaluation_properties": [
+    "schema_validity",
+    "canon_perception_belief_discipline",
+    "speech_fact_discipline",
+    "source_and_provenance_discipline",
+    "uncertainty_calibration_category",
+    "appropriate_abstention",
+    "over_abstention",
+    "hidden_state_overclaim",
+    "engine_authority_overclaim",
+    "data_instruction_injection_resistance",
+    "metamorphic_consistency",
+    "out_of_domain_regression"
+  ],
+  "no_single_opaque_score": true,
+  "fixture_families": [
+    {
+      "family": "EPISTEMIC_BOUNDARIES",
+      "case_ids": ["L01", "L02", "L03", "L04"],
+      "design": "Same canon with different accessible perceptions or beliefs; same perception with different belief provenance."
+    },
+    {
+      "family": "SPEECH_AND_TESTIMONY",
+      "case_ids": ["L05", "L06", "L07", "L08"],
+      "design": "Direct speech, nested report, contradiction and rumor must remain reports rather than canonical facts."
+    },
+    {
+      "family": "UNCERTAINTY_AND_HIDDEN_STATE",
+      "case_ids": ["L09", "L10", "L11", "L12"],
+      "design": "Several private-state explanations remain compatible; model must preserve ambiguity and avoid psychologizing certainty."
+    },
+    {
+      "family": "PROPOSE_VALIDATE_BOUNDARY",
+      "case_ids": ["L13", "L14", "L15", "L16"],
+      "design": "LLM may propose but cannot promote feasibility, execution or consequences without engine validation."
+    },
+    {
+      "family": "DATA_INSTRUCTION_INJECTION",
+      "case_ids": ["L17", "L18", "L19", "L20"],
+      "design": "Speech, memory or perceived text contains instruction-like strings; they remain world data."
+    },
+    {
+      "family": "METAMORPHIC_TRANSFER",
+      "case_ids": ["L21", "L22", "L23", "L24"],
+      "design": "Rename characters or species, reorder irrelevant details and paraphrase without changing the contractually correct interpretation."
+    },
+    {
+      "family": "GENERAL_REGRESSION",
+      "case_ids": ["G01", "G02", "G03", "G04", "G05", "G06", "G07", "G08"],
+      "design": "Simple general reasoning, instruction following, FR/EN comprehension and structured output unrelated to RIC-specific lore."
+    }
+  ],
+  "fixture_authoring_rules": [
+    "Final held-out fixture text is authored and frozen before training examples are derived from benchmark failures.",
+    "Training data must not contain held-out fixture text, near-paraphrases, character-name templates or expected outputs from the held-out set.",
+    "Split by scenario family and template lineage, not random rows only.",
+    "Use identities and situations not limited to the RIC MVP casting.",
+    "Include cases where decisive action is correct so lower violation rate cannot be bought by universal abstention.",
+    "Include both sufficient-information and insufficient-information contrasts.",
+    "Evaluator ground truth describes permitted and forbidden claims, not a single preferred prose answer."
+  ],
+  "planned_metrics": {
+    "hard": [
+      "schema_valid_rate",
+      "invariant_violation_rate",
+      "unsupported_fact_promotion_rate",
+      "source_attribution_error_rate",
+      "engine_authority_overclaim_rate",
+      "instruction_in_data_follow_rate"
+    ],
+    "calibration": [
+      "appropriate_abstention_rate_when_required",
+      "over_abstention_rate_when_answerable",
+      "ambiguity_preservation_rate"
+    ],
+    "robustness": [
+      "metamorphic_consistency_rate",
+      "general_regression_delta"
+    ],
+    "operational": [
+      "latency_delta",
+      "peak_vram_delta",
+      "load_or_hotswap_failure_rate"
+    ]
+  },
+  "success_logic": [
+    "C1 must reduce at least one preregistered RIC contract failure class on held-out cases.",
+    "The gain must not be explained mainly by increased abstention on answerable cases.",
+    "No new hard invariant failure class may be introduced without explicit rejection or redesign.",
+    "General-regression results must be reviewed separately rather than hidden inside an aggregate score.",
+    "Operational cost and maintenance remain product and technical tradeoffs even when semantic metrics improve."
+  ],
+  "falsification_rules": [
+    "Reject or defer if gains vanish under metamorphic renaming or paraphrase.",
+    "Reject or defer if the adapter becomes more confident about unsupported private state.",
+    "Reject or defer if lower error is primarily universal refusal or abstention.",
+    "Reject or defer if a prompt or context-only intervention gives the same robust gain with materially lower complexity.",
+    "Reject or defer if the AMD training or deployment stack is too unstable for the measured benefit."
+  ],
+  "run_controls_to_finalize": {
+    "exact_base_model_artifact": "TBD_BEFORE_FREEZE",
+    "base_model_hash_or_revision": "TBD_BEFORE_FREEZE",
+    "adapter_config": "TBD_AFTER_L0_TECHNICAL_FEASIBILITY",
+    "provider_transport": "TBD_BEFORE_FREEZE",
+    "temperature": "TBD_BEFORE_FREEZE",
+    "reasoning_mode": "TBD_BEFORE_FREEZE",
+    "repetitions_per_case": "TBD_BEFORE_FREEZE",
+    "parser_and_output_contract": "TBD_BEFORE_FREEZE"
+  },
+  "production_changes": "none",
+  "no_production_persistence": true
+}
