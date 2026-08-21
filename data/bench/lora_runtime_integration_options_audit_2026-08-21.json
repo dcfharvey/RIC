@@ -1,0 +1,86 @@
+{
+  "audit_id": "ric-lora-runtime-integration-options-2026-08-21",
+  "status": "external_technical_survey_not_architecture_decision",
+  "scope": "Survey plausible future serving families only. Codex remains authority on actual architecture and no runtime integration is authorized here.",
+  "options": [
+    {
+      "option": "CURRENT_LM_STUDIO_NATIVE_ADAPTER",
+      "current_evidence": "NOT_DOCUMENTED_IN_INSPECTED_V1_API",
+      "facts": [
+        "Current LM Studio v1 docs expose model load/unload and inference but no inspected LoRA/adapter request parameter.",
+        "Upstream feature requests for inference-time LoRA adapter support remain open in inspected lmstudio-ai/lms and mlx-engine repositories."
+      ],
+      "consequence": "Do not assume the existing RIC LM Studio provider can hotswap a PEFT adapter today. Recheck official docs and local capabilities at integration time.",
+      "sources": [
+        "https://lmstudio.ai/docs/developer/rest",
+        "https://github.com/lmstudio-ai/lms/issues/110",
+        "https://github.com/lmstudio-ai/mlx-engine/issues/51"
+      ]
+    },
+    {
+      "option": "LM_STUDIO_WITH_MERGED_DERIVED_MODEL",
+      "current_evidence": "PLAUSIBLE_DERIVED_ARTIFACT_WORKFLOW",
+      "facts": [
+        "llama.cpp provides tooling to apply LoRA adapters to a base GGUF and export a merged GGUF.",
+        "A historical LM Studio issue describes a Qwen3 fine-tune created by merging an Axolotl LoRA and converting the result to GGUF before serving it in LM Studio."
+      ],
+      "tradeoffs_to_audit": [
+        "No in-place adapter hotswap; switching effectively means switching model artifact or model instance.",
+        "Derived artifact must retain explicit provenance to base model plus adapter version/config.",
+        "A/B qualification remains possible if base and merged artifacts are separately loadable, but operational identity differs from adapter activation."
+      ],
+      "sources": [
+        "https://github.com/ggml-org/llama.cpp/blob/master/tools/export-lora/README.md",
+        "https://github.com/lmstudio-ai/lmstudio-bug-tracker/issues/714"
+      ]
+    },
+    {
+      "option": "DIRECT_LLAMA_SERVER_WITH_GGUF_LORA",
+      "current_evidence": "DOCUMENTED_ADAPTER_SUPPORT_WITH_CURRENT_CAVEAT",
+      "facts": [
+        "Current llama-server documentation exposes GET/POST /lora-adapters, startup --lora options and a per-request lora field with adapter id/scale.",
+        "This would preserve a single base server with explicit adapter selection rather than require permanent merging."
+      ],
+      "current_risk": "An open July 2026 llama.cpp issue reports prompt-cache reuse across requests with different per-request LoRA configurations, causing output contamination. Any RIC evaluation involving adapter switching must falsify this exact failure or isolate cache/server instances until upstream behavior is proven safe.",
+      "other_tradeoffs_to_audit": [
+        "Compatibility of Qwen3 adapter conversion to GGUF and the exact training target modules.",
+        "AMD backend performance/stability on the user's workstation.",
+        "API compatibility with RIC's current provider transport and reasoning-off contract.",
+        "Effective adapter identity and cache invalidation observability."
+      ],
+      "sources": [
+        "https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md",
+        "https://github.com/ggml-org/llama.cpp/issues/26207"
+      ]
+    },
+    {
+      "option": "VLLM_WITH_DYNAMIC_LORA",
+      "current_evidence": "DOCUMENTED_DYNAMIC_LORA_SUPPORT_AND_ROCM_SUPPORT",
+      "facts": [
+        "vLLM supports serving LoRA adapters as model names and documents runtime /v1/load_lora_adapter and /v1/unload_lora_adapter endpoints.",
+        "vLLM supports AMD ROCm on Linux and documents gfx1100/gfx1101 hardware families, with current ROCm wheels for selected ROCm versions.",
+        "vLLM does not support Windows natively; WSL is the relevant Windows-host path."
+      ],
+      "current_risks_and_limits": [
+        "vLLM warns that runtime LoRA updating carries security risks and should be used only in an isolated, fully trusted environment.",
+        "The inspected hardware page names Radeon RX 7900 series for gfx1100/gfx1101 rather than explicitly listing RX 7800 XT; shared gfx target is not sufficient proof of supported or stable operation on this exact card.",
+        "A local feasibility test is mandatory before considering provider migration."
+      ],
+      "sources": [
+        "https://docs.vllm.ai/en/latest/features/lora/",
+        "https://docs.vllm.ai/en/latest/getting_started/installation/gpu/",
+        "https://docs.vllm.ai/en/latest/serving/online_serving/"
+      ]
+    }
+  ],
+  "decision_principles": [
+    "Do not change serving backend merely because one backend exposes a nicer LoRA API.",
+    "Compare semantic correctness, AMD stability, VRAM/RAM, latency, API compatibility, reasoning control, structured-output behavior, observability, security and rollback.",
+    "The first behavioral LoRA experiment does not require a production serving decision; PEFT/Transformers can remain an isolated training/evaluation path until the roadmap integration gate.",
+    "A runtime path must identify the effective base model and adapter or derived-model provenance unambiguously.",
+    "For the first RIC experiment, one adapter only remains the preferred functional scope; multi-adapter serving complexity is not a product requirement."
+  ],
+  "freshness_rule": "All external capability claims in this audit must be reverified immediately before a Codex integration audit because these projects evolve rapidly.",
+  "authority": "TECH",
+  "production_changes": "none"
+}
