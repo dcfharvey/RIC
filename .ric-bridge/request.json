@@ -1,1 +1,1 @@
-{"active":false,"method":"GET","payload":{},"request_id":"f92b8e8d-b0a8-4ff9-b51b-8c8e30ed4a70","route":"/health","schema_version":1}
+{"active":true,"method":"GET","payload":{},"request_id":"e65af908-b610-4c23-bd9f-3477a207cafe","route":"/capabilities","schema_version":1}
