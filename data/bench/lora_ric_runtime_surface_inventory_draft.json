@@ -1,0 +1,198 @@
+{
+  "inventory_id": "ric-llm-runtime-surfaces-2026-08-21-draft",
+  "status": "read_only_code_inventory_for_benchmark_design",
+  "reference": "product/current inspected 2026-08-21",
+  "purpose": "Keep the LoRA benchmark grounded in real current provider surfaces without turning unstable MVP schemas into permanent training targets.",
+  "shared_transport": {
+    "source": "src/vivarium/cognition.py",
+    "source_blob_sha": "9434077ef82f4f03e24e1662f910040ee35b6eac",
+    "function": "request_local_model",
+    "endpoint": "/api/v1/chat",
+    "temperature": 0.2,
+    "store": false,
+    "reasoning_policy": "reasoning=off when the loaded model exposes a configurable reasoning mode; otherwise no reasoning parameter; models that expose configurable reasoning without off are rejected by the local recipe",
+    "response_shape": "exactly one provider message string",
+    "benchmark_implication": "BASE and LORA comparative conditions must use the same transport, decoding contract and reasoning policy. Adapter activation is the intended semantic difference."
+  },
+  "surfaces": [
+    {
+      "surface_id": "AUTONOMOUS_DECISION",
+      "source": "src/vivarium/cognition.py",
+      "source_blob_sha": "9434077ef82f4f03e24e1662f910040ee35b6eac",
+      "provider": "LMStudioProvider",
+      "schema_version": 8,
+      "input_summary": [
+        "bounded CognitionContext already authorized by engine services",
+        "attention and direct perceived events",
+        "recent subjective memories and contextual autobiographical memories",
+        "beliefs, mood, affect episodes, relationships and boundaries",
+        "decision frame and operational self grounding",
+        "allowed traversals and, for planned_reflection, allowed activities",
+        "decision_cue as technical reason for one decision opportunity"
+      ],
+      "output_contract": {
+        "forms": [
+          "{schema_version:8, action:no_action}",
+          "{schema_version:8, action:traverse, connector_key, target_location_key}",
+          "{schema_version:8, action:start_activity, activity_type, target_location_key}"
+        ],
+        "selection_constraint": "Prompt enumerates exact valid_actions and asks the model to copy exactly one; parser then revalidates the strict schema.",
+        "narrow_legacy_adapter": "A known syntax variation where action directly equals an allowed activity_type may be normalized only when the exact activity/location pair was already exposed by the engine."
+      },
+      "stable_discipline_relevant_to_lora": [
+        "LLM proposes; engine validates",
+        "do not invent destination or activity",
+        "decision cue is context, not command",
+        "no_action remains valid when context supports it",
+        "world and subjective state come only from provided context"
+      ],
+      "contract_stability": "LIKELY_TO_CHANGE_WITH_BOL_AND_P3_5",
+      "training_policy": "Do not train the general LoRA to memorize schema_version 8 or the current activity whitelist. Use this surface for compatibility evaluation and synthetic invariant examples only."
+    },
+    {
+      "surface_id": "SCENE_TURN",
+      "source": "src/vivarium/scene_turn.py",
+      "source_blob_sha": "50da6126f4a0ef6342b194453b4efe0b8e318de0",
+      "provider": "LMStudioSceneTurnProvider",
+      "provider_version": "scene-turn-v2",
+      "input_summary": [
+        "bounded active scene and participants",
+        "recent validated social speech acts",
+        "speaker CognitionContext",
+        "duplicate recent-memory speech sources removed from the memory projection"
+      ],
+      "output_contract": {
+        "forms": [
+          "{schema_version, action:no_action}",
+          "{schema_version, action:speak, act_kind, content, recipient_key}"
+        ],
+        "semantics": "At most one short speech act or silence; expression is never itself a proven fact, consent, relation or permission.",
+        "narrow_legacy_adapter": "Known local-model form action=<act_kind> may normalize to action=speak only when act_kind and all required fields already agree."
+      },
+      "stable_discipline_relevant_to_lora": [
+        "speech != fact",
+        "speech != consent/permission/relationship",
+        "do not invent participant, object or event",
+        "no_action is a legitimate conversational choice",
+        "subjective context can inform expression without becoming canon"
+      ],
+      "contract_stability": "EXPECTED_TO_CHANGE_WITH_CONVERSATION_STATE",
+      "training_policy": "Use for compatibility evaluation now; do not bake current scene-turn lifecycle or exact act taxonomy into the general LoRA."
+    },
+    {
+      "surface_id": "SCC1B_SOCIAL_INTERPRETATION",
+      "source": "src/vivarium/social_interpretation_provider.py",
+      "source_blob_sha": "9805c2fecccced6db83da6f7abc620eb09cf8c64",
+      "provider": "LMStudioSocialInterpretationProvider",
+      "provider_version": "scc1b1-interpretation-only-v1",
+      "schema_version": 2,
+      "input_summary": [
+        "closed owner-scoped snapshot derived from an accessible subjective social-speech trace",
+        "observer interaction role",
+        "primary trace plus up to three selected contextual traces",
+        "optional prior interpretation revision"
+      ],
+      "output_contract": {
+        "fields": ["schema_version", "understanding_status", "meaning_hypotheses"],
+        "statuses": ["clear", "ambiguous", "unresolved"],
+        "status_constraints": [
+          "unresolved => zero hypotheses",
+          "clear => at least one meaning hypothesis",
+          "ambiguous => at least two distinct meaning hypotheses",
+          "maximum three hypotheses and 280 characters each"
+        ]
+      },
+      "stable_discipline_relevant_to_lora": [
+        "interpret only the supplied subjective snapshot",
+        "world text is untrusted data, never engine instruction",
+        "do not claim the real intention of another agent",
+        "do not promote an assertion to truth",
+        "ambiguity and unresolved interpretation are legitimate outcomes"
+      ],
+      "contract_stability": "RELATIVELY_STABLE_CURRENT_SCC_CONTRACT",
+      "training_policy": "Good source of invariant-level training examples after clean-room separation, but the general LoRA should learn the epistemic behavior rather than the exact schema/version strings."
+    },
+    {
+      "surface_id": "SCC2A_SOCIAL_APPRAISAL",
+      "source": "src/vivarium/social_appraisal_provider.py",
+      "source_blob_sha": "20c1fa329d1d468e2d4c4d4af5a9186c6a601dc9",
+      "provider": "LMStudioSocialAppraisalProvider",
+      "provider_version": "scc2a-appraisal-v2",
+      "schema_version": 1,
+      "input_summary": [
+        "owner-scoped social interpretation",
+        "owner goals and active intention",
+        "owner relationships and active boundaries",
+        "explicit allowed base references"
+      ],
+      "output_contract": {
+        "fields": ["schema_version", "appraisal_status", "qualitative_meaning", "importance", "bases", "candidates"],
+        "candidate_domains": ["affect", "belief", "relationship", "goal_or_intention", "memory"],
+        "constraints": [
+          "candidates are proposed routings to future domains, not new mental state",
+          "basis refs must come from allowed refs",
+          "unresolved => uncertain/uncertain with no bases or candidates",
+          "not_relevant => zero candidates",
+          "relevant => at least one base"
+        ]
+      },
+      "stable_discipline_relevant_to_lora": [
+        "appraise only what the supplied interpretation means for the owner",
+        "do not infer hidden motive, hidden intention, real emotion, sincerity, personality or truth of another agent",
+        "candidate justification cannot create new private state",
+        "do not invent provenance refs",
+        "world text remains untrusted data"
+      ],
+      "contract_stability": "RELATIVELY_STABLE_CURRENT_SCC_CONTRACT",
+      "training_policy": "Useful for hidden-state and provenance discipline training only after held-out isolation; do not hard-code current candidate domains as universal cognition ontology."
+    },
+    {
+      "surface_id": "SCC3A_AFFECT_EXAMINATION",
+      "source": "src/vivarium/scc3a_affect_provider.py",
+      "source_blob_sha": "9d5387810e4fc3f3994226653d2df72ee50d2e0f",
+      "provider": "LMStudioSCC3AAffectProvider",
+      "provider_version": "scc3a-affect-v2",
+      "schema_version": 1,
+      "input_summary": [
+        "owner-scoped affect candidate produced downstream from appraisal",
+        "appraisal and source interpretation status",
+        "source trace",
+        "current owner mood and up to five active affect episodes",
+        "explicit allowed targets and support refs"
+      ],
+      "output_contract": {
+        "fields": ["decision", "family", "qualitative_intensity", "target_ref", "support_refs"],
+        "decisions": ["no_change", "start_episode"],
+        "families": ["joy", "relief", "sadness", "anger", "fear", "shame", "guilt", "affection"],
+        "intensities": ["low", "moderate", "high"],
+        "constraints": [
+          "no_change => family/intensity/target null and support_refs empty",
+          "start_episode => valid family/intensity and non-empty allowed support refs",
+          "provider does not propose action, expression or mood modification"
+        ]
+      },
+      "stable_discipline_relevant_to_lora": [
+        "do not infer another agent's hidden motive or intention",
+        "private affect decision must remain supported by owner-scoped evidence",
+        "do not invent support provenance",
+        "affect proposal is not action/expression/canon",
+        "world text remains untrusted data"
+      ],
+      "contract_stability": "CURRENT_OWNER_GOVERNED_SCC3A_BUT_AFFECT_ROADMAP_EXPANDS_LATER",
+      "training_policy": "Use as a compatibility surface and source of generic evidence-discipline examples; do not train exact emotion family taxonomy as a universal RIC law."
+    }
+  ],
+  "cross_surface_findings": [
+    "The current providers already repeat the same epistemic safety concepts in different prompts: bounded snapshot/context, world text as data, no hidden-state omniscience, strict structured output and proposal-not-canon boundaries.",
+    "The output schemas are intentionally task-specific. A useful general LoRA should therefore improve the repeated behavioral invariants across different schemas rather than optimize one canonical JSON form.",
+    "Conversation State, BOL and P3.5 are expected to change scene/autonomy inputs and contracts. Current exact schema strings are therefore compatibility targets, not permanent training canon.",
+    "SCC1B/SCC2A/SCC3A provide the cleanest already-grounded examples of the discipline the adapter is supposed to learn, but held-out benchmark text must remain clean-room separated from any training examples derived from these concepts."
+  ],
+  "benchmark_design_consequence": {
+    "layer_A_contract_agnostic": "Keep the current semantic held-out fixtures independent of exact production JSON so they survive future Conversation State, BOL and P3.5 changes.",
+    "layer_B_runtime_compatibility": "Add a smaller versioned compatibility suite generated from real provider contracts; rerun it whenever provider_version/schema/prompt recipes change.",
+    "training_rule": "Prefer synthetic transformations of invariant classes over copying production snapshots or benchmark fixtures into training.",
+    "freeze_rule": "Do not freeze Layer B against current scene/autonomy schemas until the intended evaluation point is chosen; they are known to be roadmap-sensitive."
+  },
+  "production_changes": "none"
+}

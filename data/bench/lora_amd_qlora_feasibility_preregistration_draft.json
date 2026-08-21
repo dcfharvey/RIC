@@ -1,0 +1,143 @@
+{
+  "experiment_id": "ric-lora-amd-qlora-feasibility-v0-draft",
+  "status": "draft_no_execution",
+  "purpose": "Determine whether the user's RX 7800 XT workstation can reliably train, save and reload a small QLoRA adapter outside the RIC runtime before any real RIC training dataset is created.",
+  "authority": "TECH",
+  "non_goals": [
+    "Do not measure whether LoRA improves RIC behavior.",
+    "Do not tune the final RIC adapter.",
+    "Do not modify the RIC runtime, DB, provider contracts or product dependencies.",
+    "Do not use V3c artifacts, character data, memories or production prompts.",
+    "Do not treat hotswap support as mandatory for basic training feasibility."
+  ],
+  "preferred_first_environment": "WSL2 plus a ROCm/PyTorch combination that explicitly supports RX 7800 XT gfx1101 at execution time; verify current compatibility before installation rather than relying on this draft's date.",
+  "environment_identity_required": [
+    "Windows build",
+    "WSL version and Linux distribution",
+    "Linux kernel",
+    "GPU exact model and reported gfx target",
+    "GPU VRAM",
+    "host RAM",
+    "AMD driver version",
+    "ROCm version",
+    "Python version",
+    "PyTorch version and ROCm/HIP build identity",
+    "Transformers version",
+    "PEFT version",
+    "TRL or selected SFT trainer version if used",
+    "bitsandbytes version and backend identity if used",
+    "attention backend if non-default",
+    "exact base-model artifact and revision used for the smoke test"
+  ],
+  "isolation_rules": [
+    "Use an environment separate from the RIC product environment unless Codex later decides otherwise.",
+    "No package changes to RIC pyproject.toml or its runtime environment in this experiment.",
+    "Use a synthetic micro-dataset containing no RIC names, lore, prompts or benchmark cases.",
+    "Write outputs to a dedicated experiment directory, never the V3c worktree or DB directory.",
+    "Record failures as evidence; do not silently switch backend, quantization or model artifact without starting a new attempt record."
+  ],
+  "attempt_identity_required": [
+    "attempt_id",
+    "timestamp",
+    "environment fingerprint",
+    "base model revision",
+    "quantization configuration",
+    "LoRA configuration",
+    "sequence length",
+    "micro batch size",
+    "gradient accumulation",
+    "optimizer",
+    "compute dtype",
+    "gradient checkpointing setting",
+    "all non-default compatibility workarounds"
+  ],
+  "ordered_checks": [
+    {
+      "id": "T0_GPU_VISIBILITY",
+      "required": true,
+      "pass_condition": "PyTorch sees the intended AMD GPU through the selected ROCm/HIP stack and reports a usable accelerator device without falling back to CPU."
+    },
+    {
+      "id": "T1_BASIC_TENSOR_STABILITY",
+      "required": true,
+      "pass_condition": "Representative tensor operations on the GPU complete without backend error, NaN/Inf anomaly attributable to the stack, or device reset."
+    },
+    {
+      "id": "T2_QUANTIZED_BASE_LOAD",
+      "required": true,
+      "pass_condition": "The exact smoke-test base model loads in the intended low-bit configuration on GPU with measured VRAM/RAM and can perform a forward/generation pass."
+    },
+    {
+      "id": "T3_LORA_ATTACH",
+      "required": true,
+      "pass_condition": "A fresh LoRA adapter can be attached while the base weights remain frozen; trainable-parameter accounting is recorded and materially smaller than the base parameter count."
+    },
+    {
+      "id": "T4_SHORT_SFT_RUN",
+      "required": true,
+      "pass_condition": "A bounded synthetic SFT run completes multiple optimizer steps without OOM, backend crash, device reset, persistent NaN loss or unintended base-weight training. Exact step count is fixed in the execution WO before the attempt."
+    },
+    {
+      "id": "T5_SAVE_RELOAD",
+      "required": true,
+      "pass_condition": "Adapter configuration and weights save successfully, a fresh process can load the same base artifact plus saved adapter, and inference completes."
+    },
+    {
+      "id": "T6_DISABLE_BASE_COMPARISON",
+      "required": true,
+      "pass_condition": "The experiment can identify and run the base-only condition separately from base-plus-adapter without requiring a permanently merged model artifact. Exact mechanism is backend-dependent."
+    },
+    {
+      "id": "T7_ADAPTER_EFFECT_SANITY",
+      "required": true,
+      "pass_condition": "On a synthetic training example or designated development probe, the reloaded adapter produces a measurable trained effect relative to the same frozen base under controlled decoding. This is only a pipeline sanity check, not RIC-quality evidence."
+    },
+    {
+      "id": "T8_HOTSWAP",
+      "required": false,
+      "pass_condition": "If the selected inference stack exposes compatible LoRA hotswap, replace or disable an adapter without reloading the base and verify effective adapter identity. Failure here does not make QLoRA training infeasible."
+    },
+    {
+      "id": "T9_REPEATABILITY",
+      "required": true,
+      "pass_condition": "Repeat the bounded train/save/reload path in a fresh process or second attempt without an unexplained one-off success. Identical floating-point results are not required across nondeterministic kernels; operational success must repeat."
+    }
+  ],
+  "measurements_per_check": [
+    "wall-clock duration",
+    "peak GPU VRAM if measurable",
+    "peak host RAM if measurable",
+    "GPU utilization where useful",
+    "training step time for T4",
+    "loss trace for T4",
+    "warnings and backend errors",
+    "whether CPU offload occurred and where",
+    "artifact sizes for saved adapter",
+    "all compatibility workarounds"
+  ],
+  "verdicts": {
+    "FEASIBLE": "All required checks pass on a repeatable stack without a workaround that makes maintenance clearly unreasonable; limitations are documented but do not prevent the intended small QLoRA experiment.",
+    "FEASIBLE_WITH_LIMITS": "All core training/save/reload checks pass, but material constraints such as sequence-length pressure, CPU offload, fragile package pinning, unsupported optional hotswap or significant performance limits must shape the later training design.",
+    "NOT_YET_FEASIBLE": "A required core check cannot be made reliable on the tested supported stack, such as quantized load, backward/optimizer steps, save/reload or repeatability. Record the blocker; do not patch RIC to compensate."
+  },
+  "failure_classification": [
+    "environment_or_driver",
+    "rocm_or_pytorch_backend",
+    "quantization_backend",
+    "model_architecture_compatibility",
+    "memory_capacity",
+    "training_framework",
+    "adapter_serialization_or_reload",
+    "performance_only",
+    "unknown"
+  ],
+  "anti_overinterpretation": [
+    "A successful micro-run proves technical pipeline feasibility only; it does not prove that the desired sequence length, dataset size or training time is practical.",
+    "A low training loss on the synthetic micro-dataset is not evidence that RIC discipline was learned.",
+    "Same seed does not guarantee byte-identical training across changed kernels, libraries or hardware execution paths.",
+    "Optional hotswap failure does not invalidate non-merged adapter loading.",
+    "A single lucky run is not enough; repeatability is a required check."
+  ],
+  "next_gate_if_feasible": "Freeze the behavioral benchmark design, then create a separate RIC training-data plan. Do not train the real adapter directly from this smoke test.",
+  "production_changes": "none"
+}
