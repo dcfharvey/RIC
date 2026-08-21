@@ -1,50 +1,62 @@
 # Codex task — état courant RIC
 
-**Mise à jour :** 20 août 2026  
-**Statut :** P0 Memory ouvert; V3c interrompu; aucun nouveau WO runtime majeur avant audit de fermeture P0
+**Mise à jour :** 21 août 2026  
+**Statut :** P0 Memory ouvert; V3c interrompu; prochain travail runtime = qualification read-only, aucun correctif dans le même mandat
 
 ## Référence produit
 
 La seule référence produit autoritative est `product/current`.
 
-Au moment de cette mise à jour :
+Version/schéma documentaire courant :
 
-- `PRODUCT_HEAD = ceb560e980066972ba844256bd195cc0f7e740a7`
-- version Python déclarée : `0.2.0a5`
-- schéma courant : migration `0061_autobiographical_append_only_lifecycle.sql`
+- version Python déclarée : `0.2.0a5`;
+- migration : `0061_autobiographical_append_only_lifecycle.sql`.
 
-Toujours refaire le préflight Git décrit dans `docs/GOUVERNANCE_GIT.md` avant tout nouveau travail. Ne jamais utiliser `main`, un ancien worktree ou un runtime historique comme base implicite.
+Toujours refaire le préflight Git de `docs/GOUVERNANCE_GIT.md`. Ne jamais utiliser `main`, un ancien worktree ou un runtime historique comme base implicite. Git frais prime sur tout SHA recopié dans une passation.
+
+## Prochaine tâche — qualification V3c read-only
+
+Mandat autoritatif de travail :
+
+`docs/P0_V3C_READONLY_QUALIFICATION_MANDATE.md`
+
+But : produire le rapport de qualification de V3c à partir des artefacts existants, sans aucune écriture ni reprise runtime.
+
+Statuts de preuve obligatoires :
+
+```text
+PASS
+FAIL
+NOT EXERCISED UNDER VALID CONDITIONS
+INCONCLUSIVE
+```
+
+Verdict de rapport attendu parmi :
+
+```text
+P0 EVIDENCE SUFFICIENT FOR CLOSURE AUDIT
+P0 ADDITIONAL RUNTIME PROOF REQUIRED
+P0 BLOCKED BY INCONCLUSIVE ARTIFACTS
+```
+
+Ce verdict technique n'est pas lui-même la décision produit de fermeture P0.
 
 ## Runtime V3c — artefact historique interrompu
 
-Le rodage P0 Memory V3c a été interrompu avant audit de fermeture :
+Snapshot à revérifier, jamais à forcer :
 
 - `RUNTIME_HEAD = 350fbf80353af55994650372b27260eb29dc4dac`
 - worktree : `C:\AI\Vivarium social\.rodage-p0-memory-v3c`
 - DB : `data\vivarium-p0-memory-v3c.sqlite`
 - session : `081861ed-b259-45ae-ad3f-4f61517d2c02`
 - moteur : `ActiveSimulationEngine`
-- physiologie : active
-- provider de qualification : `qwen3-14b`
+- provider : `qwen3-14b`, reasoning off, une instance.
 
-Ce runtime n'est plus une expérience active à poursuivre. Le worktree, la DB et les journaux sont des preuves historiques à conserver strictement en lecture seule. Ne pas les rebaser, reset, migrer, renommer, corriger ou utiliser comme worktree de développement.
+V3c n'est plus une expérience active à poursuivre. DB, journaux et worktree = preuves historiques read-only.
 
-## État des chantiers
+Ne pas rebase/reset/migrate/rename/corriger V3c et ne pas l'utiliser comme base de développement.
 
-### Fermé / intégré
-
-- correctif de drainage/fairness de la file cognitive;
-- fondation autobiographique P0 : épisode + supports + retrieval contextuel borné;
-- admission d'encodage et seeding social;
-- lifecycle autobiographique append-only avec révisions structurelles;
-- Operational Cognition Grounding : morphologie descriptive + capacités/signaux owner-backed dans le contexte cognitif;
-- alignement générique de la projection d'activités avec la faisabilité physique connue.
-
-La qualification complète du dernier lot de grounding rapportée avant intégration est `1033 passed, 1 skipped`.
-
-### Ouvert — P0 Memory
-
-P0 n'est pas fermé. La preuve runtime qui restait recherchée est :
+## P0 — preuve centrale
 
 ```text
 expérience sociale accessible
@@ -56,99 +68,123 @@ expérience sociale accessible
 → appel provider réel
 ```
 
-Une tentative de scène contrôlée Sophie → Erika a donné `WAITING FOR VALID ACCESS` : aucune co-présence causale valide n'était disponible. Ne pas téléporter, fabriquer une perception, injecter une mémoire ou appeler directement le retrieval pour produire artificiellement un PASS.
+Une lecture directe du service de retrieval/context ne remplace pas la preuve d'un vrai appel provider routé.
 
-La prochaine tâche est de produire le rapport de qualification V3c en lecture seule à partir des données disponibles. Toute condition jamais exercée sous préconditions valides doit rester `NOT EXERCISED UNDER VALID CONDITIONS`, pas « failed ».
+La scène Sophie → Erika avec le carnet rouge est un protocole de qualification, pas une permission de fabriquer co-présence, perception, parole ou mémoire. Première tentative documentée : `WAITING FOR VALID ACCESS`.
 
-Après le rapport :
+Si la précondition n'a jamais existé avant interruption : `NOT EXERCISED UNDER VALID CONDITIONS`.
 
-- si les preuves suffisent, procéder à l'audit de fermeture P0;
-- si une preuve nécessaire manque, préparer un nouveau rodage isolé depuis le `PRODUCT_HEAD` alors courant;
-- ne jamais reprendre ou modifier rétroactivement V3c pour compléter la preuve.
+Chercher aussi toute chaîne autobiographique naturelle équivalente réellement produite pendant V3c; elle peut constituer une preuve valable si tous les maillons sont causalement observables.
 
-## Diagnostics V3c à conserver comme données
+## État des chantiers suivants
+
+### Conversation State
+
+R&D scientifique + contre-audit Grok clos (`SOLIDE`). Après fermeture P0 : audit architectural Codex sur la base réelle, puis WO borné. Ne pas recommencer la R&D générale.
+
+### Behavioral Opportunity Layer
+
+R&D scientifique + contre-audit Grok clos (`SOLIDE`). Audit architectural Codex après raccordement suffisant de Conversation State et sur un `product/current` frais.
+
+Le cas Chuu reste référence fonctionnelle :
+
+```text
+activité physiquement faisable
+≠ opportunité comportementale pertinente
+```
+
+Ne pas patcher Chuu ni ajouter `sleep/rest` isolément à une whitelist pour contourner BOL.
+
+### P3.5 Perception · Action · Sensorium
+
+R&D + contre-audit Grok + audit architectural Codex clos; clarifications acceptées; verdict `READY FOR WORK ORDER`.
+
+Quand son tour arrive après BOL : préflight frais puis WO; ne pas refaire l'audit sans divergence nouvelle.
+
+## Adaptation LLM / LoRA — travail parallèle hors runtime
+
+Dossier : `docs/92_R_D_LORA_ADAPTATION_LLM.md`.
+
+Pré-enregistrement de benchmark en préparation :
+
+`data/bench/lora_ric_discipline_preregistration_draft.json`
+
+Travaux autorisables tant qu'ils ne modifient pas la baseline P0 :
+
+- finaliser le benchmark avant tout dataset dérivé des erreurs;
+- qualifier la stack AMD/WSL2/ROCm/bitsandbytes sur micro-dataset artificiel;
+- préparer un dataset séparé du benchmark;
+- comparer base vs un seul adaptateur général RIC;
+- mesurer violations, sur-abstention, tests métamorphiques et régressions générales.
+
+Aucune intégration runtime avant Conversation State + BOL + P3.5 sauf nouvelle décision produit explicite fondée sur preuve.
+
+Invariant :
+
+```text
+état dynamique explicite ≠ poids du modèle
+```
+
+Ne pas entraîner comme vérité persistante : faits du monde, souvenirs, relations, consentements, personnalité du casting, état Conversation State, opportunités BOL ou règles physiques.
+
+## Diagnostics V3c à conserver
 
 ### `cognition_call_source_not_perceived`
 
-Verdict : `B — HEALTHY BUT NOISY`.
-
-Le volume élevé vient principalement du fait que l'orchestrateur teste des événements canoniques contre la vue perceptive de chaque résidente. Aucun churn logique, backlog durable ou starvation n'a été démontré.
+Verdict historique : `HEALTHY BUT NOISY`. Mesurer dans le rapport; aucun churn/backlog/starvation n'est démontré à ce jour.
 
 Follow-ups séparés seulement :
 
-- alignement du payload `character_moved` avec le contrat perceptif (`connector`);
-- conservation de `source_event_seq` sur les invalidations;
-- éventuel préfiltrage perceptif plus tôt uniquement si la même autorité perceptive peut être réutilisée sans dupliquer les règles.
+- `character_moved` / champ `connector`;
+- `source_event_seq` sur invalidation;
+- éventuel préfiltrage plus tôt si la même autorité perceptive est réutilisée sans duplication.
 
-### Chuu — répétition `planned_reflection → no_action`
+### Chuu `planned_reflection → no_action`
 
-Le grounding est présent et stable. Le diagnostic n'a pas démontré de panne corporelle ni de refus moteur.
+Le grounding est présent; aucun refus moteur systématique n'a été démontré. Les 12 `no_action` observés soutiennent une dette MVP/contrat BOL, pas un correctif personnage.
 
-Le constat fonctionnel est :
+### WO95 idle
 
-```text
-activité faisable
-≠
-opportunité comportementale pertinente
-```
+Fallback technique 600 s, provenance `wo95_post_boundary_idle`. Mesurer interruptions/expirations; ne pas changer pour masquer BOL/no_action.
 
-`MotiveCandidate.possible_actions` est une projection explicative; il ne construit pas `activity_options`. `sleep` et `rest` sont de vraies activités moteur, mais ne font pas partie de la whitelist MVP des six loisirs autonomes présentés aux `planned_reflection`.
-
-Ne pas ajouter `sleep`/`rest` à cette whitelist comme patch Chuu. Le diagnostic soutient un besoin générique futur de Behavioral Opportunity Layer (BOL), sans en prescrire l'architecture.
-
-## Piste R&D LLM / LoRA
-
-La roadmap autorise désormais une piste expérimentale PEFT/LoRA hors runtime.
-
-Travaux permis avant P3.5, sans modifier la baseline de qualification :
-
-- benchmark de falsification modèle de base vs modèle adapté;
-- définition de ce qu'un adaptateur RIC peut et ne peut pas apprendre;
-- préparation d'un dataset séparé du benchmark;
-- prototypes LoRA/QLoRA hors runtime;
-- mesures de régression et de généralisation.
-
-Un éventuel adaptateur doit viser une discipline générique : invariants, provenance, incertitude, abstention et contrats de sortie. Il ne doit pas servir de stockage caché pour faits du monde, souvenirs, relations, consentements, personnalité ou scripts propres aux personnages.
-
-Aucune intégration runtime d'un LoRA n'est autorisée avant la stabilisation de Conversation State, BOL et P3.5, sauf nouvelle décision produit explicite fondée sur une preuve contraire. L'architecture de chargement, hotswap, fusion ou coexistence d'adaptateurs reste à Codex au moment du chantier correspondant.
-
-## Ordre de travail autorisé
+## Ordre de travail
 
 ```text
 rapport V3c read-only
-→ audit de fermeture P0
-→ nouveau rodage P0 isolé seulement si nécessaire
-→ Conversation State minimal
-→ Behavioral Opportunity Layer
-→ P3.5 Perception · Action · Sensorium
-→ porte d'intégration LLM adaptée / LoRA
-→ affect au-delà du SCC
+→ audit/fermeture P0
+→ nouveau rodage P0 isolé seulement si preuve nécessaire
+→ audit architectural Conversation State
+→ WO Conversation State + qualification
+→ audit architectural BOL sur base fraîche
+→ WO BOL + qualification
+→ WO P3.5 (audit déjà clos)
+→ porte d'intégration LoRA
+→ Affect
 → cognition animale
 → physiologie plus large
 ```
 
-Un seul chantier R&D runtime majeur à la fois.
-
-La R&D LoRA hors runtime peut avancer en parallèle parce qu'elle ne modifie ni le produit ni la qualification P0.
+En parallèle : R&D LoRA hors runtime uniquement.
 
 ## Interdictions immédiates
 
 Ne pas :
 
-- modifier WO95 pour masquer les idles de 600 s;
+- modifier V3/V3b/V3c utilisés comme preuves;
+- modifier WO95 pour masquer les idles;
 - patcher Chuu spécifiquement;
-- réintroduire un quota fixe N appels LLM / fenêtre dans la cognition normale;
-- ouvrir Conversation State ou BOL avant la fermeture P0;
-- modifier les DB/runtime V3, V3b ou V3c utilisés comme preuves historiques;
-- intégrer un adaptateur LoRA dans le runtime courant avant sa porte de qualification;
-- encoder dans des poids LLM de l'état qui doit rester explicite, persistant et auditable;
-- présenter une décision d'ingénierie comme une loi scientifique.
+- réintroduire un quota fixe d'appels LLM;
+- ouvrir un WO runtime Conversation State/BOL avant fermeture P0;
+- réouvrir P3.5 scientifique/architectural sans divergence nouvelle;
+- intégrer un LoRA dans le runtime courant;
+- encoder dans les poids un état qui doit rester explicite, persistant et auditable;
+- présenter un choix d'ingénierie comme une loi scientifique.
 
 ## Gouvernance
 
 - ChatGPT : recherche, conception fonctionnelle, cohérence conceptuelle, documentation R&D.
 - Grok : contre-audit scientifique adversarial indépendant.
-- Codex : autorité sur l'architecture réelle, le code, les migrations, les invariants techniques, les tests et l'ordre d'implantation.
+- Codex : architecture réelle, code, migrations, owners persistants, invariants techniques, tests et ordre d'implantation.
 - Propriétaire : autorité finale produit/design.
 
 **Verify twice. Commit once.**
