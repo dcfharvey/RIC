@@ -1,6 +1,6 @@
 # Passation courante — RIC
 
-**Mise à jour :** 16 août 2026  
+**Mise à jour :** 20 août 2026  
 **Projet :** RIC — Reality · Interaction · Cognition  
 **Statut :** point d'entrée opérationnel courant
 
@@ -12,19 +12,22 @@ La branche distante `product/current` est la seule référence autoritative du p
 
 Photographie vérifiée au moment de cette passation :
 
-- `PRODUCT_HEAD = 350fbf80353af55994650372b27260eb29dc4dac`
-- commit : `Reject ambiguous operational grounding effects`
+- `PRODUCT_HEAD = ceb560e980066972ba844256bd195cc0f7e740a7`
 - distribution technique : `vivarium-social`
 - import Python : `vivarium`
 - version déclarée : `0.2.0a5`
 - dernière migration : `0061_autobiographical_append_only_lifecycle.sql`
 - dernière qualification complète connue du lot Operational Cognition Grounding : `1033 passed, 1 skipped`
 
-Ne pas utiliser `main`, un ancien worktree, une branche de WO ou un runtime historique comme base implicite. Vérifier à nouveau `origin/product/current` avant toute écriture.
+Les commits postérieurs au runtime V3c sur `product/current` sont documentaires; toujours vérifier de nouveau `origin/product/current` avant toute écriture.
 
-## 2. Runtime V3c actif
+Ne pas utiliser `main`, un ancien worktree, une branche de WO ou un runtime historique comme base implicite.
 
-Le rodage P0 Memory V3c tourne sur une base isolée :
+## 2. Rodage P0 Memory V3c — interrompu
+
+Le rodage P0 Memory V3c a été interrompu avant l'audit de fermeture. Il n'est plus un runtime actif à poursuivre.
+
+Snapshot historique :
 
 - `RUNTIME_HEAD = 350fbf80353af55994650372b27260eb29dc4dac`
 - worktree : `C:\AI\Vivarium social\.rodage-p0-memory-v3c`
@@ -35,9 +38,11 @@ Le rodage P0 Memory V3c tourne sur une base isolée :
 - physiologie : active
 - provider de qualification : Qwen3-14B, reasoning off, une instance
 
-Le runtime est une expérience en cours. Il ne doit pas être modifié, rebasé, reset, migré ou utilisé pour développer.
+La DB, les journaux et le worktree V3c doivent être conservés en lecture seule comme artefacts expérimentaux. Ne pas les rebaser, reset, migrer, corriger ou réutiliser comme base de développement.
 
-Les anciennes bases et worktrees V3/V3b restent des artefacts historiques à conserver en lecture seule jusqu'à fermeture du rapport correspondant.
+La prochaine opération sur V3c est un rapport de qualification read-only à partir des données disponibles. Si une preuve requise pour fermer P0 n'a pas été exercée, ouvrir ensuite un nouveau rodage isolé plutôt que reprendre ou altérer V3c.
+
+Les anciennes bases et worktrees V3/V3b restent également des artefacts historiques en lecture seule.
 
 ## 3. Architecture conceptuelle
 
@@ -107,7 +112,7 @@ La projection d'activités utilise en outre une prévisualisation read-only de l
 
 **Statut : OPEN.**
 
-V3c a déjà observé :
+V3c a observé :
 
 ```text
 contenu accessible
@@ -116,7 +121,7 @@ contenu accessible
 → trace_only possible
 ```
 
-La preuve runtime principale encore recherchée est :
+La preuve runtime principale qui était encore recherchée est :
 
 ```text
 expérience sociale accessible
@@ -129,6 +134,8 @@ expérience sociale accessible
 ```
 
 Une lecture directe de `CognitionContextService` ou du service de retrieval ne suffit pas à qualifier cette dernière chaîne : il faut un vrai appel routé et son contexte observé.
+
+Le rapport V3c doit maintenant déterminer si cette chaîne a été réellement exercée dans les données disponibles. Si non, le chemin reste non qualifié; l'interruption du rodage ne doit pas être transformée en `FAILED`.
 
 ### Scène mémoire A/B
 
@@ -143,7 +150,7 @@ La première tentative V3c de scène A a donné :
 
 `MEMORY SCENE A: WAITING FOR VALID ACCESS`
 
-Sophie et Erika n'étaient pas co-présentes; aucune scène, téléportation, perception, parole ou mémoire n'a été fabriquée. Si V3c se termine sans précondition valide, le chemin doit être classé `NOT EXERCISED UNDER VALID CONDITIONS`, pas « failed ».
+Sophie et Erika n'étaient pas co-présentes; aucune scène, téléportation, perception, parole ou mémoire n'a été fabriquée. Si aucune précondition valide n'est apparue avant l'interruption de V3c, le chemin doit être classé `NOT EXERCISED UNDER VALID CONDITIONS`, pas « failed ».
 
 ## 7. Diagnostics V3c importants
 
@@ -155,7 +162,7 @@ Le routeur revalide qu'un événement canonique appartient réellement à la vue
 
 Aucun churn logique, backlog durable, queue full ou starvation causée par ce mécanisme n'a été démontré.
 
-Follow-ups possibles, séparés de V3c :
+Follow-ups possibles, séparés du rapport V3c :
 
 - vérifier l'alignement `character_moved` ↔ champ `connector`;
 - conserver `source_event_seq` même sur les invalidations;
@@ -195,12 +202,12 @@ Le fallback technique post-frontière reste fixé à 600 secondes et porte la pr
 
 V3c a montré qu'un tel idle peut être interrompu rapidement lorsqu'une nouvelle activité prend le relais, mais Chuu a aussi montré des chaînes d'idles expirant normalement.
 
-Ne pas réduire ce délai pendant V3c pour masquer un symptôme. Le mesurer et l'interpréter au rapport final.
+Ne pas modifier rétroactivement V3c pour masquer ce symptôme. Mesurer et interpréter les données disponibles dans le rapport final.
 
-## 9. Ce qui n'est pas à corriger pendant V3c
+## 9. Ce qui ne doit pas être corrigé rétroactivement dans V3c
 
 - Erika/gaming et autres signatures comportementales : observation, pas patch prompt/personnage;
-- répétition/conversation : relève du futur Conversation State, pas d'un hack de prompt live;
+- répétition/conversation : relève du futur Conversation State, pas d'un hack de prompt;
 - Chuu/no_action : cas de référence BOL, pas règle spéciale Chuu;
 - double représentation trace + épisode : mesurer avant de corriger;
 - absence d'épisode autobiographique : qualifier le chemin sous conditions valides avant toute modification;
@@ -209,13 +216,13 @@ Ne pas réduire ce délai pendant V3c pour masquer un symptôme. Le mesurer et l
 ## 10. Ordre immédiat R&D / développement
 
 ```text
-V3c long run
-→ scène mémoire A/B si causalement possible
-→ preuve episode → retrieval → contexte routé si elle survient
+rapport V3c read-only
 → audit de fermeture P0
+→ nouveau rodage P0 isolé seulement si une preuve nécessaire manque
 → Conversation State minimal
 → Behavioral Opportunity Layer
 → P3.5 Perception · Action · Sensorium
+→ porte d'intégration LLM adaptée / LoRA
 → affect au-delà du SCC
 → cognition animale au-delà de Patoune
 → physiologie plus large
@@ -228,6 +235,10 @@ Conversation State ne doit pas démarrer avant l'audit de fermeture P0. BOL vien
 ```text
 affordance physique ≠ opportunité comportementale
 ```
+
+Une piste R&D LoRA/QLoRA peut avancer hors runtime dès maintenant : benchmark, dataset, prototypes et comparaison avec le modèle de base. Elle ne doit pas modifier une baseline de qualification. L'intégration runtime d'un adaptateur est placée après Conversation State, BOL et P3.5 afin d'éviter de figer dans les poids les contrats MVP appelés à changer.
+
+Un LoRA RIC doit viser une discipline générique du modèle; il ne doit pas stocker des faits du monde, souvenirs, relations, consentements, personnalités de personnages ou règles physiques cachées dans ses poids.
 
 ## 11. Limites P0 à décider à la fermeture
 
