@@ -1,0 +1,49 @@
+{
+  "audit_id": "ric-lora-lmstudio-adapter-capability-2026-08-21",
+  "status": "external_capability_audit_no_runtime_change",
+  "checked_at": "2026-08-21",
+  "question": "Can the current RIC LM Studio provider path be assumed to load or hotswap a separate LoRA adapter at inference time?",
+  "verdict": "NO_DOCUMENTED_ASSUMPTION_ALLOWED",
+  "findings": [
+    {
+      "kind": "official_documentation",
+      "finding": "LM Studio native v1 REST documentation exposes chat plus model list/load/unload/download endpoints and load-time model configuration, but the current documented model-load and chat interfaces inspected do not expose a LoRA/adapter parameter.",
+      "sources": [
+        "https://lmstudio.ai/docs/developer/rest",
+        "https://beta.lmstudio.ai/docs/developer/rest/load",
+        "https://lmstudio.ai/docs/python/manage-models/loading"
+      ]
+    },
+    {
+      "kind": "upstream_feature_request",
+      "finding": "The lmstudio-ai/lms issue requesting inference-time LoRA adapter support remains open in the web state inspected on 2026-08-21.",
+      "source": "https://github.com/lmstudio-ai/lms/issues/110"
+    },
+    {
+      "kind": "upstream_feature_request",
+      "finding": "The corresponding lmstudio-ai/mlx-engine LoRA support request also remains open in the web state inspected on 2026-08-21.",
+      "source": "https://github.com/lmstudio-ai/mlx-engine/issues/51"
+    },
+    {
+      "kind": "existence_proof_for_merged_model_workflow",
+      "finding": "A historical LM Studio bug report describes a Qwen3 fine-tune produced by merging Axolotl-trained LoRA adapters into the base and then converting/quantizing the merged result to GGUF. This demonstrates a merged-model workflow can be brought to LM Studio, but it is user-reported evidence and not an official native adapter lifecycle contract.",
+      "source": "https://github.com/lmstudio-ai/lmstudio-bug-tracker/issues/714"
+    }
+  ],
+  "ric_consequences": [
+    "Do not design the future RIC adapter lifecycle on the assumption that LM Studio can activate, disable or hotswap PEFT LoRA adapters in place.",
+    "PEFT hotswap capability and LM Studio serving capability are separate technical questions.",
+    "The behavioral LoRA experiment can still train and evaluate adapters outside LM Studio before any runtime integration decision.",
+    "The runtime integration gate after P3.5 must freshly recheck LM Studio capability because upstream support can change.",
+    "If LM Studio still lacks native adapter support at integration time, possible technical families include serving through another adapter-aware backend or creating a derived merged model artifact for LM Studio. These are options for Codex audit, not R&D architecture prescriptions.",
+    "A merged derived model would weaken the operational convenience of adapter hotswap and would require explicit provenance tying the derived artifact to base model plus adapter version.",
+    "Changing inference backend solely to gain hotswap is not automatically justified; compare maintenance, AMD support, API compatibility, observability and rollback."
+  ],
+  "falsification_or_refresh": [
+    "Before any runtime WO, search current official LM Studio documentation for an explicit adapter/LoRA load or inference parameter.",
+    "If official support exists later, replace this audit with a fresh capability proof and test the exact API locally.",
+    "Do not infer feature absence solely from old open issues; the current official docs and a local capability test take precedence."
+  ],
+  "authority": "TECH",
+  "production_changes": "none"
+}
