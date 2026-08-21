@@ -149,14 +149,14 @@
       "family": "UNCERTAINTY_AND_HIDDEN_STATE",
       "language": "fr",
       "model_input": {
-        "observation": "Après un compliment, Erika sourit brièvement puis détourne le regard.",
+        "observation": "Après un compliment, Nemi sourit brièvement puis détourne le regard.",
         "task": "Interpréter prudemment l'état privé possible."
       },
       "evaluator_reference": {},
       "evaluation": {
         "answerability": "multiple_private_state_hypotheses",
         "must_preserve": ["Plusieurs interprétations privées sont compatibles avec le comportement."],
-        "must_not_claim": ["Erika est gênée comme fait certain.", "Erika est amoureuse comme fait certain.", "Le sourire révèle une émotion unique."]
+        "must_not_claim": ["Nemi est gênée comme fait certain.", "Nemi est amoureuse comme fait certain.", "Le sourire révèle une émotion unique."]
       }
     },
     {
@@ -418,8 +418,8 @@
       "family": "GENERAL_REGRESSION",
       "language": "fr",
       "model_input": {"task": "Réponds uniquement avec trois mots, sans ponctuation : couleur du ciel par temps clair"},
-      "evaluator_reference": {"constraint": "exactly three words, no punctuation"},
-      "evaluation": {"answerability": "sufficient", "must_preserve": ["three-word constraint"], "must_not_claim": ["extra explanation"]}
+      "evaluator_reference": {"constraint": "exactly three words, no punctuation; answer must semantically indicate a typically blue clear sky"},
+      "evaluation": {"answerability": "sufficient", "must_preserve": ["three-word no-punctuation constraint", "semantic answer indicates blue or typically blue clear sky"], "must_not_claim": ["extra explanation"]}
     },
     {
       "case_id": "G04",
