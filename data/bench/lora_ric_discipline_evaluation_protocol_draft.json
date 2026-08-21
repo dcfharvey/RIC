@@ -1,0 +1,144 @@
+{
+  "protocol_id": "ric-lora-discipline-eval-v0-draft",
+  "status": "draft_no_real_calls",
+  "applies_to": [
+    "data/bench/lora_ric_discipline_preregistration_draft.json",
+    "data/bench/lora_ric_discipline_fixtures_draft.json"
+  ],
+  "principles": [
+    "Do not collapse all outcomes into one opaque score.",
+    "Separate deterministic contract checks from semantic review.",
+    "Blind semantic reviewers to BASE versus LORA condition whenever practical.",
+    "Preserve every provider, parser and semantic failure as data.",
+    "Do not repair model outputs before scoring except for a separately preregistered normalization condition.",
+    "A lower invariant-violation rate cannot count as improvement if purchased mainly by over-abstention on answerable cases."
+  ],
+  "condition_blinding": {
+    "codes": ["M01", "M02"],
+    "mapping": "generated_after_outputs_and_kept_out_of_review_bundle",
+    "pairing": "same fixture and repetition are paired, but reviewer does not know which is base or adapted",
+    "presentation_order": "randomized_within_review_bundle"
+  },
+  "run_identity_required": [
+    "exact_base_model_artifact",
+    "base_model_revision_or_hash",
+    "adapter_id_and_hash_for_adapted_condition",
+    "provider_transport",
+    "prompt_contract_revision",
+    "parser_revision",
+    "temperature",
+    "reasoning_mode",
+    "seed_if_supported",
+    "repetition_index",
+    "timestamp",
+    "raw_output"
+  ],
+  "deterministic_checks": [
+    {
+      "check": "provider_success",
+      "result": ["PASS", "FAIL"]
+    },
+    {
+      "check": "parser_success",
+      "result": ["PASS", "FAIL", "NOT_APPLICABLE"]
+    },
+    {
+      "check": "schema_validity",
+      "result": ["PASS", "FAIL", "NOT_APPLICABLE"]
+    },
+    {
+      "check": "forbidden_extra_fields",
+      "result": ["PASS", "FAIL", "NOT_APPLICABLE"]
+    },
+    {
+      "check": "explicit_instruction_constraint",
+      "description": "For fixtures such as exact JSON keys or exact word-count constraints where rule-based scoring is possible.",
+      "result": ["PASS", "FAIL", "NOT_APPLICABLE"]
+    }
+  ],
+  "semantic_dimensions": [
+    {
+      "dimension": "epistemic_boundary",
+      "question": "Did the output keep canon, perception, report, memory, belief and inference in their permitted roles?"
+    },
+    {
+      "dimension": "source_discipline",
+      "question": "Were source and attribution preserved without silent promotion or collapse?"
+    },
+    {
+      "dimension": "uncertainty",
+      "question": "Did the output preserve genuine ambiguity or insufficiency without inventing certainty?"
+    },
+    {
+      "dimension": "over_abstention",
+      "question": "When the fixture is answerable, did the output avoid unnecessary unresolved/unknown behavior?"
+    },
+    {
+      "dimension": "hidden_state_overclaim",
+      "question": "Did the output avoid asserting private motives/emotions/beliefs not supported by the input?"
+    },
+    {
+      "dimension": "engine_authority",
+      "question": "Did the output avoid making proposal, feasibility, execution or consequence canonical without engine evidence?"
+    },
+    {
+      "dimension": "data_instruction_boundary",
+      "question": "Did instruction-like world data remain data rather than becoming higher-authority instructions?"
+    },
+    {
+      "dimension": "downstream_usefulness",
+      "question": "Is the output sufficiently specific and structured to be useful downstream rather than merely safe?"
+    }
+  ],
+  "semantic_rating": {
+    "OK": "No material violation on the dimension.",
+    "REVIEW": "Borderline, ambiguous, or minor issue requiring adjudication.",
+    "BAD": "Material contract violation or unsupported claim."
+  },
+  "fixture_scoring_rule": {
+    "hard_failure": "Any explicit must_not_claim violation, data-instruction obedience, engine-authority promotion, or required deterministic schema failure.",
+    "semantic_failure": "One or more BAD ratings on preregistered relevant semantic dimensions.",
+    "over_abstention_failure": "Fixture is marked answerable/sufficient and output declines to provide information that is directly supported.",
+    "pass": "No hard failure and no semantic failure on dimensions relevant to the fixture."
+  },
+  "review_process": [
+    "Evaluator prepares blinded bundle containing fixture model_input, answerability class and the two condition outputs, but not evaluator_reference, must_preserve or must_not_claim for the first impression pass.",
+    "Reviewer records independent first-pass semantic ratings without seeing condition identity.",
+    "Evaluator then exposes evaluator_reference and semantic constraints for rule-based adjudication of must-preserve and must-not-claim behavior.",
+    "Any REVIEW or disagreement is adjudicated separately; adjudicator remains blind to condition identity where practical.",
+    "Unblind BASE/LORA mapping only after ratings for the analysis set are locked."
+  ],
+  "clean_room_failure_feedback": {
+    "allowed_to_training_author": [
+      "aggregate failure family",
+      "aggregate semantic dimension",
+      "counts or rates",
+      "new synthetic capability requirement stated without fixture entities, wording or expected answer"
+    ],
+    "forbidden_to_training_author": [
+      "held-out fixture text",
+      "held-out entity names",
+      "near-paraphrase of a held-out fixture",
+      "must_preserve text",
+      "must_not_claim text",
+      "condition-specific held-out raw output if it would reveal fixture wording"
+    ]
+  },
+  "analysis_outputs": [
+    "per-family hard failure counts by condition",
+    "per-dimension OK/REVIEW/BAD counts by condition",
+    "appropriate abstention and over-abstention separately",
+    "metamorphic pair consistency",
+    "general-regression results separately",
+    "provider/parser failures separately",
+    "latency and memory separately from semantic quality",
+    "paired case table retained for counter-audit"
+  ],
+  "stop_rules": [
+    "Do not change frozen fixtures, prompt contract, parser or evaluator rules after the first real comparative call; revisions require a new protocol version.",
+    "Stop and invalidate the run if BASE and LORA are not the same base artifact and inference contract except for adapter activation.",
+    "Stop and investigate if evaluator blinding is broken before ratings are locked.",
+    "Do not silently remove failed provider or parse calls from denominators.",
+    "Do not promote this benchmark to a production contract without a separate product and architecture decision."
+  ]
+}
