@@ -1,8 +1,10 @@
 {
-  "fixture_set": "ric-lora-discipline-heldout-v0-draft",
-  "status": "draft_not_frozen_no_real_calls",
-  "purpose": "Held-out semantic fixtures for base-vs-RIC-LoRA comparison. Expected behavior is specified as permitted and forbidden claims, not as one target prose answer.",
-  "clean_room_rule": "Once frozen, training-example authors must not read fixture text or expected constraints. They may receive only aggregate failure-family summaries produced by the evaluator.",
+  "fixture_set": "ric-lora-discipline-development-v0-draft",
+  "status": "public_development_examples_no_real_calls",
+  "purpose": "Public development fixtures for benchmark design and evaluator validation. These cases are not sealed evidence and their scores must never be presented as final proof of LoRA generalization.",
+  "partition": "development",
+  "sealed_test_policy": "The real sealed_test text must remain absent from the repository until the training dataset, training recipe and candidate adapter are frozen. It is then authored by an evaluator independent of training-data construction under the preregistered families and quotas.",
+  "training_policy": "These public development examples may inform debugging and benchmark mechanics. If they influence training examples, they are permanently contaminated for evaluation and remain development-only.",
   "model_input_rule": "Fields under evaluator_reference and evaluation are never sent to the tested model.",
   "cases": [
     {
