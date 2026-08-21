@@ -1,7 +1,7 @@
 # Roadmap active — RIC
 
-**Version :** 2.0  
-**Mise à jour :** 16 août 2026  
+**Version :** 2.1  
+**Mise à jour :** 20 août 2026  
 **Statut :** trajectoire opérationnelle courante
 
 Cette roadmap fixe l'ordre des grands chantiers. Elle ne remplace ni la passation opérationnelle (`docs/99_PASSATION_COURANTE.md`), ni le noyau normatif (`docs/00_DOSSIER_MAITRE_IA.md`), ni le registre de décisions (`docs/01_REGISTRE_DECISIONS.md`).
@@ -18,21 +18,22 @@ Une idée peut rester ouverte tant qu'elle est exploratoire. Dès qu'elle devien
 
 Pour tout système comportemental, cognitif, social ou physiologique : littérature scientifique/technique d'abord, traduction opérationnelle ensuite. Séparer explicitement résultats empiriques, conclusions incertaines, hypothèses de modélisation et choix d'ingénierie.
 
-Un seul chantier R&D runtime majeur à la fois.
+Un seul chantier R&D runtime majeur à la fois. Des travaux préparatoires purement expérimentaux peuvent avancer en parallèle s'ils ne modifient ni la baseline runtime ni les contrats encore en qualification.
 
 ## Référence produit
 
 Au moment de cette mise à jour :
 
-- `PRODUCT_HEAD = 350fbf80353af55994650372b27260eb29dc4dac`
+- `PRODUCT_HEAD = ceb560e980066972ba844256bd195cc0f7e740a7`
 - version déclarée : `0.2.0a5`
 - dernière migration : `0061_autobiographical_append_only_lifecycle.sql`
 - Operational Cognition Grounding : fermé
-- P0 Memory : ouvert, en rodage V3c
+- P0 Memory : ouvert
+- rodage P0 Memory V3c : interrompu avant audit de fermeture; artefact à conserver en lecture seule
 
 Toujours revérifier `origin/product/current` avant tout WO.
 
-## Porte actuelle — P0 Memory / V3c
+## Porte actuelle — P0 Memory / fermeture de V3c interrompu
 
 Le produit possède maintenant les fondations autobiographiques suivantes :
 
@@ -44,7 +45,15 @@ Le produit possède maintenant les fondations autobiographiques suivantes :
 - lifecycle append-only et révisions structurelles;
 - exposition séparée de `memories` et `autobiographical_memories` au contexte cognitif.
 
-Le rodage doit déterminer ce que ces mécanismes font réellement dans la boucle normale.
+V3c a été interrompu avant la fermeture formelle de P0. Cette interruption ne constitue ni un PASS ni un échec fonctionnel. La base et les journaux disponibles restent des preuves historiques en lecture seule.
+
+### Prochaine action P0
+
+1. produire un rapport de qualification V3c strictement en lecture seule à partir des données disponibles;
+2. distinguer ce qui a réellement été exercé, ce qui a échoué et ce qui n'a simplement pas été exercé sous préconditions causales valides;
+3. vérifier si les preuves disponibles suffisent à fermer P0;
+4. si une preuve nécessaire manque, lancer un nouveau rodage isolé depuis la référence produit alors courante plutôt que modifier ou reprendre rétroactivement V3c;
+5. seulement après l'audit de fermeture P0, ouvrir le chantier runtime majeur suivant.
 
 ### Preuve runtime encore recherchée
 
@@ -60,16 +69,16 @@ expérience sociale accessible
 
 La preuve qualifie l'exposition du souvenir au provider; elle ne prouve pas à elle seule que le souvenir a causé la décision du modèle.
 
-### Si la situation de test n'arrive pas
+### Si la situation de test n'a pas eu lieu
 
-La scène A Sophie → Erika ne peut être exercée que sous accessibilité causale réelle. Sans co-présence valide avant la fin de V3c, classer le chemin `NOT EXERCISED UNDER VALID CONDITIONS`, pas `FAILED`.
+La scène A Sophie → Erika ne peut être exercée que sous accessibilité causale réelle. Si V3c n'a jamais offert cette précondition, classer le chemin `NOT EXERCISED UNDER VALID CONDITIONS`, pas `FAILED`.
 
 ### Porte de sortie P0
 
-À la fin de V3c, faire un audit explicite de fermeture. Distinguer :
+À la fermeture P0, distinguer :
 
 - ce qui est réellement qualifié;
-- ce qui manque pour P0;
+- ce qui manque encore pour P0;
 - ce qui est volontairement différé à une couche mémoire ultérieure.
 
 Les points à trancher comprennent notamment :
@@ -165,9 +174,75 @@ opportunité BOL = possibilité comportementale considérée comme pertinente
 
 Operational Cognition Grounding prépare cette étape en exposant déjà une partie du soi opérationnel et des capacités owner-backed, mais ne remplace pas P3.5.
 
-## Étape 4 — Affect au-delà du SCC
+## Programme transverse dès maintenant — adaptation LLM / PEFT-LoRA
 
-Après les fondations décisionnelles précédentes :
+Le recours à un adaptateur entraîné de type LoRA/QLoRA est désormais une piste R&D explicite. Il ne constitue pas encore une décision d'architecture ni un remplacement du provider courant.
+
+### But à tester
+
+Évaluer si une adaptation légère du modèle peut améliorer de façon mesurable des comportements **stables et génériques** du composant LLM, notamment :
+
+- respect de `canon ≠ perception ≠ croyance` et `parole ≠ fait`;
+- discipline de provenance et d'incertitude;
+- abstention lorsque l'information est insuffisante;
+- respect des contrats et schémas de sortie;
+- réduction de la psychologisation gratuite et des affirmations de hidden state non soutenues;
+- robustesse aux formulations adversariales ou ambiguës.
+
+### Ce qui ne doit pas être appris dans les poids
+
+Un adaptateur RIC ne doit pas devenir un stockage caché pour :
+
+- faits du monde ou état canonique;
+- souvenirs individuels;
+- relations, permissions ou consentements;
+- personnalité propre à un personnage;
+- scripts `personnage → comportement`;
+- règles physiques ou affordances qui appartiennent au moteur;
+- état conversationnel ou opportunités comportementales qui doivent rester explicites et auditables.
+
+Le modèle de base doit rester conceptuellement remplaçable conformément à DEC-026. Qwen3-14B reste un provider de qualification observé, pas une dépendance produit irrévocable.
+
+### Méthode avant intégration
+
+L'ordre expérimental recommandé est :
+
+```text
+benchmark de falsification gelé
+→ dataset d'entraînement séparé
+→ prototype LoRA/QLoRA hors runtime
+→ comparaison modèle de base vs modèle + adaptateur
+→ tests hors distribution et régressions générales
+→ décision explicite d'intégration ou rejet
+```
+
+Le benchmark doit précéder le dataset afin d'éviter d'entraîner directement sur les cas servant ensuite de preuve de réussite.
+
+Les premiers essais doivent privilégier un seul adaptateur générique de discipline RIC. Des adaptateurs spécialisés supplémentaires ne sont justifiés que par une déficience distincte, reproductible et mieux corrigée séparément.
+
+### Séquençage
+
+La recherche, le benchmark, la constitution du dataset et les prototypes hors runtime peuvent commencer avant la fermeture des étapes 1–3, tant qu'ils ne modifient aucune baseline de qualification.
+
+En revanche, **l'intégration runtime d'un LoRA ne doit normalement pas précéder la stabilisation de Conversation State, BOL et P3.5**, car ces chantiers modifient précisément ce que le LLM reçoit, ce qu'il doit interpréter et les contrats de sortie qu'il doit respecter.
+
+La porte d'intégration est donc placée immédiatement après P3.5 et avant les extensions cognitives suivantes. L'architecture réelle de chargement, activation, hotswap, fusion ou coexistence d'adaptateurs reste à déterminer par Codex à partir du runtime réel.
+
+## Étape 4 — porte d'intégration LLM adaptée
+
+Après P3.5 :
+
+- réévaluer le benchmark avec les contrats cognitifs alors stabilisés;
+- entraîner ou réentraîner l'adaptateur candidat sur ces contrats;
+- comparer systématiquement le modèle de base et la variante adaptée;
+- vérifier les régressions sur conversation, interprétation sociale, décision, mémoire et sorties structurées;
+- décider explicitement si l'adaptateur devient une option runtime, une baseline de qualification ou est rejeté.
+
+Aucun gain qualitatif subjectif ne suffit : l'intégration exige des falsifications reproductibles et la possibilité de revenir au modèle de base.
+
+## Étape 5 — Affect au-delà du SCC
+
+Après les fondations décisionnelles précédentes et la porte d'adaptation LLM :
 
 - dynamique affective plus générale;
 - expression;
@@ -177,13 +252,15 @@ Après les fondations décisionnelles précédentes :
 
 Toute extension devra être fondée scientifiquement et testable; éviter les labels émotionnels décoratifs sans mécanisme.
 
-## Étape 5 — cognition animale au-delà de Patoune CAT-0
+## Étape 6 — cognition animale au-delà de Patoune CAT-0
 
 Développer une agence non sapiente plus riche sans projeter automatiquement le modèle cognitif humain sur l'animal.
 
 Les mécanismes devront être génériques, comparables et fondés sur la littérature pertinente.
 
-## Étape 6 — physiologie plus large
+Un éventuel adaptateur LLM RIC ne doit pas être présumé applicable à la cognition animale : cette question devra être testée séparément selon le rôle réel du LLM dans cette couche.
+
+## Étape 7 — physiologie plus large
 
 Étendre au-delà du cycle sommeil/capacité physique seulement lorsque les systèmes précédents offrent les interfaces nécessaires.
 
@@ -191,21 +268,23 @@ Les mécanismes devront être génériques, comparables et fondés sur la litté
 
 ## Signaux V3c à conserver pour les futurs chantiers
 
+V3c est interrompu, mais ses observations restent des données expérimentales valides dans les limites de ce qui a réellement été exercé. Elles ne doivent pas être présentées comme les résultats d'un rodage arrivé à son protocole de fermeture.
+
 ### Chuu / idles techniques
 
-Les chaînes `idle WO95 → planned_reflection → no_action → expiration` sont actuellement un cas de diagnostic BOL/contrat de décision, pas une justification pour raccourcir WO95 ou patcher Chuu.
+Les chaînes `idle WO95 → planned_reflection → no_action → expiration` restent un cas de diagnostic BOL/contrat de décision, pas une justification pour raccourcir WO95 ou patcher Chuu.
 
 ### Erika / gaming
 
-La préférence très alignée sur la whitelist peut produire une signature répétitive. Observer la monoculture pendant V3c; ne pas la corriger avant BOL/calibration appropriée.
+La préférence très alignée sur la whitelist a montré une signature comportementale répétitive. Conserver cette observation comme cas de calibration/monoculture; ne pas la corriger par prompt ou règle de personnage avant BOL et les évaluations appropriées.
 
 ### `cognition_call_source_not_perceived`
 
-Verdict actuel : `HEALTHY BUT NOISY`. Le filtre protège correctement l'accès subjectif mais est utilisé tardivement par rapport à la génération des tentatives. Optimisation possible après mesure, sans dupliquer l'autorité perceptive.
+Verdict observé : `HEALTHY BUT NOISY`. Le filtre protège correctement l'accès subjectif mais est utilisé tardivement par rapport à la génération des tentatives. Optimisation possible après mesure, sans dupliquer l'autorité perceptive.
 
 ### `character_moved` / observabilité
 
-Deux follow-ups techniques ont été repérés : payload `connector` potentiellement incomplet dans certains événements et `source_event_seq` absent sur le chemin d'invalidation cognitive. Aucun des deux ne justifie une modification live de V3c.
+Deux follow-ups techniques ont été repérés : payload `connector` potentiellement incomplet dans certains événements et `source_event_seq` absent sur le chemin d'invalidation cognitive. Les qualifier séparément; ne pas modifier l'artefact V3c pour les corriger rétroactivement.
 
 ## Backlog explicitement différé
 
@@ -218,7 +297,8 @@ Les éléments suivants sont importants mais ne doivent pas interrompre la traje
 - identité/transformation/copie/fusion avancées;
 - rattrapage temporel hors ligne condensé;
 - interface sociale externe complète;
-- optimisation fine des coûts/provider après qualification fonctionnelle.
+- optimisation fine des coûts/provider après qualification fonctionnelle;
+- éventuelle spécialisation de plusieurs adaptateurs LLM, sauf défaut démontré qui la justifie.
 
 ## Discipline de fermeture
 
@@ -234,7 +314,7 @@ contrat explicite
 → documentation synchronisée
 ```
 
-Un résultat négatif ou `NOT EXERCISED` doit être conservé tel quel. Ne jamais transformer l'absence de preuve en PASS documentaire.
+Un résultat négatif, interrompu ou `NOT EXERCISED` doit être conservé tel quel. Ne jamais transformer l'absence de preuve en PASS documentaire.
 
 ## Gouvernance
 
