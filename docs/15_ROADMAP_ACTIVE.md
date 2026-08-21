@@ -1,7 +1,7 @@
 # Roadmap active — RIC
 
-**Version :** 2.1  
-**Mise à jour :** 20 août 2026  
+**Version :** 2.2  
+**Mise à jour :** 21 août 2026  
 **Statut :** trajectoire opérationnelle courante
 
 Cette roadmap fixe l'ordre des grands chantiers. Elle ne remplace ni la passation opérationnelle (`docs/99_PASSATION_COURANTE.md`), ni le noyau normatif (`docs/00_DOSSIER_MAITRE_IA.md`), ni le registre de décisions (`docs/01_REGISTRE_DECISIONS.md`).
@@ -18,24 +18,27 @@ Une idée peut rester ouverte tant qu'elle est exploratoire. Dès qu'elle devien
 
 Pour tout système comportemental, cognitif, social ou physiologique : littérature scientifique/technique d'abord, traduction opérationnelle ensuite. Séparer explicitement résultats empiriques, conclusions incertaines, hypothèses de modélisation et choix d'ingénierie.
 
-Un seul chantier R&D runtime majeur à la fois. Des travaux préparatoires purement expérimentaux peuvent avancer en parallèle s'ils ne modifient ni la baseline runtime ni les contrats encore en qualification.
+Un seul chantier R&D runtime majeur à la fois. Des travaux préparatoires hors runtime peuvent avancer en parallèle s'ils ne modifient ni une baseline de qualification ni les contrats encore en cours de validation.
 
-## Référence produit
+## Référence de cette consolidation
 
-Au moment de cette mise à jour :
+La base d'inspection utilisée pour cette mise à jour est `product/current` après ajout du dossier LoRA, au commit `7c70c0856db435a5de50a98939c1bef4ff59c8c8`.
 
-- `PRODUCT_HEAD = ceb560e980066972ba844256bd195cc0f7e740a7`
-- version déclarée : `0.2.0a5`
-- dernière migration : `0061_autobiographical_append_only_lifecycle.sql`
-- Operational Cognition Grounding : fermé
-- P0 Memory : ouvert
-- rodage P0 Memory V3c : interrompu avant audit de fermeture; artefact à conserver en lecture seule
+Toujours refaire le préflight de `docs/GOUVERNANCE_GIT.md` avant tout WO. Cette valeur n'est pas une permission d'utiliser un ancien HEAD si `origin/product/current` a avancé.
 
-Toujours revérifier `origin/product/current` avant tout WO.
+État fonctionnel synthétique :
+
+- Operational Cognition Grounding : **fermé**;
+- P0 Memory : **ouvert**;
+- rodage P0 Memory V3c : **interrompu avant audit de fermeture**, artefacts read-only;
+- Conversation State : **R&D + contre-audit Grok clos — SOLIDE; audit architectural Codex restant**;
+- BOL : **R&D + contre-audit Grok clos — SOLIDE; audit architectural Codex restant**;
+- P3.5 Perception · Action · Sensorium : **R&D + contre-audit Grok + audit architectural Codex clos — SOLIDE AVEC RÉSERVES — READY FOR WORK ORDER**;
+- PEFT/LoRA : **R&D transverse ouverte; aucune intégration runtime autorisée à ce stade**.
 
 ## Porte actuelle — P0 Memory / fermeture de V3c interrompu
 
-Le produit possède maintenant les fondations autobiographiques suivantes :
+Le produit possède déjà :
 
 - admission sélective d'encodage;
 - `subjective_trace` append-only;
@@ -45,264 +48,273 @@ Le produit possède maintenant les fondations autobiographiques suivantes :
 - lifecycle append-only et révisions structurelles;
 - exposition séparée de `memories` et `autobiographical_memories` au contexte cognitif.
 
-V3c a été interrompu avant la fermeture formelle de P0. Cette interruption ne constitue ni un PASS ni un échec fonctionnel. La base et les journaux disponibles restent des preuves historiques en lecture seule.
+V3c a été interrompu avant la fermeture formelle de P0. Cette interruption ne constitue ni un PASS ni un échec fonctionnel. Sa DB, ses journaux et son worktree sont des preuves historiques à conserver en lecture seule.
 
 ### Prochaine action P0
 
-1. produire un rapport de qualification V3c strictement en lecture seule à partir des données disponibles;
-2. distinguer ce qui a réellement été exercé, ce qui a échoué et ce qui n'a simplement pas été exercé sous préconditions causales valides;
-3. vérifier si les preuves disponibles suffisent à fermer P0;
-4. si une preuve nécessaire manque, lancer un nouveau rodage isolé depuis la référence produit alors courante plutôt que modifier ou reprendre rétroactivement V3c;
-5. seulement après l'audit de fermeture P0, ouvrir le chantier runtime majeur suivant.
+1. produire un rapport de qualification V3c strictement read-only à partir des données disponibles;
+2. classer chaque preuve `PASS`, `FAIL`, `NOT EXERCISED UNDER VALID CONDITIONS` ou `INSUFFICIENT EVIDENCE` selon ce que les artefacts démontrent réellement;
+3. vérifier la chaîne autobiographique complète;
+4. trancher ce qui est requis pour fermer P0 et ce qui est volontairement différé;
+5. si une preuve requise manque, ouvrir un **nouveau** rodage isolé depuis le `PRODUCT_HEAD` alors courant;
+6. ne jamais modifier ou « compléter » rétroactivement V3c.
 
-### Preuve runtime encore recherchée
+### Preuve runtime principale
 
 ```text
 expérience sociale accessible
 → admission
-→ trace subjective
+→ subjective_trace
 → épisode autobiographique
-→ retrieval contextuel
+→ retrieval contextuel ultérieur
 → CognitionContext routé
-→ provider réel
+→ appel provider réel
 ```
 
-La preuve qualifie l'exposition du souvenir au provider; elle ne prouve pas à elle seule que le souvenir a causé la décision du modèle.
+Cette preuve qualifie l'exposition du souvenir au provider; elle ne prouve pas à elle seule que le souvenir a causé une décision précise du modèle.
 
-### Si la situation de test n'a pas eu lieu
+### Scène mémoire A/B
 
-La scène A Sophie → Erika ne peut être exercée que sous accessibilité causale réelle. Si V3c n'a jamais offert cette précondition, classer le chemin `NOT EXERCISED UNDER VALID CONDITIONS`, pas `FAILED`.
+La scène A Sophie → Erika ne peut être exercée que sous accessibilité causale réelle. La tentative V3c connue était `WAITING FOR VALID ACCESS`. Sans précondition valide, le résultat demeure `NOT EXERCISED UNDER VALID CONDITIONS`, jamais `FAILED` et jamais PASS artificiel.
+
+Les paroles A/B restent des paroles, pas des faits canoniques concernant un carnet.
 
 ### Porte de sortie P0
 
-À la fermeture P0, distinguer :
+L'audit doit distinguer explicitement :
 
 - ce qui est réellement qualifié;
-- ce qui manque encore pour P0;
-- ce qui est volontairement différé à une couche mémoire ultérieure.
+- ce qui manque encore au scope P0;
+- ce qui appartient à une couche mémoire ultérieure.
 
-Les points à trancher comprennent notamment :
+Décisions encore à fermer notamment :
 
-- seeding d'épisode à partir de l'attention ordinaire;
+- seeding d'épisode depuis l'attention ordinaire;
 - déclencheur naturel de lifecycle/révision;
 - activation de candidats mémoire dans SCC;
 - oubli, consolidation, familiarité, recollection et reconstruction avancée.
 
-Une structure de révision append-only n'est pas une implémentation complète de la reconsolidation ou de l'oubli psychologique.
+Une structure append-only permettant des révisions n'est pas une preuve que la reconsolidation ou l'oubli psychologique sont implémentés.
 
 ## Étape 1 après P0 — Conversation State minimal
 
-Conversation State vient immédiatement après l'audit de fermeture P0.
+**Maturité R&D : peer review scientifique Grok clos — SOLIDE; prêt pour audit architectural Codex.**
 
-But fonctionnel : donner à une conversation une continuité explicite suffisante pour éviter que chaque tour soit traité comme une fenêtre presque indépendante, sans transformer le dialogue en script.
+La science de base n'est donc pas à refaire. Lorsque P0 est fermé, la prochaine porte est :
 
-Questions à spécifier avant code :
+```text
+lecture du dossier Conversation State consolidé
+→ audit architectural Codex contre product/current
+→ résolution des divergences éventuelles
+→ WO d'implantation borné
+→ tests/falsifications
+→ rodage de continuité conversationnelle
+```
 
-- quel état de conversation doit persister;
-- comment distinguer sujet courant, engagements conversationnels, questions ouvertes et clôture;
-- comment réduire répétition et perte de continuité;
-- ce qui appartient à l'état partagé de scène versus à la mémoire subjective de chaque participante;
-- comment une scène interrompue se ferme sans inventer la suite.
+But fonctionnel : donner à une conversation une continuité interactionnelle explicite sans transformer la conversation en script ni en mémoire partagée omnisciente.
 
-Le mécanisme actuel de scènes bornées reste une contrainte de sécurité, pas la définition finale d'une conversation naturelle.
+Le dossier R&D couvre déjà notamment :
 
-Ne pas corriger la répétition par accumulation de prompt ad hoc avant ce chantier.
+- participation ≠ co-présence ≠ adressage;
+- floor conversationnel;
+- séquences ouvertes et pertinence de réponse sans obligation mécanique;
+- repair;
+- projets interactionnels / extended tellings;
+- topic state et transitions;
+- lapse, closing et clôture naturelle;
+- compatibilité future multiparty/multi-floor.
+
+Points à préserver lors de l'audit/WO :
+
+- Conversation State = structure interactionnelle, pas motivation;
+- état partagé de scène ≠ mémoire/croyance privée;
+- une interruption peut clore sans inventer la suite;
+- la répétition ne doit pas être « corrigée » par accumulation arbitraire de prompt.
 
 ## Étape 2 — Behavioral Opportunity Layer (BOL)
 
-Le diagnostic V3c de Chuu a fourni un cas empirique clair : la faisabilité moteur ne suffit pas à créer une opportunité comportementale pertinente.
+**Maturité R&D : peer review scientifique Grok clos — SOLIDE; prêt pour audit architectural Codex.**
 
-État actuel observé :
+Le BOL vient après Conversation State minimal. Là encore, la prochaine étape n'est pas une nouvelle recherche générale : c'est l'audit architectural contre le produit alors courant, puis un WO borné si le contrat reste compatible.
+
+Le diagnostic V3c de Chuu reste un cas empirique utile :
 
 ```text
-motifs / préférences / buts / contexte
-        ↓
-   [raccord générique incomplet]
-        ↓
-whitelist d'activités MVP techniquement faisables
-        ↓
-choix LLM ou no_action
+activité physiquement faisable
+≠
+opportunité comportementale pertinente
 ```
 
-Le BOL doit traiter le besoin fonctionnel suivant :
+Besoin fonctionnel :
 
-> À partir des motifs, préférences, objectifs, contexte, capacités et environnement réellement accessibles, produire un ensemble borné d'opportunités comportementales génériques, distinct des affordances physiques, que le moteur peut valider et que la cognition peut sélectionner.
+```text
+motifs + préférences + objectifs/intention
++ contexte subjectivement accessible
++ capacités + environnement
+→ petit ensemble borné d'opportunités comportementales pertinentes
+→ cognition propose/sélectionne
+→ moteur valide la faisabilité et les conséquences
+```
 
-Contraintes de conception :
+Contraintes :
 
-- ne pas coder des comportements propres à Chuu, Erika ou un autre personnage;
-- ne pas réduire le système à une table rigide `motif → activité`;
-- peu d'opportunités pertinentes valent mieux qu'un énorme catalogue brut;
-- la cognition peut proposer, jamais rendre une action physiquement possible;
-- le moteur conserve l'autorité finale de faisabilité et de conséquence;
-- une absence d'opportunité pertinente doit rester distinguable d'une impossibilité physique.
-
-### Cas de référence Chuu
-
-Le futur BOL devra pouvoir expliquer génériquement pourquoi une slime avec préférence `playful_group`, aucun partenaire social accessible, un motif de récupération et un environnement donné a ou n'a pas une occasion intéressante — sans règle spéciale `if character == Chuu`.
-
-### Contrats à clarifier avec le BOL
-
-- `MotiveCandidate.possible_actions` : projection explicative, pas liste légale d'options;
-- `no_action` : aujourd'hui plusieurs causes sémantiques sont collapsées dans la même réponse minimale;
-- relation entre préférences abstraites et occasions concrètes;
-- relation entre activité moteur et opportunité cognitive.
-
-Ne pas patcher simplement `sleep`/`rest` dans la whitelist des `planned_reflection` pour contourner le problème général.
+- pas de règle spéciale Chuu/Erika/autre personnage;
+- pas de table universelle rigide `motif → activité`;
+- peu d'opportunités pertinentes > énorme catalogue brut;
+- absence d'opportunité pertinente ≠ impossibilité physique;
+- `MotiveCandidate.possible_actions` ne doit pas être confondu avec une liste légale;
+- `no_action` doit être réexaminé comme contrat sémantique, sans exiger une justification verbale décorative;
+- ne pas patcher `sleep`/`rest` dans la whitelist pour contourner le problème général.
 
 ## Étape 3 — P3.5 Perception · Action · Sensorium
 
-P3.5 vient après BOL.
+**Maturité : R&D + contre-audit Grok + audit architectural Codex CLOS — SOLIDE AVEC RÉSERVES — READY FOR WORK ORDER.**
 
-Principe central :
+P3.5 vient après BOL. Aucun nouvel audit scientifique ou architectural général n'est requis avant son futur WO, sauf si `product/current` a évolué de façon à invalider matériellement l'audit existant. Le préflight Git et une vérification fraîche de compatibilité restent obligatoires.
 
-```text
-accessible signal
-≠ détecté
-≠ sélectionné par l'attention
-≠ accessible cognitivement
-```
-
-P3.5 doit généraliser les contrats de perception/action/sensorium : modalités, détection, attention, active sensing, relation corps-environnement et affordances physiques.
-
-Frontière conceptuelle :
+Principe :
 
 ```text
-affordance physique = relation corps ↔ monde permettant une action
-opportunité BOL = possibilité comportementale considérée comme pertinente
+signal accessible
+≠ détection
+≠ sélection attentionnelle
+≠ accès subjectif exploitable par la cognition
 ```
 
-Operational Cognition Grounding prépare cette étape en exposant déjà une partie du soi opérationnel et des capacités owner-backed, mais ne remplace pas P3.5.
+Frontière :
+
+```text
+affordance physique = relation corps ↔ environnement permettant potentiellement une action
+opportunité BOL = possibilité comportementale actuellement pertinente
+```
+
+Le noyau V1 consolidé est volontairement parcimonieux :
+
+1. accessibilité sensorielle;
+2. qualité/incertitude minimale;
+3. affordances relationnelles et effecteurs dépendants du corps;
+4. contrats permettant la composition multi-processus, sans obligation de tout activer dans la première tranche;
+5. feedback basique avec séparation correction automatique / réévaluation cognitive.
+
+Sont explicitement reportés jusqu'à preuve d'utilité : causal inference multisensorielle sophistiquée, binding temporel fin, modèle quantitatif universel de double tâche, prédiction sensorimotrice détaillée, active sensing riche pour toutes les modalités, attention conjointe fine et segmentation subjective des événements.
+
+La segmentation subjective des événements appartient désormais à une future R&D mémoire épisodique / construction d'épisodes, pas au noyau P3.5.
 
 ## Programme transverse dès maintenant — adaptation LLM / PEFT-LoRA
 
-Le recours à un adaptateur entraîné de type LoRA/QLoRA est désormais une piste R&D explicite. Il ne constitue pas encore une décision d'architecture ni un remplacement du provider courant.
+Document dédié : `docs/92_R_D_LORA_ADAPTATION_LLM.md`.
 
-### But à tester
+**Statut : R&D technique et fonctionnelle ouverte; prototypes hors runtime permis; intégration runtime différée.**
 
-Évaluer si une adaptation légère du modèle peut améliorer de façon mesurable des comportements **stables et génériques** du composant LLM, notamment :
+But : tester si un adaptateur léger améliore des comportements stables et génériques du composant LLM :
 
-- respect de `canon ≠ perception ≠ croyance` et `parole ≠ fait`;
-- discipline de provenance et d'incertitude;
-- abstention lorsque l'information est insuffisante;
-- respect des contrats et schémas de sortie;
-- réduction de la psychologisation gratuite et des affirmations de hidden state non soutenues;
-- robustesse aux formulations adversariales ou ambiguës.
+- `canon ≠ perception ≠ croyance` et `parole ≠ fait`;
+- provenance et incertitude;
+- abstention quand l'information manque;
+- respect des contrats/schémas de sortie;
+- réduction de la psychologisation ou des hidden-state claims non soutenus;
+- robustesse aux données adversariales et reformulations.
 
-### Ce qui ne doit pas être appris dans les poids
+Ne doivent pas devenir des poids implicites :
 
-Un adaptateur RIC ne doit pas devenir un stockage caché pour :
-
-- faits du monde ou état canonique;
+- faits/états canoniques;
 - souvenirs individuels;
-- relations, permissions ou consentements;
-- personnalité propre à un personnage;
-- scripts `personnage → comportement`;
-- règles physiques ou affordances qui appartiennent au moteur;
-- état conversationnel ou opportunités comportementales qui doivent rester explicites et auditables.
+- relations, permissions, consentements;
+- état conversationnel;
+- opportunités BOL;
+- règles physiques/affordances;
+- scripts propres au casting.
 
-Le modèle de base doit rester conceptuellement remplaçable conformément à DEC-026. Qwen3-14B reste un provider de qualification observé, pas une dépendance produit irrévocable.
-
-### Méthode avant intégration
-
-L'ordre expérimental recommandé est :
+### Séquence expérimentale LoRA
 
 ```text
 benchmark de falsification gelé
-→ dataset d'entraînement séparé
-→ prototype LoRA/QLoRA hors runtime
-→ comparaison modèle de base vs modèle + adaptateur
-→ tests hors distribution et régressions générales
-→ décision explicite d'intégration ou rejet
+→ baseline modèle de base
+→ dataset train/validation distinct du test final
+→ smoke QLoRA hors runtime
+→ entraînement d'un seul adaptateur RIC initial
+→ comparaison aveugle base vs base+adaptateur
+→ tests OOD + régressions générales
+→ décision d'intégration ou rejet
 ```
 
-Le benchmark doit précéder le dataset afin d'éviter d'entraîner directement sur les cas servant ensuite de preuve de réussite.
-
-Les premiers essais doivent privilégier un seul adaptateur générique de discipline RIC. Des adaptateurs spécialisés supplémentaires ne sont justifiés que par une déficience distincte, reproductible et mieux corrigée séparément.
-
-### Séquençage
-
-La recherche, le benchmark, la constitution du dataset et les prototypes hors runtime peuvent commencer avant la fermeture des étapes 1–3, tant qu'ils ne modifient aucune baseline de qualification.
-
-En revanche, **l'intégration runtime d'un LoRA ne doit normalement pas précéder la stabilisation de Conversation State, BOL et P3.5**, car ces chantiers modifient précisément ce que le LLM reçoit, ce qu'il doit interpréter et les contrats de sortie qu'il doit respecter.
-
-La porte d'intégration est donc placée immédiatement après P3.5 et avant les extensions cognitives suivantes. L'architecture réelle de chargement, activation, hotswap, fusion ou coexistence d'adaptateurs reste à déterminer par Codex à partir du runtime réel.
+La R&D L0–L3 peut avancer avant P3.5 si elle ne modifie aucune baseline runtime. En revanche, **l'intégration runtime attend normalement la stabilisation de Conversation State, BOL et P3.5**.
 
 ## Étape 4 — porte d'intégration LLM adaptée
 
 Après P3.5 :
 
-- réévaluer le benchmark avec les contrats cognitifs alors stabilisés;
-- entraîner ou réentraîner l'adaptateur candidat sur ces contrats;
-- comparer systématiquement le modèle de base et la variante adaptée;
-- vérifier les régressions sur conversation, interprétation sociale, décision, mémoire et sorties structurées;
-- décider explicitement si l'adaptateur devient une option runtime, une baseline de qualification ou est rejeté.
+- refaire le benchmark contre les contrats alors réellement stabilisés;
+- entraîner/réentraîner l'adaptateur candidat si nécessaire;
+- vérifier gains reproductibles et absence de fuite du benchmark;
+- vérifier régressions conversation, SCC, décision, mémoire et sorties structurées;
+- démontrer provenance `base model + adapter + version` et rollback vers le modèle de base;
+- faire auditer par Codex le lifecycle réel de chargement/activation/hotswap/versioning;
+- décision PRODUCT explicite : adopter, garder expérimental ou rejeter.
 
-Aucun gain qualitatif subjectif ne suffit : l'intégration exige des falsifications reproductibles et la possibilité de revenir au modèle de base.
+Un gain qualitatif subjectif ne suffit pas.
 
 ## Étape 5 — Affect au-delà du SCC
 
-Après les fondations décisionnelles précédentes et la porte d'adaptation LLM :
+Après les fondations décisionnelles précédentes et la porte LoRA :
 
-- dynamique affective plus générale;
-- expression;
-- régulation;
+- dynamique affective générale;
+- expression et régulation;
 - interaction avec mémoire, buts, attention et relations;
-- séparation stricte entre état subjectif et vérité canonique.
+- séparation stricte état subjectif / canon.
 
-Toute extension devra être fondée scientifiquement et testable; éviter les labels émotionnels décoratifs sans mécanisme.
+Éviter les labels émotionnels décoratifs sans mécanisme causal défendable.
 
 ## Étape 6 — cognition animale au-delà de Patoune CAT-0
 
-Développer une agence non sapiente plus riche sans projeter automatiquement le modèle cognitif humain sur l'animal.
+Enrichir l'agence non sapiente sans projeter automatiquement le modèle humain sur l'animal et sans scripts d'espèce lorsque des mécanismes génériques suffisent.
 
-Les mécanismes devront être génériques, comparables et fondés sur la littérature pertinente.
-
-Un éventuel adaptateur LLM RIC ne doit pas être présumé applicable à la cognition animale : cette question devra être testée séparément selon le rôle réel du LLM dans cette couche.
+Un éventuel LoRA RIC n'est pas présumé applicable à la cognition animale; son rôle devra être évalué séparément.
 
 ## Étape 7 — physiologie plus large
 
-Étendre au-delà du cycle sommeil/capacité physique seulement lorsque les systèmes précédents offrent les interfaces nécessaires.
+Étendre au-delà du cycle veille-sommeil/capacité physique seulement lorsque les interfaces comportementales nécessaires existent.
 
-Éviter d'ajouter des jauges physiologiques simplement parce qu'elles sont simulables : chaque variable doit avoir un propriétaire persistant, une causalité utile et une traduction comportementale justifiable.
+Chaque nouvelle variable doit avoir un propriétaire persistant, une causalité utile et une traduction comportementale justifiable. Ne pas ajouter des jauges parce qu'elles sont simplement simulables.
 
-## Signaux V3c à conserver pour les futurs chantiers
+## Signaux V3c conservés pour les futurs chantiers
 
-V3c est interrompu, mais ses observations restent des données expérimentales valides dans les limites de ce qui a réellement été exercé. Elles ne doivent pas être présentées comme les résultats d'un rodage arrivé à son protocole de fermeture.
+V3c est interrompu, mais ses observations restent valides dans la limite de ce qui a réellement été exercé.
 
 ### Chuu / idles techniques
 
-Les chaînes `idle WO95 → planned_reflection → no_action → expiration` restent un cas de diagnostic BOL/contrat de décision, pas une justification pour raccourcir WO95 ou patcher Chuu.
+Les chaînes `idle WO95 → planned_reflection → no_action → expiration` restent un cas BOL/contrat de décision, pas une justification pour raccourcir WO95 ou patcher Chuu.
 
 ### Erika / gaming
 
-La préférence très alignée sur la whitelist a montré une signature comportementale répétitive. Conserver cette observation comme cas de calibration/monoculture; ne pas la corriger par prompt ou règle de personnage avant BOL et les évaluations appropriées.
+La préférence très alignée sur la whitelist a montré une signature répétitive. Conserver comme cas de calibration/monoculture; ne pas la corriger par prompt ou règle personnage avant BOL.
 
 ### `cognition_call_source_not_perceived`
 
-Verdict observé : `HEALTHY BUT NOISY`. Le filtre protège correctement l'accès subjectif mais est utilisé tardivement par rapport à la génération des tentatives. Optimisation possible après mesure, sans dupliquer l'autorité perceptive.
+Verdict observé : `HEALTHY BUT NOISY`. Le filtre protège l'accès subjectif mais intervient tard dans la génération de tentatives. Optimiser seulement en réutilisant la même autorité perceptive.
 
 ### `character_moved` / observabilité
 
-Deux follow-ups techniques ont été repérés : payload `connector` potentiellement incomplet dans certains événements et `source_event_seq` absent sur le chemin d'invalidation cognitive. Les qualifier séparément; ne pas modifier l'artefact V3c pour les corriger rétroactivement.
+Follow-ups séparés : payload `connector` potentiellement incomplet et `source_event_seq` absent sur le chemin d'invalidation cognitive. Les qualifier hors V3c; ne jamais corriger rétroactivement l'artefact.
+
+### WO95 idle 600 s
+
+Mesurer interruptions et expirations dans un rodage valide avant toute modification. Ne pas raccourcir le délai pour masquer un défaut d'opportunités.
 
 ## Backlog explicitement différé
 
-Les éléments suivants sont importants mais ne doivent pas interrompre la trajectoire actuelle :
-
 - oubli/consolidation/recollection mémoire avancés;
-- hypothèses concurrentes et contradictions de croyances plus riches;
+- segmentation subjective d'événements / construction d'épisodes;
+- hypothèses concurrentes et contradictions de croyances riches;
 - réseau relationnel et réparation;
 - consentement opérationnel complet;
 - identité/transformation/copie/fusion avancées;
 - rattrapage temporel hors ligne condensé;
 - interface sociale externe complète;
-- optimisation fine des coûts/provider après qualification fonctionnelle;
-- éventuelle spécialisation de plusieurs adaptateurs LLM, sauf défaut démontré qui la justifie.
+- optimisation fine coût/provider après qualification fonctionnelle;
+- spécialisation de plusieurs adaptateurs LLM sauf défaut distinct démontré.
 
 ## Discipline de fermeture
-
-Une étape n'est pas fermée parce que le code existe. La fermeture exige :
 
 ```text
 contrat explicite
@@ -314,13 +326,13 @@ contrat explicite
 → documentation synchronisée
 ```
 
-Un résultat négatif, interrompu ou `NOT EXERCISED` doit être conservé tel quel. Ne jamais transformer l'absence de preuve en PASS documentaire.
+Un résultat négatif, interrompu, `INSUFFICIENT EVIDENCE` ou `NOT EXERCISED` reste exactement cela. Ne jamais transformer l'absence de preuve en PASS.
 
 ## Gouvernance
 
-- ChatGPT : science, conception fonctionnelle, cohérence conceptuelle, documentation R&D.
-- Grok : contre-audit scientifique adversarial indépendant.
-- Codex : architecture réelle, code, migrations, tests, invariants techniques, ordre d'implantation.
-- Propriétaire : autorité finale produit/design.
+- **ChatGPT** : science, conception fonctionnelle, cohérence conceptuelle, documentation R&D.
+- **Grok** : contre-audit scientifique adversarial indépendant.
+- **Codex** : architecture réelle, code, migrations, tests, invariants techniques et ordre d'implantation.
+- **Propriétaire** : autorité finale produit/design.
 
-Le code réel peut imposer une meilleure architecture que celle imaginée en R&D; Codex doit alors préserver le contrat fonctionnel et expliquer la divergence.
+Le code réel peut imposer une meilleure architecture que celle imaginée en R&D; Codex doit préserver le contrat fonctionnel ou signaler explicitement la divergence.
