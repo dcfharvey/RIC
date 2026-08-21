@@ -1,8 +1,8 @@
 # R&D — Adaptation PEFT/LoRA du fournisseur LLM RIC
 
-**Version R&D :** 0.2  
+**Version R&D :** 0.3  
 **Date :** 21 août 2026  
-**Statut :** R&D technique et fonctionnelle ouverte — prototype hors runtime autorisable; aucune intégration runtime autorisée par ce document
+**Statut :** R&D technique et fonctionnelle ouverte — benchmark spécifié; prototype hors runtime autorisable; aucune intégration runtime autorisée par ce document
 
 ## 1. Question de recherche
 
@@ -59,7 +59,59 @@ Sources :
 
 **Conclusion prudente :** QLoRA sur cette machine est techniquement plausible, particulièrement sous Linux/WSL, mais doit être qualifié sur le poste réel. Les combinaisons exactes PyTorch/ROCm/bitsandbytes, la mémoire réellement disponible, les kernels, la longueur de contexte et la stabilité ne doivent pas être déduits des seules matrices de support.
 
-## 3. Invariants RIC appliqués au fine-tuning
+## 3. Audit des mécanismes d’évaluation déjà présents dans RIC
+
+L’objectif est de réutiliser les contrats et preuves existants plutôt que créer un deuxième système d’autorité.
+
+### 3.1 `src/vivarium/bench.py`
+
+Le banc principal actuel est déterministe et volontairement sans LLM. Il vérifie notamment la reproductibilité et l’intégrité canonique du moteur.
+
+**Conclusion :** ne pas le détourner pour noter un LoRA. Il reste un garde-fou de non-régression du moteur autour d’expériences LLM, pas le benchmark comportemental de l’adaptateur.
+
+### 3.2 SCC-1B et provider d’interprétation sociale
+
+Le dépôt possède déjà des contrats directement réutilisables comme familles de falsification :
+
+- contexte subjectif owner-scoped;
+- sélection explicite de traces;
+- sortie JSON stricte;
+- `clear / ambiguous / unresolved` avec cohérence sémantique;
+- absence de conséquence canonique du provider;
+- provenance modèle + recette + fingerprint de snapshot;
+- séparation données du monde / instructions système;
+- rejet de champs supplémentaires;
+- prompt injection comme donnée non fiable;
+- replay/conflit et audit de provenance.
+
+Les tests `tests/test_social_interpretation_provider.py` et les dossiers SCC-1B doivent donc fournir des **patterns de capacités**, pas être copiés mot pour mot dans le dataset d’entraînement.
+
+### 3.3 Cognition générale
+
+`CognitionDecision` impose déjà une sortie structurée bornée et `LMStudioProvider` limite la décision aux actions explicitement proposées par le moteur. `CognitionProviderTrace` conserve actuellement l’identité du modèle et la requête/réponse technique.
+
+Cela fournit deux autres familles de benchmark :
+
+- discipline de sortie/action;
+- résistance à l’invention d’options, destinations ou faits.
+
+### 3.4 Conséquence sur la provenance d’un futur adaptateur
+
+Aujourd’hui, la provenance technique distingue le modèle de base configuré et, selon le provider, la version de recette/contrat. Aucun adaptateur n’existe encore, donc aucune identité d’adaptateur n’est requise aujourd’hui.
+
+Si un LoRA est un jour activé, une qualification doit pouvoir distinguer sans ambiguïté :
+
+```text
+base seule
+≠
+base + adaptateur A version X
+≠
+base + adaptateur B version Y
+```
+
+Exigence fonctionnelle de porte : **l’état effectif du provider doit identifier l’adaptation active de façon audit-able et persistable lorsque la preuve le requiert**. La forme technique — champ séparé, identité de modèle effective, manifeste, fingerprint ou autre — relève de Codex.
+
+## 4. Invariants RIC appliqués au fine-tuning
 
 ```text
 réalité/canon ≠ perception ≠ croyance
@@ -72,7 +124,7 @@ provenance d’audit ≠ source subjectivement mémorisée
 
 L’adaptation peut viser un **comportement général du composant LLM**. Elle ne doit pas créer un deuxième propriétaire caché d’un état RIC.
 
-## 4. Ce qu’un LoRA RIC peut chercher à apprendre
+## 5. Ce qu’un LoRA RIC peut chercher à apprendre
 
 Cibles candidates, à confirmer par benchmark :
 
@@ -87,7 +139,7 @@ Cibles candidates, à confirmer par benchmark :
 
 Ces cibles prolongent les bancs SCC-1B existants : la sécurité/frontière RIC et la fiabilité du contrat restent prioritaires sur l’élégance textuelle.
 
-## 5. Ce qui doit rester hors des poids
+## 6. Ce qui doit rester hors des poids
 
 Ne pas entraîner comme vérité persistante :
 
@@ -103,24 +155,126 @@ Ne pas entraîner comme vérité persistante :
 
 Un LoRA qui « connaît » Luna, Chuu ou Sophie n’est pas automatiquement un meilleur LoRA RIC. Le comportement recherché doit transférer vers des identités et situations non vues.
 
-## 6. Un seul adaptateur au départ
+## 7. Un seul adaptateur au départ
 
 La première expérience utilise **un seul adaptateur général RIC**.
 
 Un adaptateur conversation séparé n’est justifié que si, après Conversation State, une déficience conversationnelle distincte reste reproductible et si sa correction séparée surpasse un adaptateur unique sans régression. Les frontières conceptuelles Reality / Interaction / Cognition ne doivent pas être copiées mécaniquement en un nombre équivalent de LoRA.
 
-## 7. Méthode expérimentale
+## 8. Benchmark RIC-LoRA v0 — contrat avant dataset
+
+Le benchmark doit être spécifié et gelé **avant** que ses cas finaux puissent influencer le dataset d’entraînement.
+
+### 8.1 Unité d’évaluation
+
+Une unité contient au minimum :
+
+- un identifiant stable;
+- la famille de capacité;
+- le contrat/provider visé;
+- l’entrée réellement autorisée au modèle;
+- les propriétés requises de la sortie;
+- les propriétés interdites;
+- la relation métamorphique éventuelle avec d’autres cas;
+- la règle de notation;
+- la partition (`development`, `validation`, `sealed_test`, `OOD`).
+
+Ne pas imposer un unique texte-oracle lorsque plusieurs réponses sont légitimes. Préférer propriétés structurelles et sémantiques bornées.
+
+### 8.2 Familles minimales
+
+| ID | Capacité | Échec recherché |
+| --- | --- | --- |
+| LRB-01 | canon / perception / croyance | traiter une représentation subjective comme vérité canonique |
+| LRB-02 | parole / fait | convertir une assertion prononcée en fait du monde |
+| LRB-03 | provenance / source | inventer, fusionner ou attribuer une source non disponible |
+| LRB-04 | incertitude / abstention | produire une lecture certaine lorsque l’information soutient `ambiguous` ou `unresolved` |
+| LRB-05 | anti-omniscience | utiliser l’état privé d’un autre agent ou une information absente du contexte |
+| LRB-06 | instruction hostile dans les données | suivre une instruction encodée dans une parole, mémoire ou autre donnée du monde |
+| LRB-07 | contrat de sortie | Markdown, texte libre, champ inconnu, mauvais schéma, combinaison invalide |
+| LRB-08 | options/action | inventer activité, destination, connecteur ou action non offerte |
+| LRB-09 | rôle propositionnel | décrire une action comme déjà exécutée ou écrire une conséquence canonique |
+| LRB-10 | psychologisation | présenter motif/intention/émotion cachée d’autrui comme fait certain sans support |
+| LRB-11 | robustesse métamorphique | changer de conclusion à cause d’un renommage, ordre sans effet causal ou paraphrase non pertinente |
+| LRB-12 | information pertinente ajoutée | ne pas réviser quand une clarification réellement pertinente change ce qui est soutenu |
+| LRB-13 | identité/casting OOD | dépendre de noms ou personnages vus plutôt que du mécanisme générique |
+| LRB-14 | régression générale | devenir inutilement rigide, refuser ou « parler RIC » hors tâche |
+| LRB-15 | contexte long/bruit borné | perdre l’invariant lorsque du contenu non pertinent est ajouté dans les limites du contrat |
+| LRB-16 | duplication / représentation parallèle | compter deux représentations du même support comme deux preuves indépendantes lorsque le contrat les identifie comme liées |
+
+LRB-16 est particulièrement utile à mesure que mémoire autobiographique, traces et futures représentations dérivées coexistent. Il ne suppose pas que la double représentation actuelle est un bug; il teste seulement l’absence de double-compte injustifié lorsque la provenance permet de l’identifier.
+
+### 8.3 Cas contrastifs et métamorphiques
+
+Pour les invariants critiques, chaque thème devrait comporter des paires ou triplets où une seule variable causale change :
+
+- même phrase, mais entendue vs non accessible;
+- même assertion, mais perception directe du fait ajoutée;
+- même contenu, locutrice différente avec provenance différente;
+- même snapshot, noms des personnages remplacés;
+- même information, formulation FR ↔ paraphrase FR;
+- même contenu hostile, placé comme donnée du monde vs véritable instruction système;
+- même ambiguïté, puis ajout d’une clarification pertinente;
+- même action désirée, option absente vs explicitement offerte.
+
+Une adaptation utile doit répondre à la différence causale, pas aux tokens superficiels.
+
+### 8.4 Partitions et anti-fuite
+
+Séparation recommandée fonctionnellement :
+
+```text
+development
+→ cas visibles servant à développer le harness et les règles de score
+
+validation
+→ cas utilisés pour choisir hyperparamètres / dataset / checkpoints
+
+sealed_test
+→ cas gelés avant dataset et jamais utilisés pour corriger l’entraînement
+
+OOD
+→ mécanismes équivalents avec nouveaux noms, espèces, structures et formulations
+```
+
+La proportion exacte relève du volume final. Le principe de séparation est obligatoire; un `80/10/10` n’est pas une loi ni une décision actuelle.
+
+Les cas historiques déjà largement discutés — par exemple le carnet rouge, Chuu, Erika/gaming — peuvent servir à la **development suite** ou à définir une capacité, mais ne doivent pas constituer à eux seuls le `sealed_test` puisqu’ils sont déjà connus pendant la conception.
+
+### 8.5 Notation
+
+Ne pas réduire la sélection à une moyenne unique.
+
+Rapporter au minimum, par famille :
+
+- taux de sortie structurellement valide;
+- violations d’invariants critiques;
+- abstentions correctes;
+- abstentions excessives;
+- hallucinations de source/fait/action;
+- cohérence des relations métamorphiques;
+- régressions OOD/générales;
+- latence et empreinte lorsque pertinentes.
+
+Une **violation critique** (`canon`, omniscience, action inventée, instruction hostile suivie) peut être une condition de veto même si la moyenne globale s’améliore. Les seuils chiffrés d’adoption seront fixés après mesure de la baseline, pas inventés avant.
+
+### 8.6 Répétitions et variance
+
+Pour un modèle non strictement déterministe, répéter les cas suffisamment pour distinguer une amélioration stable d’un tirage favorable. Conserver recette, paramètres, seed lorsqu’il existe, version du modèle et identité effective de l’adaptateur.
+
+Ne pas interpréter `même seed` comme garantie universelle de déterminisme si le backend, les kernels ou la recette changent.
+
+## 9. Méthode expérimentale
 
 ### L0 — baseline avant entraînement
 
 Avant de créer le dataset :
 
 1. sélectionner le modèle de base exact, sa quantification/runtime et son contrat;
-2. figer un benchmark de falsification;
-3. mesurer la baseline vanilla;
-4. conserver une partition finale jamais utilisée pour choisir les exemples d’entraînement.
-
-Le benchmark précède le dataset pour réduire la fuite expérimentale.
+2. matérialiser le benchmark selon §8;
+3. geler `sealed_test` et OOD;
+4. mesurer la baseline vanilla;
+5. conserver les sorties brutes et la provenance nécessaire au contre-audit.
 
 ### L1 — faisabilité technique hors runtime
 
@@ -138,24 +292,7 @@ Verdict : `FEASIBLE`, `FEASIBLE WITH LIMITS` ou `NOT YET FEASIBLE`.
 
 Cette étape ne touche aucune DB RIC persistante et n’autorise aucun changement de provider de qualification.
 
-### L2 — benchmark RIC
-
-Familles minimales :
-
-- canon/perception/croyance;
-- parole/fait;
-- provenance/source;
-- information insuffisante et abstention;
-- interprétation sociale non omnisciente;
-- instruction hostile incluse dans le dialogue/données;
-- sortie structurée;
-- contrastes et reformulations métamorphiques;
-- cas hors distribution;
-- suite générale hors RIC pour détecter une rigidification.
-
-Mesurer les erreurs par capacité plutôt qu’un score unique opaque.
-
-### L3 — dataset SFT
+### L2 — dataset SFT
 
 Commencer petit et propre. La taille du dataset n’est pas un objectif en soi.
 
@@ -166,15 +303,16 @@ Règles :
 - exemples positifs et contrastifs;
 - aucun cas réservé du benchmark final dans le train;
 - provenance de chaque exemple;
-- exemples ajoutés pour corriger une déficience mesurée, pas pour « remplir » le dataset.
+- exemples ajoutés pour corriger une déficience mesurée, pas pour « remplir » le dataset;
+- ne pas dériver automatiquement les réponses d’entraînement d’une sortie actuelle du modèle de base : la cible doit être vérifiée selon le contrat RIC.
 
-### L4 — entraînement QLoRA
+### L3 — entraînement QLoRA
 
 Première option à tester compte tenu des 16 Go de VRAM : SFT + QLoRA 4-bit, modèle de base gelé, un adaptateur.
 
 Les valeurs de rang, alpha, dropout, modules ciblés, longueur de contexte, batch/accumulation, learning rate et initialisation sont des **hyperparamètres expérimentaux**, pas des décisions fixées par ce dossier. Les recettes officielles servent de point de départ seulement.
 
-### L5 — évaluation aveugle base vs adapté
+### L4 — évaluation aveugle base vs adapté
 
 À contexte et contrat identiques, comparer :
 
@@ -184,17 +322,19 @@ vs
 modèle de base + RIC-LoRA
 ```
 
-Mesures prioritaires :
+L’évaluation finale utilise `sealed_test` et OOD sans modifier ensuite le candidat sur la base de ces résultats. Si l’on réentraîne après inspection du sealed test, cette partition devient de facto une validation et une **nouvelle** partition finale doit être créée.
 
-- violations d’invariant;
-- faits/provenances inventés;
-- sortie invalide;
-- abstention correcte et abstention excessive;
-- surinterprétation;
-- sensibilité aux reformulations;
-- résistance à l’instruction hostile dans les données;
-- régressions générales;
-- latence/mémoire/stabilité.
+### L5 — contre-audit
+
+Avant adoption, faire relire :
+
+- les familles de benchmark;
+- les exclusions du dataset;
+- les violations classées critiques;
+- les cas où un « gain » provient simplement d’une abstention excessive;
+- les éventuelles regressions générales.
+
+Grok peut servir de contre-audit adversarial comportemental/scientifique; Codex audite la reproductibilité et l’intégration technique réelle.
 
 ### L6 — porte d’intégration runtime
 
@@ -203,13 +343,13 @@ Un essai runtime n’est autorisable qu’après :
 - gain reproductible sur des cas non vus;
 - absence de fuite du benchmark;
 - régressions acceptables;
-- provenance observable `base model + adapter + version`;
+- provenance observable `base model + adapter + version` ou identité effective équivalente non ambiguë;
 - rollback démontré vers le modèle de base;
 - audit architectural Codex du chargement, lifecycle et observabilité réels;
 - arrivée du chantier à son tour dans la roadmap;
 - décision produit explicite.
 
-## 8. Falsification de l’idée LoRA
+## 10. Falsification de l’idée LoRA
 
 L’hypothèse « LoRA utile à RIC » doit être rejetée ou différée si :
 
@@ -222,19 +362,20 @@ L’hypothèse « LoRA utile à RIC » doit être rejetée ou différée si :
 
 **Ne pas créer un LoRA parce que la technique est disponible.** Son adoption doit acheter un comportement discriminable et utile.
 
-## 9. Relation avec les chantiers existants
+## 11. Relation avec les chantiers existants
 
 - **P0 Memory** : aucune modification du modèle pendant sa qualification.
 - **Conversation State** : doit d’abord rendre la continuité conversationnelle explicite; ne pas apprendre cette continuité implicitement dans les poids.
 - **BOL** : doit produire des opportunités comportementales explicites; ne pas apprendre une table cachée motif→activité.
 - **P3.5** : doit stabiliser la frontière perception/action/affordance qui conditionne ce que le LLM peut légitimement recevoir et proposer.
-- **SCC-1B** : fournit déjà des principes et bancs utiles pour provenance, abstention, robustesse pragmatique et prompt injection; réutiliser plutôt que dupliquer.
+- **SCC-1B** : fournit déjà des principes et patterns de banc pour provenance, abstention, robustesse pragmatique et prompt injection; réutiliser les capacités sans contaminer le sealed test par simple copie des cas historiques.
+- **bench canonique** : garde de non-régression déterministe du moteur, séparé du score comportemental LLM.
 
-## 10. Gouvernance par décision
+## 12. Gouvernance par décision
 
-- **SCI/TECH** — choix des capacités à tester et validité du benchmark comportemental.
+- **SCI/TECH** — choix des capacités à tester, règles de score, validité du benchmark comportemental et analyse de variance.
 - **MIXED** — frontière entre discipline apprenable et état/autorité qui doit rester explicite dans RIC.
-- **TECH** — pipeline QLoRA, compatibilité AMD, runtime, hotswap, versioning, provenance et rollback.
+- **TECH** — pipeline QLoRA, compatibilité AMD, harness exécutable, runtime, hotswap, versioning, provenance, reproductibilité et rollback.
 - **PRODUCT** — décision finale d’adopter ou non un adaptateur et de modifier une baseline de qualification.
 
 Codex demeure autorité sur l’architecture réelle. Ce dossier ne prescrit ni package, ni classe, ni table, ni runtime particulier.
