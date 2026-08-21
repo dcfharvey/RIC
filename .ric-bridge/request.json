@@ -1,1 +1,1 @@
-{"method":"POST","payload":{"operation":"list_tree","path":"data","limit":200},"request_id":"bfa63c80-056f-4607-af96-4c672ac6639f","route":"/dev/fs","schema_version":2}
+{"method":"GET","payload":{},"request_id":"e7602468-920a-4f0b-ab6b-f4b07618d6b3","route":"/capabilities","schema_version":2}
